@@ -72,31 +72,80 @@ function buildPreviewDashboardData(session: AuthSession): ControlPlaneDashboardD
 
 function buildTenantItemsFromLiveData({
   churches,
+  statuses,
 }: {
   churches: ChurchSummary[];
+  statuses: Map<
+    string,
+    {
+      tenantStatus: string;
+      billingStatus: string;
+      connectionStatus: string | null;
+    }
+  >;
 }) {
   return churches.map((church) => {
+    const status = statuses.get(church.id);
+    const tenantStatus = status?.tenantStatus ?? "provisioning";
+    const billingStatus = status?.billingStatus ?? "trialing";
+    const connectionStatus = status?.connectionStatus ?? "pending";
+
+    const priority =
+      tenantStatus === "suspended" ||
+      billingStatus === "past_due" ||
+      connectionStatus === "error"
+        ? "critical"
+        : tenantStatus !== "active" || connectionStatus !== "ready"
+          ? "warning"
+          : "healthy";
+
+    const stage =
+      priority === "critical"
+        ? "Needs intervention"
+        : priority === "warning"
+          ? "Provisioning review"
+          : "Tenant live";
+
+    const detail =
+      priority === "critical"
+        ? `Tenant status ${tenantStatus}, billing ${billingStatus}, connection ${connectionStatus}.`
+        : priority === "warning"
+          ? `Tenant status ${tenantStatus}, connection ${connectionStatus}.`
+          : "Tenant registry and connection are ready.";
+
     return {
       church: church.name,
-      stage: "Tenant registered",
-      detail: "Tenant is present in the control-plane registry.",
-      priority: "healthy",
+      stage,
+      detail,
+      priority,
     } satisfies ControlPlaneTenantItem;
   });
 }
 
 async function getControlPlaneDashboardDataFromLocalDb() {
-  const [churchesResult, auditResult] = await Promise.all([
+  const [tenantsResult, auditResult] = await Promise.all([
     queryControlPlaneLocalDb<{
-      id: string;
+      resolved_tenant_id: string;
       name: string;
       slug: string;
       timezone: string;
+      tenant_status: string;
+      billing_status: string;
+      connection_status: string | null;
     }>(
       `
-        select id, name, slug::text as slug, timezone
-        from public.churches
-        order by name
+        select
+          coalesce(tenant.external_tenant_id, tenant.id) as resolved_tenant_id,
+          tenant.name,
+          tenant.slug::text as slug,
+          tenant.timezone,
+          tenant.tenant_status::text as tenant_status,
+          tenant.billing_status::text as billing_status,
+          connection.connection_status::text as connection_status
+        from public.tenants tenant
+        left join public.tenant_connections connection
+          on connection.tenant_id = tenant.id
+        order by tenant.name
       `,
     ),
     queryControlPlaneLocalDb<{
@@ -115,13 +164,23 @@ async function getControlPlaneDashboardDataFromLocalDb() {
     ),
   ]);
 
-  const churches = churchesResult.rows.map((church) => ({
-    id: church.id,
-    name: church.name,
-    slug: church.slug,
-    timezone: church.timezone,
+  const churches = tenantsResult.rows.map((tenant) => ({
+    id: tenant.resolved_tenant_id,
+    name: tenant.name,
+    slug: tenant.slug,
+    timezone: tenant.timezone,
   }));
-  const tenantItems = buildTenantItemsFromLiveData({ churches });
+  const statuses = new Map(
+    tenantsResult.rows.map((tenant) => [
+      tenant.resolved_tenant_id,
+      {
+        tenantStatus: tenant.tenant_status,
+        billingStatus: tenant.billing_status,
+        connectionStatus: tenant.connection_status,
+      },
+    ]),
+  );
+  const tenantItems = buildTenantItemsFromLiveData({ churches, statuses });
   const churchLookup = new Map(churches.map((church) => [church.id, church.name]));
   const auditItems = auditResult.rows.map((row) => ({
     id: row.id,
@@ -141,9 +200,11 @@ async function getControlPlaneDashboardDataFromLocalDb() {
         detail: "Tenant registry records.",
       },
       {
-        label: "Billing queue",
-        value: String(billingQueue.length),
-        detail: "Platform-side billing follow-up items.",
+        label: "Ready connections",
+        value: String(
+          tenantsResult.rows.filter((row) => row.connection_status === "ready").length,
+        ),
+        detail: "Tenant data-plane connections ready for routing.",
       },
       {
         label: "Tenant-view events",
@@ -168,9 +229,14 @@ export async function getControlPlaneDashboardData(
   }
 
   const supabase = await createControlPlaneServerClient();
-  const [{ data: churchRows }, { data: auditRows }] =
+  const [{ data: tenantRows }, { data: auditRows }] =
     await Promise.all([
-      supabase.from("churches").select("id, name, slug, timezone").order("name"),
+      supabase
+        .from("tenants")
+        .select(
+          "id, external_tenant_id, name, slug, timezone, tenant_status, billing_status, tenant_connections(connection_status)",
+        )
+        .order("name"),
       supabase
         .from("tenant_view_audit_logs")
         .select("id, church_id, viewed_role, event_type, created_at")
@@ -178,14 +244,55 @@ export async function getControlPlaneDashboardData(
         .limit(8),
     ]);
 
+  const normalizedTenantRows =
+    tenantRows?.flatMap((tenant) => {
+      const tenantConnection = Array.isArray(tenant.tenant_connections)
+        ? tenant.tenant_connections[0]
+        : tenant.tenant_connections;
+
+      const resolvedTenantId =
+        typeof tenant.external_tenant_id === "string"
+          ? tenant.external_tenant_id
+          : tenant.id;
+
+      return [
+        {
+          id: resolvedTenantId,
+          name: tenant.name,
+          slug: tenant.slug,
+          timezone: tenant.timezone,
+          tenantStatus: tenant.tenant_status,
+          billingStatus: tenant.billing_status,
+          connectionStatus:
+            tenantConnection &&
+            typeof tenantConnection === "object" &&
+            "connection_status" in tenantConnection
+              ? String(
+                  (tenantConnection as Record<string, unknown>).connection_status,
+                )
+              : null,
+        },
+      ];
+    }) ?? [];
+
   const churches =
-    churchRows?.map((church) => ({
-      id: church.id,
-      name: church.name,
-      slug: church.slug,
-      timezone: church.timezone,
+    normalizedTenantRows.map((tenant) => ({
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      timezone: tenant.timezone,
     })) ?? session.tenantViews;
-  const tenantItems = buildTenantItemsFromLiveData({ churches });
+  const statuses = new Map(
+    normalizedTenantRows.map((tenant) => [
+      tenant.id,
+      {
+        tenantStatus: tenant.tenantStatus,
+        billingStatus: tenant.billingStatus,
+        connectionStatus: tenant.connectionStatus,
+      },
+    ]),
+  );
+  const tenantItems = buildTenantItemsFromLiveData({ churches, statuses });
   const churchLookup = new Map(churches.map((church) => [church.id, church.name]));
   const auditItems =
     auditRows?.map((row) => ({
@@ -206,9 +313,11 @@ export async function getControlPlaneDashboardData(
         detail: "Control-plane tenant registry records.",
       },
       {
-        label: "Billing queue",
-        value: String(billingQueue.length),
-        detail: "Platform-side billing follow-up items.",
+        label: "Ready connections",
+        value: String(
+          normalizedTenantRows.filter((row) => row.connectionStatus === "ready").length,
+        ),
+        detail: "Tenant data-plane connections ready for routing.",
       },
       {
         label: "Tenant-view events",

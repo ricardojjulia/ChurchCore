@@ -35,8 +35,8 @@ This surface still falls back to preview mode locally when Supabase is not confi
 
 ## Live Data Path
 
-- Tenant counts resolve from `public.churches`
-- Membership counts resolve from `public.church_memberships`
+- Tenant registry resolves from `public.tenants`
+- Tenant connection readiness resolves from `public.tenant_connections`
 - Tenant-view audit activity resolves from `public.tenant_view_audit_logs`
 - Preview fallback still exists when Supabase env vars are absent locally
 
@@ -44,3 +44,4 @@ This surface still falls back to preview mode locally when Supabase is not confi
 
 - The control plane keeps tenant registry, provisioning, billing, support, platform audit, and routing metadata.
 - The control plane must not become the long-term database for church operational data such as member, ministry, or event runtime records.
+- The current repo now includes the first control-plane registry migration for `tenants` and `tenant_connections`, with transitional bootstrap data copied from existing church records.

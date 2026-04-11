@@ -297,17 +297,6 @@ function normalizeMembershipRows(rows: unknown[] | null | undefined) {
   });
 }
 
-function normalizeTenantRows(rows: unknown[] | null | undefined) {
-  if (!rows) {
-    return [];
-  }
-
-  return rows.flatMap((row) => {
-    const church = normalizeChurchSummary(row);
-    return church ? [church] : [];
-  });
-}
-
 function normalizeHydratedProfileRow(
   row: unknown,
 ): HydratedProfileRecord | null {
@@ -407,15 +396,19 @@ async function loadSupabaseAppDataFromLocalDb(userId: string) {
         [userId],
       ),
       queryControlPlaneLocalDb<{
-        id: string;
+        resolved_tenant_id: string;
         name: string;
         slug: string;
         timezone: string;
       }>(
         `
-          select id, name, slug::text as slug, timezone
-          from public.churches
-          order by name
+          select
+            coalesce(tenant.external_tenant_id, tenant.id) as resolved_tenant_id,
+            tenant.name,
+            tenant.slug::text as slug,
+            tenant.timezone
+          from public.tenants tenant
+          order by tenant.name
         `,
       ),
       queryTenantLocalDb<{
@@ -501,7 +494,7 @@ async function loadSupabaseAppDataFromLocalDb(userId: string) {
 
   const tenantViews = canAccessControl
     ? tenantResult.rows.map((row) => ({
-        id: row.id,
+        id: row.resolved_tenant_id,
         name: row.name,
         slug: row.slug,
         timezone: row.timezone,
@@ -834,8 +827,8 @@ export async function getSession(): Promise<AuthSession | null> {
                 .eq("user_id", user.id)
                 .eq("is_active", true),
               controlPlaneSupabase
-                .from("churches")
-                .select("id, name, slug, timezone")
+                .from("tenants")
+                .select("id, external_tenant_id, name, slug, timezone")
                 .order("name"),
               tenantSupabase
                 .from("profiles")
@@ -849,7 +842,44 @@ export async function getSession(): Promise<AuthSession | null> {
           let memberships = normalizeMembershipRows(membershipRows);
           const canAccessControl = Boolean(platformAdmin);
           const hydratedProfile = normalizeHydratedProfileRow(profileRow);
-          const allVisibleChurches = normalizeTenantRows(tenantRows);
+          const allVisibleChurches =
+            tenantRows?.flatMap((row) => {
+              if (!row || typeof row !== "object") {
+                return [];
+              }
+
+              const record = row as Record<string, unknown>;
+
+              if (
+                typeof record.name !== "string" ||
+                typeof record.slug !== "string"
+              ) {
+                return [];
+              }
+
+              const resolvedId =
+                typeof record.external_tenant_id === "string"
+                  ? record.external_tenant_id
+                  : typeof record.id === "string"
+                    ? record.id
+                    : null;
+
+              if (!resolvedId) {
+                return [];
+              }
+
+              return [
+                {
+                  id: resolvedId,
+                  name: record.name,
+                  slug: record.slug,
+                  timezone:
+                    typeof record.timezone === "string"
+                      ? record.timezone
+                      : "America/New_York",
+                },
+              ];
+            }) ?? [];
           const hydratedProfileRoleId =
             hydratedProfile?.role ? mapSupabaseRole(hydratedProfile.role) : null;
 
