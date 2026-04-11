@@ -1,7 +1,7 @@
 # ChurchForge Development Plan
 
 **Living Document** - Last Updated: April 11, 2026  
-**Version**: 1.4  
+**Version**: 1.5  
 **Purpose**: This is the single source of truth for all ChurchForge development. Every GitHub Issue, PR, sprint, and code review must reference this document. Update only via PR.
 
 ## Table of Contents
@@ -26,6 +26,7 @@ Build a secure, multi-tenant SaaS platform for churches called **ChurchForge**.
 - Empower churches with tools for administration, donations, ministries, leadership, spiritual formation, events, and volunteer coordination.
 - Key differentiators: role-based portals, user data ownership, strict PII and PHI handling, an intelligent categorized calendar, and AI-assisted tools with strong theological guardrails.
 - Business model: subscription tiers with usage-based add-ons such as payments processing and AI credits.
+- Architectural rule: the ChurchForge control plane and the tenant-facing church application are separate products with separate data boundaries.
 
 ## 2. User Roles & Portals (RBAC)
 
@@ -36,6 +37,13 @@ Build a secure, multi-tenant SaaS platform for churches called **ChurchForge**.
 - **Volunteer / Member**: Self-service portal for profile, giving, calendar, RSVPs, and ministries.
 
 All pages and APIs enforce least-privilege RBAC.
+
+Platform and tenant boundaries are also explicit:
+
+- **Control Plane**: ChurchForge staff only
+- **Tenant App**: Church users only
+
+The two surfaces may share design systems and selected libraries, but they do not share a long-term runtime data model.
 
 ## 3. Core Features
 
@@ -77,7 +85,10 @@ Implementation starts in later sprints.
 ## 6. Technology Stack
 
 - **Frontend**: Next.js 15 or newer with App Router, TypeScript, Tailwind CSS, Mantine UI, and calendar tooling integrated into the Mantine-based application shell.
-- **Backend/Database**: Supabase with Postgres, Auth, Realtime, Storage, and RLS.
+- **Backend/Database**:
+  - Control plane backend and database for platform concerns
+  - Tenant backend and database for church runtime concerns
+  - Supabase remains acceptable for these layers, but the repo must no longer assume a single combined control-plane-plus-tenant database
 - **Payments**: Stripe.
 - **Notifications**: Twilio, SendGrid, or equivalent in later phases.
 - **Hosting**: Vercel plus Supabase.
@@ -89,6 +100,7 @@ Implementation starts in later sprints.
 - **User Data Ownership**: Provide self-service export and delete aligned to GDPR and CCPA-style expectations. Church admins may honor individual requests with logged overrides when permitted.
 - **Consent & Auditing**: Require explicit consent for AI, communications, and tracking. Maintain full audit logs for sensitive access and role-sensitive actions.
 - **AppSec**: Run SAST, SCA, DAST, dependency scanning, secrets scanning, and OWASP Top 10 verification on every PR. Require manual review for PII, payment, or AI changes.
+- **Boundary Security**: Control-plane data and tenant operational data must live in separate databases. Cross-boundary support access must be explicit, auditable, and intentionally designed rather than implemented through shared tables.
 - Non-production environments must use anonymized or safe development data. Regular penetration testing remains required before launch.
 
 ## 8. Sprint Roadmap
@@ -115,6 +127,7 @@ Implementation starts in later sprints.
 - Pastoral and minister profile titles as customizable display fields.
 - Categorized calendar foundation inside the Mantine-based application shell.
 - Baseline RLS across Sprint 1 tables.
+- A documented migration path away from the current shared data-plane assumption and toward separate control-plane and tenant databases.
 
 ### 9.2 Database Schema (Supabase)
 
@@ -187,11 +200,13 @@ alter table events enable row level security;
 ### 9.3 Sprint 1 Execution Order
 
 1. Finish aligning the repo to the approved frontend direction for Sprint 1.
-2. Normalize the Supabase schema around `churches`, `profiles`, `ministries`, `profile_ministries`, and `events`.
-3. Wire church-scoped profile hydration after sign-in.
-4. Build the member portal foundation on real data.
-5. Build ministry assignment flows.
-6. Replace preview calendar state with categorized event records.
+2. Freeze further architectural drift into the shared control-plane-plus-tenant database model.
+3. Document and approve the control-plane versus tenant separation architecture.
+4. Normalize the tenant schema around `churches`, `profiles`, `ministries`, `profile_ministries`, and `events`.
+5. Wire church-scoped profile hydration after sign-in.
+6. Build the member portal foundation on real tenant data.
+7. Build ministry assignment flows.
+8. Replace preview calendar state with categorized event records.
 
 ### 9.4 Sprint 1 Exit Criteria
 
@@ -200,6 +215,7 @@ alter table events enable row level security;
 - Ministries can be created and assigned within a church boundary.
 - Events load with category support and basic calendar views.
 - RLS blocks cross-church reads and writes.
+- The repo no longer treats one shared control-plane-plus-tenant database as the target architecture.
 
 ## 10. SDLC & Development Processes
 
@@ -238,4 +254,4 @@ Track delivery through GitHub Issues and Projects, `CHANGELOG.md`, and Releases.
 4. New contributors must read this first.
 5. Treat it as the project constitution and keep it visible during active work.
 
-**Immediate Next Step**: Start Sprint 1 by replacing preview role data in the church app with real church-scoped profile, ministry, and event records from Supabase.
+**Immediate Next Step**: Start the separation work by implementing ADR 0002, then continue Sprint 1 against the tenant data plane instead of deepening the shared backend assumption.

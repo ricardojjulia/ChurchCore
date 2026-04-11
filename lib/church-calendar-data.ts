@@ -2,11 +2,11 @@ import "server-only";
 
 import type { ChurchAppSession } from "@/lib/auth";
 import {
-  hasSupabaseEnv,
-  shouldUseLocalSupabaseDbFallback,
-} from "@/lib/supabase/config";
-import { queryLocalSupabaseDb } from "@/lib/supabase/local-db";
-import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
+  createTenantServerClient,
+  hasTenantBackendEnv,
+  queryTenantLocalDb,
+  shouldUseLocalTenantFallback,
+} from "@/lib/supabase/tenant";
 
 export type ChurchCalendarEvent = {
   id: string;
@@ -72,14 +72,14 @@ function buildPendingApprovals(
 export async function getChurchCalendarData(
   session: ChurchAppSession,
 ): Promise<ChurchCalendarData> {
-  if (!hasSupabaseEnv() || session.source !== "supabase") {
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
     return buildPreviewCalendarData();
   }
 
   const visibility = allowedVisibilities(session);
 
-  if (shouldUseLocalSupabaseDbFallback()) {
-    const result = await queryLocalSupabaseDb<{
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{
       id: string;
       title: string;
       description: string | null;
@@ -138,7 +138,7 @@ export async function getChurchCalendarData(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createTenantServerClient();
   const { data } = await supabase
     .from("events")
     .select(

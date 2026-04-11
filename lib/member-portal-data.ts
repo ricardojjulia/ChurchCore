@@ -4,11 +4,11 @@ import type { ChurchAppSession } from "@/lib/auth";
 import type { PortalRoleId } from "@/lib/portal";
 import { getPortalRole } from "@/lib/portal";
 import {
-  hasSupabaseEnv,
-  shouldUseLocalSupabaseDbFallback,
-} from "@/lib/supabase/config";
-import { queryLocalSupabaseDb } from "@/lib/supabase/local-db";
-import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
+  createTenantServerClient,
+  hasTenantBackendEnv,
+  queryTenantLocalDb,
+  shouldUseLocalTenantFallback,
+} from "@/lib/supabase/tenant";
 
 export type MemberPortalProfile = {
   id: string;
@@ -93,13 +93,13 @@ function mapProfileRole(role: string | null): PortalRoleId {
 export async function getMemberPortalData(
   session: ChurchAppSession,
 ): Promise<MemberPortalData> {
-  if (!hasSupabaseEnv() || session.source !== "supabase") {
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
     return buildPreviewMemberPortalData(session);
   }
 
-  if (shouldUseLocalSupabaseDbFallback()) {
+  if (shouldUseLocalTenantFallback()) {
     const [profileResult, ministriesResult, eventsResult] = await Promise.all([
-      queryLocalSupabaseDb<{
+      queryTenantLocalDb<{
         id: string;
         full_name: string | null;
         email: string | null;
@@ -126,7 +126,7 @@ export async function getMemberPortalData(
         `,
         [session.userId, session.appContext.church.id],
       ),
-      queryLocalSupabaseDb<{
+      queryTenantLocalDb<{
         id: string;
         name: string;
         description: string | null;
@@ -144,7 +144,7 @@ export async function getMemberPortalData(
         `,
         [session.userId, session.appContext.church.id],
       ),
-      queryLocalSupabaseDb<{
+      queryTenantLocalDb<{
         id: string;
         title: string;
         description: string | null;
@@ -210,7 +210,7 @@ export async function getMemberPortalData(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createTenantServerClient();
   const [profileResult, ministriesResult, eventsResult] = await Promise.all([
     supabase
       .from("profiles")

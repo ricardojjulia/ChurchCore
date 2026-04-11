@@ -2,11 +2,11 @@ import "server-only";
 
 import type { ChurchRoleId } from "@/lib/auth";
 import {
-  hasSupabaseEnv,
-  shouldUseLocalSupabaseDbFallback,
-} from "@/lib/supabase/config";
-import { queryLocalSupabaseDb } from "@/lib/supabase/local-db";
-import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
+  createControlPlaneServerClient,
+  hasControlPlaneBackendEnv,
+  queryControlPlaneLocalDb,
+  shouldUseLocalControlPlaneFallback,
+} from "@/lib/supabase/control-plane";
 
 const roleMap: Record<ChurchRoleId, string> = {
   "church-admin": "church_admin",
@@ -26,12 +26,12 @@ export async function logTenantViewAuditEvent({
   roleId: ChurchRoleId;
   eventType: "enter" | "exit";
 }) {
-  if (!hasSupabaseEnv()) {
+  if (!hasControlPlaneBackendEnv()) {
     return;
   }
 
-  if (shouldUseLocalSupabaseDbFallback()) {
-    await queryLocalSupabaseDb(
+  if (shouldUseLocalControlPlaneFallback()) {
+    await queryControlPlaneLocalDb(
       `
         insert into public.tenant_view_audit_logs (
           actor_user_id,
@@ -53,7 +53,7 @@ export async function logTenantViewAuditEvent({
     return;
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createControlPlaneServerClient();
   const { error } = await supabase.from("tenant_view_audit_logs").insert({
     actor_user_id: actorUserId,
     church_id: churchId,

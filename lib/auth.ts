@@ -10,10 +10,18 @@ import {
 } from "@/lib/portal";
 import {
   hasSupabaseEnv,
-  shouldUseLocalSupabaseDbFallback,
 } from "@/lib/supabase/config";
-import { queryLocalSupabaseDb } from "@/lib/supabase/local-db";
+import {
+  createControlPlaneServerClient,
+  queryControlPlaneLocalDb,
+  shouldUseLocalControlPlaneFallback,
+} from "@/lib/supabase/control-plane";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  createTenantServerClient,
+  queryTenantLocalDb,
+  shouldUseLocalTenantFallback,
+} from "@/lib/supabase/tenant";
 
 export const sessionCookieName = "churchforge_session";
 export const appContextCookieName = "churchforge_app_context";
@@ -366,7 +374,7 @@ function normalizeMembershipRowsFromLocalDb(
 async function loadSupabaseAppDataFromLocalDb(userId: string) {
   const [platformAdminResult, membershipsResult, tenantResult, profileResult] =
     await Promise.all([
-      queryLocalSupabaseDb<{ user_id: string }>(
+      queryControlPlaneLocalDb<{ user_id: string }>(
         `
           select user_id
           from public.platform_admins
@@ -375,7 +383,7 @@ async function loadSupabaseAppDataFromLocalDb(userId: string) {
         `,
         [userId],
       ),
-      queryLocalSupabaseDb<{
+      queryTenantLocalDb<{
         church_id: string;
         role: string;
         church_name: string;
@@ -398,7 +406,7 @@ async function loadSupabaseAppDataFromLocalDb(userId: string) {
         `,
         [userId],
       ),
-      queryLocalSupabaseDb<{
+      queryControlPlaneLocalDb<{
         id: string;
         name: string;
         slug: string;
@@ -410,7 +418,7 @@ async function loadSupabaseAppDataFromLocalDb(userId: string) {
           order by name
         `,
       ),
-      queryLocalSupabaseDb<{
+      queryTenantLocalDb<{
         id: string;
         user_id: string;
         church_id: string | null;
@@ -802,9 +810,12 @@ export async function getSession(): Promise<AuthSession | null> {
         user.user_metadata.role ??
         user.user_metadata.portal_role,
     );
-    const appData = shouldUseLocalSupabaseDbFallback()
+    const appData =
+      shouldUseLocalControlPlaneFallback() || shouldUseLocalTenantFallback()
       ? await loadSupabaseAppDataFromLocalDb(user.id)
       : await (async () => {
+          const controlPlaneSupabase = await createControlPlaneServerClient();
+          const tenantSupabase = await createTenantServerClient();
           const [
             { data: platformAdmin },
             { data: membershipRows },
@@ -812,21 +823,21 @@ export async function getSession(): Promise<AuthSession | null> {
             { data: profileRow },
           ] =
             await Promise.all([
-              supabase
+              controlPlaneSupabase
                 .from("platform_admins")
                 .select("user_id")
                 .eq("user_id", user.id)
                 .maybeSingle(),
-              supabase
+              tenantSupabase
                 .from("church_memberships")
                 .select("church_id, role, churches(id, name, slug, timezone)")
                 .eq("user_id", user.id)
                 .eq("is_active", true),
-              supabase
+              controlPlaneSupabase
                 .from("churches")
                 .select("id, name, slug, timezone")
                 .order("name"),
-              supabase
+              tenantSupabase
                 .from("profiles")
                 .select(
                   "id, user_id, church_id, full_name, email, role, display_title, is_pastoral, churches(id, name, slug, timezone)",

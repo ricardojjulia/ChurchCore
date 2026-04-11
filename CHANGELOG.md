@@ -9,12 +9,15 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ### Added
 
 - Added `docs/UI-UPDATES.md` to document the approved blue-neutral UI direction, component rules, and the current dark-mode deferral.
+- Added ADR 0002 in [docs/adr/0002-control-plane-and-tenant-separation.md](/Users/rjulia/ChurchForge/docs/adr/0002-control-plane-and-tenant-separation.md) to make control-plane and tenant separation the approved architecture.
 
 ### Changed
 
 - Updated the Mantine theme and global UI tokens to a blue-neutral, higher-contrast system aligned to the new UI guidance.
 - Restyled the shared application shell, session controls, landing page, and `/control` around the updated palette and a simpler visual hierarchy.
 - Documented the current UI direction in the README so future visual changes have an explicit repo-level reference.
+- Updated the development plan, README, `.env.example`, and TODOs so the repo no longer treats one shared control-plane-plus-tenant database as the target architecture.
+- Split the backend access layer in code into control-plane and tenant wrappers, and moved the session, audit, control-plane, and tenant data loaders onto those scoped paths while retaining transitional shared-env fallback.
 
 ## [1.0.0] - 2026-04-11
 

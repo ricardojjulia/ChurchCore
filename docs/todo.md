@@ -2,26 +2,28 @@
 
 ## Sprint 1 Next Steps
 
-The v1.4 development plan now makes Sprint 1 the active priority. The immediate execution order is:
+The v1.5 development plan now makes Sprint 1 the active priority. The immediate execution order is:
 
-- Align the live Supabase schema to the v1.4 Sprint 1 model for `profiles`, `ministries`, `profile_ministries`, and categorized `events`
-- Add a new migration instead of mutating the existing baseline migration in place
-- Add ministry assignment flows on top of live `ministries` and `profile_ministries`
-- Add event CRUD and RSVP mutation flows on top of the live categorized calendar read path
-- Add RLS verification for cross-church read and write isolation
+- Implement ADR 0002 and stop deepening the shared control-plane-plus-tenant backend model
+- Define the control-plane schema separately from the tenant schema
+- Introduce separate backend configuration for control-plane and tenant connections
+- Continue tenant-side Sprint 1 work for `profiles`, `ministries`, `profile_ministries`, and categorized `events`
+- Add ministry assignment flows on top of live tenant-side `ministries` and `profile_ministries`
+- Add event CRUD and RSVP mutation flows on top of the live tenant-side categorized calendar read path
+- Add RLS verification for cross-church read and write isolation inside the tenant data plane
 
 ## Supabase Hookup
 
-The backend decision in ADR 0001 is approved and the codebase now includes Supabase SSR auth foundations plus an initial SQL schema scaffold.
+ADR 0001 is approved for Supabase as a backend option, and ADR 0002 now requires control-plane and tenant data separation.
 
 The remaining execution steps for a real backend connection are:
 
-- Create or select the Supabase project for ChurchForge
+- Create or select the control-plane backend and database
+- Create or select the tenant backend and database model
 - Copy `.env.example` to `.env.local`
-- Set `NEXT_PUBLIC_SUPABASE_URL`
-- Set `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- Set `SUPABASE_DB_URL` for local direct-database fallback
+- Keep the current single-backend env vars only as a transitional local-development path until the split config lands
 - Set `NEXT_PUBLIC_APP_URL` as needed for auth confirmation redirects
-- Apply `supabase/migrations/20260409180000_initial_platform_foundation.sql`
-- Apply `supabase/migrations/20260410121500_tenant_view_audit.sql`
-- Verify tenant-view audit rows are written for explicit enter and exit flows in `/control`
+- Define tenant registry and routing metadata in the control-plane backend
+- Move church operational schema work into the tenant backend path
+- Replace direct shared-backend assumptions in auth, control-plane data loaders, and tenant data loaders
+- Verify tenant-view audit rows are written through an explicit cross-boundary support flow instead of a casual shared-table model

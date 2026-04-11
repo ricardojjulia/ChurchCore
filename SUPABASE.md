@@ -4,6 +4,12 @@ This document records the current local Supabase development environment for Chu
 
 These values are for local development only. They are not production-safe.
 
+Architectural note:
+
+- Under ADR 0002, this single local Supabase setup is transitional only.
+- The target architecture is a separate control-plane database and a separate tenant data plane.
+- Do not treat this file as the long-term production topology.
+
 ## Development Tools
 
 | Tool | URL |

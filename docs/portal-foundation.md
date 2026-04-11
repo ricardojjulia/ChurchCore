@@ -18,6 +18,8 @@ The current UI direction is intentionally simpler than before: light-only, restr
 
 The current session layer also hydrates church-user name, role, title, and church scope from live `profiles` records when they are available.
 
+ADR 0002 now makes the current shared-backend wiring transitional only. The long-term target is a tenant data plane that is separate from the control-plane database.
+
 ## Included Church Roles
 
 - `church-admin`
@@ -42,5 +44,6 @@ These map directly to the church-facing role structure defined in `DEVELOPMENT_P
 - Full database writes across all church-app surfaces
 - Realtime updates
 - Background jobs
+- Migration of church runtime data access onto a tenant backend separated from the control plane
 
 Those concerns now need to be implemented on Supabase instead of expanded as backend-agnostic placeholders.

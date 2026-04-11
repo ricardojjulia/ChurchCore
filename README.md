@@ -1,6 +1,6 @@
 # ChurchForge
 
-ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, donations, a working calendar, volunteer coordination, and guardrailed AI ministry tools. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.4 and is now cut as the `1.0.0` foundation release.
+ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, donations, a working calendar, volunteer coordination, and guardrailed AI ministry tools. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.5 and is now cut as the `1.0.0` foundation release.
 
 ## Stack
 
@@ -16,11 +16,12 @@ Current plan target:
 - Tailwind CSS
 - Mantine UI
 - calendar tooling integrated into the Mantine shell
-- Supabase with Postgres, Auth, Realtime, Storage, and RLS
+- separated control-plane and tenant data boundaries
 
 ## Current Plan Highlights
 
 - Role-based portals with least-privilege enforcement for platform, church, ministry, and member workflows.
+- The control plane and the tenant-facing church app are now explicitly different products with separate long-term data boundaries.
 - Core product scope spanning member directory, ministries, pastoral profiles, giving, reporting, communications, and leadership collaboration.
 - Sprint 1 is now explicitly focused on foundation, member portal data, ministries, pastoral titles, and a categorized calendar.
 - A working calendar hub remains core, now with explicit event categories defined in the development plan.
@@ -40,10 +41,16 @@ Open `http://localhost:3000`.
 
 For Supabase execution, copy `.env.example` to `.env.local` and supply:
 
+- Current repo runtime still uses the transitional single-backend environment variables below.
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_DB_URL` for local direct-database fallback when the local Supabase REST schema cache is unavailable
 - `NEXT_PUBLIC_APP_URL` if you want explicit signup confirmation redirects outside the local default
+
+Architectural note:
+
+- ADR 0002 now makes separate control-plane and tenant databases the target architecture.
+- The current single-project local Supabase setup is transitional and must not be treated as the final model.
 
 For the current local Supabase development endpoints, keys, and service URLs, see `SUPABASE.md`.
 
@@ -89,6 +96,7 @@ public/               Static assets
 - The control-plane routes provide a protected platform-operator surface for tenant lifecycle, billing, support, and provisioning.
 - The church-app routes provide protected role-based portals for ChurchAdmin, Pastor / Elder, MinistryAdmin / Leader, and Volunteer / Member flows.
 - Auth sessions now resolve an explicit app context from control-plane access plus church membership data, so actor identity and active product surface are no longer conflated.
+- The backend access layer is now split in code between control-plane and tenant wrappers under `lib/supabase/control-plane.ts` and `lib/supabase/tenant.ts`, with the old single-project local Supabase setup retained only as transitional fallback.
 - Platform admins can now launch an explicit tenant view from the control plane and return to ChurchForge Control without implicit cross-over.
 - When Supabase is configured, the control plane now reads live church and membership counts plus recent tenant-view audit events from database records instead of relying only on mock tenant lists.
 - Local development can now fall back to direct Postgres reads and writes for app-owned Supabase tables when the local REST schema cache is unavailable.
@@ -125,7 +133,8 @@ Current tracked follow-up:
 ## Architecture Notes
 
 - ADR 0001 is now accepted in favor of Supabase with Postgres, Auth, Realtime, and Storage.
-- The current repo establishes the frontend shell, Supabase SSR auth foundation, member portal, live calendar read path, initial multi-tenant schema scaffold, design system baseline, and release discipline expected for future feature work across RBAC portals, ministry operations, calendar workflows, and AI-assisted features.
+- ADR 0002 is now accepted in favor of separating control-plane and tenant data boundaries, including separate databases.
+- The current repo establishes the frontend shell, Supabase SSR auth foundation, boundary-aware control-plane and tenant data access wrappers, member portal, live calendar read path, initial multi-tenant schema scaffold, design system baseline, and release discipline expected for future feature work across RBAC portals, ministry operations, calendar workflows, and AI-assisted features.
 
 ## CI
 

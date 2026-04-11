@@ -9,11 +9,11 @@ import {
   type ControlPlaneTenantItem,
 } from "@/lib/control-plane";
 import {
-  hasSupabaseEnv,
-  shouldUseLocalSupabaseDbFallback,
-} from "@/lib/supabase/config";
-import { queryLocalSupabaseDb } from "@/lib/supabase/local-db";
-import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
+  createControlPlaneServerClient,
+  hasControlPlaneBackendEnv,
+  queryControlPlaneLocalDb,
+  shouldUseLocalControlPlaneFallback,
+} from "@/lib/supabase/control-plane";
 
 function formatRelativeTime(isoTimestamp: string) {
   const diffMs = Date.now() - new Date(isoTimestamp).getTime();
@@ -72,41 +72,22 @@ function buildPreviewDashboardData(session: AuthSession): ControlPlaneDashboardD
 
 function buildTenantItemsFromLiveData({
   churches,
-  membershipCounts,
 }: {
   churches: ChurchSummary[];
-  membershipCounts: Map<string, number>;
 }) {
   return churches.map((church) => {
-    const activeMemberships = membershipCounts.get(church.id) ?? 0;
-
     return {
       church: church.name,
-      stage:
-        activeMemberships === 0
-          ? "Needs membership setup"
-          : activeMemberships < 3
-            ? "Provisioning review"
-            : "Tenant live",
-      detail:
-        activeMemberships === 0
-          ? "No active memberships are attached to this church yet."
-          : `${activeMemberships} active membership${
-              activeMemberships === 1 ? "" : "s"
-            } currently resolve into the church app.`,
-      priority:
-        activeMemberships === 0
-          ? "critical"
-          : activeMemberships < 3
-            ? "warning"
-            : "healthy",
+      stage: "Tenant registered",
+      detail: "Tenant is present in the control-plane registry.",
+      priority: "healthy",
     } satisfies ControlPlaneTenantItem;
   });
 }
 
 async function getControlPlaneDashboardDataFromLocalDb() {
-  const [churchesResult, membershipsResult, auditResult] = await Promise.all([
-    queryLocalSupabaseDb<{
+  const [churchesResult, auditResult] = await Promise.all([
+    queryControlPlaneLocalDb<{
       id: string;
       name: string;
       slug: string;
@@ -118,14 +99,7 @@ async function getControlPlaneDashboardDataFromLocalDb() {
         order by name
       `,
     ),
-    queryLocalSupabaseDb<{ church_id: string }>(
-      `
-        select church_id
-        from public.church_memberships
-        where is_active = true
-      `,
-    ),
-    queryLocalSupabaseDb<{
+    queryControlPlaneLocalDb<{
       id: string;
       church_id: string;
       viewed_role: string;
@@ -147,19 +121,7 @@ async function getControlPlaneDashboardDataFromLocalDb() {
     slug: church.slug,
     timezone: church.timezone,
   }));
-  const membershipCounts = new Map<string, number>();
-
-  for (const row of membershipsResult.rows) {
-    membershipCounts.set(
-      row.church_id,
-      (membershipCounts.get(row.church_id) ?? 0) + 1,
-    );
-  }
-
-  const tenantItems = buildTenantItemsFromLiveData({
-    churches,
-    membershipCounts,
-  });
+  const tenantItems = buildTenantItemsFromLiveData({ churches });
   const churchLookup = new Map(churches.map((church) => [church.id, church.name]));
   const auditItems = auditResult.rows.map((row) => ({
     id: row.id,
@@ -176,12 +138,12 @@ async function getControlPlaneDashboardDataFromLocalDb() {
       {
         label: "Active tenants",
         value: String(churches.length),
-        detail: "Live church records.",
+        detail: "Tenant registry records.",
       },
       {
-        label: "Active memberships",
-        value: String(membershipsResult.rows.length),
-        detail: "Resolved from memberships.",
+        label: "Billing queue",
+        value: String(billingQueue.length),
+        detail: "Platform-side billing follow-up items.",
       },
       {
         label: "Tenant-view events",
@@ -197,22 +159,18 @@ async function getControlPlaneDashboardDataFromLocalDb() {
 export async function getControlPlaneDashboardData(
   session: AuthSession,
 ): Promise<ControlPlaneDashboardData> {
-  if (!hasSupabaseEnv() || session.source !== "supabase") {
+  if (!hasControlPlaneBackendEnv() || session.source !== "supabase") {
     return buildPreviewDashboardData(session);
   }
 
-  if (shouldUseLocalSupabaseDbFallback()) {
+  if (shouldUseLocalControlPlaneFallback()) {
     return getControlPlaneDashboardDataFromLocalDb();
   }
 
-  const supabase = await createSupabaseServerClient();
-  const [{ data: churchRows }, { data: membershipRows }, { data: auditRows }] =
+  const supabase = await createControlPlaneServerClient();
+  const [{ data: churchRows }, { data: auditRows }] =
     await Promise.all([
       supabase.from("churches").select("id, name, slug, timezone").order("name"),
-      supabase
-        .from("church_memberships")
-        .select("church_id")
-        .eq("is_active", true),
       supabase
         .from("tenant_view_audit_logs")
         .select("id, church_id, viewed_role, event_type, created_at")
@@ -227,19 +185,7 @@ export async function getControlPlaneDashboardData(
       slug: church.slug,
       timezone: church.timezone,
     })) ?? session.tenantViews;
-  const membershipCounts = new Map<string, number>();
-
-  for (const row of membershipRows ?? []) {
-    membershipCounts.set(
-      row.church_id,
-      (membershipCounts.get(row.church_id) ?? 0) + 1,
-    );
-  }
-
-  const tenantItems = buildTenantItemsFromLiveData({
-    churches,
-    membershipCounts,
-  });
+  const tenantItems = buildTenantItemsFromLiveData({ churches });
   const churchLookup = new Map(churches.map((church) => [church.id, church.name]));
   const auditItems =
     auditRows?.map((row) => ({
@@ -257,12 +203,12 @@ export async function getControlPlaneDashboardData(
       {
         label: "Active tenants",
         value: String(churches.length),
-        detail: "Live church records from Supabase churches.",
+        detail: "Control-plane tenant registry records.",
       },
       {
-        label: "Active memberships",
-        value: String(membershipRows?.length ?? 0),
-        detail: "Resolved from live church_memberships rows.",
+        label: "Billing queue",
+        value: String(billingQueue.length),
+        detail: "Platform-side billing follow-up items.",
       },
       {
         label: "Tenant-view events",

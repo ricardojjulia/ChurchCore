@@ -31,7 +31,7 @@ The UI direction for this surface is now intentionally lighter and quieter: ligh
 
 ## Current Constraint
 
-This surface still falls back to preview mode locally when Supabase is not configured, but it now resolves real app context from Supabase membership and platform-admin rows when those records exist. Durable tenant workflows, full support tooling, and richer impersonation controls still need to be connected to the approved backend path.
+This surface still falls back to preview mode locally when Supabase is not configured, but ADR 0002 now makes the current shared-backend approach transitional only. Durable tenant workflows, full support tooling, richer impersonation controls, and the control-plane database itself now need to be implemented as a separate platform data plane.
 
 ## Live Data Path
 
@@ -39,3 +39,8 @@ This surface still falls back to preview mode locally when Supabase is not confi
 - Membership counts resolve from `public.church_memberships`
 - Tenant-view audit activity resolves from `public.tenant_view_audit_logs`
 - Preview fallback still exists when Supabase env vars are absent locally
+
+## Architectural Direction
+
+- The control plane keeps tenant registry, provisioning, billing, support, platform audit, and routing metadata.
+- The control plane must not become the long-term database for church operational data such as member, ministry, or event runtime records.
