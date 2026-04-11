@@ -1,0 +1,26 @@
+# ChurchAdmin Workspace
+
+This document describes the first role-specific deep workspace in ChurchForge.
+
+## Purpose
+
+The ChurchAdmin portal at `/app/church-admin` is the first workspace to move beyond the shared role shell into an operations-focused board.
+
+## What It Includes
+
+- A Mantine-based operations view within the shared app shell
+- Segmented operational lanes for care, weekend, communications, and giving
+- Care and follow-up queue visibility with assignment and contact mutation flows
+- Weekend readiness tasks with local status advancement
+- Communications queue summaries with draft-to-ready-to-scheduled transitions
+- Giving and reconciliation cards with local review and reconciled states
+- A slide-over detail drawer for the active ChurchAdmin work item
+- Preview persistence so workflow changes survive refresh and navigation
+
+## Why ChurchAdmin First
+
+Church administration sits at the intersection of member care, scheduling, giving, communications, and volunteer execution. That makes it the best first portal to deepen before the Supabase-backed data layer is fully connected.
+
+## Current Constraint
+
+The underlying records are still preview-backed. The UI persists lane mutations through server actions and cookies, but durable Supabase writes, auth-claim enforcement, and full business logic still need to be connected through the backend selected in ADR 0001.

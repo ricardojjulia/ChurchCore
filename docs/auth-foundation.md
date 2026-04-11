@@ -1,0 +1,59 @@
+# Auth Foundation
+
+This document describes the first authentication and protected-route layer for ChurchForge.
+
+## Purpose
+
+The current auth implementation establishes ChurchForge on Supabase SSR auth while preserving a local preview fallback for development environments that have not been configured yet.
+
+## What Exists Now
+
+- A protected sign-in route at `/sign-in`
+- A simplified Mantine-based sign-in presentation with a single focused account form
+- Supabase SSR auth support for email and password flows
+- Root `proxy.ts` session refresh handling
+- Preview identities for each core ChurchForge role when Supabase env vars are absent
+- Redirect preservation so protected routes can send users back to the route they requested after sign-in
+- Sign-out handling for the protected shell
+- An explicit app-context model that separates actor identity from the active product surface
+- Session resolution from control-plane access plus church-membership data when Supabase rows exist
+- Church-app session profile hydration from live `public.profiles` rows when they exist
+- Cookie-backed app-context selection so explicit tenant view is preserved across navigation
+- Tenant-view entry and exit audit writes through Supabase when the backend is configured
+- A local direct-database fallback for app-owned Supabase tables when the local REST schema cache is unavailable during development
+
+## Protected Routes
+
+- `/control`
+- `/control/[section]`
+- `/app`
+- `/app/[role]`
+- `/app/calendar`
+
+Compatibility redirects still exist on:
+
+- `/workspace`
+- `/workspace/[role]`
+- `/calendar`
+
+## Intentional Constraints
+
+- Supabase is approved, but production RBAC and tenant hydration are not complete yet
+- Tenant claims and row-level authorization foundations now exist, but production claim issuance and full policy integration are not complete yet
+- Preview mode still exists as a local fallback when Supabase env vars are missing
+- Full RBAC enforcement still needs to be connected to Supabase memberships and policies
+- The church app still supports role-preview switching while real membership-backed authorization is incomplete
+
+## Context Model
+
+- `ChurchForge Control` is available only to platform admins.
+- `ChurchForge App` resolves from an active church context plus a church-facing role.
+- Platform admins may enter the church app only through an explicit tenant-view action.
+- The bridge back from the church app to the control plane is an explicit return action, not an implicit shared navigation model.
+
+## Upgrade Path
+
+This layer is intentionally thin so it can be extended with:
+
+- Supabase Auth and tenant-aware claims
+- Real role enforcement and audit-linked session metadata

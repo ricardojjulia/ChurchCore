@@ -1,26 +1,41 @@
 {
-  "name": "churchforge-bootstrap",
-  "version": "0.1.0",
+  "name": "churchforge",
+  "version": "1.0.0",
   "private": true,
+  "description": "ChurchForge frontend foundation aligned with the development plan.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint .",
+    "check": "npm run lint && npm run build"
   },
   "dependencies": {
+    "@mantine/core": "^9.0.1",
+    "@mantine/hooks": "^9.0.1",
+    "@mantine/notifications": "^9.0.1",
+    "@radix-ui/react-separator": "^1.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.103.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.8.0",
     "next": "16.2.3",
+    "pg": "^8.20.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
+    "supabase": "^2.89.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

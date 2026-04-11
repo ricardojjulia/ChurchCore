@@ -1,26 +1,95 @@
+@custom-variant dark (&:where(.dark, .dark *));
+
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f3eb;
+  --foreground: #18202a;
+  --card: rgba(255, 252, 246, 0.82);
+  --card-foreground: #18202a;
+  --muted: #ede4d4;
+  --muted-foreground: #5a6778;
+  --border: rgba(24, 32, 42, 0.12);
+  --input: rgba(24, 32, 42, 0.14);
+  --ring: #1e7f76;
+  --primary: #1f7a74;
+  --primary-foreground: #f7fbfa;
+  --accent: rgba(207, 151, 57, 0.14);
+  --accent-foreground: #18202a;
+  --radius: 1.5rem;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --font-sans: var(--font-manrope);
+  --font-serif: var(--font-fraunces);
+  --radius-sm: calc(var(--radius) - 8px);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 8px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.dark {
+  --background: #102027;
+  --foreground: #f5efe3;
+  --card: rgba(18, 34, 43, 0.82);
+  --card-foreground: #f5efe3;
+  --muted: #18303b;
+  --muted-foreground: #b4c0ca;
+  --border: rgba(245, 239, 227, 0.12);
+  --input: rgba(245, 239, 227, 0.14);
+  --ring: #d5a94c;
+  --primary: #d5a94c;
+  --primary-foreground: #14212a;
+  --accent: rgba(213, 169, 76, 0.14);
+  --accent-foreground: #f5efe3;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  background:
+    radial-gradient(circle at top left, rgba(213, 169, 76, 0.18), transparent 26%),
+    radial-gradient(circle at top right, rgba(31, 122, 116, 0.18), transparent 24%),
+    var(--background);
 }
 
 body {
-  background: var(--background);
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 15% 15%, rgba(255, 255, 255, 0.55), transparent 18%),
+    radial-gradient(circle at 85% 0%, rgba(31, 122, 116, 0.08), transparent 24%),
+    linear-gradient(180deg, rgba(255, 252, 246, 0.9), rgba(247, 243, 235, 1));
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-manrope), sans-serif;
+}
+
+.dark body {
+  background:
+    radial-gradient(circle at 15% 15%, rgba(213, 169, 76, 0.08), transparent 18%),
+    radial-gradient(circle at 85% 0%, rgba(31, 122, 116, 0.12), transparent 24%),
+    linear-gradient(180deg, rgba(16, 32, 39, 0.98), rgba(12, 24, 30, 1));
+}
+
+::selection {
+  background: rgba(31, 122, 116, 0.2);
+}
+
+a,
+button {
+  cursor: pointer;
 }
