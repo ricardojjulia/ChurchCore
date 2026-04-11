@@ -76,19 +76,31 @@ export function ControlPlaneDashboard({
       }
     >
       <Paper withBorder radius="xl" p="xl">
-        <Title order={2}>Overview</Title>
+        <Group justify="space-between" align="flex-start" gap="md">
+          <div>
+            <Badge color="churchBlue" variant="light" mb="sm">
+              Platform
+            </Badge>
+            <Title order={2}>Overview</Title>
+            <Text c="dimmed" size="sm" mt={6}>
+              Core platform status and tenant access.
+            </Text>
+          </div>
+
+          {session.appContext.kind === "church" ? (
+            <Group gap="sm" wrap="wrap">
+              <Badge color="yellow" variant="light">
+                Tenant view active
+              </Badge>
+              <ReturnToControlPlaneButton />
+            </Group>
+          ) : null}
+        </Group>
 
         {session.appContext.kind === "church" ? (
-          <Group mt="lg">
-            <Badge color="yellow" variant="light">
-              Tenant view active
-            </Badge>
-            <Text c="dimmed" size="sm">
-              Viewing {session.appContext.church.name} as{" "}
-              {session.appContext.roleId}.
-            </Text>
-            <ReturnToControlPlaneButton />
-          </Group>
+          <Text c="dimmed" size="sm" mt="md">
+            Viewing {session.appContext.church.name} as {session.appContext.roleId}.
+          </Text>
         ) : null}
 
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mt="xl">
@@ -98,7 +110,8 @@ export function ControlPlaneDashboard({
               withBorder
               radius="xl"
               p="md"
-              bg="gray.0"
+              bg="#f8fbff"
+              style={{ borderLeft: "4px solid #2563eb" }}
             >
               <Text size="xs" tt="uppercase" fw={700} c="dimmed">
                 {metric.label}
@@ -116,18 +129,29 @@ export function ControlPlaneDashboard({
 
       <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="lg">
         <Paper withBorder radius="xl" p="xl">
-          <Title order={3} size="h4">
-            {activeSection.label}
-          </Title>
+          <Group justify="space-between" align="center" mb="lg">
+            <Title order={3} size="h4">
+              {activeSection.label}
+            </Title>
+            <Badge color="gray" variant="light">
+              {activeSection.id}
+            </Badge>
+          </Group>
 
-          <Stack gap="sm" mt="lg">
+          <Stack gap="sm">
             {(activeSection.id === "overview" || activeSection.id === "tenants"
               ? dashboardData.tenantItems
               : activeSection.id === "billing"
                 ? billingQueue
                 : supportQueue
             ).map((item) => (
-              <Paper key={JSON.stringify(item)} radius="xl" p="md" bg="gray.0">
+              <Paper
+                key={JSON.stringify(item)}
+                radius="xl"
+                p="md"
+                bg="#f8fafc"
+                withBorder
+              >
                 {"church" in item ? (
                   <>
                     <Group justify="space-between" align="flex-start">
@@ -168,12 +192,17 @@ export function ControlPlaneDashboard({
         </Paper>
 
         <Paper withBorder radius="xl" p="xl">
-          <Title order={3} size="h4">
-            Tenant view
-          </Title>
-        <Stack gap="sm" mt="lg">
-          {session.tenantViews.map((tenant) => (
-            <Paper key={tenant.id} radius="xl" p="md" bg="gray.0">
+          <Group justify="space-between" align="center" mb="lg">
+            <Title order={3} size="h4">
+              Tenant view
+            </Title>
+            <Badge color="churchBlue" variant="light">
+              {session.tenantViews.length}
+            </Badge>
+          </Group>
+          <Stack gap="sm">
+            {session.tenantViews.map((tenant) => (
+              <Paper key={tenant.id} radius="xl" p="md" bg="#f8fafc" withBorder>
                 <Group justify="space-between" align="center" gap="md">
                   <div>
                     <Text fw={600}>{tenant.name}</Text>
@@ -187,11 +216,16 @@ export function ControlPlaneDashboard({
             ))}
 
             <Paper withBorder radius="xl" p="md">
-              <Text fw={600}>Recent tenant-view audit</Text>
+              <Group justify="space-between" align="center" mb="md">
+                <Text fw={600}>Recent tenant-view audit</Text>
+                <Badge color="gray" variant="light">
+                  {dashboardData.auditItems.length}
+                </Badge>
+              </Group>
               <Stack gap="sm" mt="md">
                 {dashboardData.auditItems.length ? (
                   dashboardData.auditItems.map((item) => (
-                    <Paper key={item.id} radius="xl" p="md" bg="gray.0">
+                    <Paper key={item.id} radius="xl" p="md" bg="#f8fafc" withBorder>
                       <Group justify="space-between" align="flex-start" gap="md">
                         <div>
                           <Text fw={600}>{item.church}</Text>

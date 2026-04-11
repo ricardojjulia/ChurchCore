@@ -73,13 +73,13 @@ export function ApplicationShell({
           minHeight: "100vh",
         },
         navbar: {
-          background: "#ffffff",
-          borderRight: "1px solid rgba(15, 23, 42, 0.08)",
+          background: "#fbfcfe",
+          borderRight: "1px solid rgba(20, 33, 61, 0.08)",
         },
         header: {
-          background: "rgba(255, 255, 255, 0.94)",
+          background: "rgba(251, 252, 254, 0.96)",
           backdropFilter: "blur(12px)",
-          borderBottom: "1px solid rgba(15, 23, 42, 0.08)",
+          borderBottom: "1px solid rgba(20, 33, 61, 0.08)",
         },
       }}
     >
@@ -89,7 +89,7 @@ export function ApplicationShell({
             <Burger opened={opened} onClick={toggle} hiddenFrom="md" size="sm" />
             <Box>
               <Group gap="xs" mb={2}>
-                <Badge variant="light" color="gray" radius="sm">
+                <Badge variant="light" color="churchBlue" radius="sm">
                   {sectionLabel}
                 </Badge>
               </Group>
@@ -119,7 +119,12 @@ export function ApplicationShell({
         <AppShellSection>
           <Group justify="space-between" mb="lg">
             <Group gap="sm">
-              <ThemeIcon size={38} radius="xl" color="gray" variant="light">
+              <ThemeIcon
+                size={38}
+                radius="xl"
+                color="churchBlue"
+                variant="light"
+              >
                 <Sparkles size={16} />
               </ThemeIcon>
               <Box>
@@ -131,7 +136,7 @@ export function ApplicationShell({
             </Group>
           </Group>
 
-          <Paper withBorder radius="xl" p="md" mb="md" bg="gray.0">
+          <Paper withBorder radius="xl" p="md" mb="md" bg="#f8fbff">
             <Text fw={600}>{sidebarTitle}</Text>
             {sidebarDescription ? (
               <Text c="dimmed" size="sm" mt="xs">
@@ -162,10 +167,13 @@ export function ApplicationShell({
                 description={item.description}
                 leftSection={<item.icon size={16} />}
                 variant="light"
-                color="gray"
+                color="churchBlue"
                 styles={{
                   root: {
                     borderRadius: 16,
+                  },
+                  description: {
+                    color: "#5c6b7a",
                   },
                 }}
               />
@@ -178,7 +186,12 @@ export function ApplicationShell({
         <AppShellSection>
           <Paper withBorder radius="xl" p="md">
             <Group gap="sm">
-              <ThemeIcon size={34} radius="xl" color="gray" variant="light">
+              <ThemeIcon
+                size={34}
+                radius="xl"
+                color="churchBlue"
+                variant="light"
+              >
                 <ShieldCheck size={16} />
               </ThemeIcon>
               <Box>

@@ -3,20 +3,20 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f3eb;
-  --foreground: #18202a;
-  --card: rgba(255, 252, 246, 0.82);
-  --card-foreground: #18202a;
-  --muted: #ede4d4;
-  --muted-foreground: #5a6778;
-  --border: rgba(24, 32, 42, 0.12);
-  --input: rgba(24, 32, 42, 0.14);
-  --ring: #1e7f76;
-  --primary: #1f7a74;
-  --primary-foreground: #f7fbfa;
-  --accent: rgba(207, 151, 57, 0.14);
-  --accent-foreground: #18202a;
-  --radius: 1.5rem;
+  --background: #f6f7f9;
+  --foreground: #14213d;
+  --card: #ffffff;
+  --card-foreground: #14213d;
+  --muted: #eef2f6;
+  --muted-foreground: #5c6b7a;
+  --border: rgba(20, 33, 61, 0.12);
+  --input: rgba(20, 33, 61, 0.14);
+  --ring: #2563eb;
+  --primary: #2563eb;
+  --primary-foreground: #f8fbff;
+  --accent: rgba(37, 99, 235, 0.08);
+  --accent-foreground: #14213d;
+  --radius: 1.25rem;
 }
 
 @theme inline {
@@ -41,52 +41,29 @@
   --radius-xl: calc(var(--radius) + 8px);
 }
 
-.dark {
-  --background: #102027;
-  --foreground: #f5efe3;
-  --card: rgba(18, 34, 43, 0.82);
-  --card-foreground: #f5efe3;
-  --muted: #18303b;
-  --muted-foreground: #b4c0ca;
-  --border: rgba(245, 239, 227, 0.12);
-  --input: rgba(245, 239, 227, 0.14);
-  --ring: #d5a94c;
-  --primary: #d5a94c;
-  --primary-foreground: #14212a;
-  --accent: rgba(213, 169, 76, 0.14);
-  --accent-foreground: #f5efe3;
-}
-
 * {
   border-color: var(--border);
 }
 
 html {
   background:
-    radial-gradient(circle at top left, rgba(213, 169, 76, 0.18), transparent 26%),
-    radial-gradient(circle at top right, rgba(31, 122, 116, 0.18), transparent 24%),
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.1), transparent 24%),
+    radial-gradient(circle at top right, rgba(148, 163, 184, 0.12), transparent 22%),
     var(--background);
 }
 
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 15% 15%, rgba(255, 255, 255, 0.55), transparent 18%),
-    radial-gradient(circle at 85% 0%, rgba(31, 122, 116, 0.08), transparent 24%),
-    linear-gradient(180deg, rgba(255, 252, 246, 0.9), rgba(247, 243, 235, 1));
+    radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.8), transparent 18%),
+    radial-gradient(circle at 85% 0%, rgba(37, 99, 235, 0.08), transparent 20%),
+    linear-gradient(180deg, #fbfcfe 0%, #f6f7f9 100%);
   color: var(--foreground);
   font-family: var(--font-manrope), sans-serif;
 }
 
-.dark body {
-  background:
-    radial-gradient(circle at 15% 15%, rgba(213, 169, 76, 0.08), transparent 18%),
-    radial-gradient(circle at 85% 0%, rgba(31, 122, 116, 0.12), transparent 24%),
-    linear-gradient(180deg, rgba(16, 32, 39, 0.98), rgba(12, 24, 30, 1));
-}
-
 ::selection {
-  background: rgba(31, 122, 116, 0.2);
+  background: rgba(37, 99, 235, 0.2);
 }
 
 a,

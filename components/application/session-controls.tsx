@@ -61,7 +61,7 @@ export function SessionControls({
               style={{ background: "var(--mantine-color-body)" }}
             >
               <Group gap="sm">
-                <Avatar color="teal" radius="xl" variant="light">
+                <Avatar color="churchBlue" radius="xl" variant="light">
                   <ShieldUser size={16} />
                 </Avatar>
                 <Stack gap={0}>

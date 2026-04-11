@@ -21,13 +21,13 @@ export default function Home() {
       style={{
         minHeight: "100vh",
         background:
-          "linear-gradient(180deg, #f7f8fa 0%, #eef1f4 100%)",
+          "linear-gradient(180deg, #fbfcfe 0%, #f3f6fa 100%)",
       }}
     >
       <Container size="md" py={32}>
         <Group justify="space-between" align="center" mb={72}>
           <Group gap="sm">
-            <ThemeIcon size={42} radius="xl" color="gray" variant="light">
+            <ThemeIcon size={42} radius="xl" color="churchBlue" variant="light">
               <HeartHandshake size={18} />
             </ThemeIcon>
             <Text fw={700}>ChurchForge</Text>
@@ -45,7 +45,7 @@ export default function Home() {
 
         <Paper withBorder radius="xl" p={{ base: "xl", md: "56px" }}>
           <Stack gap="lg" maw={560}>
-            <Badge color="gray" variant="light" w="fit-content">
+            <Badge color="churchBlue" variant="light" w="fit-content">
               ChurchForge
             </Badge>
             <Title order={1} size={60} style={{ lineHeight: 1 }}>
