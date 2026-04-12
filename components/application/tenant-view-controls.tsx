@@ -8,7 +8,7 @@ import {
   launchTenantViewAction,
   returnToControlPlaneAction,
 } from "@/app/control/actions";
-import type { ChurchRoleId, ChurchSummary } from "@/lib/auth";
+import type { ChurchRoleId, TenantViewTarget } from "@/lib/auth";
 
 const roleOptions = [
   { value: "church-admin", label: "ChurchAdmin" },
@@ -17,12 +17,12 @@ const roleOptions = [
   { value: "member", label: "Volunteer / Member" },
 ] as const;
 
-export function TenantViewLauncher({ church }: { church: ChurchSummary }) {
+export function TenantViewLauncher({ church }: { church: TenantViewTarget }) {
   const [roleId, setRoleId] = useState<ChurchRoleId>("church-admin");
 
   return (
     <form action={launchTenantViewAction}>
-      <input type="hidden" name="churchId" value={church.id} />
+      <input type="hidden" name="tenantId" value={church.tenantId} />
       <input type="hidden" name="roleId" value={roleId} />
       <Group gap="sm" wrap="wrap" justify="flex-end">
         <Select

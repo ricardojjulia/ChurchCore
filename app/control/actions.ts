@@ -10,6 +10,7 @@ import {
   setControlAppContextSelection,
   type ChurchRoleId,
 } from "@/lib/auth";
+import { resolveTenantViewTarget } from "@/lib/control-plane-routing";
 import { logTenantViewAuditEvent } from "@/lib/tenant-view-audit";
 
 function isChurchRoleId(value: string): value is ChurchRoleId {
@@ -28,27 +29,39 @@ export async function launchTenantViewAction(formData: FormData) {
     throw new Error("Control-plane access is required.");
   }
 
-  const churchId = String(formData.get("churchId") ?? "");
+  const tenantId = String(formData.get("tenantId") ?? "");
   const roleId = String(formData.get("roleId") ?? "church-admin");
 
-  if (!churchId || !isChurchRoleId(roleId)) {
+  if (!tenantId || !isChurchRoleId(roleId)) {
     throw new Error("A valid tenant view target is required.");
   }
 
-  const tenant = session.tenantViews.find((entry) => entry.id === churchId);
+  const availableTenant = session.tenantViews.find(
+    (entry) => entry.tenantId === tenantId,
+  );
 
-  if (!tenant) {
+  if (!availableTenant) {
     throw new Error("That tenant is not available for viewing.");
   }
 
+  const resolvedTarget = await resolveTenantViewTarget(tenantId);
+
+  if (!resolvedTarget) {
+    throw new Error("Tenant routing is not available for that tenant.");
+  }
+
+  if (resolvedTarget.connectionStatus !== "ready") {
+    throw new Error("That tenant connection is not ready yet.");
+  }
+
   await setChurchAppContextSelection({
-    churchId,
+    churchId: resolvedTarget.church.id,
     roleId,
     source: "impersonation",
   });
   await logTenantViewAuditEvent({
     actorUserId: session.userId,
-    churchId,
+    churchId: resolvedTarget.church.id,
     roleId,
     eventType: "enter",
   });

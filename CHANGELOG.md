@@ -11,6 +11,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added `docs/UI-UPDATES.md` to document the approved blue-neutral UI direction, component rules, and the current dark-mode deferral.
 - Added ADR 0002 in [docs/adr/0002-control-plane-and-tenant-separation.md](/Users/rjulia/ChurchForge/docs/adr/0002-control-plane-and-tenant-separation.md) to make control-plane and tenant separation the approved architecture.
 - Added a control-plane tenant-registry migration for `tenants` and `tenant_connections`, including bootstrap data copied from existing church records.
+- Added server actions for tenant calendar event create, update, and delete flows, including local direct-Postgres fallback support.
+- Added tenant calendar RSVP mutation actions backed by `event_rsvps` records.
+- Added FullCalendar dependencies and integrated month, week, and day calendar rendering in the tenant calendar surface.
 
 ### Changed
 
@@ -19,6 +22,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Documented the current UI direction in the README so future visual changes have an explicit repo-level reference.
 - Updated the development plan, README, `.env.example`, and TODOs so the repo no longer treats one shared control-plane-plus-tenant database as the target architecture.
 - Split the backend access layer in code into control-plane and tenant wrappers, and moved the session, audit, control-plane, and tenant data loaders onto those scoped paths while retaining transitional shared-env fallback.
+- Changed control-plane tenant launch to resolve from registry `tenantId` records and `tenant_connections` instead of posting church runtime IDs directly from the UI.
+- Extended the live tenant calendar board to include quick-add event creation, in-drawer event editing and deletion, and user RSVP controls.
+- Extended tenant calendar data hydration to include each viewer's current RSVP status per event.
+- Upgraded the tenant calendar board from a list-only surface to an interactive month/week/day calendar with category filtering including an "all" option.
 
 ## [1.0.0] - 2026-04-11
 

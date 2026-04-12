@@ -39,6 +39,7 @@ This surface still falls back to preview mode locally when Supabase is not confi
 - Tenant connection readiness resolves from `public.tenant_connections`
 - Tenant-view audit activity resolves from `public.tenant_view_audit_logs`
 - Preview fallback still exists when Supabase env vars are absent locally
+- Tenant-view launch resolves through control-plane registry records before any tenant app impersonation path is opened
 
 ## Architectural Direction
 

@@ -50,6 +50,11 @@ export type ChurchMembership = {
   roleId: ChurchRoleId;
 };
 
+export type TenantViewTarget = ChurchSummary & {
+  tenantId: string;
+  connectionStatus: string | null;
+};
+
 type HydratedProfileRecord = {
   id: string;
   userId: string;
@@ -61,8 +66,6 @@ type HydratedProfileRecord = {
   isPastoral: boolean;
   church: ChurchSummary | null;
 };
-
-export type TenantViewTarget = ChurchSummary;
 
 export type ControlAppContext = {
   kind: "control";
@@ -396,18 +399,24 @@ async function loadSupabaseAppDataFromLocalDb(userId: string) {
         [userId],
       ),
       queryControlPlaneLocalDb<{
+        tenant_id: string;
         resolved_tenant_id: string;
         name: string;
         slug: string;
         timezone: string;
+        connection_status: string | null;
       }>(
         `
           select
+            tenant.id as tenant_id,
             coalesce(tenant.external_tenant_id, tenant.id) as resolved_tenant_id,
             tenant.name,
             tenant.slug::text as slug,
-            tenant.timezone
+            tenant.timezone,
+            connection.connection_status::text as connection_status
           from public.tenants tenant
+          left join public.tenant_connections connection
+            on connection.tenant_id = tenant.id
           order by tenant.name
         `,
       ),
@@ -494,12 +503,18 @@ async function loadSupabaseAppDataFromLocalDb(userId: string) {
 
   const tenantViews = canAccessControl
     ? tenantResult.rows.map((row) => ({
+        tenantId: row.tenant_id,
         id: row.resolved_tenant_id,
         name: row.name,
         slug: row.slug,
         timezone: row.timezone,
+        connectionStatus: row.connection_status,
       }))
-    : memberships.map((membership) => membership.church);
+    : memberships.map((membership) => ({
+        ...membership.church,
+        tenantId: membership.church.id,
+        connectionStatus: "ready",
+      }));
 
   return {
     memberships,
@@ -752,7 +767,13 @@ function buildSession({
 function buildPreviewSession(profile: DemoProfile, storedSelection: StoredAppContextSelection | null) {
   const memberships = previewMembershipsByProfileId[profile.id] ?? [];
   const canAccessControl = isControlPlaneRole(profile.roleId);
-  const tenantViews = canAccessControl ? previewChurches : [];
+  const tenantViews = canAccessControl
+    ? previewChurches.map((church) => ({
+        ...church,
+        tenantId: church.id,
+        connectionStatus: "ready",
+      }))
+    : [];
   const appContext = resolveAppContext({
     canAccessControl,
     memberships,
@@ -828,7 +849,9 @@ export async function getSession(): Promise<AuthSession | null> {
                 .eq("is_active", true),
               controlPlaneSupabase
                 .from("tenants")
-                .select("id, external_tenant_id, name, slug, timezone")
+                .select(
+                  "id, external_tenant_id, name, slug, timezone, tenant_connections(connection_status)",
+                )
                 .order("name"),
               tenantSupabase
                 .from("profiles")
@@ -870,6 +893,8 @@ export async function getSession(): Promise<AuthSession | null> {
 
               return [
                 {
+                  tenantId:
+                    typeof record.id === "string" ? record.id : resolvedId,
                   id: resolvedId,
                   name: record.name,
                   slug: record.slug,
@@ -877,6 +902,34 @@ export async function getSession(): Promise<AuthSession | null> {
                     typeof record.timezone === "string"
                       ? record.timezone
                       : "America/New_York",
+                  connectionStatus:
+                    record.tenant_connections &&
+                    typeof record.tenant_connections === "object"
+                      ? Array.isArray(record.tenant_connections)
+                        ? record.tenant_connections[0] &&
+                          typeof record.tenant_connections[0] === "object" &&
+                          "connection_status" in record.tenant_connections[0]
+                            ? String(
+                                (
+                                  record.tenant_connections[0] as Record<
+                                    string,
+                                    unknown
+                                  >
+                                ).connection_status,
+                              )
+                            : null
+                        : "connection_status" in
+                              (record.tenant_connections as Record<string, unknown>)
+                          ? String(
+                              (
+                                record.tenant_connections as Record<
+                                  string,
+                                  unknown
+                                >
+                              ).connection_status,
+                            )
+                          : null
+                      : null,
                 },
               ];
             }) ?? [];
@@ -899,7 +952,11 @@ export async function getSession(): Promise<AuthSession | null> {
 
           const tenantViews = canAccessControl
             ? allVisibleChurches
-            : memberships.map((membership) => membership.church);
+            : memberships.map((membership) => ({
+                ...membership.church,
+                tenantId: membership.church.id,
+                connectionStatus: "ready",
+              }));
 
           return {
             memberships,
