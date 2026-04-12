@@ -207,7 +207,9 @@ export function ControlPlaneDashboard({
                   <div>
                     <Text fw={600}>{tenant.name}</Text>
                     <Text c="dimmed" size="sm" mt={6}>
-                      Open the church app for this tenant.
+                      {tenant.connectionStatus === "ready" && tenant.runtimeChurchId
+                        ? "Connection ready for tenant app launch."
+                        : "Tenant routing is not ready yet."}
                     </Text>
                   </div>
                   <TenantViewLauncher church={tenant} />

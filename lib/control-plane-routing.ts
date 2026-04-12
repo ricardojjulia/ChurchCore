@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { ChurchSummary } from "@/lib/auth";
+import { extractRuntimeChurchId } from "@/lib/control-plane-registry";
 import {
   createControlPlaneServerClient,
   queryControlPlaneLocalDb,
@@ -19,20 +20,20 @@ export async function resolveTenantViewTarget(
   if (shouldUseLocalControlPlaneFallback()) {
     const result = await queryControlPlaneLocalDb<{
       tenant_id: string;
-      resolved_tenant_id: string;
       name: string;
       slug: string;
       timezone: string;
       connection_status: string | null;
+      metadata: Record<string, unknown> | null;
     }>(
       `
         select
           tenant.id as tenant_id,
-          coalesce(tenant.external_tenant_id, tenant.id) as resolved_tenant_id,
           tenant.name,
           tenant.slug::text as slug,
           tenant.timezone,
-          connection.connection_status::text as connection_status
+          connection.connection_status::text as connection_status,
+          connection.metadata
         from public.tenants tenant
         left join public.tenant_connections connection
           on connection.tenant_id = tenant.id
@@ -48,10 +49,16 @@ export async function resolveTenantViewTarget(
       return null;
     }
 
+    const runtimeChurchId = extractRuntimeChurchId(row.metadata);
+
+    if (!runtimeChurchId) {
+      return null;
+    }
+
     return {
       tenantId: row.tenant_id,
       church: {
-        id: row.resolved_tenant_id,
+        id: runtimeChurchId,
         name: row.name,
         slug: row.slug,
         timezone: row.timezone,
@@ -64,7 +71,7 @@ export async function resolveTenantViewTarget(
   const { data } = await supabase
     .from("tenants")
     .select(
-      "id, external_tenant_id, name, slug, timezone, tenant_connections(connection_status)",
+      "id, name, slug, timezone, tenant_connections(connection_status, metadata)",
     )
     .eq("id", tenantId)
     .maybeSingle();
@@ -76,14 +83,21 @@ export async function resolveTenantViewTarget(
   const tenantConnection = Array.isArray(data.tenant_connections)
     ? data.tenant_connections[0]
     : data.tenant_connections;
+  const runtimeChurchId =
+    tenantConnection && typeof tenantConnection === "object"
+      ? extractRuntimeChurchId(
+          (tenantConnection as Record<string, unknown>).metadata,
+        )
+      : null;
+
+  if (!runtimeChurchId) {
+    return null;
+  }
 
   return {
     tenantId: data.id,
     church: {
-      id:
-        typeof data.external_tenant_id === "string"
-          ? data.external_tenant_id
-          : data.id,
+      id: runtimeChurchId,
       name: data.name,
       slug: data.slug,
       timezone: data.timezone,

@@ -19,6 +19,8 @@ const roleOptions = [
 
 export function TenantViewLauncher({ church }: { church: TenantViewTarget }) {
   const [roleId, setRoleId] = useState<ChurchRoleId>("church-admin");
+  const launchDisabled =
+    church.connectionStatus !== "ready" || !church.runtimeChurchId;
 
   return (
     <form action={launchTenantViewAction}>
@@ -33,12 +35,14 @@ export function TenantViewLauncher({ church }: { church: TenantViewTarget }) {
           size="sm"
           radius="xl"
           w={190}
+          disabled={launchDisabled}
         />
         <Button
           type="submit"
           radius="xl"
           size="sm"
           leftSection={<Eye size={15} />}
+          disabled={launchDisabled}
         >
           View tenant
         </Button>

@@ -8,6 +8,7 @@ import {
   isControlPlaneRole,
   type PortalRoleId,
 } from "@/lib/portal";
+import { extractRuntimeChurchId } from "@/lib/control-plane-registry";
 import {
   hasSupabaseEnv,
 } from "@/lib/supabase/config";
@@ -53,6 +54,7 @@ export type ChurchMembership = {
 export type TenantViewTarget = ChurchSummary & {
   tenantId: string;
   connectionStatus: string | null;
+  runtimeChurchId: string | null;
 };
 
 type HydratedProfileRecord = {
@@ -400,20 +402,20 @@ async function loadSupabaseAppDataFromLocalDb(userId: string) {
       ),
       queryControlPlaneLocalDb<{
         tenant_id: string;
-        resolved_tenant_id: string;
         name: string;
         slug: string;
         timezone: string;
         connection_status: string | null;
+        metadata: Record<string, unknown> | null;
       }>(
         `
           select
             tenant.id as tenant_id,
-            coalesce(tenant.external_tenant_id, tenant.id) as resolved_tenant_id,
             tenant.name,
             tenant.slug::text as slug,
             tenant.timezone,
-            connection.connection_status::text as connection_status
+            connection.connection_status::text as connection_status,
+            connection.metadata
           from public.tenants tenant
           left join public.tenant_connections connection
             on connection.tenant_id = tenant.id
@@ -502,18 +504,24 @@ async function loadSupabaseAppDataFromLocalDb(userId: string) {
   }
 
   const tenantViews = canAccessControl
-    ? tenantResult.rows.map((row) => ({
-        tenantId: row.tenant_id,
-        id: row.resolved_tenant_id,
-        name: row.name,
-        slug: row.slug,
-        timezone: row.timezone,
-        connectionStatus: row.connection_status,
-      }))
+    ? tenantResult.rows.map((row) => {
+        const runtimeChurchId = extractRuntimeChurchId(row.metadata);
+
+        return {
+          tenantId: row.tenant_id,
+          id: runtimeChurchId ?? row.tenant_id,
+          name: row.name,
+          slug: row.slug,
+          timezone: row.timezone,
+          connectionStatus: row.connection_status,
+          runtimeChurchId,
+        };
+      })
     : memberships.map((membership) => ({
         ...membership.church,
         tenantId: membership.church.id,
         connectionStatus: "ready",
+        runtimeChurchId: membership.church.id,
       }));
 
   return {
@@ -772,6 +780,7 @@ function buildPreviewSession(profile: DemoProfile, storedSelection: StoredAppCon
         ...church,
         tenantId: church.id,
         connectionStatus: "ready",
+        runtimeChurchId: church.id,
       }))
     : [];
   const appContext = resolveAppContext({
@@ -850,7 +859,7 @@ export async function getSession(): Promise<AuthSession | null> {
               controlPlaneSupabase
                 .from("tenants")
                 .select(
-                  "id, external_tenant_id, name, slug, timezone, tenant_connections(connection_status)",
+                  "id, name, slug, timezone, tenant_connections(connection_status, metadata)",
                 )
                 .order("name"),
               tenantSupabase
@@ -880,12 +889,25 @@ export async function getSession(): Promise<AuthSession | null> {
                 return [];
               }
 
+              const runtimeChurchId =
+                record.tenant_connections &&
+                typeof record.tenant_connections === "object"
+                  ? Array.isArray(record.tenant_connections)
+                    ? extractRuntimeChurchId(
+                        record.tenant_connections[0] &&
+                          typeof record.tenant_connections[0] === "object"
+                          ? (record.tenant_connections[0] as Record<string, unknown>)
+                              .metadata
+                          : null,
+                      )
+                    : extractRuntimeChurchId(
+                        (record.tenant_connections as Record<string, unknown>).metadata,
+                      )
+                  : null;
+
               const resolvedId =
-                typeof record.external_tenant_id === "string"
-                  ? record.external_tenant_id
-                  : typeof record.id === "string"
-                    ? record.id
-                    : null;
+                runtimeChurchId ||
+                (typeof record.id === "string" ? record.id : null);
 
               if (!resolvedId) {
                 return [];
@@ -930,6 +952,7 @@ export async function getSession(): Promise<AuthSession | null> {
                             )
                           : null
                       : null,
+                  runtimeChurchId,
                 },
               ];
             }) ?? [];
@@ -956,6 +979,7 @@ export async function getSession(): Promise<AuthSession | null> {
                 ...membership.church,
                 tenantId: membership.church.id,
                 connectionStatus: "ready",
+                runtimeChurchId: membership.church.id,
               }));
 
           return {

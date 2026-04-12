@@ -8,6 +8,7 @@ import {
   type ControlPlaneDashboardData,
   type ControlPlaneTenantItem,
 } from "@/lib/control-plane";
+import { extractRuntimeChurchId } from "@/lib/control-plane-registry";
 import {
   createControlPlaneServerClient,
   hasControlPlaneBackendEnv,
@@ -125,23 +126,25 @@ function buildTenantItemsFromLiveData({
 async function getControlPlaneDashboardDataFromLocalDb() {
   const [tenantsResult, auditResult] = await Promise.all([
     queryControlPlaneLocalDb<{
-      resolved_tenant_id: string;
+      tenant_id: string;
       name: string;
       slug: string;
       timezone: string;
       tenant_status: string;
       billing_status: string;
       connection_status: string | null;
+      metadata: Record<string, unknown> | null;
     }>(
       `
         select
-          coalesce(tenant.external_tenant_id, tenant.id) as resolved_tenant_id,
+          tenant.id as tenant_id,
           tenant.name,
           tenant.slug::text as slug,
           tenant.timezone,
           tenant.tenant_status::text as tenant_status,
           tenant.billing_status::text as billing_status,
-          connection.connection_status::text as connection_status
+          connection.connection_status::text as connection_status,
+          connection.metadata
         from public.tenants tenant
         left join public.tenant_connections connection
           on connection.tenant_id = tenant.id
@@ -164,19 +167,29 @@ async function getControlPlaneDashboardDataFromLocalDb() {
     ),
   ]);
 
-  const churches = tenantsResult.rows.map((tenant) => ({
-    id: tenant.resolved_tenant_id,
+  const normalizedTenants = tenantsResult.rows.map((tenant) => ({
+    tenantId: tenant.tenant_id,
+    runtimeChurchId: extractRuntimeChurchId(tenant.metadata),
+    name: tenant.name,
+    slug: tenant.slug,
+    timezone: tenant.timezone,
+    tenantStatus: tenant.tenant_status,
+    billingStatus: tenant.billing_status,
+    connectionStatus: tenant.connection_status,
+  }));
+  const churches = normalizedTenants.map((tenant) => ({
+    id: tenant.runtimeChurchId ?? tenant.tenantId,
     name: tenant.name,
     slug: tenant.slug,
     timezone: tenant.timezone,
   }));
   const statuses = new Map(
-    tenantsResult.rows.map((tenant) => [
-      tenant.resolved_tenant_id,
+    normalizedTenants.map((tenant) => [
+      tenant.runtimeChurchId ?? tenant.tenantId,
       {
-        tenantStatus: tenant.tenant_status,
-        billingStatus: tenant.billing_status,
-        connectionStatus: tenant.connection_status,
+        tenantStatus: tenant.tenantStatus,
+        billingStatus: tenant.billingStatus,
+        connectionStatus: tenant.connectionStatus,
       },
     ]),
   );
@@ -234,7 +247,7 @@ export async function getControlPlaneDashboardData(
       supabase
         .from("tenants")
         .select(
-          "id, external_tenant_id, name, slug, timezone, tenant_status, billing_status, tenant_connections(connection_status)",
+          "id, name, slug, timezone, tenant_status, billing_status, tenant_connections(connection_status, metadata)",
         )
         .order("name"),
       supabase
@@ -249,11 +262,12 @@ export async function getControlPlaneDashboardData(
       const tenantConnection = Array.isArray(tenant.tenant_connections)
         ? tenant.tenant_connections[0]
         : tenant.tenant_connections;
-
       const resolvedTenantId =
-        typeof tenant.external_tenant_id === "string"
-          ? tenant.external_tenant_id
-          : tenant.id;
+        extractRuntimeChurchId(
+          tenantConnection && typeof tenantConnection === "object"
+            ? (tenantConnection as Record<string, unknown>).metadata
+            : null,
+        ) ?? tenant.id;
 
       return [
         {
