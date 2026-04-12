@@ -17,7 +17,7 @@ import {
   Title,
 } from "@mantine/core";
 
-import { signInAction } from "@/app/sign-in/actions";
+import { signInAction, signOutAction } from "@/app/sign-in/actions";
 import {
   demoProfiles,
   getSession,
@@ -37,6 +37,7 @@ type SignInPageProps = {
     error?: string;
     message?: string;
     redirectTo?: string;
+    force?: string;
   }>;
 };
 
@@ -45,6 +46,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const redirectTo = sanitizeRedirectTarget(params.redirectTo);
   const session = await getSession();
   const supabaseConfigured = hasSupabaseEnv();
+  const forceSignIn = params.force === "1";
   const errorMessage = !params.error
     ? null
     : params.error === "profile"
@@ -55,7 +57,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           ? "Supabase environment variables are not configured for email confirmation."
           : toFriendlySupabaseErrorMessage(decodeURIComponent(params.error));
 
-  if (session) {
+  if (session && (!forceSignIn || session.canAccessControl)) {
     redirect(redirectTo);
   }
 
@@ -95,6 +97,12 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             {errorMessage ? <Alert color="red">{errorMessage}</Alert> : null}
             {params.message ? (
               <Alert color="teal">{decodeURIComponent(params.message)}</Alert>
+            ) : null}
+            {session && forceSignIn && !session.canAccessControl ? (
+              <Alert color="yellow" title="Control access required">
+                You are signed in as {session.profile.email}. Use a control-plane account to continue to
+                ChurchForge Control.
+              </Alert>
             ) : null}
 
             {supabaseConfigured ? (
@@ -155,6 +163,13 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
                     </Group>
                   </Stack>
                 </form>
+                {session && forceSignIn ? (
+                  <form action={signOutAction}>
+                    <Button type="submit" variant="subtle" radius="xl" mt="md">
+                      Sign out current account
+                    </Button>
+                  </form>
+                ) : null}
               </>
             ) : (
               <Stack gap="sm">

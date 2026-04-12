@@ -13,6 +13,7 @@ The UI direction for this surface is now intentionally lighter and quieter: ligh
 - `/control`
 - `/control/[section]`
 - `/controll` redirects to `/control`
+- Unauthorized access now routes through a forced sign-in flow for control-plane accounts instead of silently dropping back into a tenant workspace
 
 ## What This Surface Covers
 

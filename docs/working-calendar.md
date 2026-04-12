@@ -18,17 +18,24 @@ Compatibility redirect:
 
 ## What The Module Includes
 
-- A simpler Mantine-based calendar shell inside the church app
+- A Mantine-based custom calendar component inside the church app
+- Full Month, Week, and Day calendar views with smooth navigation
+  - **Month View**: 7-column grid showing all days with event badges and category colors
+  - **Week View**: Hourly time slots (6am–10pm) for the entire week
+  - **Day View**: Agenda-style listing of all events for the selected day
 - Live Supabase reads from categorized `events` rows when environment values are configured
-- Category filtering over upcoming events
-- A detail drawer for the selected event
+- Category filtering and "All" option; filters apply across all calendar views
+- Event-kind color coding by category (worship, prayer, administrative, ministry, etc.)
+- Quick-add inline form for creating new events (management roles only)
+- Detail drawer for event viewing with full descriptions, location, and action buttons
+- Event create, update, and delete mutations for church management roles (church-admin, pastor, ministry-leader)
+- RSVP mutation flows (yes/no/maybe) for church users on RSVP-enabled events
 - Approval queue visibility derived from non-approved event rows
 - Local direct-Postgres fallback when local Supabase REST metadata is unavailable
+- Timezone-aware event display using church timezone setting
 
 ## What Is Still Missing
 
-- Event CRUD flows
-- RSVP mutation flows
 - Volunteer assignment workflows
 - Resource booking enforcement
 - Realtime synchronization

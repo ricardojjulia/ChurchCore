@@ -9,7 +9,6 @@ The v1.5 development plan now makes Sprint 1 the active priority. The immediate 
 - Introduce separate backend configuration for control-plane and tenant connections
 - Continue tenant-side Sprint 1 work for `profiles`, `ministries`, `profile_ministries`, and categorized `events`
 - Add ministry assignment flows on top of live tenant-side `ministries` and `profile_ministries`
-- Add event CRUD and RSVP mutation flows on top of the live tenant-side categorized calendar read path
 - Add RLS verification for cross-church read and write isolation inside the tenant data plane
 
 ## Supabase Hookup

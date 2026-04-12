@@ -21,6 +21,7 @@ The current auth implementation establishes ChurchForge on Supabase SSR auth whi
 - Cookie-backed app-context selection so explicit tenant view is preserved across navigation
 - Tenant-view entry and exit audit writes through Supabase when the backend is configured
 - A local direct-database fallback for app-owned Supabase tables when the local REST schema cache is unavailable during development
+- A visible header logout action in the protected shell for direct session exit
 
 ## Protected Routes
 

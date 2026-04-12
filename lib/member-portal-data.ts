@@ -19,6 +19,13 @@ export type MemberPortalProfile = {
   displayTitle: string | null;
   roleId: PortalRoleId;
   isPastoral: boolean;
+  membershipStatus: string;
+  joinedDate: string | null;
+  directoryVisible: boolean;
+  contactAllowed: boolean;
+  preferredContactMethod: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
 };
 
 export type MemberPortalMinistry = {
@@ -57,6 +64,13 @@ function buildPreviewMemberPortalData(session: ChurchAppSession): MemberPortalDa
       displayTitle: session.profile.title,
       roleId: "member",
       isPastoral: false,
+      membershipStatus: "active",
+      joinedDate: null,
+      directoryVisible: true,
+      contactAllowed: true,
+      preferredContactMethod: null,
+      emergencyContactName: null,
+      emergencyContactPhone: null,
     },
     ministries: [],
     upcomingEvents:
@@ -108,6 +122,13 @@ export async function getMemberPortalData(
         display_title: string | null;
         role: string | null;
         is_pastoral: boolean | null;
+        membership_status: string | null;
+        joined_date: string | null;
+        directory_visible: boolean | null;
+        contact_allowed: boolean | null;
+        preferred_contact_method: string | null;
+        emergency_contact_name: string | null;
+        emergency_contact_phone: string | null;
       }>(
         `
           select
@@ -118,7 +139,14 @@ export async function getMemberPortalData(
             address,
             display_title,
             role,
-            is_pastoral
+            is_pastoral,
+            membership_status,
+            joined_date,
+            directory_visible,
+            contact_allowed,
+            preferred_contact_method,
+            emergency_contact_name,
+            emergency_contact_phone
           from public.profiles
           where user_id = $1
             and church_id = $2
@@ -190,6 +218,13 @@ export async function getMemberPortalData(
             displayTitle: profileRow.display_title,
             roleId: mapProfileRole(profileRow.role),
             isPastoral: Boolean(profileRow.is_pastoral),
+            membershipStatus: profileRow.membership_status ?? "active",
+            joinedDate: profileRow.joined_date ?? null,
+            directoryVisible: profileRow.directory_visible ?? true,
+            contactAllowed: profileRow.contact_allowed ?? true,
+            preferredContactMethod: profileRow.preferred_contact_method ?? null,
+            emergencyContactName: profileRow.emergency_contact_name ?? null,
+            emergencyContactPhone: profileRow.emergency_contact_phone ?? null,
           }
         : null,
       ministries: ministriesResult.rows.map((row) => ({
@@ -215,7 +250,7 @@ export async function getMemberPortalData(
     supabase
       .from("profiles")
       .select(
-        "id, full_name, email, phone, address, display_title, role, is_pastoral",
+        "id, full_name, email, phone, address, display_title, role, is_pastoral, membership_status, joined_date, directory_visible, contact_allowed, preferred_contact_method, emergency_contact_name, emergency_contact_phone",
       )
       .eq("user_id", session.userId)
       .eq("church_id", session.appContext.church.id)
@@ -250,6 +285,13 @@ export async function getMemberPortalData(
           displayTitle: profileRow.display_title,
           roleId: mapProfileRole(profileRow.role),
           isPastoral: Boolean(profileRow.is_pastoral),
+          membershipStatus: profileRow.membership_status ?? "active",
+          joinedDate: profileRow.joined_date ?? null,
+          directoryVisible: profileRow.directory_visible ?? true,
+          contactAllowed: profileRow.contact_allowed ?? true,
+          preferredContactMethod: profileRow.preferred_contact_method ?? null,
+          emergencyContactName: profileRow.emergency_contact_name ?? null,
+          emergencyContactPhone: profileRow.emergency_contact_phone ?? null,
         }
       : null,
     ministries:

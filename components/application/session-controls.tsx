@@ -49,6 +49,17 @@ export function SessionControls({
           Calendar
         </Button>
       ) : null}
+      <form action={signOutAction}>
+        <Button
+          type="submit"
+          variant="default"
+          color="red"
+          radius="xl"
+          leftSection={<LogOut size={16} />}
+        >
+          Log out
+        </Button>
+      </form>
 
       <Menu shadow="md" width={240} position="bottom-end">
         <MenuTarget>
@@ -86,16 +97,6 @@ export function SessionControls({
               Open calendar
             </MenuItem>
           ) : null}
-          <form action={signOutAction}>
-            <MenuItem
-              color="red"
-              leftSection={<LogOut size={14} />}
-              component="button"
-              type="submit"
-            >
-              Sign out
-            </MenuItem>
-          </form>
         </MenuDropdown>
       </Menu>
     </Group>

@@ -15,9 +15,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added server actions for tenant calendar event create, update, and delete flows, including local direct-Postgres fallback support.
 - Added tenant calendar RSVP mutation actions backed by `event_rsvps` records.
 - Added custom Mantine-based month, week, and day calendar rendering in the tenant calendar surface with smooth navigation and category filtering.
+- Added animated hero icon component (`ChurchForgeHeroIcon`) to the landing page with pulsing rings and community-focused visual design.
 
 ### Changed
 
+- Changed control-plane entry so unauthorized or wrong-account access now forces a visible sign-in flow instead of silently redirecting away from `/control`.
+- Changed the protected-shell header to show a visible `Log out` action instead of requiring sign-out through the profile dropdown.
 - Updated the Mantine theme and global UI tokens to a blue-neutral, higher-contrast system aligned to the new UI guidance.
 - Restyled the shared application shell, session controls, landing page, and `/control` around the updated palette and a simpler visual hierarchy.
 - Documented the current UI direction in the README so future visual changes have an explicit repo-level reference.
@@ -29,6 +32,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Extended tenant calendar data hydration to include each viewer's current RSVP status per event.
 - Upgraded the tenant calendar board from a list-only surface to an interactive month/week/day calendar with category filtering including an "all" option.
 - Replaced FullCalendar dependency with custom Mantine-based calendar implementation for improved control and styling consistency.
+- Updated landing page hero section: improved tagline to "Clarity for the mission you lead" and renamed action buttons to "ChurchForge App" and "ChurchForge Tenant Control" for better clarity.
 
 ## [1.0.0] - 2026-04-11
 

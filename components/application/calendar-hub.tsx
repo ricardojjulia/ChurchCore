@@ -70,6 +70,10 @@ export function CalendarHub({
       value: String(data.pendingApprovals.length),
     },
   ];
+  const canManageEvents =
+    session.appContext.roleId === "church-admin" ||
+    session.appContext.roleId === "pastor" ||
+    session.appContext.roleId === "ministry-leader";
 
   return (
     <ApplicationShell
@@ -110,6 +114,7 @@ export function CalendarHub({
         <CalendarLiveBoard
           events={data.events}
           churchTimeZone={session.appContext.church.timezone}
+          canManageEvents={canManageEvents}
         />
 
         <Stack gap="lg">

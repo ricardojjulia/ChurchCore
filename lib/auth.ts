@@ -1048,7 +1048,11 @@ export async function requireControlPlaneSession(redirectTo: string) {
   const session = await requireSession(redirectTo);
 
   if (!session.canAccessControl) {
-    redirect(session.homePath);
+    redirect(
+      `/sign-in?redirectTo=${encodeURIComponent(redirectTo)}&force=1&message=${encodeURIComponent(
+        "Sign in with a control-plane account to open ChurchForge Control.",
+      )}`,
+    );
   }
 
   return session;

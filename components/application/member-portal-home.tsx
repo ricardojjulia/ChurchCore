@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarRange, HeartHandshake, Mail, MapPin, Phone } from "lucide-react";
+import { AlertCircle, CalendarRange, HeartHandshake, Mail, MapPin, Phone } from "lucide-react";
 import {
+  Alert,
   Badge,
   Box,
   Button,
@@ -16,6 +17,7 @@ import {
 
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
+import { MemberProfileEdit } from "@/components/application/member-profile-edit";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { MemberPortalData } from "@/lib/member-portal-data";
 
@@ -71,6 +73,19 @@ export function MemberPortalHome({
       <ChurchAppContextBanner session={session} />
 
       <Stack gap="lg">
+        {profile && !profile.emergencyContactName ? (
+          <Alert
+            icon={<AlertCircle size={16} />}
+            color="yellow"
+            radius="xl"
+            title="Profile incomplete"
+          >
+            Add an emergency contact so your church can reach someone on your
+            behalf if needed.{" "}
+            <MemberProfileEdit profile={profile} />
+          </Alert>
+        ) : null}
+
         <Paper withBorder radius="xl" p="xl">
           <Group justify="space-between" align="flex-start" gap="md">
             <Box>
@@ -88,25 +103,28 @@ export function MemberPortalHome({
               </Text>
             </Box>
 
-            <Stack gap="xs" align="flex-start">
-              {profile?.email ? (
-                <Group gap={8}>
-                  <Mail size={14} />
-                  <Text size="sm">{profile.email}</Text>
-                </Group>
-              ) : null}
-              {profile?.phone ? (
-                <Group gap={8}>
-                  <Phone size={14} />
-                  <Text size="sm">{profile.phone}</Text>
-                </Group>
-              ) : null}
-              {profile?.address ? (
-                <Group gap={8} align="flex-start">
-                  <MapPin size={14} style={{ marginTop: 3 }} />
-                  <Text size="sm">{profile.address}</Text>
-                </Group>
-              ) : null}
+            <Stack gap="xs" align="flex-end">
+              {profile ? <MemberProfileEdit profile={profile} /> : null}
+              <Stack gap="xs" align="flex-start">
+                {profile?.email ? (
+                  <Group gap={8}>
+                    <Mail size={14} />
+                    <Text size="sm">{profile.email}</Text>
+                  </Group>
+                ) : null}
+                {profile?.phone ? (
+                  <Group gap={8}>
+                    <Phone size={14} />
+                    <Text size="sm">{profile.phone}</Text>
+                  </Group>
+                ) : null}
+                {profile?.address ? (
+                  <Group gap={8} align="flex-start">
+                    <MapPin size={14} style={{ marginTop: 3 }} />
+                    <Text size="sm">{profile.address}</Text>
+                  </Group>
+                ) : null}
+              </Stack>
             </Stack>
           </Group>
         </Paper>
