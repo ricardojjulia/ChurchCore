@@ -304,45 +304,72 @@ export async function updateMemberProfileAction(input: UpdateProfileInput) {
           phone                    = $2,
           address                  = $3,
           preferred_contact_method = $4,
-          emergency_contact_name   = $5,
-          emergency_contact_phone  = $6,
-          directory_visible        = $7,
-          contact_allowed          = $8,
+          directory_visible        = $5,
+          contact_allowed          = $6,
           updated_at               = timezone('utc', now())
-        where user_id  = $9
-          and church_id = $10
+        where user_id   = $7
+          and church_id = $8
       `,
       [
         fullName,
         phone,
         address,
         input.preferredContactMethod,
-        emergencyContactName,
-        emergencyContactPhone,
         input.directoryVisible,
         input.contactAllowed,
         session.userId,
         session.appContext.church.id,
       ],
     );
+    // Emergency contacts live in profile_sensitive_fields
+    await queryTenantLocalDb(
+      `
+        insert into public.profile_sensitive_fields (profile_id, church_id, emergency_contact_name, emergency_contact_phone)
+        select p.id, p.church_id, $1, $2
+        from public.profiles p
+        where p.user_id   = $3
+          and p.church_id = $4
+        on conflict (profile_id) do update
+          set emergency_contact_name  = excluded.emergency_contact_name,
+              emergency_contact_phone = excluded.emergency_contact_phone,
+              updated_at              = timezone('utc', now())
+      `,
+      [emergencyContactName, emergencyContactPhone, session.userId, session.appContext.church.id],
+    );
   } else {
     const supabase = await createTenantServerClient();
-    const { error: dbError } = await supabase
+    const { data: updatedProfile, error: dbError } = await supabase
       .from("profiles")
       .update({
         full_name: fullName,
         phone,
         address,
         preferred_contact_method: input.preferredContactMethod,
-        emergency_contact_name: emergencyContactName,
-        emergency_contact_phone: emergencyContactPhone,
         directory_visible: input.directoryVisible,
         contact_allowed: input.contactAllowed,
       })
       .eq("user_id", session.userId)
-      .eq("church_id", session.appContext.church.id);
+      .eq("church_id", session.appContext.church.id)
+      .select("id, church_id")
+      .maybeSingle();
 
     if (dbError) throw new Error(dbError.message);
+
+    if (updatedProfile) {
+      const { error: sensitiveError } = await supabase
+        .from("profile_sensitive_fields")
+        .upsert(
+          {
+            profile_id: updatedProfile.id,
+            church_id: updatedProfile.church_id,
+            emergency_contact_name: emergencyContactName,
+            emergency_contact_phone: emergencyContactPhone,
+          },
+          { onConflict: "profile_id" },
+        );
+
+      if (sensitiveError) throw new Error(sensitiveError.message);
+    }
   }
 
   revalidatePath("/app/member");
@@ -536,19 +563,17 @@ export async function updateChurchAdminPersonAction(
       `
         update public.profiles
         set
-          full_name = $1,
-          phone = $2,
-          address = $3,
-          display_title = $4,
-          membership_status = $5,
+          full_name                = $1,
+          phone                    = $2,
+          address                  = $3,
+          display_title            = $4,
+          membership_status        = $5,
           preferred_contact_method = $6,
-          emergency_contact_name = $7,
-          emergency_contact_phone = $8,
-          directory_visible = $9,
-          contact_allowed = $10,
-          updated_at = timezone('utc', now())
-        where id = $11
-          and church_id = $12
+          directory_visible        = $7,
+          contact_allowed          = $8,
+          updated_at               = timezone('utc', now())
+        where id        = $9
+          and church_id = $10
       `,
       [
         fullName,
@@ -557,13 +582,22 @@ export async function updateChurchAdminPersonAction(
         displayTitle,
         input.membershipStatus,
         input.preferredContactMethod,
-        emergencyContactName,
-        emergencyContactPhone,
         input.directoryVisible,
         input.contactAllowed,
         input.profileId,
         session.appContext.church.id,
       ],
+    );
+    await queryTenantLocalDb(
+      `
+        insert into public.profile_sensitive_fields (profile_id, church_id, emergency_contact_name, emergency_contact_phone)
+        values ($1, $2, $3, $4)
+        on conflict (profile_id) do update
+          set emergency_contact_name  = excluded.emergency_contact_name,
+              emergency_contact_phone = excluded.emergency_contact_phone,
+              updated_at              = timezone('utc', now())
+      `,
+      [input.profileId, session.appContext.church.id, emergencyContactName, emergencyContactPhone],
     );
   } else {
     const supabase = await createTenantServerClient();
@@ -576,8 +610,6 @@ export async function updateChurchAdminPersonAction(
         display_title: displayTitle,
         membership_status: input.membershipStatus,
         preferred_contact_method: input.preferredContactMethod,
-        emergency_contact_name: emergencyContactName,
-        emergency_contact_phone: emergencyContactPhone,
         directory_visible: input.directoryVisible,
         contact_allowed: input.contactAllowed,
       })
@@ -585,6 +617,20 @@ export async function updateChurchAdminPersonAction(
       .eq("church_id", session.appContext.church.id);
 
     if (error) throw new Error(error.message);
+
+    const { error: sensitiveError } = await supabase
+      .from("profile_sensitive_fields")
+      .upsert(
+        {
+          profile_id: input.profileId,
+          church_id: session.appContext.church.id,
+          emergency_contact_name: emergencyContactName,
+          emergency_contact_phone: emergencyContactPhone,
+        },
+        { onConflict: "profile_id" },
+      );
+
+    if (sensitiveError) throw new Error(sensitiveError.message);
   }
 
   revalidatePath("/app/church-admin");

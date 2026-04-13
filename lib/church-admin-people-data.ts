@@ -207,13 +207,15 @@ export async function getChurchAdminPeopleData(
           profile.directory_visible,
           profile.contact_allowed,
           profile.preferred_contact_method,
-          profile.emergency_contact_name,
-          profile.emergency_contact_phone,
+          sensitive.emergency_contact_name,
+          sensitive.emergency_contact_phone,
           family.family_name,
           profile.family_id
         from public.profiles profile
         left join public.families family
           on family.id = profile.family_id
+        left join public.profile_sensitive_fields sensitive
+          on sensitive.profile_id = profile.id
         where profile.church_id = $1
           and profile.merged_at is null
         order by profile.full_name
@@ -313,7 +315,7 @@ export async function getChurchAdminPeopleData(
     supabase
       .from("profiles")
       .select(
-        "id, full_name, email, phone, address, display_title, role, membership_status, directory_visible, contact_allowed, preferred_contact_method, emergency_contact_name, emergency_contact_phone, family_id",
+        "id, full_name, email, phone, address, display_title, role, membership_status, directory_visible, contact_allowed, preferred_contact_method, family_id, profile_sensitive_fields(emergency_contact_name, emergency_contact_phone)",
       )
       .eq("church_id", session.appContext.church.id)
       .is("merged_at", null)
@@ -396,8 +398,12 @@ export async function getChurchAdminPeopleData(
       directoryVisible: row.directory_visible !== false,
       contactAllowed: row.contact_allowed !== false,
       preferredContactMethod: row.preferred_contact_method ?? null,
-      emergencyContactName: row.emergency_contact_name ?? null,
-      emergencyContactPhone: row.emergency_contact_phone ?? null,
+      emergencyContactName:
+        (row.profile_sensitive_fields as unknown as Array<{ emergency_contact_name: string | null }> | null)
+          ?.[0]?.emergency_contact_name ?? null,
+      emergencyContactPhone:
+        (row.profile_sensitive_fields as unknown as Array<{ emergency_contact_phone: string | null }> | null)
+          ?.[0]?.emergency_contact_phone ?? null,
       familyId: row.family_id ?? null,
       familyName: row.family_id ? familyMap.get(row.family_id) ?? null : null,
     })),

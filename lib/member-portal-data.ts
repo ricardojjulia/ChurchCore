@@ -24,6 +24,7 @@ export type MemberPortalProfile = {
   directoryVisible: boolean;
   contactAllowed: boolean;
   preferredContactMethod: string | null;
+  // Sensitive fields — sourced from profile_sensitive_fields table
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
   familyId: string | null;
@@ -188,13 +189,15 @@ export async function getMemberPortalData(
             profile.directory_visible,
             profile.contact_allowed,
             profile.preferred_contact_method,
-            profile.emergency_contact_name,
-            profile.emergency_contact_phone,
+            sensitive.emergency_contact_name,
+            sensitive.emergency_contact_phone,
             profile.family_id,
             family.family_name
           from public.profiles profile
           left join public.families family
             on family.id = profile.family_id
+          left join public.profile_sensitive_fields sensitive
+            on sensitive.profile_id = profile.id
           where profile.user_id = $1
             and profile.church_id = $2
             and profile.merged_at is null
@@ -421,7 +424,7 @@ export async function getMemberPortalData(
     supabase
       .from("profiles")
       .select(
-        "id, full_name, email, phone, address, display_title, role, is_pastoral, membership_status, joined_date, directory_visible, contact_allowed, preferred_contact_method, emergency_contact_name, emergency_contact_phone, family_id",
+        "id, full_name, email, phone, address, display_title, role, is_pastoral, membership_status, joined_date, directory_visible, contact_allowed, preferred_contact_method, family_id, profile_sensitive_fields(emergency_contact_name, emergency_contact_phone)",
       )
       .eq("user_id", session.userId)
       .eq("church_id", session.appContext.church.id)
@@ -536,8 +539,12 @@ export async function getMemberPortalData(
           directoryVisible: profileRow.directory_visible ?? true,
           contactAllowed: profileRow.contact_allowed ?? true,
           preferredContactMethod: profileRow.preferred_contact_method ?? null,
-          emergencyContactName: profileRow.emergency_contact_name ?? null,
-          emergencyContactPhone: profileRow.emergency_contact_phone ?? null,
+          emergencyContactName:
+            (profileRow.profile_sensitive_fields as unknown as Array<{ emergency_contact_name: string | null }> | null)
+              ?.[0]?.emergency_contact_name ?? null,
+          emergencyContactPhone:
+            (profileRow.profile_sensitive_fields as unknown as Array<{ emergency_contact_phone: string | null }> | null)
+              ?.[0]?.emergency_contact_phone ?? null,
           familyId,
           familyName:
             familyResult.data && "family_name" in familyResult.data
