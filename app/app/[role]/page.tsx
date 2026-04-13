@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { MemberPortalHome } from "@/components/application/member-portal-home";
+import { PastorPortalHome } from "@/components/application/pastor-portal-home";
 import { PortalWorkspace } from "@/components/application/portal-workspace";
 import { getChurchAdminWorkspaceState } from "@/lib/application-state-store";
 import { requireChurchSession } from "@/lib/auth";
 import { getMemberPortalData } from "@/lib/member-portal-data";
+import { getPastorPortalData } from "@/lib/pastor-portal-data";
 import { churchPortalRoles, getPortalRole } from "@/lib/portal";
 import { siteConfig } from "@/lib/site";
 
@@ -60,9 +62,15 @@ export default async function ChurchAppRolePage({
       : null;
   const memberPortalData =
     portalRole.id === "member" ? await getMemberPortalData(session) : null;
+  const pastorPortalData =
+    portalRole.id === "pastor" ? await getPastorPortalData(session) : null;
 
   if (portalRole.id === "member" && memberPortalData) {
     return <MemberPortalHome session={session} data={memberPortalData} />;
+  }
+
+  if (portalRole.id === "pastor" && pastorPortalData) {
+    return <PastorPortalHome session={session} data={pastorPortalData} />;
   }
 
   return (

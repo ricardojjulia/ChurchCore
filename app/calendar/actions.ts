@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getSession, requireChurchSession } from "@/lib/auth";
 import { persistCalendarBoardState } from "@/lib/application-state-store";
 import type { CalendarBoardState } from "@/lib/application-state";
+import { resolveActiveChurchProfileId } from "@/lib/church-profile";
 import {
   createTenantServerClient,
   hasTenantBackendEnv,
@@ -149,6 +150,7 @@ export async function createCalendarEventAction(formData: FormData) {
   }
 
   const event = parseEventInput(formData);
+  const profileId = await resolveActiveChurchProfileId(session);
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -172,7 +174,7 @@ export async function createCalendarEventAction(formData: FormData) {
       [
         session.appContext.church.id,
         event.ministryId,
-        session.userId,
+        profileId,
         event.title,
         event.description,
         event.location,
@@ -192,7 +194,7 @@ export async function createCalendarEventAction(formData: FormData) {
   const { error } = await supabase.from("events").insert({
     church_id: session.appContext.church.id,
     ministry_id: event.ministryId,
-    created_by: session.userId,
+    created_by: profileId,
     title: event.title,
     description: event.description,
     location: event.location,
@@ -336,6 +338,11 @@ export async function respondToCalendarEventRsvpAction(formData: FormData) {
   const eventId = parseEventId(formData);
   const status = parseRsvpStatus(formData);
   const note = String(formData.get("note") ?? "").trim() || null;
+  const profileId = await resolveActiveChurchProfileId(session);
+
+  if (!profileId) {
+    throw new Error("Your church profile is missing. RSVP is unavailable until the profile is connected.");
+  }
 
   if (shouldUseLocalTenantFallback()) {
     const eventResult = await queryTenantLocalDb<{ rsvp_enabled: boolean }>(
@@ -369,7 +376,7 @@ export async function respondToCalendarEventRsvpAction(formData: FormData) {
           status = excluded.status,
           note = excluded.note
       `,
-      [eventId, session.userId, status, note],
+      [eventId, profileId, status, note],
     );
 
     await revalidateCalendarRoutes();
@@ -399,7 +406,7 @@ export async function respondToCalendarEventRsvpAction(formData: FormData) {
   const { error } = await supabase.from("event_rsvps").upsert(
     {
       event_id: eventId,
-      user_id: session.userId,
+      user_id: profileId,
       status,
       note,
     },

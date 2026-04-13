@@ -63,6 +63,11 @@ Primary routes:
 - `/app` tenant-facing church application entry
 - `/app/[role]` church role workspace
 - `/app/calendar` tenant-facing working calendar hub backed by Supabase event reads when configured
+- `/portal` dedicated churchgoer portal entry route that resolves to the member workspace
+- `/app/church-admin/people` church-admin people-management route
+- `/app/member/directory` member-facing directory route
+- `/app/member/family` member-facing household route
+- `/app/pastor/people` pastor-facing people route with the initial pastoral-care workflow
 - `/workspace` compatibility redirect to the new split entry
 - `/calendar` compatibility redirect to the new split entry
 - `/plan` development-plan summary
@@ -104,9 +109,18 @@ public/               Static assets
 - Local development can now fall back to direct Postgres reads and writes for app-owned Supabase tables when the local REST schema cache is unavailable.
 - The church app session now hydrates from real `profiles` rows when available, so `/app` and the app shell resolve live church-scoped user data instead of relying only on preview profile templates.
 - The member portal under `/app/member` now reads real profile, ministry-assignment, and upcoming-event data from Supabase instead of using only the generic preview workspace.
+- The church-admin side now includes a real `/app/church-admin/people` screen for church-scoped record management and status updates.
+- ChurchAdmin people management now includes bulk updates for membership status, directory visibility, and contact permission across selected records.
+- ChurchAdmin people management now includes household reassignment and duplicate-profile merge tooling, with merged profiles retired from downstream member and pastor views.
+- The churchgoer portal now has a dedicated `/portal` entry route, enriched member data with family and directory context, and a stronger self-service screen foundation.
+- The member experience is now split further into dedicated directory and household routes so people data is easier to manage without overloading the main member home screen.
+- The pastor role now resolves to a pastor-specific workspace backed by tenant profile, ministry, and follow-up data instead of the generic role shell.
+- The pastor experience now includes a dedicated people view with search, status filtering, household context, contact visibility, and last-attendance signals.
+- The pastor people route now includes a first pastoral-care workflow with pastor-only notes, church-scoped care assignments, and assignment status updates.
 - The protected shell now uses a light-only Mantine direction with less chrome, less copy, and a simpler hierarchy across control-plane and church-app surfaces.
 - The protected shell now exposes an explicit visible logout action in the header instead of hiding sign-out only inside the profile menu.
 - The current UI direction is now formally documented in `docs/UI-UPDATES.md`, with a blue-neutral palette, higher-contrast hierarchy, and dark mode intentionally deferred until token work is complete.
+- The pastoral-care workflow is documented in `docs/pastoral-care-foundation.md` so future confidentiality and governance work has a concrete baseline.
 - The church-app calendar route now reads live categorized `events` rows from Supabase and presents them as a simple upcoming-events board with category filters and a detail drawer.
 - Church management roles can now create, edit, and delete categorized events from the tenant calendar route, and all church users can persist RSVP responses against live `event_rsvps` rows.
 - The tenant calendar now renders full Month, Week, and Day calendar views with an event-kind filter that can target a single category or show all categories.
@@ -127,7 +141,12 @@ Every significant change must keep these files current:
 Current tracked follow-up:
 
 - See `docs/todo.md` for the remaining Supabase project hookup steps.
+- See `docs/church-admin-people.md` for the current ChurchAdmin people-management scope.
 - See `SUPABASE.md` for the active local Supabase reference values used during development.
+- See `advanced_ministry_elder_pastor.md` for the advanced ministries, elders, and pastor-council feature direction.
+- See `churchgoer_data.md` for the churchgoer data and self-service portal source of truth.
+- See `docs/churchgoer-pastor-execution-plan.md` for the current execution sequence across churchgoer and pastor data work.
+- See `docs/pastoral-care-foundation.md` for the current pastoral notes and care assignment scope.
 
 ## GitHub Workflow Discipline
 

@@ -7,6 +7,7 @@ import { Fraunces, Manrope } from "next/font/google";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 
+import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import { ThemeProvider } from "@/components/theme-provider";
 import { siteConfig } from "@/lib/site";
 
@@ -25,6 +26,12 @@ const serif = Fraunces({
 export const metadata: Metadata = {
   title: siteConfig.name,
   description: siteConfig.description,
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "ChurchForge",
+  },
 };
 
 export default function RootLayout({
@@ -42,6 +49,7 @@ export default function RootLayout({
         <ColorSchemeScript forceColorScheme="light" />
       </head>
       <body className="min-h-full bg-background font-sans text-foreground">
+        <ServiceWorkerRegistration />
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

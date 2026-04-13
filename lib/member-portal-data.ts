@@ -26,6 +26,8 @@ export type MemberPortalProfile = {
   preferredContactMethod: string | null;
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
+  familyId: string | null;
+  familyName: string | null;
 };
 
 export type MemberPortalMinistry = {
@@ -45,10 +47,38 @@ export type MemberPortalEvent = {
   ministryName: string | null;
 };
 
+export type MemberPortalFamilyMember = {
+  id: string;
+  fullName: string;
+  displayTitle: string | null;
+};
+
+export type MemberPortalFamily = {
+  id: string;
+  familyName: string;
+  address: string | null;
+  homePhone: string | null;
+  members: MemberPortalFamilyMember[];
+};
+
+export type MemberDirectoryEntry = {
+  id: string;
+  fullName: string;
+  displayTitle: string | null;
+  email: string | null;
+  phone: string | null;
+  familyName: string | null;
+  membershipStatus: string;
+  ministryNames: string[];
+  contactAllowed: boolean;
+};
+
 export type MemberPortalData = {
   profile: MemberPortalProfile | null;
   ministries: MemberPortalMinistry[];
   upcomingEvents: MemberPortalEvent[];
+  family: MemberPortalFamily | null;
+  directory: MemberDirectoryEntry[];
 };
 
 function buildPreviewMemberPortalData(session: ChurchAppSession): MemberPortalData {
@@ -71,6 +101,8 @@ function buildPreviewMemberPortalData(session: ChurchAppSession): MemberPortalDa
       preferredContactMethod: null,
       emergencyContactName: null,
       emergencyContactPhone: null,
+      familyId: null,
+      familyName: null,
     },
     ministries: [],
     upcomingEvents:
@@ -84,6 +116,8 @@ function buildPreviewMemberPortalData(session: ChurchAppSession): MemberPortalDa
         visibility: "members",
         ministryName: null,
       })) ?? [],
+    family: null,
+    directory: [],
   };
 }
 
@@ -104,6 +138,13 @@ function mapProfileRole(role: string | null): PortalRoleId {
   }
 }
 
+function buildDirectory(entries: Array<Omit<MemberDirectoryEntry, "ministryNames">>, ministryMap: Map<string, string[]>) {
+  return entries.map((entry) => ({
+    ...entry,
+    ministryNames: ministryMap.get(entry.id) ?? [],
+  }));
+}
+
 export async function getMemberPortalData(
   session: ChurchAppSession,
 ): Promise<MemberPortalData> {
@@ -112,7 +153,7 @@ export async function getMemberPortalData(
   }
 
   if (shouldUseLocalTenantFallback()) {
-    const [profileResult, ministriesResult, eventsResult] = await Promise.all([
+    const [profileResult, ministriesResult, eventsResult, directoryResult] = await Promise.all([
       queryTenantLocalDb<{
         id: string;
         full_name: string | null;
@@ -129,27 +170,34 @@ export async function getMemberPortalData(
         preferred_contact_method: string | null;
         emergency_contact_name: string | null;
         emergency_contact_phone: string | null;
+        family_id: string | null;
+        family_name: string | null;
       }>(
         `
           select
-            id,
-            full_name,
-            email,
-            phone,
-            address,
-            display_title,
-            role,
-            is_pastoral,
-            membership_status,
-            joined_date,
-            directory_visible,
-            contact_allowed,
-            preferred_contact_method,
-            emergency_contact_name,
-            emergency_contact_phone
-          from public.profiles
-          where user_id = $1
-            and church_id = $2
+            profile.id,
+            profile.full_name,
+            profile.email,
+            profile.phone,
+            profile.address,
+            profile.display_title,
+            profile.role,
+            profile.is_pastoral,
+            profile.membership_status,
+            profile.joined_date,
+            profile.directory_visible,
+            profile.contact_allowed,
+            profile.preferred_contact_method,
+            profile.emergency_contact_name,
+            profile.emergency_contact_phone,
+            profile.family_id,
+            family.family_name
+          from public.profiles profile
+          left join public.families family
+            on family.id = profile.family_id
+          where profile.user_id = $1
+            and profile.church_id = $2
+            and profile.merged_at is null
           limit 1
         `,
         [session.userId, session.appContext.church.id],
@@ -168,6 +216,7 @@ export async function getMemberPortalData(
             on ministry.id = profile_ministry.ministry_id
           where profile.user_id = $1
             and profile.church_id = $2
+            and profile.merged_at is null
           order by ministry.name
         `,
         [session.userId, session.appContext.church.id],
@@ -203,9 +252,103 @@ export async function getMemberPortalData(
         `,
         [session.appContext.church.id],
       ),
+      queryTenantLocalDb<{
+        id: string;
+        full_name: string;
+        display_title: string | null;
+        email: string | null;
+        phone: string | null;
+        family_name: string | null;
+        membership_status: string | null;
+        contact_allowed: boolean | null;
+      }>(
+        `
+          select
+            profile.id,
+            profile.full_name,
+            profile.display_title,
+            case when profile.contact_allowed then profile.email else null end as email,
+            case when profile.contact_allowed then profile.phone else null end as phone,
+            family.family_name,
+            profile.membership_status,
+            profile.contact_allowed
+          from public.profiles profile
+          left join public.families family
+            on family.id = profile.family_id
+          where profile.church_id = $1
+            and profile.directory_visible = true
+            and profile.merged_at is null
+          order by profile.full_name
+          limit 200
+        `,
+        [session.appContext.church.id],
+      ),
     ]);
 
     const profileRow = profileResult.rows[0];
+
+    const directoryIds = directoryResult.rows.map((row) => row.id);
+    const directoryMinistryResult = directoryIds.length
+      ? await queryTenantLocalDb<{
+          profile_id: string;
+          ministry_name: string;
+        }>(
+          `
+            select profile_ministry.profile_id, ministry.name as ministry_name
+            from public.profile_ministries profile_ministry
+            join public.ministries ministry
+              on ministry.id = profile_ministry.ministry_id
+            where profile_ministry.profile_id = any($1::uuid[])
+            order by ministry.name
+          `,
+          [directoryIds],
+        )
+      : { rows: [] as Array<{ profile_id: string; ministry_name: string }> };
+
+    const directoryMinistryMap = directoryMinistryResult.rows.reduce((map, row) => {
+      const names = map.get(row.profile_id) ?? [];
+      names.push(row.ministry_name);
+      map.set(row.profile_id, names);
+      return map;
+    }, new Map<string, string[]>());
+
+    const familyResult =
+      profileRow?.family_id
+        ? await queryTenantLocalDb<{
+            id: string;
+            family_name: string;
+            address: string | null;
+            home_phone: string | null;
+          }>(
+            `
+              select id, family_name, address, home_phone
+              from public.families
+              where id = $1
+                and church_id = $2
+              limit 1
+            `,
+            [profileRow.family_id, session.appContext.church.id],
+          )
+        : { rows: [] as Array<{ id: string; family_name: string; address: string | null; home_phone: string | null }> };
+
+    const familyMembersResult =
+      profileRow?.family_id
+        ? await queryTenantLocalDb<{
+            id: string;
+            full_name: string;
+            display_title: string | null;
+          }>(
+            `
+              select id, full_name, display_title
+              from public.profiles
+              where family_id = $1
+                and church_id = $2
+                and merged_at is null
+              order by full_name
+            `,
+            [profileRow.family_id, session.appContext.church.id],
+          )
+        : { rows: [] as Array<{ id: string; full_name: string; display_title: string | null }> };
 
     return {
       profile: profileRow
@@ -225,6 +368,8 @@ export async function getMemberPortalData(
             preferredContactMethod: profileRow.preferred_contact_method ?? null,
             emergencyContactName: profileRow.emergency_contact_name ?? null,
             emergencyContactPhone: profileRow.emergency_contact_phone ?? null,
+            familyId: profileRow.family_id ?? null,
+            familyName: profileRow.family_name ?? null,
           }
         : null,
       ministries: ministriesResult.rows.map((row) => ({
@@ -242,24 +387,52 @@ export async function getMemberPortalData(
         visibility: row.visibility,
         ministryName: row.ministry_name,
       })),
+      family: familyResult.rows[0]
+        ? {
+            id: familyResult.rows[0].id,
+            familyName: familyResult.rows[0].family_name,
+            address: familyResult.rows[0].address,
+            homePhone: familyResult.rows[0].home_phone,
+            members: familyMembersResult.rows.map((row) => ({
+              id: row.id,
+              fullName: row.full_name,
+              displayTitle: row.display_title,
+            })),
+          }
+        : null,
+      directory: buildDirectory(
+        directoryResult.rows.map((row) => ({
+          id: row.id,
+          fullName: row.full_name,
+          displayTitle: row.display_title,
+          email: row.email,
+          phone: row.phone,
+          familyName: row.family_name,
+          membershipStatus: row.membership_status ?? "active",
+          contactAllowed: row.contact_allowed ?? true,
+        })),
+        directoryMinistryMap,
+      ),
     };
   }
 
   const supabase = await createTenantServerClient();
-  const [profileResult, ministriesResult, eventsResult] = await Promise.all([
+  const [profileResult, ministriesResult, eventsResult, directoryProfilesResult] = await Promise.all([
     supabase
       .from("profiles")
       .select(
-        "id, full_name, email, phone, address, display_title, role, is_pastoral, membership_status, joined_date, directory_visible, contact_allowed, preferred_contact_method, emergency_contact_name, emergency_contact_phone",
+        "id, full_name, email, phone, address, display_title, role, is_pastoral, membership_status, joined_date, directory_visible, contact_allowed, preferred_contact_method, emergency_contact_name, emergency_contact_phone, family_id",
       )
       .eq("user_id", session.userId)
       .eq("church_id", session.appContext.church.id)
+      .is("merged_at", null)
       .maybeSingle(),
     supabase
       .from("profile_ministries")
       .select("ministries(id, name, description), profiles!inner(user_id, church_id)")
       .eq("profiles.user_id", session.userId)
-      .eq("profiles.church_id", session.appContext.church.id),
+      .eq("profiles.church_id", session.appContext.church.id)
+      .is("profiles.merged_at", null),
     supabase
       .from("events")
       .select(
@@ -270,9 +443,82 @@ export async function getMemberPortalData(
       .in("visibility", ["public", "members"])
       .order("starts_at", { ascending: true })
       .limit(6),
+    supabase
+      .from("profiles")
+      .select(
+        "id, full_name, display_title, email, phone, membership_status, contact_allowed, family_id",
+      )
+      .eq("church_id", session.appContext.church.id)
+      .eq("directory_visible", true)
+      .is("merged_at", null)
+      .order("full_name")
+      .limit(200),
   ]);
 
   const profileRow = profileResult.data;
+  const familyId = profileRow?.family_id ?? null;
+
+  const familyResult =
+    familyId
+      ? await supabase
+          .from("families")
+          .select("id, family_name, address, home_phone")
+          .eq("id", familyId)
+          .eq("church_id", session.appContext.church.id)
+          .maybeSingle()
+      : { data: null };
+
+  const familyMembersResult =
+    familyId
+      ? await supabase
+          .from("profiles")
+          .select("id, full_name, display_title")
+          .eq("church_id", session.appContext.church.id)
+          .eq("family_id", familyId)
+          .is("merged_at", null)
+          .order("full_name")
+      : { data: [] as Array<{ id: string; full_name: string; display_title: string | null }> };
+
+  const directoryProfiles = directoryProfilesResult.data ?? [];
+  const directoryIds = directoryProfiles.map((row) => row.id);
+  const familyIds = Array.from(
+    new Set(directoryProfiles.map((row) => row.family_id).filter((value): value is string => Boolean(value))),
+  );
+
+  const [directoryMinistriesResult, directoryFamiliesResult] = await Promise.all([
+    directoryIds.length
+      ? supabase
+          .from("profile_ministries")
+          .select("profile_id, ministries(name)")
+          .in("profile_id", directoryIds)
+      : { data: [] as Array<{ profile_id: string; ministries: { name?: string | null } | null }> },
+    familyIds.length
+      ? supabase
+          .from("families")
+          .select("id, family_name")
+          .in("id", familyIds)
+      : { data: [] as Array<{ id: string; family_name: string }> },
+  ]);
+
+  const directoryMinistryMap = (directoryMinistriesResult.data ?? []).reduce((map, row) => {
+    const name =
+      row.ministries && typeof row.ministries === "object" && "name" in row.ministries
+        ? String((row.ministries as { name: unknown }).name)
+        : null;
+
+    if (!name) {
+      return map;
+    }
+
+    const names = map.get(row.profile_id) ?? [];
+    names.push(name);
+    map.set(row.profile_id, names);
+    return map;
+  }, new Map<string, string[]>());
+
+  const directoryFamilyMap = new Map(
+    (directoryFamiliesResult.data ?? []).map((row) => [row.id, row.family_name]),
+  );
 
   return {
     profile: profileRow
@@ -292,56 +538,85 @@ export async function getMemberPortalData(
           preferredContactMethod: profileRow.preferred_contact_method ?? null,
           emergencyContactName: profileRow.emergency_contact_name ?? null,
           emergencyContactPhone: profileRow.emergency_contact_phone ?? null,
+          familyId,
+          familyName:
+            familyResult.data && "family_name" in familyResult.data
+              ? String((familyResult.data as { family_name: unknown }).family_name)
+              : null,
         }
       : null,
     ministries:
       ministriesResult.data?.flatMap((row) => {
-        const ministry = Array.isArray(row.ministries)
-          ? row.ministries[0]
-          : row.ministries;
+        const ministry =
+          row.ministries && typeof row.ministries === "object" && "id" in row.ministries
+            ? row.ministries
+            : Array.isArray(row.ministries)
+              ? row.ministries[0]
+              : null;
 
         if (!ministry || typeof ministry !== "object") {
           return [];
         }
 
-        const record = ministry as Record<string, unknown>;
-
-        if (typeof record.id !== "string" || typeof record.name !== "string") {
-          return [];
-        }
-
         return [
           {
-            id: record.id,
-            name: record.name,
+            id: String((ministry as { id: unknown }).id),
+            name: String((ministry as { name: unknown }).name),
             description:
-              typeof record.description === "string"
-                ? record.description
+              "description" in ministry && (ministry as { description: unknown }).description !== null
+                ? String((ministry as { description: unknown }).description)
                 : null,
           },
         ];
       }) ?? [],
     upcomingEvents:
-      eventsResult.data?.flatMap((row) => {
-        const ministry = Array.isArray(row.ministries)
-          ? row.ministries[0]
-          : row.ministries;
-
-        return [
-          {
-            id: row.id,
-            title: row.title,
-            description: row.description,
-            startsAt: row.starts_at,
-            endsAt: row.ends_at,
-            category: row.category,
-            visibility: row.visibility,
-            ministryName:
-              ministry && typeof ministry === "object" && "name" in ministry
-                ? String((ministry as Record<string, unknown>).name)
+      eventsResult.data?.map((row) => ({
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        startsAt: row.starts_at,
+        endsAt: row.ends_at,
+        category: row.category,
+        visibility: row.visibility,
+        ministryName:
+          row.ministries && typeof row.ministries === "object" && "name" in row.ministries
+            ? String((row.ministries as { name: unknown }).name)
+            : null,
+      })) ?? [],
+    family:
+      familyResult.data && typeof familyResult.data === "object"
+        ? {
+            id: String((familyResult.data as { id: unknown }).id),
+            familyName: String((familyResult.data as { family_name: unknown }).family_name),
+            address:
+              "address" in familyResult.data && (familyResult.data as { address: unknown }).address !== null
+                ? String((familyResult.data as { address: unknown }).address)
                 : null,
-          },
-        ];
-      }) ?? [],
+            homePhone:
+              "home_phone" in familyResult.data &&
+              (familyResult.data as { home_phone: unknown }).home_phone !== null
+                ? String((familyResult.data as { home_phone: unknown }).home_phone)
+                : null,
+            members:
+              familyMembersResult.data?.map((row) => ({
+                id: row.id,
+                fullName: row.full_name,
+                displayTitle: row.display_title,
+              })) ?? [],
+          }
+        : null,
+    directory: buildDirectory(
+      directoryProfiles.map((row) => ({
+        id: row.id,
+        fullName: row.full_name,
+        displayTitle: row.display_title,
+        email: row.contact_allowed ? row.email : null,
+        phone: row.contact_allowed ? row.phone : null,
+        familyName: row.family_id ? directoryFamilyMap.get(row.family_id) ?? null : null,
+        membershipStatus: row.membership_status ?? "active",
+        contactAllowed: row.contact_allowed ?? true,
+      })),
+      directoryMinistryMap,
+    ),
   };
 }

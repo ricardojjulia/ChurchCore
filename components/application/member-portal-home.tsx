@@ -1,7 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { AlertCircle, CalendarRange, HeartHandshake, Mail, MapPin, Phone } from "lucide-react";
+import {
+  AlertCircle,
+  CalendarRange,
+  HeartHandshake,
+  Home,
+  Mail,
+  MapPin,
+  Phone,
+  UsersRound,
+} from "lucide-react";
 import {
   Alert,
   Badge,
@@ -9,6 +18,7 @@ import {
   Button,
   Group,
   Paper,
+  SimpleGrid,
   Stack,
   Text,
   ThemeIcon,
@@ -17,6 +27,7 @@ import {
 
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
+import { MemberFamilyEdit } from "@/components/application/member-family-edit";
 import { MemberProfileEdit } from "@/components/application/member-profile-edit";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { MemberPortalData } from "@/lib/member-portal-data";
@@ -56,16 +67,36 @@ export function MemberPortalHome({
       navItems={[
         {
           href: "/app/member",
-          label: "Portal",
-          description: session.appContext.church.name,
+          label: "Home",
+          description: "Personal overview",
           icon: HeartHandshake,
           active: true,
+        },
+        {
+          href: "/app/member/directory",
+          label: "Directory",
+          description: "Church family",
+          icon: UsersRound,
+        },
+        {
+          href: "/app/member/family",
+          label: "Family",
+          description: "Household details",
+          icon: Home,
         },
       ]}
       topActions={
         <Group gap="sm" wrap="wrap" justify="flex-end">
+          <Button
+            component={Link}
+            href="/app/member/directory"
+            variant="default"
+            radius="xl"
+          >
+            Directory
+          </Button>
           <Button component={Link} href="/app/calendar" radius="xl">
-            Open calendar
+            Calendar
           </Button>
         </Group>
       }
@@ -101,6 +132,11 @@ export function MemberPortalHome({
               <Text c="dimmed" mt="sm">
                 {session.appContext.church.name}
               </Text>
+              {profile?.familyName ? (
+                <Text size="sm" mt="sm">
+                  Family: {profile.familyName}
+                </Text>
+              ) : null}
             </Box>
 
             <Stack gap="xs" align="flex-end">
@@ -129,29 +165,80 @@ export function MemberPortalHome({
           </Group>
         </Paper>
 
-        <Paper withBorder radius="xl" p="xl">
-          <Title order={3} size="h4">
-            Ministries
-          </Title>
-          <Stack gap="sm" mt="lg">
-            {data.ministries.length ? (
-              data.ministries.map((ministry) => (
-                <Paper key={ministry.id} withBorder radius="xl" p="lg">
-                  <Text fw={600}>{ministry.name}</Text>
-                  {ministry.description ? (
-                    <Text c="dimmed" size="sm" mt={6}>
-                      {ministry.description}
-                    </Text>
-                  ) : null}
-                </Paper>
-              ))
-            ) : (
-              <Text c="dimmed" size="sm">
-                No ministry assignments yet.
-              </Text>
-            )}
-          </Stack>
-        </Paper>
+        <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }} spacing="md">
+          <Paper withBorder radius="xl" p="xl">
+            <Group justify="space-between" align="flex-start" mb="md">
+              <ThemeIcon color="gray" variant="light" radius="xl" size="lg">
+                <Home size={18} />
+              </ThemeIcon>
+              <Badge color="gray" variant="light">
+                {data.family?.members.length ?? 0}
+              </Badge>
+            </Group>
+            <Title order={3} size="h4">
+              {data.family?.familyName ?? "No family record"}
+            </Title>
+            <Text size="sm" c="dimmed" mt="sm">
+              {data.family?.address || "Add a household record for shared contact details."}
+            </Text>
+            <Group mt="lg">
+              <MemberFamilyEdit family={data.family} />
+              <Button
+                component={Link}
+                href="/app/member/family"
+                variant="subtle"
+                radius="xl"
+              >
+                Open
+              </Button>
+            </Group>
+          </Paper>
+
+          <Paper withBorder radius="xl" p="xl">
+            <Group justify="space-between" align="flex-start" mb="md">
+              <ThemeIcon color="gray" variant="light" radius="xl" size="lg">
+                <UsersRound size={18} />
+              </ThemeIcon>
+              <Badge color="gray" variant="light">
+                {data.directory.length}
+              </Badge>
+            </Group>
+            <Title order={3} size="h4">
+              Directory
+            </Title>
+            <Text size="sm" c="dimmed" mt="sm">
+              Find people by name, family, or ministry.
+            </Text>
+            <Button
+              component={Link}
+              href="/app/member/directory"
+              variant="default"
+              radius="xl"
+              mt="lg"
+            >
+              Open directory
+            </Button>
+          </Paper>
+
+          <Paper withBorder radius="xl" p="xl">
+            <Group justify="space-between" align="flex-start" mb="md">
+              <ThemeIcon color="gray" variant="light" radius="xl" size="lg">
+                <HeartHandshake size={18} />
+              </ThemeIcon>
+              <Badge color="gray" variant="light">
+                {data.ministries.length}
+              </Badge>
+            </Group>
+            <Title order={3} size="h4">
+              Ministries
+            </Title>
+            <Text size="sm" c="dimmed" mt="sm">
+              {data.ministries.length
+                ? data.ministries.map((ministry) => ministry.name).join(", ")
+                : "No ministry assignments yet."}
+            </Text>
+          </Paper>
+        </SimpleGrid>
 
         <Paper withBorder radius="xl" p="xl">
           <Group justify="space-between" align="center" mb="lg">

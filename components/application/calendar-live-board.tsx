@@ -1,22 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CalendarClock, MapPin, Tags, ChevronLeft, ChevronRight } from "lucide-react";
+import { useMemo, useRef, useState, useTransition, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { CalendarClock, ChevronLeft, ChevronRight, MapPin, Tags } from "lucide-react";
 import {
+  Alert,
+  Badge,
   Button,
-  Drawer,
   Divider,
+  Drawer,
   Group,
   NativeSelect,
   Paper,
+  SimpleGrid,
   Stack,
   Switch,
   Text,
   TextInput,
   Textarea,
   Title,
-  SimpleGrid,
-  Badge,
 } from "@mantine/core";
 
 import {
@@ -25,7 +27,6 @@ import {
   respondToCalendarEventRsvpAction,
   updateCalendarEventAction,
 } from "@/app/calendar/actions";
-
 import type { ChurchCalendarEvent } from "@/lib/church-calendar-data";
 
 const categoryOptions = [
@@ -41,6 +42,15 @@ const categoryOptions = [
 ] as const;
 
 const visibilityOptions = ["public", "members", "leaders"] as const;
+
+type FeedbackState =
+  | {
+      tone: "error" | "success";
+      message: string;
+    }
+  | null;
+
+type PendingAction = "create" | "update" | "delete" | "rsvp" | null;
 
 function formatCategory(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (match) => match.toUpperCase());
@@ -80,6 +90,25 @@ function getCategoryColor(category: string) {
   }
 }
 
+function toChurchDateKey(value: Date | string, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  if (!year || !month || !day) {
+    return "";
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
 function formatDay(value: string, timeZone: string) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "long",
@@ -87,6 +116,22 @@ function formatDay(value: string, timeZone: string) {
     day: "numeric",
     timeZone,
   }).format(new Date(value));
+}
+
+function formatDateKey(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
 function formatTimeRange(start: string, end: string, timeZone: string) {
@@ -99,6 +144,10 @@ function formatTimeRange(start: string, end: string, timeZone: string) {
   return `${formatter.format(new Date(start))} - ${formatter.format(new Date(end))}`;
 }
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Something went wrong. Please try again.";
+}
+
 export function CalendarLiveBoard({
   events,
   churchTimeZone,
@@ -108,10 +157,17 @@ export function CalendarLiveBoard({
   churchTimeZone: string;
   canManageEvents: boolean;
 }) {
+  const router = useRouter();
+  const createFormRef = useRef<HTMLFormElement>(null);
+
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"month" | "week" | "day">("month");
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [feedback, setFeedback] = useState<FeedbackState>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [isPending, startTransition] = useTransition();
 
   const categories = useMemo(
     () => ["all", ...new Set(events.map((event) => event.category))],
@@ -126,84 +182,216 @@ export function CalendarLiveBoard({
     [activeCategory, events],
   );
 
-  const groupedEvents = useMemo(
+  const eventsByDay = useMemo(() => {
+    const days = new Map<string, ChurchCalendarEvent[]>();
+
+    visibleEvents.forEach((event) => {
+      const dayKey = toChurchDateKey(event.startsAt, churchTimeZone);
+      const dayEvents = days.get(dayKey) ?? [];
+      dayEvents.push(event);
+      days.set(dayKey, dayEvents);
+    });
+
+    days.forEach((dayEvents) => {
+      dayEvents.sort(
+        (left, right) =>
+          new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime(),
+      );
+    });
+
+    return days;
+  }, [churchTimeZone, visibleEvents]);
+
+  const agendaDays = useMemo(
     () =>
-      Array.from(
-        visibleEvents.reduce((days, event) => {
-          const dayLabel = formatDay(event.startsAt, churchTimeZone);
-          const dayEvents = days.get(dayLabel) ?? [];
-          dayEvents.push(event);
-          days.set(dayLabel, dayEvents);
-          return days;
-        }, new Map<string, ChurchCalendarEvent[]>()),
-      ),
-    [churchTimeZone, visibleEvents],
+      Array.from(eventsByDay.entries())
+        .map(([dayKey, dayEvents]) => ({
+          dayKey,
+          label: formatDateKey(dayKey),
+          events: dayEvents,
+        }))
+        .sort((left, right) => left.dayKey.localeCompare(right.dayKey)),
+    [eventsByDay],
   );
 
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? null;
+  const selectedDayEvents = selectedDateKey ? eventsByDay.get(selectedDateKey) ?? [] : [];
+  const currentDateKey = toChurchDateKey(currentDate, churchTimeZone);
+  const todayKey = toChurchDateKey(new Date(), churchTimeZone);
+  const drawerOpened = Boolean(selectedEvent || selectedDateKey);
 
-  const getDaysInMonth = (date: Date) => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  };
+  function getEventsForDate(date: Date) {
+    return eventsByDay.get(toChurchDateKey(date, churchTimeZone)) ?? [];
+  }
 
-  const getFirstDayOfMonth = (date: Date) => {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
-  };
+  function openDate(date: Date) {
+    setCurrentDate(date);
+    setSelectedDateKey(toChurchDateKey(date, churchTimeZone));
+    setSelectedEventId(null);
+    setFeedback(null);
+  }
 
-  const getEventsForDate = (date: Date) => {
-    return visibleEvents.filter((event) => {
-      const eventDate = new Date(event.startsAt);
-      return (
-        eventDate.getFullYear() === date.getFullYear() &&
-        eventDate.getMonth() === date.getMonth() &&
-        eventDate.getDate() === date.getDate()
-      );
+  function openEvent(event: ChurchCalendarEvent) {
+    setSelectedDateKey(toChurchDateKey(event.startsAt, churchTimeZone));
+    setSelectedEventId(event.id);
+    setFeedback(null);
+  }
+
+  function handleDrawerClose() {
+    if (selectedEventId) {
+      setSelectedEventId(null);
+      return;
+    }
+
+    setSelectedDateKey(null);
+    setFeedback(null);
+  }
+
+  function runAction(
+    action: PendingAction,
+    task: () => Promise<void>,
+    options?: {
+      successMessage?: string;
+      onSuccess?: () => void;
+    },
+  ) {
+    setFeedback(null);
+    setPendingAction(action);
+
+    startTransition(async () => {
+      try {
+        await task();
+        if (options?.successMessage) {
+          setFeedback({
+            tone: "success",
+            message: options.successMessage,
+          });
+        }
+        options?.onSuccess?.();
+        router.refresh();
+      } catch (error) {
+        setFeedback({
+          tone: "error",
+          message: getErrorMessage(error),
+        });
+      } finally {
+        setPendingAction(null);
+      }
     });
-  };
+  }
 
-  const renderMonthView = () => {
+  function handleCreateSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    runAction("create", () => createCalendarEventAction(formData), {
+      successMessage: "Event added to the calendar.",
+      onSuccess: () => {
+        form.reset();
+      },
+    });
+  }
+
+  function handleUpdateSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    runAction("update", () => updateCalendarEventAction(formData), {
+      successMessage: "Event updated.",
+    });
+  }
+
+  function handleDelete(eventId: string) {
+    const formData = new FormData();
+    formData.set("eventId", eventId);
+
+    runAction("delete", () => deleteCalendarEventAction(formData), {
+      successMessage: "Event deleted.",
+      onSuccess: () => {
+        setSelectedEventId(null);
+        setSelectedDateKey(null);
+      },
+    });
+  }
+
+  function handleRsvpSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as
+      | HTMLButtonElement
+      | undefined;
+    const status = submitter?.value;
+
+    if (status) {
+      formData.set("status", status);
+    }
+
+    runAction("rsvp", () => respondToCalendarEventRsvpAction(formData), {
+      successMessage: "RSVP updated.",
+    });
+  }
+
+  function getDaysInMonth(date: Date) {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  }
+
+  function getFirstDayOfMonth(date: Date) {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  }
+
+  function renderMonthView() {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const daysInMonth = getDaysInMonth(currentDate);
     const firstDay = getFirstDayOfMonth(currentDate);
     const days = [];
 
-    // Empty cells for days before month starts
-    for (let i = 0; i < firstDay; i++) {
-      days.push(
-        <div key={`empty-${i}`} style={{ aspectRatio: "1/1" }} />
-      );
+    for (let index = 0; index < firstDay; index += 1) {
+      days.push(<div key={`empty-${index}`} style={{ aspectRatio: "1 / 1" }} />);
     }
 
-    // Days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
+    for (let day = 1; day <= daysInMonth; day += 1) {
       const date = new Date(year, month, day);
+      const dayKey = toChurchDateKey(date, churchTimeZone);
       const dayEvents = getEventsForDate(date);
-      const isToday =
-        date.toDateString() === new Date().toDateString();
+      const isToday = dayKey === todayKey;
 
       days.push(
         <Paper
           key={`day-${day}`}
           p="xs"
           withBorder
+          onClick={() => openDate(date)}
           style={{
-            aspectRatio: "1/1",
+            aspectRatio: "1 / 1",
             overflow: "auto",
             backgroundColor: isToday ? "rgba(37, 99, 235, 0.05)" : undefined,
             cursor: "pointer",
           }}
         >
-          <Text fw={600} size="sm" mb={4}>
-            {day}
-          </Text>
+          <Group justify="space-between" align="center" mb={4}>
+            <Text fw={600} size="sm">
+              {day}
+            </Text>
+            {dayEvents.length ? (
+              <Badge size="xs" variant="light" color="gray">
+                {dayEvents.length}
+              </Badge>
+            ) : null}
+          </Group>
           <Stack gap={2}>
-            {dayEvents.slice(0, 3).map((event) => (
+            {dayEvents.slice(0, 3).map((calendarEvent) => (
               <Group
-                key={event.id}
+                key={calendarEvent.id}
                 gap={4}
                 wrap="nowrap"
-                onClick={() => setSelectedEventId(event.id)}
+                onClick={(clickEvent) => {
+                  clickEvent.stopPropagation();
+                  openEvent(calendarEvent);
+                }}
                 style={{ cursor: "pointer" }}
               >
                 <div
@@ -211,12 +399,12 @@ export function CalendarLiveBoard({
                     width: 4,
                     height: 4,
                     borderRadius: "50%",
-                    backgroundColor: getCategoryColor(event.category),
+                    backgroundColor: getCategoryColor(calendarEvent.category),
                     flexShrink: 0,
                   }}
                 />
                 <Text size="xs" truncate>
-                  {event.title}
+                  {calendarEvent.title}
                 </Text>
               </Group>
             ))}
@@ -226,31 +414,34 @@ export function CalendarLiveBoard({
               </Text>
             ) : null}
           </Stack>
-        </Paper>
+        </Paper>,
       );
     }
 
     return days;
-  };
+  }
 
-  const renderWeekView = () => {
+  function renderWeekView() {
     const startOfWeek = new Date(currentDate);
     startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
 
-    const hourSlots = Array.from({ length: 16 }, (_, i) => 6 + i); // 6am to 10pm
-    const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const hourSlots = Array.from({ length: 16 }, (_, index) => 6 + index);
+    const weekDays = Array.from({ length: 7 }, (_, index) => {
       const date = new Date(startOfWeek);
-      date.setDate(date.getDate() + i);
+      date.setDate(date.getDate() + index);
       return date;
     });
 
     return (
       <div style={{ overflowX: "auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "60px repeat(7, 1fr)", gap: 1 }}>
-          {/* Time labels */}
           <div key="time-header" />
           {weekDays.map((date) => (
-            <div key={`day-header-${date.toDateString()}`} style={{ textAlign: "center", paddingBottom: 8 }}>
+            <div
+              key={`day-header-${date.toDateString()}`}
+              onClick={() => openDate(date)}
+              style={{ textAlign: "center", paddingBottom: 8, cursor: "pointer" }}
+            >
               <Text fw={600} size="sm">
                 {date.toLocaleDateString("en-US", { weekday: "short" })}
               </Text>
@@ -260,7 +451,6 @@ export function CalendarLiveBoard({
             </div>
           ))}
 
-          {/* Hour rows */}
           {hourSlots.map((hour) => (
             <div key={`hour-${hour}`} style={{ gridColumn: 1 }}>
               <Text size="xs" c="dimmed">
@@ -269,36 +459,42 @@ export function CalendarLiveBoard({
             </div>
           ))}
 
-          {/* Events */}
           {weekDays.map((date, dayIndex) =>
             hourSlots.map((hour) => {
-              const dayEvents = getEventsForDate(date).filter((event) => {
-                const eventHour = new Date(event.startsAt).getHours();
+              const dayEvents = getEventsForDate(date).filter((calendarEvent) => {
+                const eventHour = new Date(calendarEvent.startsAt).getHours();
                 return eventHour === hour;
               });
 
               return (
                 <div
                   key={`slot-${date.toDateString()}-${hour}`}
+                  onClick={() => openDate(date)}
                   style={{
                     gridColumn: dayIndex + 2,
                     gridRow: hour - 6 + 2,
                     border: "1px solid #e0e0e0",
                     padding: 4,
                     minHeight: 60,
+                    cursor: "pointer",
                   }}
                 >
-                  {dayEvents.map((event) => (
-                    <Badge
-                      key={event.id}
-                      size="xs"
-                      color="blue"
-                      style={{ cursor: "pointer" }}
-                      onClick={() => setSelectedEventId(event.id)}
-                    >
-                      {event.title}
-                    </Badge>
-                  ))}
+                  <Stack gap={4}>
+                    {dayEvents.map((calendarEvent) => (
+                      <Badge
+                        key={calendarEvent.id}
+                        size="xs"
+                        color="blue"
+                        style={{ cursor: "pointer" }}
+                        onClick={(clickEvent) => {
+                          clickEvent.stopPropagation();
+                          openEvent(calendarEvent);
+                        }}
+                      >
+                        {calendarEvent.title}
+                      </Badge>
+                    ))}
+                  </Stack>
                 </div>
               );
             }),
@@ -306,41 +502,36 @@ export function CalendarLiveBoard({
         </div>
       </div>
     );
-  };
+  }
 
-  const renderDayView = () => {
-    const dayEvents = getEventsForDate(currentDate).sort(
-      (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
-    );
+  function renderDayView() {
+    const dayEvents = getEventsForDate(currentDate);
 
     return (
       <Stack gap="sm">
-        <Text fw={600}>
-          {currentDate.toLocaleDateString("en-US", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}
-        </Text>
+        <Text fw={600}>{formatDateKey(currentDateKey)}</Text>
         {dayEvents.length ? (
-          dayEvents.map((event) => (
+          dayEvents.map((calendarEvent) => (
             <Paper
-              key={event.id}
+              key={calendarEvent.id}
               p="md"
               withBorder
               style={{ cursor: "pointer" }}
-              onClick={() => setSelectedEventId(event.id)}
+              onClick={() => openEvent(calendarEvent)}
             >
               <Group justify="space-between" align="flex-start">
                 <div>
-                  <Text fw={600}>{event.title}</Text>
+                  <Text fw={600}>{calendarEvent.title}</Text>
                   <Text size="sm" c="dimmed" mt={4}>
-                    {formatTimeRange(event.startsAt, event.endsAt, churchTimeZone)}
-                    {event.location ? ` • ${event.location}` : ""}
+                    {formatTimeRange(
+                      calendarEvent.startsAt,
+                      calendarEvent.endsAt,
+                      churchTimeZone,
+                    )}
+                    {calendarEvent.location ? ` • ${calendarEvent.location}` : ""}
                   </Text>
                 </div>
-                <Badge color="blue">{formatCategory(event.category)}</Badge>
+                <Badge color="blue">{formatCategory(calendarEvent.category)}</Badge>
               </Group>
             </Paper>
           ))
@@ -351,7 +542,7 @@ export function CalendarLiveBoard({
         )}
       </Stack>
     );
-  };
+  }
 
   return (
     <>
@@ -367,7 +558,7 @@ export function CalendarLiveBoard({
                 : viewMode === "week"
                   ? "Week view"
                   : "Day view"}{" "}
-              with event-type filtering.
+              with event-type filtering and day details.
             </Text>
           </div>
           <Group gap="xs" wrap="wrap">
@@ -385,28 +576,24 @@ export function CalendarLiveBoard({
           </Group>
         </Group>
 
+        {feedback ? (
+          <Alert color={feedback.tone === "error" ? "red" : "teal"} mb="lg">
+            {feedback.message}
+          </Alert>
+        ) : null}
+
         {canManageEvents ? (
           <Paper withBorder p="lg" mb="lg">
             <Text fw={600} mb="sm">
               Quick add event
             </Text>
-            <form action={createCalendarEventAction}>
+            <form ref={createFormRef} onSubmit={handleCreateSubmit}>
               <Stack gap="sm">
                 <TextInput name="title" label="Title" placeholder="Wednesday prayer night" required />
                 <TextInput name="location" label="Location" placeholder="Main hall" />
                 <Group grow align="flex-start">
-                  <TextInput
-                    name="startsAt"
-                    type="datetime-local"
-                    label="Starts"
-                    required
-                  />
-                  <TextInput
-                    name="endsAt"
-                    type="datetime-local"
-                    label="Ends"
-                    required
-                  />
+                  <TextInput name="startsAt" type="datetime-local" label="Starts" required />
+                  <TextInput name="endsAt" type="datetime-local" label="Ends" required />
                 </Group>
                 <Group grow align="flex-start">
                   <NativeSelect
@@ -432,7 +619,7 @@ export function CalendarLiveBoard({
                 <Textarea name="description" label="Description" minRows={2} />
                 <Switch name="rsvpEnabled" label="Enable RSVP" defaultChecked />
                 <Group justify="flex-end">
-                  <Button type="submit" radius="xl" size="xs">
+                  <Button type="submit" radius="xl" size="xs" loading={isPending && pendingAction === "create"}>
                     Add event
                   </Button>
                 </Group>
@@ -441,7 +628,6 @@ export function CalendarLiveBoard({
           </Paper>
         ) : null}
 
-        {/* View controls */}
         <Group justify="space-between" mb="md">
           <Group gap="sm">
             <Button
@@ -486,11 +672,7 @@ export function CalendarLiveBoard({
             >
               Prev
             </Button>
-            <Button
-              size="compact-sm"
-              variant="default"
-              onClick={() => setCurrentDate(new Date())}
-            >
+            <Button size="compact-sm" variant="default" onClick={() => setCurrentDate(new Date())}>
               Today
             </Button>
             <Button
@@ -514,7 +696,6 @@ export function CalendarLiveBoard({
           </Group>
         </Group>
 
-        {/* Calendar render */}
         {viewMode === "month" ? (
           <SimpleGrid cols={7} spacing={1} mb="lg">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
@@ -540,43 +721,65 @@ export function CalendarLiveBoard({
           <Text fw={600} size="sm">
             Agenda snapshot
           </Text>
-          {groupedEvents.length ? (
-            groupedEvents.map(([dayLabel, dayEvents]) => (
-              <div key={dayLabel}>
-                <Text fw={600} mb={6} size="sm">
-                  {dayLabel}
-                </Text>
-                <Stack gap={6} mb="sm">
-                  {dayEvents.map((event) => (
-                    <Group key={event.id} justify="space-between" wrap="nowrap">
-                      <Text size="sm" truncate>
-                        {event.title}
-                      </Text>
-                      <Button size="compact-xs" variant="subtle" onClick={() => setSelectedEventId(event.id)}>
-                        Open
-                      </Button>
+          {agendaDays.length ? (
+            agendaDays.map((day) => (
+              <Paper key={day.dayKey} withBorder p="md">
+                <Group justify="space-between" align="center" mb="sm">
+                  <Button variant="subtle" size="compact-sm" onClick={() => openDate(new Date(`${day.dayKey}T12:00:00`))}>
+                    {day.label}
+                  </Button>
+                  <Badge variant="light" color="gray">
+                    {day.events.length}
+                  </Badge>
+                </Group>
+                <Stack gap={8}>
+                  {day.events.map((calendarEvent) => (
+                    <Group key={calendarEvent.id} justify="space-between" wrap="nowrap" align="flex-start">
+                      <div>
+                        <Text size="sm" fw={600}>
+                          {calendarEvent.title}
+                        </Text>
+                        <Text size="xs" c="dimmed" mt={2}>
+                          {formatTimeRange(calendarEvent.startsAt, calendarEvent.endsAt, churchTimeZone)}
+                          {calendarEvent.location ? ` • ${calendarEvent.location}` : ""}
+                        </Text>
+                      </div>
+                      <Group gap={6} wrap="nowrap">
+                        <Badge size="xs" variant="light" color="blue">
+                          {formatCategory(calendarEvent.category)}
+                        </Badge>
+                        <Button size="compact-xs" variant="subtle" onClick={() => openEvent(calendarEvent)}>
+                          Open
+                        </Button>
+                      </Group>
                     </Group>
                   ))}
                 </Stack>
-              </div>
+              </Paper>
             ))
           ) : (
             <Text c="dimmed" size="sm">
-              No agenda items.
+              No agenda items in the current calendar window.
             </Text>
           )}
         </Stack>
       </Paper>
 
       <Drawer
-        opened={Boolean(selectedEvent)}
-        onClose={() => setSelectedEventId(null)}
-        title={selectedEvent?.title}
+        opened={drawerOpened}
+        onClose={handleDrawerClose}
+        title={selectedEvent ? selectedEvent.title : selectedDateKey ? formatDateKey(selectedDateKey) : ""}
         position="right"
         size="md"
       >
         {selectedEvent ? (
           <Stack gap="md">
+            {feedback ? (
+              <Alert color={feedback.tone === "error" ? "red" : "teal"}>
+                {feedback.message}
+              </Alert>
+            ) : null}
+
             <Paper withBorder p="md">
               <Group gap="sm" mb="sm">
                 <CalendarClock size={16} />
@@ -584,15 +787,9 @@ export function CalendarLiveBoard({
                   Time
                 </Text>
               </Group>
-              <Text size="sm">
-                {formatDay(selectedEvent.startsAt, churchTimeZone)}
-              </Text>
+              <Text size="sm">{formatDay(selectedEvent.startsAt, churchTimeZone)}</Text>
               <Text size="sm" c="dimmed" mt={4}>
-                {formatTimeRange(
-                  selectedEvent.startsAt,
-                  selectedEvent.endsAt,
-                  churchTimeZone,
-                )}
+                {formatTimeRange(selectedEvent.startsAt, selectedEvent.endsAt, churchTimeZone)}
               </Text>
             </Paper>
 
@@ -614,7 +811,10 @@ export function CalendarLiveBoard({
                 RSVP: {selectedEvent.rsvpEnabled ? "Enabled" : "Off"}
               </Text>
               <Text size="sm" mt={4}>
-                Your RSVP: {selectedEvent.viewerRsvpStatus ? formatCategory(selectedEvent.viewerRsvpStatus) : "Not answered"}
+                Your RSVP:{" "}
+                {selectedEvent.viewerRsvpStatus
+                  ? formatCategory(selectedEvent.viewerRsvpStatus)
+                  : "Not answered"}
               </Text>
               {selectedEvent.ministryName ? (
                 <Text size="sm" mt={4}>
@@ -646,12 +846,19 @@ export function CalendarLiveBoard({
                 <Text fw={600} size="sm" mb="sm">
                   RSVP response
                 </Text>
-                <form action={respondToCalendarEventRsvpAction}>
+                <form onSubmit={handleRsvpSubmit}>
                   <input type="hidden" name="eventId" value={selectedEvent.id} />
                   <Stack gap="sm">
                     <Textarea name="note" label="Note (optional)" minRows={2} />
                     <Group gap="xs" wrap="wrap">
-                      <Button type="submit" name="status" value="yes" size="xs" radius="xl">
+                      <Button
+                        type="submit"
+                        name="status"
+                        value="yes"
+                        size="xs"
+                        radius="xl"
+                        loading={isPending && pendingAction === "rsvp"}
+                      >
                         Yes
                       </Button>
                       <Button
@@ -661,6 +868,7 @@ export function CalendarLiveBoard({
                         size="xs"
                         radius="xl"
                         variant="default"
+                        loading={isPending && pendingAction === "rsvp"}
                       >
                         Maybe
                       </Button>
@@ -672,6 +880,7 @@ export function CalendarLiveBoard({
                         radius="xl"
                         color="red"
                         variant="light"
+                        loading={isPending && pendingAction === "rsvp"}
                       >
                         No
                       </Button>
@@ -686,7 +895,7 @@ export function CalendarLiveBoard({
                 <Text fw={600} size="sm" mb="sm">
                   Edit event
                 </Text>
-                <form action={updateCalendarEventAction}>
+                <form onSubmit={handleUpdateSubmit}>
                   <input type="hidden" name="eventId" value={selectedEvent.id} />
                   <Stack gap="sm">
                     <TextInput name="title" label="Title" defaultValue={selectedEvent.title} required />
@@ -744,16 +953,22 @@ export function CalendarLiveBoard({
                       defaultChecked={selectedEvent.rsvpEnabled}
                     />
                     <Group justify="space-between">
-                      <Button type="submit" size="xs" radius="xl">
+                      <Button
+                        type="submit"
+                        size="xs"
+                        radius="xl"
+                        loading={isPending && pendingAction === "update"}
+                      >
                         Save changes
                       </Button>
                       <Button
-                        formAction={deleteCalendarEventAction}
-                        type="submit"
+                        type="button"
                         size="xs"
                         radius="xl"
                         color="red"
                         variant="light"
+                        loading={isPending && pendingAction === "delete"}
+                        onClick={() => handleDelete(selectedEvent.id)}
                       >
                         Delete event
                       </Button>
@@ -761,6 +976,47 @@ export function CalendarLiveBoard({
                   </Stack>
                 </form>
               </Paper>
+            ) : null}
+          </Stack>
+        ) : selectedDateKey ? (
+          <Stack gap="md">
+            <Paper withBorder p="md">
+              <Text fw={600} size="sm" mb="xs">
+                Day summary
+              </Text>
+              <Text size="sm" c="dimmed">
+                {selectedDayEvents.length
+                  ? `${selectedDayEvents.length} event${selectedDayEvents.length === 1 ? "" : "s"} on this day.`
+                  : "No events scheduled for this day."}
+              </Text>
+            </Paper>
+
+            {selectedDayEvents.length ? (
+              selectedDayEvents.map((calendarEvent) => (
+                <Paper key={calendarEvent.id} withBorder p="md">
+                  <Group justify="space-between" align="flex-start" mb="xs">
+                    <div>
+                      <Text fw={600}>{calendarEvent.title}</Text>
+                      <Text size="sm" c="dimmed" mt={4}>
+                        {formatTimeRange(
+                          calendarEvent.startsAt,
+                          calendarEvent.endsAt,
+                          churchTimeZone,
+                        )}
+                        {calendarEvent.location ? ` • ${calendarEvent.location}` : ""}
+                      </Text>
+                    </div>
+                    <Badge color="blue" variant="light">
+                      {formatCategory(calendarEvent.category)}
+                    </Badge>
+                  </Group>
+                  <Group justify="flex-end">
+                    <Button size="xs" variant="subtle" onClick={() => openEvent(calendarEvent)}>
+                      Open event
+                    </Button>
+                  </Group>
+                </Paper>
+              ))
             ) : null}
           </Stack>
         ) : null}

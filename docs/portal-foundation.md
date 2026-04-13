@@ -33,15 +33,22 @@ These map directly to the church-facing role structure defined in `DEVELOPMENT_P
 
 - Role-based routing across distinct church surfaces
 - A Mantine-based application shell with restrained visual hierarchy, navigation, and role context
-- A first real member-portal slice backed by live `profiles`, `profile_ministries`, and upcoming `events`
+- A first real member-portal slice backed by live `profiles`, `profile_ministries`, family context, directory data, and upcoming `events`
+- A dedicated `/portal` route as the churchgoer-facing entry path into the member experience
+- Dedicated `/app/member/directory` and `/app/member/family` routes so member detail is split into focused screens instead of one overloaded home page
 - A live calendar slice backed by categorized `events`
 - A simplified church-admin operations board with lane-based preview state
-- A simpler role workspace pattern for pastor and ministry-leader entry points
+- A dedicated `/app/church-admin/people` route for tenant-backed people management
+- A pastor-specific workspace backed by tenant profile, ministry, and follow-up data, plus a dedicated `/app/pastor/people` screen
+- A pastoral-care foundation on `/app/pastor/people` with confidential notes and care assignments
+- A simpler role workspace pattern for ministry-leader entry points
 
 ## What This Slice Does Not Cover Yet
 
 - Complete tenant-isolation verification
 - Full database writes across all church-app surfaces
+- Full pastoral-notes and care-assignment workflows
+- Notifications, routing rules, and richer care governance
 - Realtime updates
 - Background jobs
 - Migration of church runtime data access onto a tenant backend separated from the control plane

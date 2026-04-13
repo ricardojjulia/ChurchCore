@@ -1,6 +1,6 @@
 -- ============================================================
 -- Churchgoer Data Extension
--- Ref: churchgoer_implement.md
+-- Ref: churchgoer_data.md
 -- Adds: families table, attendance table, extended profile fields
 -- Sprint 1 extension / Sprint 2 prep
 -- ============================================================

@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { ChurchAppSession } from "@/lib/auth";
+import { resolveActiveChurchProfileId } from "@/lib/church-profile";
 import {
   createTenantServerClient,
   hasTenantBackendEnv,
@@ -32,6 +33,23 @@ export type ChurchCalendarData = {
   }>;
   pendingApprovals: ChurchCalendarEvent[];
 };
+
+const CALENDAR_LOOKBACK_DAYS = 30;
+const CALENDAR_LOOKAHEAD_DAYS = 180;
+
+function getCalendarWindow() {
+  const now = new Date();
+  const start = new Date(now);
+  const end = new Date(now);
+
+  start.setDate(start.getDate() - CALENDAR_LOOKBACK_DAYS);
+  end.setDate(end.getDate() + CALENDAR_LOOKAHEAD_DAYS);
+
+  return {
+    startIso: start.toISOString(),
+    endIso: end.toISOString(),
+  };
+}
 
 function allowedVisibilities(session: ChurchAppSession) {
   return session.appContext.roleId === "member"
@@ -79,6 +97,8 @@ export async function getChurchCalendarData(
   }
 
   const visibility = allowedVisibilities(session);
+  const activeProfileId = await resolveActiveChurchProfileId(session);
+  const { startIso, endIso } = getCalendarWindow();
 
   if (shouldUseLocalTenantFallback()) {
     const result = await queryTenantLocalDb<{
@@ -118,12 +138,13 @@ export async function getChurchCalendarData(
           on event_rsvp.event_id = event.id
          and event_rsvp.user_id = $3
         where event.church_id = $1
-          and event.starts_at >= timezone('utc', now())
+          and event.starts_at >= $4
+          and event.starts_at <= $5
           and event.visibility = any($2::text[])
         order by event.starts_at asc
-        limit 24
+        limit 240
       `,
-      [session.appContext.church.id, visibility, session.userId],
+      [session.appContext.church.id, visibility, activeProfileId, startIso, endIso],
     );
 
     const events = result.rows.map((row) => ({
@@ -156,17 +177,18 @@ export async function getChurchCalendarData(
       "id, ministry_id, title, description, starts_at, ends_at, category, visibility, location, approval_status, rsvp_enabled, ministries(name)",
     )
     .eq("church_id", session.appContext.church.id)
-    .gte("starts_at", new Date().toISOString())
+    .gte("starts_at", startIso)
+    .lte("starts_at", endIso)
     .in("visibility", visibility)
     .order("starts_at", { ascending: true })
-    .limit(24);
+    .limit(240);
 
   const eventIds = data?.map((row) => row.id) ?? [];
-  const { data: rsvpRows } = eventIds.length
+  const { data: rsvpRows } = eventIds.length && activeProfileId
     ? await supabase
         .from("event_rsvps")
         .select("event_id, status")
-        .eq("user_id", session.userId)
+        .eq("user_id", activeProfileId)
         .in("event_id", eventIds)
     : { data: [] as Array<{ event_id: string; status: "yes" | "no" | "maybe" }> };
 

@@ -50,12 +50,22 @@ export function PortalWorkspace({
   const navItems = [
     {
       href: session.homePath,
-      label: role.label,
+      label: "Home",
       description: churchContext ? churchContext.church.name : role.audience,
       icon: roleIcons[role.id],
       active: true,
     },
   ];
+
+  if (role.id === "church-admin") {
+    navItems.push({
+      href: "/app/church-admin/people",
+      label: "People",
+      description: "Records and statuses",
+      icon: UsersRound,
+      active: false,
+    });
+  }
 
   return (
     <ApplicationShell
@@ -71,6 +81,11 @@ export function PortalWorkspace({
       navItems={navItems}
       topActions={
         <Group gap="sm" wrap="wrap" justify="flex-end">
+          {role.id === "church-admin" ? (
+            <Button component={Link} href="/app/church-admin/people" variant="default" radius="xl">
+              People
+            </Button>
+          ) : null}
           <Button component={Link} href="/app/calendar" radius="xl">
             Calendar
           </Button>

@@ -8,7 +8,15 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 
+- Added `advanced_ministry_elder_pastor.md` to document the advanced ministries, elders, and pastor-council feature direction and its AI guardrails.
+- Added `churchgoer_data.md` to document the churchgoer data model, directory rules, and self-service portal direction.
+- Added `docs/churchgoer-pastor-execution-plan.md` to define the current implementation sequence for churchgoer and pastor data work.
 - Added `docs/UI-UPDATES.md` to document the approved blue-neutral UI direction, component rules, and the current dark-mode deferral.
+- Added dedicated member routes for `/app/member/directory` and `/app/member/family`, plus a pastor people route at `/app/pastor/people`.
+- Added `/app/church-admin/people` and `docs/church-admin-people.md` for tenant-backed ChurchAdmin people management.
+- Added bulk ChurchAdmin people actions for selected records, covering membership status and privacy visibility updates.
+- Added ChurchAdmin household reassignment and duplicate-profile merge foundations, including the merge SQL function and relationships UI.
+- Added `docs/pastoral-care-foundation.md` to document the new pastoral notes and care assignment scope.
 - Added ADR 0002 in [docs/adr/0002-control-plane-and-tenant-separation.md](/Users/rjulia/ChurchForge/docs/adr/0002-control-plane-and-tenant-separation.md) to make control-plane and tenant separation the approved architecture.
 - Added a control-plane tenant-registry migration for `tenants` and `tenant_connections`, including bootstrap data copied from existing church records.
 - Added runtime-routing metadata backfill for `tenant_connections.metadata.runtime_church_id` and `runtime_slug`.
@@ -16,9 +24,20 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added tenant calendar RSVP mutation actions backed by `event_rsvps` records.
 - Added custom Mantine-based month, week, and day calendar rendering in the tenant calendar surface with smooth navigation and category filtering.
 - Added animated hero icon component (`ChurchForgeHeroIcon`) to the landing page with pulsing rings and community-focused visual design.
+- Added `/portal` as the dedicated churchgoer portal entry route and added a pastor-specific workspace backed by tenant people data.
+- Added `consent_logs`, profile interests, profile spiritual gifts, and attendance online support in a new tenant people-foundation migration.
+- Added a tenant migration for member-safe family self-service policies and aligned self-profile updates to `user_id` semantics.
+- Added a tenant pastoral-care migration with `pastoral_notes`, `care_assignments`, and pastor-only RLS through `can_access_pastoral_data`.
 
 ### Changed
 
+- Retired `churchgoer_implement.md` so `churchgoer_data.md` is now the only churchgoer data source-of-truth document.
+- Changed the member portal data layer to include family and directory context instead of only profile, ministries, and upcoming events.
+- Changed the member home screen to a lighter overview and moved directory and household detail into dedicated routes.
+- Changed the pastor data layer to expose a fuller people list for dedicated directory and follow-up screens.
+- Changed the pastor people screen from a read-only directory into a real care workspace with confidential notes, active care assignments, and status updates.
+- Changed the ChurchAdmin role from a preview-only operations surface into a mixed mode with a real tenant-backed people-management route and editable churchgoer records.
+- Changed member, pastor, and ChurchAdmin people queries to retire merged profiles from normal directory and care views.
 - Changed control-plane entry so unauthorized or wrong-account access now forces a visible sign-in flow instead of silently redirecting away from `/control`.
 - Changed the protected-shell header to show a visible `Log out` action instead of requiring sign-out through the profile dropdown.
 - Updated the Mantine theme and global UI tokens to a blue-neutral, higher-contrast system aligned to the new UI guidance.
@@ -30,6 +49,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Changed control-plane routing, session tenant-view hydration, and dashboard resolution to use `tenant_connections.metadata.runtime_church_id` instead of relying on `tenants.external_tenant_id` during launch.
 - Extended the live tenant calendar board to include quick-add event creation, in-drawer event editing and deletion, and user RSVP controls.
 - Extended tenant calendar data hydration to include each viewer's current RSVP status per event.
+- Changed the tenant calendar to open day details directly from calendar cells and week slots, improved agenda snapshot usefulness, widened the calendar data window, and refreshed the event mutation flow so create, update, delete, and RSVP actions give immediate feedback.
 - Upgraded the tenant calendar board from a list-only surface to an interactive month/week/day calendar with category filtering including an "all" option.
 - Replaced FullCalendar dependency with custom Mantine-based calendar implementation for improved control and styling consistency.
 - Updated landing page hero section: improved tagline to "Clarity for the mission you lead" and renamed action buttons to "ChurchForge App" and "ChurchForge Tenant Control" for better clarity.
