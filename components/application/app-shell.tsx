@@ -4,13 +4,16 @@ import Link from "next/link";
 import { useDisclosure } from "@mantine/hooks";
 import {
   AppShell,
+  AppShellFooter,
   AppShellHeader,
   AppShellMain,
   AppShellNavbar,
   AppShellSection,
+  Avatar,
   Badge,
   Box,
   Burger,
+  Button,
   Divider,
   Group,
   NavLink,
@@ -20,9 +23,15 @@ import {
   Text,
   ThemeIcon,
 } from "@mantine/core";
-import { LayoutGrid, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  CalendarRange,
+  LayoutGrid,
+  LogOut,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 
-import { SessionControls } from "@/components/application/session-controls";
+import { signOutAction } from "@/app/sign-in/actions";
 import type { AuthSession } from "@/lib/auth";
 
 type ShellNavItem = {
@@ -31,6 +40,11 @@ type ShellNavItem = {
   description: string;
   icon: React.ComponentType<{ className?: string; size?: number }>;
   active?: boolean;
+};
+
+const navLinkStyles = {
+  root: { borderRadius: 16 },
+  description: { color: "#5c6b7a" },
 };
 
 export function ApplicationShell({
@@ -45,6 +59,7 @@ export function ApplicationShell({
   navLabel,
   navItems,
   topActions,
+  bottomNav,
   children,
 }: {
   session: AuthSession;
@@ -58,14 +73,16 @@ export function ApplicationShell({
   navLabel?: string;
   navItems: ShellNavItem[];
   topActions?: React.ReactNode;
+  bottomNav?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const [opened, { toggle }] = useDisclosure(false);
+  const [opened, { toggle, close }] = useDisclosure(false);
 
   return (
     <AppShell
-      header={{ height: 72 }}
-      navbar={{ width: 264, breakpoint: "md", collapsed: { mobile: !opened } }}
+      header={{ height: 64 }}
+      navbar={{ width: 272, breakpoint: "md", collapsed: { mobile: !opened } }}
+      footer={bottomNav ? { height: 64 } : undefined}
       padding="lg"
       styles={{
         main: {
@@ -81,136 +98,188 @@ export function ApplicationShell({
           backdropFilter: "blur(12px)",
           borderBottom: "1px solid rgba(20, 33, 61, 0.08)",
         },
+        footer: {
+          background: "rgba(251, 252, 254, 0.96)",
+          backdropFilter: "blur(12px)",
+          borderTop: "1px solid rgba(20, 33, 61, 0.08)",
+        },
       }}
     >
-      <AppShellHeader px="lg">
-        <Group h="100%" justify="space-between">
+      {/* ── Header ── */}
+      <AppShellHeader px="md">
+        <Group h="100%" justify="space-between" gap="sm">
           <Group gap="sm">
-            <Burger opened={opened} onClick={toggle} hiddenFrom="md" size="sm" />
+            <Burger
+              opened={opened}
+              onClick={toggle}
+              hiddenFrom="md"
+              size="sm"
+              aria-label="Toggle navigation"
+            />
             <Box>
-              <Group gap="xs" mb={2}>
-                <Badge variant="light" color="churchBlue" radius="sm">
-                  {sectionLabel}
-                </Badge>
-              </Group>
-              <Text fw={700} size="lg">
+              <Badge variant="light" color="churchBlue" radius="sm" mb={2}>
+                {sectionLabel}
+              </Badge>
+              <Text fw={700} size="md" lh={1.2}>
                 {title}
               </Text>
               {description ? (
-                <Text c="dimmed" size="sm" mt={2} maw={640}>
+                <Text c="dimmed" size="xs" lh={1.2}>
                   {description}
                 </Text>
               ) : null}
             </Box>
           </Group>
 
-          <Stack gap="sm" align="flex-end">
-            {topActions}
-            <SessionControls
-              session={session}
-              workspaceHref={workspaceHref}
-              calendarHref={calendarHref}
-            />
-          </Stack>
+          {topActions ? (
+            <Box>{topActions}</Box>
+          ) : null}
         </Group>
       </AppShellHeader>
 
-      <AppShellNavbar p="md">
+      {/* ── Sidebar ── */}
+      <AppShellNavbar p="md" style={{ display: "flex", flexDirection: "column" }}>
+        {/* Brand */}
         <AppShellSection>
-          <Group justify="space-between" mb="lg">
-            <Group gap="sm">
-              <ThemeIcon
-                size={38}
-                radius="xl"
-                color="churchBlue"
-                variant="light"
-              >
-                <Sparkles size={16} />
-              </ThemeIcon>
-              <Box>
-                <Text fw={700}>ChurchForge</Text>
-                <Text c="dimmed" size="xs">
-                  {sectionLabel}
-                </Text>
-              </Box>
-            </Group>
+          <Group gap="sm" mb="md">
+            <ThemeIcon size={36} radius="xl" color="churchBlue" variant="light">
+              <Sparkles size={16} />
+            </ThemeIcon>
+            <Box>
+              <Text fw={700} size="sm">ChurchForge</Text>
+              <Text c="dimmed" size="xs">{sectionLabel}</Text>
+            </Box>
           </Group>
 
-          <Paper withBorder radius="xl" p="md" mb="md" bg="#f8fbff">
-            <Text fw={600}>{sidebarTitle}</Text>
-            {sidebarDescription ? (
-              <Text c="dimmed" size="sm" mt="xs">
-                {sidebarDescription}
-              </Text>
-            ) : null}
-          </Paper>
+          {sidebarTitle ? (
+            <Paper withBorder radius="xl" p="sm" mb="sm" bg="#f8fbff">
+              <Text fw={600} size="sm">{sidebarTitle}</Text>
+              {sidebarDescription ? (
+                <Text c="dimmed" size="xs" mt={4}>
+                  {sidebarDescription}
+                </Text>
+              ) : null}
+            </Paper>
+          ) : null}
         </AppShellSection>
 
-        <Divider my="sm" />
+        <Divider mb="sm" />
 
+        {/* Page navigation */}
         <AppShellSection grow component={ScrollArea} scrollbarSize={6}>
-          <Stack gap={6}>
-            <Group gap={8} px="xs" mb={4}>
-              <LayoutGrid size={15} />
+          <Stack gap={4}>
+            {navItems.length ? (
+              <>
+                <Group gap={6} px="xs" mb={4}>
+                  <LayoutGrid size={13} />
+                  <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+                    {navLabel ?? "Navigation"}
+                  </Text>
+                </Group>
+
+                {navItems.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    component={Link}
+                    href={item.href}
+                    active={item.active}
+                    label={item.label}
+                    description={item.description}
+                    leftSection={<item.icon size={16} />}
+                    variant="light"
+                    color="churchBlue"
+                    onClick={close}
+                    styles={navLinkStyles}
+                  />
+                ))}
+
+                <Divider my="sm" />
+              </>
+            ) : null}
+
+            {/* System links */}
+            <Group gap={6} px="xs" mb={4}>
+              <LayoutGrid size={13} />
               <Text size="xs" fw={700} tt="uppercase" c="dimmed">
-                {navLabel ?? "Navigation"}
+                App
               </Text>
             </Group>
 
-            {navItems.map((item) => (
+            <NavLink
+              component={Link}
+              href={workspaceHref}
+              label="Workspace"
+              description="Your role home"
+              leftSection={<ShieldCheck size={16} />}
+              variant="light"
+              color="churchBlue"
+              onClick={close}
+              styles={navLinkStyles}
+            />
+
+            {calendarHref ? (
               <NavLink
-                key={item.href}
                 component={Link}
-                href={item.href}
-                active={item.active}
-                label={item.label}
-                description={item.description}
-                leftSection={<item.icon size={16} />}
+                href={calendarHref}
+                label="Calendar"
+                description="Church events"
+                leftSection={<CalendarRange size={16} />}
                 variant="light"
                 color="churchBlue"
-                styles={{
-                  root: {
-                    borderRadius: 16,
-                  },
-                  description: {
-                    color: "#5c6b7a",
-                  },
-                }}
+                onClick={close}
+                styles={navLinkStyles}
               />
-            ))}
+            ) : null}
           </Stack>
         </AppShellSection>
 
-        <Divider my="sm" />
+        <Divider mt="sm" mb="sm" />
 
+        {/* User + Log out */}
         <AppShellSection>
-          <Paper withBorder radius="xl" p="md">
+          <Paper withBorder radius="xl" p="sm" mb="sm">
             <Group gap="sm">
-              <ThemeIcon
-                size={34}
-                radius="xl"
-                color="churchBlue"
-                variant="light"
-              >
-                <ShieldCheck size={16} />
-              </ThemeIcon>
-              <Box>
-                <Text fw={600}>{session.profile.name}</Text>
-                <Text c="dimmed" size="xs">
-                  {session.profile.title}
+              <Avatar color="churchBlue" radius="xl" variant="light" size="sm">
+                <ShieldCheck size={14} />
+              </Avatar>
+              <Box style={{ flex: 1, minWidth: 0 }}>
+                <Text fw={600} size="sm" truncate>
+                  {session.profile.name}
                 </Text>
-                <Text size="sm" mt={6}>
-                  {session.profile.focus}
+                <Text c="dimmed" size="xs" truncate>
+                  {session.profile.title}
                 </Text>
               </Box>
             </Group>
           </Paper>
+
+          <form action={signOutAction}>
+            <Button
+              type="submit"
+              fullWidth
+              variant="light"
+              color="red"
+              radius="xl"
+              size="sm"
+              leftSection={<LogOut size={15} />}
+            >
+              Log out
+            </Button>
+          </form>
         </AppShellSection>
       </AppShellNavbar>
 
+      {/* ── Main ── */}
       <AppShellMain>
         <Stack gap="lg">{children}</Stack>
       </AppShellMain>
+
+      {/* ── Mobile bottom nav ── */}
+      {bottomNav ? (
+        <AppShellFooter hiddenFrom="md">
+          {bottomNav}
+        </AppShellFooter>
+      ) : null}
     </AppShell>
   );
 }

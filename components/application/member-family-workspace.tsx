@@ -16,6 +16,7 @@ import {
 
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
+import { MemberBottomNav } from "@/components/application/member-bottom-nav";
 import { MemberFamilyEdit } from "@/components/application/member-family-edit";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { MemberPortalData } from "@/lib/member-portal-data";
@@ -81,6 +82,7 @@ export function MemberFamilyWorkspace({
           </Button>
         </Group>
       }
+      bottomNav={<MemberBottomNav />}
     >
       <ChurchAppContextBanner session={session} />
 

@@ -6,6 +6,7 @@ import { Button, Group } from "@mantine/core";
 
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
+import { MemberBottomNav } from "@/components/application/member-bottom-nav";
 import { MemberDirectoryPanel } from "@/components/application/member-directory-panel";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { MemberPortalData } from "@/lib/member-portal-data";
@@ -69,6 +70,7 @@ export function MemberDirectoryWorkspace({
           </Button>
         </Group>
       }
+      bottomNav={<MemberBottomNav />}
     >
       <ChurchAppContextBanner session={session} />
       <MemberDirectoryPanel directory={data.directory} mode="full" />
