@@ -3,7 +3,6 @@
 import Link from "next/link";
 import {
   BrainCircuit,
-  CalendarRange,
   HeartPulse,
   Phone,
   UsersRound,
@@ -72,21 +71,6 @@ export function PastorPortalHome({
           icon: UsersRound,
         },
       ]}
-      topActions={
-        <Group gap="sm" wrap="wrap" justify="flex-end">
-          <Button component={Link} href="/app/pastor/people" variant="default" radius="xl">
-            People
-          </Button>
-          <Button
-            component={Link}
-            href="/app/calendar"
-            radius="xl"
-            leftSection={<CalendarRange size={16} />}
-          >
-            Calendar
-          </Button>
-        </Group>
-      }
     >
       <ChurchAppContextBanner session={session} />
 

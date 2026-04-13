@@ -1,10 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { CalendarRange, Clock3, Layers3, ListTodo } from "lucide-react";
 import {
   Badge,
-  Button,
   Group,
   Paper,
   SimpleGrid,
@@ -87,13 +85,6 @@ export function CalendarHub({
       sidebarDescription="Events and approvals"
       navLabel="Current role"
       navItems={navItems}
-      topActions={
-        <Group gap="sm" wrap="wrap" justify="flex-end">
-          <Button component={Link} href={workspaceHref} variant="default" radius="xl">
-            Workspace
-          </Button>
-        </Group>
-      }
     >
       <ChurchAppContextBanner session={session} />
 

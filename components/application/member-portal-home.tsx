@@ -86,21 +86,6 @@ export function MemberPortalHome({
           icon: Home,
         },
       ]}
-      topActions={
-        <Group gap="sm" wrap="wrap" justify="flex-end">
-          <Button
-            component={Link}
-            href="/app/member/directory"
-            variant="default"
-            radius="xl"
-          >
-            Directory
-          </Button>
-          <Button component={Link} href="/app/calendar" radius="xl">
-            Calendar
-          </Button>
-        </Group>
-      }
       bottomNav={<MemberBottomNav />}
     >
       <ChurchAppContextBanner session={session} />

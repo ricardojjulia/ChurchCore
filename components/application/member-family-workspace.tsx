@@ -1,11 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { CalendarRange, HeartHandshake, Home, UsersRound } from "lucide-react";
+import { HeartHandshake, Home, UsersRound } from "lucide-react";
 import {
   Badge,
   Box,
-  Button,
   Group,
   Paper,
   Stack,
@@ -62,26 +60,6 @@ export function MemberFamilyWorkspace({
           active: true,
         },
       ]}
-      topActions={
-        <Group gap="sm" wrap="wrap" justify="flex-end">
-          <Button
-            component={Link}
-            href="/app/member/directory"
-            variant="default"
-            radius="xl"
-          >
-            Directory
-          </Button>
-          <Button
-            component={Link}
-            href="/app/calendar"
-            radius="xl"
-            leftSection={<CalendarRange size={16} />}
-          >
-            Calendar
-          </Button>
-        </Group>
-      }
       bottomNav={<MemberBottomNav />}
     >
       <ChurchAppContextBanner session={session} />

@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
-  CalendarRange,
   CheckSquare,
   HeartHandshake,
   Search,
@@ -12,7 +10,6 @@ import {
 } from "lucide-react";
 import {
   Badge,
-  Button,
   Checkbox,
   Group,
   Paper,
@@ -125,21 +122,6 @@ export function ChurchAdminPeopleWorkspace({
           active: true,
         },
       ]}
-      topActions={
-        <Group gap="sm" wrap="wrap" justify="flex-end">
-          <Button component={Link} href="/app/church-admin" variant="default" radius="xl">
-            Overview
-          </Button>
-          <Button
-            component={Link}
-            href="/app/calendar"
-            radius="xl"
-            leftSection={<CalendarRange size={16} />}
-          >
-            Calendar
-          </Button>
-        </Group>
-      }
     >
       <ChurchAppContextBanner session={session} />
 

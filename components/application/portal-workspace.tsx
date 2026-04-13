@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   BrainCircuit,
   HeartHandshake,
@@ -10,7 +9,6 @@ import {
 } from "lucide-react";
 import {
   Badge,
-  Button,
   Group,
   Paper,
   SimpleGrid,
@@ -79,18 +77,6 @@ export function PortalWorkspace({
       sidebarDescription={role.label}
       navLabel="Current role"
       navItems={navItems}
-      topActions={
-        <Group gap="sm" wrap="wrap" justify="flex-end">
-          {role.id === "church-admin" ? (
-            <Button component={Link} href="/app/church-admin/people" variant="default" radius="xl">
-              People
-            </Button>
-          ) : null}
-          <Button component={Link} href="/app/calendar" radius="xl">
-            Calendar
-          </Button>
-        </Group>
-      }
     >
       <ChurchAppContextBanner session={session} />
 

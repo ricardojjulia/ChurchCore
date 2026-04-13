@@ -10,7 +10,6 @@ import {
   AppShellNavbar,
   AppShellSection,
   Avatar,
-  Badge,
   Box,
   Burger,
   Button,
@@ -117,9 +116,6 @@ export function ApplicationShell({
               aria-label="Toggle navigation"
             />
             <Box>
-              <Badge variant="light" color="churchBlue" radius="sm" mb={2}>
-                {sectionLabel}
-              </Badge>
               <Text fw={700} size="md" lh={1.2}>
                 {title}
               </Text>

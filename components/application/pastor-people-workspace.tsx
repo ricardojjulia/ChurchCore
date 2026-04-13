@@ -1,17 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   BrainCircuit,
-  CalendarRange,
   HeartPulse,
   Search,
   UsersRound,
 } from "lucide-react";
 import {
   Badge,
-  Button,
   Group,
   Paper,
   Select,
@@ -120,21 +117,6 @@ export function PastorPeopleWorkspace({
           active: true,
         },
       ]}
-      topActions={
-        <Group gap="sm" wrap="wrap" justify="flex-end">
-          <Button component={Link} href="/app/pastor" variant="default" radius="xl">
-            Overview
-          </Button>
-          <Button
-            component={Link}
-            href="/app/calendar"
-            radius="xl"
-            leftSection={<CalendarRange size={16} />}
-          >
-            Calendar
-          </Button>
-        </Group>
-      }
     >
       <ChurchAppContextBanner session={session} />
 

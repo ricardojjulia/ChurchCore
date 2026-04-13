@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { CalendarRange, HeartHandshake, Home, UsersRound } from "lucide-react";
-import { Button, Group } from "@mantine/core";
+import { HeartHandshake, Home, UsersRound } from "lucide-react";
 
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
@@ -50,26 +48,6 @@ export function MemberDirectoryWorkspace({
           icon: Home,
         },
       ]}
-      topActions={
-        <Group gap="sm" wrap="wrap" justify="flex-end">
-          <Button
-            component={Link}
-            href="/app/member/family"
-            variant="default"
-            radius="xl"
-          >
-            Family
-          </Button>
-          <Button
-            component={Link}
-            href="/app/calendar"
-            radius="xl"
-            leftSection={<CalendarRange size={16} />}
-          >
-            Calendar
-          </Button>
-        </Group>
-      }
       bottomNav={<MemberBottomNav />}
     >
       <ChurchAppContextBanner session={session} />
