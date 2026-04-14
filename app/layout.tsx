@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
-import {
-  ColorSchemeScript,
-  mantineHtmlProps,
-} from "@mantine/core";
+import { mantineHtmlProps } from "@mantine/core";
 import { Fraunces, Manrope } from "next/font/google";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
@@ -45,9 +42,6 @@ export default function RootLayout({
       {...mantineHtmlProps}
       className={`${sans.variable} ${serif.variable} h-full scroll-smooth antialiased`}
     >
-      <head>
-        <ColorSchemeScript forceColorScheme="light" />
-      </head>
       <body className="min-h-full bg-background font-sans text-foreground">
         <ServiceWorkerRegistration />
         <ThemeProvider>{children}</ThemeProvider>

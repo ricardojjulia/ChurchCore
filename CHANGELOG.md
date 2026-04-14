@@ -8,6 +8,17 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 
+- Added Ministry Forge Phase 1 and Phase 2 foundations: `ministry_type`, `vision_statement`, and `scriptural_anchor` columns on `ministries`; new `profile_ministries` join table with composable RLS; `ministry_health_history` for trend tracking; `kingdom_impacts` quick-log table for spiritual outcomes.
+- Added Ministry Forge dashboard at `/app/church-admin/ministry/[id]` with Overview, Members & Volunteers, Impact Log, and Vision & Anchors tabs for church admins and pastors.
+- Added `HealthScoreCard` component with color-coded health bands (green ≥ 7.5, yellow 5–7.4, red < 5), trend arrow, and recent history.
+- Added `VisionBoard` component with editable vision statement and scriptural anchor chips.
+- Added `KingdomImpactLogModal` floating action button for logging prayer answers, disciples made, salvations, and restored relationships — visible to management roles only.
+- Added `BurnoutGuardianBanner` component warning leaders when any volunteer serves in more than 3 ministries, with AI-assistive disclaimer.
+- Added `MinistryCard` component with health score ring, ministry type badge, and member count.
+- Added member-facing ministries route at `/app/member/ministries` listing the calling member's ministry assignments and all church ministries.
+- Added seven new server actions in `app/app/actions.ts`: `createMinistryAction`, `updateMinistryAction`, `deleteMinistryAction`, `assignMembersToMinistryAction`, `removeMemberFromMinistryAction`, `updateMinistryHealthScoreAction`, `logKingdomImpactAction`, `updateMinistryVisionAction`.
+- Added `lib/ministry-forge-data.ts` with `getMinistryForgeList`, `getMinistryForgeDetail`, and `getMemberMinistriesData` data loaders with both Supabase and local-DB fallback paths.
+- Added rule-based Health Score formula as Phase 2 foundation (attendance × 0.4 + engagement × 0.3 + retention × 0.2 + impact × 0.1); Phase 3 will make it AI-assisted.
 - Added `advanced_ministry_elder_pastor.md` to document the advanced ministries, elders, and pastor-council feature direction and its AI guardrails.
 - Added `churchgoer_data.md` to document the churchgoer data model, directory rules, and self-service portal direction.
 - Added `docs/churchgoer-pastor-execution-plan.md` to define the current implementation sequence for churchgoer and pastor data work.
@@ -31,6 +42,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Changed
 
+- Changed pastor portal home so each led-ministry card links directly to the Ministry Forge dashboard.
 - Retired `churchgoer_implement.md` so `churchgoer_data.md` is now the only churchgoer data source-of-truth document.
 - Changed the member portal data layer to include family and directory context instead of only profile, ministries, and upcoming events.
 - Changed the member home screen to a lighter overview and moved directory and household detail into dedicated routes.

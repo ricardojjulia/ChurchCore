@@ -151,12 +151,20 @@ export function PastorPortalHome({
           <Stack gap="sm">
             {data.ledMinistries.length ? (
               data.ledMinistries.map((ministry) => (
-                <Paper key={ministry.id} withBorder radius="xl" p="md">
+                <Paper
+                  key={ministry.id}
+                  component={Link}
+                  href={`/app/church-admin/ministry/${ministry.id}`}
+                  withBorder
+                  radius="xl"
+                  p="md"
+                  style={{ textDecoration: "none", display: "block", cursor: "pointer" }}
+                >
                   <Group justify="space-between" align="center">
                     <div>
                       <Text fw={600}>{ministry.name}</Text>
                       <Text size="sm" c="dimmed" mt={4}>
-                        Active people connected to this ministry.
+                        Open Ministry Forge &rarr;
                       </Text>
                     </div>
                     <Badge color="gray" variant="light">
