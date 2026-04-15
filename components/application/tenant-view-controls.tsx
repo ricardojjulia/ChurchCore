@@ -1,8 +1,9 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import { Eye, Undo2 } from "lucide-react";
-import { Button, Group, Select } from "@mantine/core";
-import { useState } from "react";
+import { Button, Group, Select, Tooltip } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 
 import {
   launchTenantViewAction,
@@ -17,52 +18,103 @@ const roleOptions = [
   { value: "member", label: "Volunteer / Member" },
 ] as const;
 
-export function TenantViewLauncher({ church }: { church: TenantViewTarget }) {
+export function TenantViewLauncher({
+  church,
+  isPreview = false,
+}: {
+  church: TenantViewTarget;
+  isPreview?: boolean;
+}) {
   const [roleId, setRoleId] = useState<ChurchRoleId>("church-admin");
-  const launchDisabled =
-    church.connectionStatus !== "ready" || !church.runtimeChurchId;
+  const [isPending, startTransition] = useTransition();
+
+  const notReady = church.connectionStatus !== "ready" || !church.runtimeChurchId;
+  const launchDisabled = notReady || isPreview || isPending;
+
+  function handleLaunch() {
+    if (launchDisabled) return;
+    startTransition(async () => {
+      const formData = new FormData();
+      formData.set("tenantId", church.tenantId);
+      formData.set("roleId", roleId);
+      try {
+        await launchTenantViewAction(formData);
+      } catch (err) {
+        notifications.show({
+          title: "Cannot launch tenant view",
+          message:
+            err instanceof Error
+              ? err.message
+              : "Tenant routing is unavailable.",
+          color: "orange",
+        });
+      }
+    });
+  }
+
+  const button = (
+    <Button
+      radius="xl"
+      size="sm"
+      leftSection={<Eye size={15} />}
+      disabled={launchDisabled}
+      loading={isPending}
+      onClick={handleLaunch}
+    >
+      View tenant
+    </Button>
+  );
 
   return (
-    <form action={launchTenantViewAction}>
-      <input type="hidden" name="tenantId" value={church.tenantId} />
-      <input type="hidden" name="roleId" value={roleId} />
-      <Group gap="sm" wrap="wrap" justify="flex-end">
-        <Select
-          aria-label={`View ${church.name} as role`}
-          data={roleOptions}
-          value={roleId}
-          onChange={(value) => setRoleId((value as ChurchRoleId) ?? "church-admin")}
-          size="sm"
-          radius="xl"
-          w={190}
-          disabled={launchDisabled}
-        />
-        <Button
-          type="submit"
-          radius="xl"
-          size="sm"
-          leftSection={<Eye size={15} />}
-          disabled={launchDisabled}
-        >
-          View tenant
-        </Button>
-      </Group>
-    </form>
+    <Group gap="sm" wrap="wrap" justify="flex-end">
+      <Select
+        aria-label={`View ${church.name} as role`}
+        data={roleOptions}
+        value={roleId}
+        onChange={(value) => setRoleId((value as ChurchRoleId) ?? "church-admin")}
+        size="sm"
+        radius="xl"
+        w={190}
+        disabled={launchDisabled}
+      />
+      {isPreview ? (
+        <Tooltip label="Start Supabase locally to launch a tenant view" withArrow>
+          <span>{button}</span>
+        </Tooltip>
+      ) : (
+        button
+      )}
+    </Group>
   );
 }
 
 export function ReturnToControlPlaneButton() {
+  const [isPending, startTransition] = useTransition();
+
+  function handleReturn() {
+    startTransition(async () => {
+      try {
+        await returnToControlPlaneAction();
+      } catch (err) {
+        notifications.show({
+          title: "Error",
+          message: err instanceof Error ? err.message : "Something went wrong.",
+          color: "red",
+        });
+      }
+    });
+  }
+
   return (
-    <form action={returnToControlPlaneAction}>
-      <Button
-        type="submit"
-        radius="xl"
-        size="sm"
-        variant="default"
-        leftSection={<Undo2 size={15} />}
-      >
-        Return to control
-      </Button>
-    </form>
+    <Button
+      radius="xl"
+      size="sm"
+      variant="default"
+      leftSection={<Undo2 size={15} />}
+      loading={isPending}
+      onClick={handleReturn}
+    >
+      Return to control
+    </Button>
   );
 }

@@ -212,7 +212,7 @@ export function ControlPlaneDashboard({
                         : "Tenant routing is not ready yet."}
                     </Text>
                   </div>
-                  <TenantViewLauncher church={tenant} />
+                  <TenantViewLauncher church={tenant} isPreview={session.source === "preview"} />
                 </Group>
               </Paper>
             ))}
