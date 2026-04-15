@@ -1,6 +1,6 @@
 # ChurchForge
 
-ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, donations, a working calendar, volunteer coordination, and guardrailed AI ministry tools. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.5 and is now cut as the `1.0.0` foundation release.
+ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, and guardrailed AI ministry tools. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.5 and is at the `2.0.0` launch-ready release, incorporating Ministry Forge (Phases 1–3), Elders Discernment Room, Pastor Council Forge, Communications Hub, voluntary Stripe donations, GDPR/CCPA data rights, and a full pre-launch checklist.
 
 ## Stack
 
@@ -47,6 +47,19 @@ For Supabase execution, copy `.env.example` to `.env.local` and supply:
 - `SUPABASE_DB_URL` for local direct-database fallback when the local Supabase REST schema cache is unavailable
 - `NEXT_PUBLIC_APP_URL` if you want explicit signup confirmation redirects outside the local default
 
+For voluntary donations (Sprint 7+), also supply:
+
+- `STRIPE_SECRET_KEY` — Stripe secret key (`sk_live_…` or `sk_test_…`)
+- `STRIPE_WEBHOOK_SECRET` — webhook signing secret (`whsec_…`) for payment confirmation
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` — for Stripe Elements on the frontend
+- When absent, donation actions return stub results so local dev is unaffected. ChurchForge takes **no platform fees** — 100% of every donation goes directly to the church.
+
+For Communications Hub (Phase 6), also supply:
+
+- `SENDGRID_API_KEY` and `SENDGRID_FROM_EMAIL` — outbound email via SendGrid
+- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM_NUMBER` — outbound SMS via Twilio
+- When these vars are absent the notification actions log to the console and return a stub result so local dev is unaffected.
+
 Architectural note:
 
 - ADR 0002 now makes separate control-plane and tenant databases the target architecture.
@@ -65,9 +78,19 @@ Primary routes:
 - `/app/calendar` tenant-facing working calendar hub backed by Supabase event reads when configured
 - `/portal` dedicated churchgoer portal entry route that resolves to the member workspace
 - `/app/church-admin/people` church-admin people-management route
+- `/app/church-admin/ministry/[id]` Ministry Forge dashboard (health score, vision board, volunteer matcher)
 - `/app/member/directory` member-facing directory route
 - `/app/member/family` member-facing household route
+- `/app/member/ministries` member-facing ministry assignments route
 - `/app/pastor/people` pastor-facing people route with the initial pastoral-care workflow
+- `/app/elders/discernment` Elders Discernment Room — pastor-only private session and notes workspace
+- `/app/elders/discernment/[sessionId]` per-session prayer wall, elder notes, and AI Wisdom Prompt
+- `/app/council/forge` Pastor Council Forge — versioned collaborative notes for pastor and church-admin
+- `/app/communications` Communications Hub — consent-aware email/SMS broadcast for pastor and church-admin
+- `/app/member/giving` member donor portal — giving history, active recurring, Give drawer (voluntary, anonymous option)
+- `/app/member/data-rights` member data rights — GDPR/CCPA export and deletion request
+- `/app/giving` giving reporting dashboard for pastors and church-admins (fund breakdown, totals, recurring count)
+- `/control/launch-checklist` interactive pre-launch checklist for platform operators (47 items across 8 sections)
 - `/workspace` compatibility redirect to the new split entry
 - `/calendar` compatibility redirect to the new split entry
 - `/plan` development-plan summary
@@ -127,6 +150,15 @@ public/               Static assets
 - The ChurchAdmin workspace uses segmented operation lanes with slide-over detail drawers, while the heavier preview metrics and promo-style copy have been removed.
 - The repo now includes Supabase SSR auth foundations, a root proxy, and an initial SQL schema scaffold for multi-tenant church data.
 - Preview auth remains available only as a fallback when Supabase environment variables are not configured locally.
+- Ministry Forge (Phases 1–3) adds per-ministry health scoring, vision boards, scriptural anchors, kingdom impact logging, and a rule-based AI Volunteer Matcher with human-gated approve/reject and a Burnout Guardian.
+- The Elders Discernment Room at `/app/elders/discernment` is a pastor-only workspace with open/prayer/voting session tracking, a per-session prayer wall with "I Prayed" acknowledgements, elder notes with confidentiality controls, and a theological guardrail AI Wisdom Prompt that surfaces Scripture and reflection questions only — never decisions.
+- The Pastor Council Forge at `/app/council/forge` provides versioned collaborative notes (auto-incrementing version on each save) across five note types: general, sermon outline, series plan, council minutes, and sabbath reflection.
+- The Communications Hub at `/app/communications` enables pastors and church-admins to compose and broadcast email or SMS to congregation members, with per-member consent checking via `notification_preferences`, full `communication_logs` audit trail, and graceful local-dev stubs when SendGrid/Twilio are not configured.
+- The member portal bottom nav now includes a Ministries tab alongside Home, Calendar, Directory, and Family, with all five routes pre-cached by the service worker for offline access.
+- The voluntary donations system at `/app/member/giving` lets members give one-time or recurring gifts with fund designation and anonymous option. ChurchForge takes no platform fee — 100% goes to the church. Receipt emails sent via SendGrid.
+- Members can download a full JSON export of their personal data or request account deletion with a 30-day grace period from `/app/member/data-rights` (GDPR/CCPA aligned).
+- Pastors and church-admins have a giving reporting dashboard at `/app/giving` with fund breakdown, monthly and all-time totals, and recurring-gift counts. Anonymous donations are never de-anonymised in the UI.
+- Platform operators have a `/control/launch-checklist` with 47 interactive verification items across RLS, donations, AI guardrails, communications, data rights, security, mobile/PWA, and role access.
 
 ## Documentation Discipline
 
@@ -147,6 +179,7 @@ Current tracked follow-up:
 - See `churchgoer_data.md` for the churchgoer data and self-service portal source of truth.
 - See `docs/churchgoer-pastor-execution-plan.md` for the current execution sequence across churchgoer and pastor data work.
 - See `docs/pastoral-care-foundation.md` for the current pastoral notes and care assignment scope.
+- Phase 6 Communications Hub requires `SENDGRID_*` and `TWILIO_*` env vars for live sends; see `.env.example` for the full list.
 
 ## GitHub Workflow Discipline
 

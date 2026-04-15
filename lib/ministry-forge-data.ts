@@ -8,6 +8,7 @@ import {
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
 import type {
+  BurnoutAlert,
   HealthHistoryEntry,
   KingdomImpactEntry,
   MemberMinistriesData,
@@ -17,6 +18,12 @@ import type {
   MinistryForgeListData,
   MinistryMember,
   MinistryType,
+  VolunteerMatchSuggestion,
+  VolunteerMatcherData,
+} from "@/lib/ministry-forge-types";
+import {
+  BURNOUT_THRESHOLD_HIGH,
+  BURNOUT_THRESHOLD_MEDIUM,
 } from "@/lib/ministry-forge-types";
 
 // ============================================================
@@ -555,5 +562,250 @@ export async function getMemberMinistriesData(
       ministryType: (row.ministry_type as MinistryType) ?? null,
     })),
   };
+}
+
+// ============================================================
+// getVolunteerMatcherData — Phase 3
+// Returns pending match suggestions + active burnout alerts
+// for a specific ministry, scoped to the calling church.
+// ============================================================
+export async function getVolunteerMatcherData(
+  session: ChurchAppSession,
+  ministryId: string,
+): Promise<VolunteerMatcherData> {
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    return { suggestions: [], burnoutAlerts: [] };
+  }
+
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const suggestionsResult = await queryTenantLocalDb<{
+      id: string;
+      ministry_id: string;
+      profile_id: string;
+      full_name: string;
+      spiritual_gifts: string | null;
+      current_ministry_load: string;
+      match_score: string;
+      reason_text: string | null;
+      ai_generated: boolean;
+      status: string;
+      created_at: string;
+      reviewed_at: string | null;
+    }>(
+      `
+        select
+          vms.id,
+          vms.ministry_id,
+          vms.profile_id,
+          p.full_name,
+          p.spiritual_gifts::text as spiritual_gifts,
+          p.current_ministry_load,
+          vms.match_score,
+          vms.reason_text,
+          vms.ai_generated,
+          vms.status,
+          vms.created_at,
+          vms.reviewed_at
+        from public.volunteer_match_suggestions vms
+        join public.profiles p on p.id = vms.profile_id
+        where vms.ministry_id = $1
+          and vms.church_id   = $2
+          and vms.status      = 'pending'
+        order by vms.match_score desc
+      `,
+      [ministryId, churchId],
+    );
+
+    const alertsResult = await queryTenantLocalDb<{
+      id: string;
+      profile_id: string;
+      full_name: string;
+      ministry_id: string | null;
+      alert_type: string;
+      message: string;
+      severity: string;
+      acknowledged: boolean;
+      created_at: string;
+    }>(
+      `
+        select
+          ba.id,
+          ba.profile_id,
+          p.full_name,
+          ba.ministry_id,
+          ba.alert_type,
+          ba.message,
+          ba.severity,
+          ba.acknowledged,
+          ba.created_at
+        from public.burnout_alerts ba
+        join public.profiles p on p.id = ba.profile_id
+        where ba.church_id      = $1
+          and ba.acknowledged   = false
+          and (ba.ministry_id   = $2 or ba.ministry_id is null)
+        order by
+          case ba.severity
+            when 'high'   then 1
+            when 'medium' then 2
+            else               3
+          end,
+          ba.created_at desc
+        limit 20
+      `,
+      [churchId, ministryId],
+    );
+
+    return {
+      suggestions: suggestionsResult.rows.map((row) => {
+        let gifts: string[] | null = null;
+        try {
+          const parsed = row.spiritual_gifts ? JSON.parse(row.spiritual_gifts) : null;
+          gifts = Array.isArray(parsed) ? parsed : null;
+        } catch {
+          gifts = null;
+        }
+        return {
+          id: row.id,
+          ministryId: row.ministry_id,
+          profileId: row.profile_id,
+          profileName: row.full_name,
+          spiritualGifts: gifts,
+          currentLoad: parseInt(row.current_ministry_load, 10) || 0,
+          matchScore: parseFloat(row.match_score) || 0,
+          reasonText: row.reason_text,
+          aiGenerated: row.ai_generated,
+          status: row.status as VolunteerMatchSuggestion["status"],
+          createdAt: row.created_at,
+          reviewedAt: row.reviewed_at,
+        };
+      }),
+      burnoutAlerts: alertsResult.rows.map((row) => ({
+        id: row.id,
+        profileId: row.profile_id,
+        profileName: row.full_name,
+        ministryId: row.ministry_id,
+        alertType: row.alert_type as BurnoutAlert["alertType"],
+        message: row.message,
+        severity: row.severity as BurnoutAlert["severity"],
+        acknowledged: row.acknowledged,
+        createdAt: row.created_at,
+      })),
+    };
+  }
+
+  // Supabase path
+  const supabase = await createTenantServerClient();
+
+  const [suggestionsRes, alertsRes] = await Promise.all([
+    supabase
+      .from("volunteer_match_suggestions")
+      .select(
+        "id, ministry_id, profile_id, match_score, reason_text, ai_generated, status, created_at, reviewed_at, profiles(full_name, spiritual_gifts, current_ministry_load)",
+      )
+      .eq("ministry_id", ministryId)
+      .eq("church_id", churchId)
+      .eq("status", "pending")
+      .order("match_score", { ascending: false }),
+    supabase
+      .from("burnout_alerts")
+      .select(
+        "id, profile_id, ministry_id, alert_type, message, severity, acknowledged, created_at, profiles(full_name)",
+      )
+      .eq("church_id", churchId)
+      .eq("acknowledged", false)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ]);
+
+  const suggestions: VolunteerMatchSuggestion[] = (suggestionsRes.data ?? []).map((row) => {
+    const profile = row.profiles as unknown as {
+      full_name: string;
+      spiritual_gifts: unknown;
+      current_ministry_load: number | null;
+    } | null;
+    let gifts: string[] | null = null;
+    if (Array.isArray(profile?.spiritual_gifts)) {
+      gifts = profile.spiritual_gifts as string[];
+    }
+    return {
+      id: row.id,
+      ministryId: row.ministry_id,
+      profileId: row.profile_id,
+      profileName: profile?.full_name ?? "Unknown",
+      spiritualGifts: gifts,
+      currentLoad: profile?.current_ministry_load ?? 0,
+      matchScore: (row.match_score as unknown as number) ?? 0,
+      reasonText: row.reason_text ?? null,
+      aiGenerated: row.ai_generated,
+      status: row.status as VolunteerMatchSuggestion["status"],
+      createdAt: row.created_at,
+      reviewedAt: row.reviewed_at ?? null,
+    };
+  });
+
+  const burnoutAlerts: BurnoutAlert[] = (alertsRes.data ?? []).map((row) => {
+    const profile = row.profiles as unknown as { full_name: string } | null;
+    return {
+      id: row.id,
+      profileId: row.profile_id,
+      profileName: profile?.full_name ?? "Unknown",
+      ministryId: row.ministry_id ?? null,
+      alertType: row.alert_type as BurnoutAlert["alertType"],
+      message: row.message,
+      severity: row.severity as BurnoutAlert["severity"],
+      acknowledged: row.acknowledged,
+      createdAt: row.created_at,
+    };
+  });
+
+  return { suggestions, burnoutAlerts };
+}
+
+// ============================================================
+// computeMinistryBurnoutAlerts — Phase 3
+// Rule-based detection. Inspects current member load and
+// returns structured alert objects WITHOUT persisting them.
+// The server action is responsible for persisting.
+// ============================================================
+export function computeMinistryBurnoutAlerts(
+  members: MinistryMember[],
+  churchId: string,
+  ministryId: string,
+): Array<{
+  profileId: string;
+  ministryId: string;
+  churchId: string;
+  alertType: BurnoutAlert["alertType"];
+  message: string;
+  severity: BurnoutAlert["severity"];
+}> {
+  const alerts: ReturnType<typeof computeMinistryBurnoutAlerts> = [];
+
+  for (const member of members) {
+    const load = member.ministryCount;
+    if (load > BURNOUT_THRESHOLD_HIGH) {
+      alerts.push({
+        profileId: member.profileId,
+        ministryId,
+        churchId,
+        alertType: "high_load",
+        message: `${member.fullName} is serving in ${load} ministries — high burnout risk. Consider rotation or a season of rest.`,
+        severity: "high",
+      });
+    } else if (load > BURNOUT_THRESHOLD_MEDIUM) {
+      alerts.push({
+        profileId: member.profileId,
+        ministryId,
+        churchId,
+        alertType: "high_load",
+        message: `${member.fullName} is serving in ${load} ministries — review their capacity with care.`,
+        severity: "medium",
+      });
+    }
+  }
+
+  return alerts;
 }
 

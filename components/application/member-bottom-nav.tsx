@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarRange, HeartHandshake, Home, UsersRound } from "lucide-react";
+import { CalendarRange, HeartHandshake, Home, Layers, UsersRound } from "lucide-react";
 import { Group, Stack, Text, UnstyledButton } from "@mantine/core";
 
 type BottomNavItem = {
@@ -29,6 +29,11 @@ const NAV_ITEMS: BottomNavItem[] = [
     href: "/app/member/directory",
     label: "Directory",
     icon: UsersRound,
+  },
+  {
+    href: "/app/member/ministries",
+    label: "Ministries",
+    icon: Layers,
   },
   {
     href: "/app/member/family",

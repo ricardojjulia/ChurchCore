@@ -8,7 +8,7 @@ const PAGES_CACHE = `churchforge-pages-${CACHE_VERSION}`;
 const FONTS_CACHE = `churchforge-fonts-${CACHE_VERSION}`;
 
 // Pages cached on first visit and served offline if the network fails.
-const PORTAL_ROUTES = ["/portal", "/app/member", "/app/member/directory", "/app/member/family"];
+const PORTAL_ROUTES = ["/portal", "/app/member", "/app/member/directory", "/app/member/family", "/app/member/ministries"];
 
 // ── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener("install", (event) => {

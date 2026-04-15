@@ -25,6 +25,7 @@ import {
   FlameKindling,
   Heart,
   Settings,
+  ShieldCheck,
   Sparkles,
   TrendingUp,
   Users,
@@ -34,11 +35,13 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import { BurnoutGuardianBanner } from "@/components/application/burnout-guardian-banner";
 import { HealthScoreCard } from "@/components/application/health-score-card";
 import { KingdomImpactLogModal } from "@/components/application/kingdom-impact-log-modal";
+import { VolunteerMatcherPanel } from "@/components/application/volunteer-matcher-panel";
 import { VisionBoard } from "@/components/application/vision-board";
 import type { ChurchAppSession } from "@/lib/auth";
 import type {
   MinistryForgeDetail,
   MinistryType,
+  VolunteerMatcherData,
 } from "@/lib/ministry-forge-types";
 import type {
   AssignMembersToMinistryInput,
@@ -88,10 +91,12 @@ export function MinistryForgeDashboard({
   session,
   detail,
   allPeople,
+  matcherData,
 }: {
   session: ChurchAppSession;
   detail: MinistryForgeDetail;
   allPeople: Array<{ id: string; fullName: string }>;
+  matcherData?: VolunteerMatcherData;
 }) {
   const { ministry, members, healthHistory, recentImpacts, burnoutWarnings } = detail;
   const isManager =
@@ -297,6 +302,11 @@ export function MinistryForgeDashboard({
           <Tabs.Tab value="vision" leftSection={<BookOpen size={14} />}>
             Vision
           </Tabs.Tab>
+          {isManager ? (
+            <Tabs.Tab value="volunteers" leftSection={<ShieldCheck size={14} />}>
+              Volunteer Matcher
+            </Tabs.Tab>
+          ) : null}
         </Tabs.List>
 
         {/* === OVERVIEW === */}
@@ -503,6 +513,18 @@ export function MinistryForgeDashboard({
             />
           </Paper>
         </Tabs.Panel>
+
+        {/* === VOLUNTEER MATCHER (manager only) === */}
+        {isManager ? (
+          <Tabs.Panel value="volunteers" pt="lg">
+            <VolunteerMatcherPanel
+              ministryId={ministry.id}
+              initialSuggestions={matcherData?.suggestions ?? []}
+              initialBurnoutAlerts={matcherData?.burnoutAlerts ?? []}
+              isManager={isManager}
+            />
+          </Tabs.Panel>
+        ) : null}
       </Tabs>
 
       {/* Kingdom impact FAB — management only */}

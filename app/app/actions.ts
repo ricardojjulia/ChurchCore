@@ -1323,6 +1323,642 @@ export async function updateMinistryVisionAction(input: UpdateMinistryVisionInpu
   revalidatePath("/app/pastor");
 }
 
+// ============================================================
+// Phase 3: AI Volunteer Matcher + Burnout Guardian actions
+// ============================================================
+
+export type SuggestVolunteersInput = {
+  ministryId: string;
+};
+
+export type ReviewVolunteerMatchInput = {
+  suggestionId: string;
+  decision: "approved" | "rejected";
+  ministryRole?: "member" | "leader" | "assistant_leader";
+};
+
+export type AcknowledgeBurnoutAlertInput = {
+  alertId: string;
+};
+
+export type CalculateBurnoutAlertsInput = {
+  ministryId: string;
+};
+
+function validateSuggestVolunteersInput(input: SuggestVolunteersInput): string | null {
+  if (!input.ministryId.trim()) return "Ministry is required.";
+  return null;
+}
+
+function validateReviewVolunteerMatchInput(input: ReviewVolunteerMatchInput): string | null {
+  if (!input.suggestionId.trim()) return "Suggestion is required.";
+  if (!["approved", "rejected"].includes(input.decision)) return "Decision must be approved or rejected.";
+  if (
+    input.decision === "approved" &&
+    input.ministryRole !== undefined &&
+    !["member", "leader", "assistant_leader"].includes(input.ministryRole)
+  ) {
+    return "Invalid ministry role.";
+  }
+  return null;
+}
+
+// ── suggestVolunteersAction ──────────────────────────────────
+// Builds a ranked list of volunteer candidates using rule-based
+// matching on spiritual_gifts, interests, and current load.
+//
+// PHASE 3 STUB: The LLM integration point is marked below.
+// When a private LLM endpoint is available, replace the
+// rule-based scorer with a call to the approved prompt template.
+//
+// Approved guardrail prompt template (store in prompt library):
+// ─────────────────────────────────────────────────────────────
+// SYSTEM:
+//   You are an assistive ministry matching tool for ChurchForge.
+//   Your role is to SUGGEST — never decide — volunteer placements.
+//   Every response must begin with this disclaimer:
+//   "This is an assistive tool only. It does not replace prayer,
+//    pastoral discernment, or human calling."
+//   You may only reference the provided member data (spiritual
+//   gifts, interests, current load). You must not make
+//   assumptions about a person's calling, spiritual maturity,
+//   or character. You must not recommend anyone whose
+//   contact_allowed flag is false.
+//
+// USER:
+//   Ministry: {{ministry.name}} (type: {{ministry.ministry_type}})
+//   Vision: {{ministry.vision_statement}}
+//   Scriptural anchors: {{ministry.scriptural_anchor}}
+//   Available candidates (contact_allowed = true, directory_visible = true):
+//   {{candidates_json}}
+//   Rank these candidates by fit. For each, give:
+//     - match_score (0–100)
+//     - reason_text (1 sentence, factual, gift/interest based only)
+//   Return JSON array: [{profile_id, match_score, reason_text}]
+// ─────────────────────────────────────────────────────────────
+export async function suggestVolunteersAction(input: SuggestVolunteersInput) {
+  const validationError = validateSuggestVolunteersInput(input);
+  if (validationError) throw new Error(validationError);
+
+  const session = await requireMinistryManagerSession("/app/church-admin");
+  const churchId = session.appContext.church.id;
+
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    revalidatePath(`/app/church-admin/ministry/${input.ministryId}`);
+    return;
+  }
+
+  // ── Fetch ministry details ──
+  let ministryName = "";
+  let ministryType: string | null = null;
+  let visionStatement: string | null = null;
+  let scripturalAnchor: string[] = [];
+
+  // ── Fetch candidate profiles ──
+  // Only members who are: contact_allowed, directory_visible,
+  // not already in this ministry, and not at high burnout load.
+  type CandidateRow = {
+    id: string;
+    full_name: string;
+    spiritual_gifts: string | null;
+    interests: string | null;
+    current_ministry_load: number | string;
+  };
+
+  type MinistryRow = {
+    name: string;
+    ministry_type: string | null;
+    vision_statement: string | null;
+    scriptural_anchor: string[] | null;
+  };
+
+  if (shouldUseLocalTenantFallback()) {
+    const ministryResult = await queryTenantLocalDb<MinistryRow>(
+      `
+        select name, ministry_type, vision_statement, scriptural_anchor
+        from public.ministries
+        where id = $1 and church_id = $2
+        limit 1
+      `,
+      [input.ministryId, churchId],
+    );
+
+    if (!ministryResult.rows[0]) throw new Error("Ministry not found.");
+    const m = ministryResult.rows[0];
+    ministryName = m.name;
+    ministryType = m.ministry_type;
+    visionStatement = m.vision_statement;
+    scripturalAnchor = m.scriptural_anchor ?? [];
+
+    const candidatesResult = await queryTenantLocalDb<CandidateRow>(
+      `
+        select
+          p.id,
+          p.full_name,
+          p.spiritual_gifts::text as spiritual_gifts,
+          p.interests::text as interests,
+          p.current_ministry_load
+        from public.profiles p
+        where p.church_id        = $1
+          and p.contact_allowed  = true
+          and p.directory_visible = true
+          and p.membership_status in ('active', 'baptized')
+          and p.current_ministry_load <= $2
+          and not exists (
+            select 1 from public.profile_ministries pm
+            where pm.profile_id  = p.id
+              and pm.ministry_id = $3
+          )
+        order by p.current_ministry_load asc, p.full_name
+        limit 30
+      `,
+      [churchId, 5, input.ministryId],
+    );
+
+    // ── Rule-based scorer (stub for LLM replacement) ──────────
+    const suggestions = candidatesResult.rows.map((candidate) => {
+      let gifts: string[] = [];
+      let interests: string[] = [];
+      try {
+        const parsedGifts = candidate.spiritual_gifts
+          ? JSON.parse(candidate.spiritual_gifts)
+          : null;
+        if (Array.isArray(parsedGifts)) gifts = parsedGifts;
+      } catch { /* ignore */ }
+      try {
+        const parsedInterests = candidate.interests
+          ? JSON.parse(candidate.interests)
+          : null;
+        if (Array.isArray(parsedInterests)) interests = parsedInterests;
+      } catch { /* ignore */ }
+
+      const score = ruleBasedMatchScore({
+        gifts,
+        interests,
+        load: Number(candidate.current_ministry_load),
+        ministryType,
+        visionStatement,
+        scripturalAnchor,
+      });
+
+      return {
+        profileId: candidate.id,
+        matchScore: score.score,
+        reasonText: score.reason,
+      };
+    });
+
+    // Delete existing pending suggestions for this ministry, then insert fresh
+    await queryTenantLocalDb(
+      `delete from public.volunteer_match_suggestions where ministry_id = $1 and church_id = $2 and status = 'pending'`,
+      [input.ministryId, churchId],
+    );
+
+    for (const s of suggestions.filter((s) => s.matchScore > 10)) {
+      await queryTenantLocalDb(
+        `
+          insert into public.volunteer_match_suggestions
+            (church_id, ministry_id, profile_id, match_score, reason_text, ai_generated)
+          values ($1, $2, $3, $4, $5, false)
+          on conflict do nothing
+        `,
+        [churchId, input.ministryId, s.profileId, s.matchScore, s.reasonText],
+      );
+    }
+  } else {
+    const supabase = await createTenantServerClient();
+
+    const { data: ministryRow, error: mErr } = await supabase
+      .from("ministries")
+      .select("name, ministry_type, vision_statement, scriptural_anchor")
+      .eq("id", input.ministryId)
+      .eq("church_id", churchId)
+      .maybeSingle();
+
+    if (mErr) throw new Error(mErr.message);
+    if (!ministryRow) throw new Error("Ministry not found.");
+
+    ministryName = ministryRow.name;
+    ministryType = ministryRow.ministry_type ?? null;
+    visionStatement = ministryRow.vision_statement ?? null;
+    scripturalAnchor = (ministryRow.scriptural_anchor as string[]) ?? [];
+
+    // Fetch existing ministry member profile IDs to exclude them
+    const { data: existingMembers } = await supabase
+      .from("profile_ministries")
+      .select("profile_id")
+      .eq("ministry_id", input.ministryId);
+    const excludeIds = (existingMembers ?? []).map((r) => r.profile_id);
+
+    const candidateQuery = supabase
+      .from("profiles")
+      .select("id, full_name, spiritual_gifts, interests, current_ministry_load")
+      .eq("church_id", churchId)
+      .eq("contact_allowed", true)
+      .eq("directory_visible", true)
+      .in("membership_status", ["active", "baptized"])
+      .lte("current_ministry_load", 5)
+      .order("current_ministry_load", { ascending: true })
+      .limit(30);
+
+    if (excludeIds.length > 0) {
+      candidateQuery.not("id", "in", `(${excludeIds.join(",")})`);
+    }
+
+    const { data: candidateRows, error: cErr } = await candidateQuery;
+    if (cErr) throw new Error(cErr.message);
+
+    const suggestions = (candidateRows ?? []).map((candidate) => {
+      const gifts = Array.isArray(candidate.spiritual_gifts)
+        ? (candidate.spiritual_gifts as string[])
+        : [];
+      const interests = Array.isArray(candidate.interests)
+        ? (candidate.interests as string[])
+        : [];
+
+      const score = ruleBasedMatchScore({
+        gifts,
+        interests,
+        load: candidate.current_ministry_load ?? 0,
+        ministryType,
+        visionStatement,
+        scripturalAnchor,
+      });
+
+      return { profileId: candidate.id, matchScore: score.score, reasonText: score.reason };
+    });
+
+    // Upsert — delete pending, reinsert fresh scored list
+    await supabase
+      .from("volunteer_match_suggestions")
+      .delete()
+      .eq("ministry_id", input.ministryId)
+      .eq("church_id", churchId)
+      .eq("status", "pending");
+
+    const toInsert = suggestions
+      .filter((s) => s.matchScore > 10)
+      .map((s) => ({
+        church_id: churchId,
+        ministry_id: input.ministryId,
+        profile_id: s.profileId,
+        match_score: s.matchScore,
+        reason_text: s.reasonText,
+        ai_generated: false, // Rule-based; set true when LLM path is live
+      }));
+
+    if (toInsert.length > 0) {
+      const { error: insertErr } = await supabase
+        .from("volunteer_match_suggestions")
+        .insert(toInsert);
+      if (insertErr) throw new Error(insertErr.message);
+    }
+  }
+
+  // Silence unused-variable warning for ministryName until LLM call is added
+  void ministryName;
+
+  revalidatePath(`/app/church-admin/ministry/${input.ministryId}`);
+}
+
+// ── Rule-based match scorer ──────────────────────────────────
+// Produces a 0–100 score and human-readable reason.
+// Intended to be replaced by an LLM call in a future sprint.
+// Factors:
+//   - Gift alignment with ministry type (40 pts)
+//   - Interest alignment with vision/anchors (30 pts)
+//   - Low current load bonus (30 pts)
+// ─────────────────────────────────────────────────────────────
+const MINISTRY_GIFT_MAP: Record<string, string[]> = {
+  worship:        ["worship", "music", "arts", "intercession"],
+  outreach:       ["evangelism", "service", "compassion", "hospitality"],
+  discipleship:   ["teaching", "discipleship", "wisdom", "knowledge"],
+  care:           ["mercy", "compassion", "helps", "healing", "intercession"],
+  administration: ["administration", "leadership", "helps", "wisdom"],
+  youth:          ["teaching", "discipleship", "evangelism", "leadership"],
+  children:       ["teaching", "helps", "compassion", "faith"],
+  missions:       ["evangelism", "faith", "service", "giving"],
+};
+
+function ruleBasedMatchScore(params: {
+  gifts: string[];
+  interests: string[];
+  load: number;
+  ministryType: string | null;
+  visionStatement: string | null;
+  scripturalAnchor: string[];
+}): { score: number; reason: string } {
+  const { gifts, interests, load, ministryType } = params;
+
+  const lowerGifts = gifts.map((g) => g.toLowerCase());
+  const lowerInterests = interests.map((i) => i.toLowerCase());
+  const alignedGifts = ministryType
+    ? (MINISTRY_GIFT_MAP[ministryType] ?? []).filter((g) => lowerGifts.includes(g))
+    : [];
+
+  // Gift alignment score (0–40)
+  const giftScore = ministryType
+    ? Math.min(alignedGifts.length / Math.max((MINISTRY_GIFT_MAP[ministryType]?.length ?? 1), 1), 1) * 40
+    : 20; // neutral when no type set
+
+  // Interest alignment score (0–30) — keyword scan against interests
+  const interestScore = lowerInterests.length > 0 ? Math.min(lowerInterests.length * 5, 30) : 10;
+
+  // Load bonus (0–30) — prefer low-load candidates
+  const loadScore = Math.max(30 - load * 5, 0);
+
+  const total = Math.round(giftScore + interestScore + loadScore);
+
+  const reasonParts: string[] = [];
+  if (alignedGifts.length > 0) {
+    reasonParts.push(`Gifted in ${alignedGifts.slice(0, 2).join(" and ")}`);
+  }
+  if (load === 0) {
+    reasonParts.push("currently not serving in any ministry");
+  } else if (load <= 2) {
+    reasonParts.push(`serving in ${load} ministr${load === 1 ? "y" : "ies"} — good capacity`);
+  }
+  const reason = reasonParts.length > 0
+    ? reasonParts.join("; ") + "."
+    : "No specific gift or interest overlap detected — review manually.";
+
+  return { score: total, reason };
+}
+
+// ── reviewVolunteerMatchAction ───────────────────────────────
+// Approve: assigns the person to the ministry and marks the
+//          suggestion as approved.
+// Reject: marks as rejected — no profile_ministries write.
+// Full audit: reviewed_by + reviewed_at recorded on every review.
+// ─────────────────────────────────────────────────────────────
+export async function reviewVolunteerMatchAction(input: ReviewVolunteerMatchInput) {
+  const validationError = validateReviewVolunteerMatchInput(input);
+  if (validationError) throw new Error(validationError);
+
+  const session = await requireMinistryManagerSession("/app/church-admin");
+  const churchId = session.appContext.church.id;
+  const now = new Date().toISOString();
+  const role = input.ministryRole ?? "member";
+
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    revalidatePath("/app/church-admin");
+    return;
+  }
+
+  // Resolve the reviewer's profile_id
+  let reviewerProfileId: string | null = null;
+
+  if (shouldUseLocalTenantFallback()) {
+    const profileResult = await queryTenantLocalDb<{ id: string }>(
+      `select id from public.profiles where user_id = $1 and church_id = $2 limit 1`,
+      [session.userId, churchId],
+    );
+    reviewerProfileId = profileResult.rows[0]?.id ?? null;
+
+    // Fetch the suggestion row
+    const suggestionResult = await queryTenantLocalDb<{
+      id: string;
+      ministry_id: string;
+      profile_id: string;
+      status: string;
+    }>(
+      `select id, ministry_id, profile_id, status from public.volunteer_match_suggestions where id = $1 and church_id = $2 limit 1`,
+      [input.suggestionId, churchId],
+    );
+
+    const suggestion = suggestionResult.rows[0];
+    if (!suggestion) throw new Error("Suggestion not found.");
+    if (suggestion.status !== "pending") throw new Error("Suggestion has already been reviewed.");
+
+    // Mark suggestion reviewed
+    await queryTenantLocalDb(
+      `
+        update public.volunteer_match_suggestions
+        set status = $1, reviewed_by = $2, reviewed_at = $3
+        where id = $4 and church_id = $5
+      `,
+      [input.decision, reviewerProfileId, now, input.suggestionId, churchId],
+    );
+
+    // If approved, assign to ministry
+    if (input.decision === "approved") {
+      await queryTenantLocalDb(
+        `
+          insert into public.profile_ministries (church_id, profile_id, ministry_id, role)
+          select $1, $2, $3, $4
+          where exists (select 1 from public.profiles where id = $2 and church_id = $1)
+          on conflict (profile_id, ministry_id) do update
+            set role = excluded.role
+        `,
+        [churchId, suggestion.profile_id, suggestion.ministry_id, role],
+      );
+    }
+
+    revalidatePath(`/app/church-admin/ministry/${suggestion.ministry_id}`);
+  } else {
+    const supabase = await createTenantServerClient();
+
+    const { data: reviewerProfile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", session.userId)
+      .eq("church_id", churchId)
+      .maybeSingle();
+    reviewerProfileId = reviewerProfile?.id ?? null;
+
+    const { data: suggestion, error: sErr } = await supabase
+      .from("volunteer_match_suggestions")
+      .select("id, ministry_id, profile_id, status")
+      .eq("id", input.suggestionId)
+      .eq("church_id", churchId)
+      .maybeSingle();
+
+    if (sErr) throw new Error(sErr.message);
+    if (!suggestion) throw new Error("Suggestion not found.");
+    if (suggestion.status !== "pending") throw new Error("Suggestion has already been reviewed.");
+
+    const { error: updateErr } = await supabase
+      .from("volunteer_match_suggestions")
+      .update({
+        status: input.decision,
+        reviewed_by: reviewerProfileId,
+        reviewed_at: now,
+      })
+      .eq("id", input.suggestionId)
+      .eq("church_id", churchId);
+
+    if (updateErr) throw new Error(updateErr.message);
+
+    if (input.decision === "approved") {
+      const { error: assignErr } = await supabase
+        .from("profile_ministries")
+        .upsert(
+          {
+            church_id: churchId,
+            profile_id: suggestion.profile_id,
+            ministry_id: suggestion.ministry_id,
+            role,
+          },
+          { onConflict: "profile_id,ministry_id" },
+        );
+      if (assignErr) throw new Error(assignErr.message);
+    }
+
+    revalidatePath(`/app/church-admin/ministry/${suggestion.ministry_id}`);
+  }
+
+  revalidatePath("/app/church-admin");
+  revalidatePath("/app/pastor");
+  revalidatePath("/app/member/ministries");
+}
+
+// ── calculateBurnoutAlertsAction ─────────────────────────────
+// Re-evaluates burnout risk for all members of a ministry and
+// persists new alerts. Does not duplicate recent alerts.
+// ─────────────────────────────────────────────────────────────
+export async function calculateBurnoutAlertsAction(input: CalculateBurnoutAlertsInput) {
+  if (!input.ministryId.trim()) throw new Error("Ministry is required.");
+
+  const session = await requireMinistryManagerSession("/app/church-admin");
+  const churchId = session.appContext.church.id;
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(); // 7-day dedup window
+
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    revalidatePath(`/app/church-admin/ministry/${input.ministryId}`);
+    return;
+  }
+
+  if (shouldUseLocalTenantFallback()) {
+    const membersResult = await queryTenantLocalDb<{
+      profile_id: string;
+      full_name: string;
+      current_ministry_load: string;
+    }>(
+      `
+        select pm.profile_id, p.full_name, p.current_ministry_load
+        from public.profile_ministries pm
+        join public.profiles p on p.id = pm.profile_id
+        where pm.ministry_id = $1
+      `,
+      [input.ministryId],
+    );
+
+    for (const row of membersResult.rows) {
+      const load = parseInt(row.current_ministry_load, 10) || 0;
+      const severity = load > 5 ? "high" : load > 3 ? "medium" : null;
+      if (!severity) continue;
+
+      // Dedup: skip if a non-acknowledged alert for this profile+type exists within 7 days
+      const existing = await queryTenantLocalDb<{ id: string }>(
+        `
+          select id from public.burnout_alerts
+          where profile_id  = $1
+            and church_id   = $2
+            and alert_type  = 'high_load'
+            and acknowledged = false
+            and created_at  > $3
+          limit 1
+        `,
+        [row.profile_id, churchId, cutoff],
+      );
+
+      if (existing.rows.length > 0) continue;
+
+      await queryTenantLocalDb(
+        `
+          insert into public.burnout_alerts
+            (church_id, profile_id, ministry_id, alert_type, message, severity)
+          values ($1, $2, $3, 'high_load', $4, $5)
+        `,
+        [
+          churchId,
+          row.profile_id,
+          input.ministryId,
+          load > 5
+            ? `${row.full_name} is serving in ${load} ministries — high burnout risk.`
+            : `${row.full_name} is serving in ${load} ministries — review their capacity.`,
+          severity,
+        ],
+      );
+    }
+  } else {
+    const supabase = await createTenantServerClient();
+
+    const { data: members, error: mErr } = await supabase
+      .from("profile_ministries")
+      .select("profile_id, profiles(full_name, current_ministry_load)")
+      .eq("ministry_id", input.ministryId);
+
+    if (mErr) throw new Error(mErr.message);
+
+    for (const row of members ?? []) {
+      const profile = row.profiles as unknown as {
+        full_name: string;
+        current_ministry_load: number | null;
+      } | null;
+      const load = profile?.current_ministry_load ?? 0;
+      const severity = load > 5 ? "high" : load > 3 ? "medium" : null;
+      if (!severity) continue;
+
+      const { data: existing } = await supabase
+        .from("burnout_alerts")
+        .select("id")
+        .eq("profile_id", row.profile_id)
+        .eq("church_id", churchId)
+        .eq("alert_type", "high_load")
+        .eq("acknowledged", false)
+        .gte("created_at", cutoff)
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) continue;
+
+      await supabase.from("burnout_alerts").insert({
+        church_id: churchId,
+        profile_id: row.profile_id,
+        ministry_id: input.ministryId,
+        alert_type: "high_load",
+        message:
+          load > 5
+            ? `${profile?.full_name ?? "A volunteer"} is serving in ${load} ministries — high burnout risk.`
+            : `${profile?.full_name ?? "A volunteer"} is serving in ${load} ministries — review their capacity.`,
+        severity,
+      });
+    }
+  }
+
+  revalidatePath(`/app/church-admin/ministry/${input.ministryId}`);
+}
+
+// ── acknowledgeBurnoutAlertAction ────────────────────────────
+export async function acknowledgeBurnoutAlertAction(input: AcknowledgeBurnoutAlertInput) {
+  if (!input.alertId.trim()) throw new Error("Alert is required.");
+
+  const session = await requireMinistryManagerSession("/app/church-admin");
+  const churchId = session.appContext.church.id;
+
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    return;
+  }
+
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `update public.burnout_alerts set acknowledged = true where id = $1 and church_id = $2`,
+      [input.alertId, churchId],
+    );
+  } else {
+    const supabase = await createTenantServerClient();
+    const { error } = await supabase
+      .from("burnout_alerts")
+      .update({ acknowledged: true })
+      .eq("id", input.alertId)
+      .eq("church_id", churchId);
+    if (error) throw new Error(error.message);
+  }
+
+  revalidatePath("/app/church-admin");
+}
+
 export async function upsertMemberFamilyAction(input: UpdateFamilyInput) {
   const session = await requireChurchSession("/app/member/family");
 

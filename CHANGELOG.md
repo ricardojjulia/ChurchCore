@@ -6,8 +6,61 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-04-19
+
 ### Added
 
+- Added Sprint 7+ Launch Readiness migration (`20260419000000_launch_readiness_sprint7.sql`): `donations` table (voluntary-only, Stripe-backed, full RLS, audit trigger); `ai_interactions` audit table (feature, disclaimer_shown, model; management-only RLS); `stripe_customers` lookup table; `data_export_requested_at`, `data_delete_requested_at`, `data_delete_approved_at` columns on `profiles` for GDPR/CCPA self-service.
+- Added `lib/stripe/` module: `client.ts` (lightweight Stripe API caller, no heavy SDK dependency until church opts in) and `donations.ts` (`createPaymentIntent`, `createOrGetStripeCustomer`, `cancelStripeSubscription`) — all with graceful local-dev stubs when `STRIPE_SECRET_KEY` is absent.
+- Added `lib/donations-data.ts`: `getDonorPortalData` (member giving history + total) and `getGivingDashboardData` (leader report by fund, monthly/all-time totals, recurring count).
+- Added `app/app/donations-actions.ts`: `initiateDonationAction` (creates PaymentIntent + pending donations row), `confirmDonationAction` (marks succeeded + sends thank-you receipt email), `cancelRecurringDonationAction` (cancels Stripe subscription + marks cancelled). All giving uses voluntary language — no platform fee.
+- Added Donor Portal at `/app/member/giving` — giving history table, active recurring gifts with cancel flow, and a Give drawer with fund designation, anonymous option, receipt email, and voluntary-language notice.
+- Added Giving Dashboard at `/app/giving` (pastor and church-admin only) — this-month / all-time / recurring summary cards, recent gifts table, and fund breakdown with ring-progress allocation.
+- Added `lib/compliance/data-rights-actions.ts`: `requestDataExportAction`, `requestAccountDeletionAction`, `cancelDeletionRequestAction`, `generateDataExportAction` (builds JSON export of profile, memberships, donations, consent logs, notification preferences). Staff accounts blocked from self-service deletion.
+- Added `DataRightsPanel` component at `components/portal/data-rights-panel.tsx` — Download My Data (request + JSON download), Privacy Rights notice, Request Account Deletion with 30-day grace-period cancellation.
+- Added Data Rights route at `/app/member/data-rights` — member-only; surfaces `DataRightsPanel` with current export/delete request state.
+- Added Launch Checklist at `/control/launch-checklist` — interactive pre-launch verification checklist for platform operators covering RLS, donations, AI guardrails, communications, data rights, security, mobile/PWA, and role access (8 sections, 47 items, progress ring).
+- Added Stripe env vars to `.env.example` (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`).
+
+## [1.5.0] - 2026-04-18
+
+### Added
+
+- Added Phase 6 — Communications & Polish: `notification_preferences` table (per-member, per-church opt-in for email/sms/push/in-app channels) and `communication_logs` table (append-only outbound audit trail with channel, status, external provider ID, and body preview); both with RLS and audit triggers.
+- Extended `consent_logs` with an optional `communication_type` column so consent records can be scoped to a specific channel.
+- Added `lib/notifications/` module: `send-email.ts` (SendGrid Mail Send API wrapper with local-dev stub), `send-sms.ts` (Twilio Messages API wrapper with local-dev stub), `queue-communication.ts` (consent-aware dispatcher — checks `notification_preferences`, dispatches to the correct provider, writes a `communication_logs` audit row).
+- Added Communications Hub at `/app/communications` — compose and broadcast messages to members by channel (email or SMS), filter recipients by role, bulk-select, preview consent/opt-out warnings before sending, schedule for a future time, and view the full message log with status badges. Visible to pastor and church-admin roles only.
+- Added `broadcastMessageAction` and `updateNotificationPreferencesAction` in `app/app/communications-actions.ts`.
+- Added `getCommunicationsHubData` data loader in `lib/communications-data.ts` with local-DB SQL and Supabase client paths.
+- Added `NotificationPreferencesForm` reusable component for members to opt in/out of each notification channel from their profile.
+- Added `/app/member/ministries` to the `MemberBottomNav` tab bar (Home, Calendar, Directory, Ministries, Family) and to the PWA offline cache list in `public/sw.js`.
+- Added SendGrid and Twilio env var stubs to `.env.example` (`SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`).
+- Added Phase 4 — Elders Discernment Room foundations: `elder_notes`, `discernment_sessions`, `prayer_requests`, `prayer_acknowledgements` tables with stricter-than-admin RLS via new `can_access_elder_data()` helper (pastor / elder role only — church admins explicitly excluded per `advanced_ministry_elder_pastor.md §9`).
+- Added `council_notes` table for Pastor Council Forge with `note_type` enum (`general`, `sermon_outline`, `series_plan`, `council_minutes`, `sabbath_reflection`) and auto-incrementing version trigger; accessible by pastor and church-admin via `can_access_council_data()`.
+- Added `prayer_acknowledgements` table with a unique `(prayer_request_id, profile_id)` constraint and a trigger that keeps `prayer_requests.prayed_count` in sync — full "I Prayed" audit trail without in-place counter mutation.
+- Added full audit trigger coverage for all four Phase 4 tables via the existing `audit_log_changes()` function.
+- Added Elders Discernment Room at `/app/elders/discernment` — private, pastor-only workspace with open / in-prayer / voting session list, elder notes panel, and create-session and add-note drawers.
+- Added Discernment Session detail page at `/app/elders/discernment/[sessionId]` — per-session prayer wall with "I Prayed" one-tap acknowledgement, elder notes sidebar, live status controls (open → prayer → voting → closed), and AI Wisdom Prompt button.
+- Added `PrayerWall` component: add-request modal with anonymous option, per-request "I Prayed" button with optimistic count update, purple heart indicator for acknowledged requests.
+- Added `AiWisdomPrompt` component: theological guardrail modal that surfaces Scripture references and reflection questions only — never recommendations or decisions. Disclaimer shown before and after every AI output per `§6`. Only the topic text is sent — no member data, notes, or PII.
+- Added `DiscernmentSessionCard` component with status badge, date, prayer-request count, and "Enter room" link.
+- Added Pastor Council Forge at `/app/council/forge` — collaborative versioned notes workspace for pastor and church-admin roles with tabbed views by note type, create and edit drawers, version badge on every save.
+- Added `CouncilForge` component with per-type tabs, note cards with version history, and a stubbed liturgical calendar integration note (Phase 5).
+- Added `lib/elders-types.ts` with shared types (`DiscernmentSession`, `PrayerRequest`, `ElderNote`, `CouncilNote`), status colour/label maps, and `ELDER_AI_DISCLAIMER` constant.
+- Added `lib/elders-data.ts` with `getDiscernmentRoomData`, `getDiscernmentSessionDetail`, and `getCouncilForgeData` data loaders (local SQL + Supabase paths; role assertions at application layer in addition to DB RLS).
+- Added six server actions in `app/app/elders-actions.ts`: `createDiscernmentSessionAction`, `updateDiscernmentSessionStatusAction`, `addPrayerRequestAction`, `markPrayedAction`, `addElderNoteAction`, `generateWisdomPromptAction` (stubbed with approved theological guardrail prompt template in code comments), `createCouncilNoteAction`, `updateCouncilNoteAction`.
+- Added Ministry Forge Phase 3 — AI Volunteer Matcher and Burnout Guardian: `volunteer_match_suggestions` and `burnout_alerts` tables with strict RLS; `profiles.current_ministry_load` denormalised counter kept in sync by a PostgreSQL trigger on `profile_ministries`.
+- Added `suggestVolunteersAction`: rule-based volunteer scorer (0–100 match score) using spiritual gift alignment, ministry type mapping, and serving-load penalty. Architecture prepared for LLM replacement with an approved guardrail prompt template in code comments.
+- Added `reviewVolunteerMatchAction`: human-gated approve/reject flow — approval writes to `profile_ministries` and records reviewer identity and timestamp; rejection only marks the suggestion, never touches memberships.
+- Added `calculateBurnoutAlertsAction`: re-evaluates member load for a ministry, persists `burnout_alerts` rows (deduplicated within a 7-day window), threshold: >3 ministries = medium, >5 = high.
+- Added `acknowledgeBurnoutAlertAction`: marks a burnout alert as acknowledged.
+- Added `VolunteerMatcherPanel` component: interactive Burnout Guardian section (severity-sorted alerts with acknowledge) and Volunteer Matcher section (pending suggestions with score ring, gifts, approve/reject).
+- Added `MatchSuggestionCard` and `BurnoutAlertCard` sub-components with per-card optimistic removal on review.
+- Added `AiDisclaimer` component rendering the canonical AI-assistive disclaimer on every AI-generated surface.
+- Added "Volunteer Matcher" tab to `MinistryForgeDashboard` — visible to church-admin and pastor roles only; panel is empty-state friendly ("No suggestions yet — pray and try matching").
+- Added `AI_ASSISTIVE_DISCLAIMER`, `burnoutSeverity()`, `BURNOUT_THRESHOLD_MEDIUM`, `BURNOUT_THRESHOLD_HIGH` constants to `lib/ministry-forge-types.ts` for shared use across server and client code.
+- Added `getVolunteerMatcherData` data loader in `lib/ministry-forge-data.ts` with both local-DB SQL and Supabase client paths.
+- Added `computeMinistryBurnoutAlerts` pure function for in-memory burnout detection without DB writes.
 - Added Ministry Forge Phase 1 and Phase 2 foundations: `ministry_type`, `vision_statement`, and `scriptural_anchor` columns on `ministries`; new `profile_ministries` join table with composable RLS; `ministry_health_history` for trend tracking; `kingdom_impacts` quick-log table for spiritual outcomes.
 - Added Ministry Forge dashboard at `/app/church-admin/ministry/[id]` with Overview, Members & Volunteers, Impact Log, and Vision & Anchors tabs for church admins and pastors.
 - Added `HealthScoreCard` component with color-coded health bands (green ≥ 7.5, yellow 5–7.4, red < 5), trend arrow, and recent history.

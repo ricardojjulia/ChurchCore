@@ -3,7 +3,10 @@ import { notFound, redirect } from "next/navigation";
 import { MinistryForgeDashboard } from "@/components/application/ministry-forge-dashboard";
 import { requireChurchSession } from "@/lib/auth";
 import { getChurchAdminPeopleData } from "@/lib/church-admin-people-data";
-import { getMinistryForgeDetail } from "@/lib/ministry-forge-data";
+import {
+  getMinistryForgeDetail,
+  getVolunteerMatcherData,
+} from "@/lib/ministry-forge-data";
 
 export default async function MinistryForgePage({
   params,
@@ -31,5 +34,15 @@ export default async function MinistryForgePage({
     fullName: p.fullName,
   }));
 
-  return <MinistryForgeDashboard session={session} detail={detail} allPeople={allPeople} />;
+  // Phase 3: load matcher data in parallel (non-blocking — empty on preview mode)
+  const matcherData = await getVolunteerMatcherData(session, id);
+
+  return (
+    <MinistryForgeDashboard
+      session={session}
+      detail={detail}
+      allPeople={allPeople}
+      matcherData={matcherData}
+    />
+  );
 }
