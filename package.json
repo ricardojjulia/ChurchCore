@@ -1,6 +1,6 @@
 {
   "name": "churchforge",
-  "version": "1.0.0",
+  "version": "2.5.0",
   "private": true,
   "description": "ChurchForge frontend foundation aligned with the development plan.",
   "scripts": {

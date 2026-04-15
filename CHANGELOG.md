@@ -6,6 +6,23 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-04-14
+
+### Added
+
+- Added **Add person** modal to the church-admin People page — creates an offline churchgoer record (name, email, phone, membership status, role) without requiring a Supabase auth account; suitable for walk-in visitors and paper-roll imports. Gracefully stubs in preview mode.
+- Added **Invite user** modal — sends a Supabase auth invite email to a specified address so the recipient can sign in with a pre-assigned role (`member`, `ministry-leader`, `pastor`, `church-admin`). Displays an informational toast in preview mode when no backend is running.
+- Added **Deactivate person** action inside each person's edit modal, under a "Danger zone" divider. Sets `membership_status = inactive`, hides from directory and contact lists, and deactivates all `church_memberships` rows for that person. Requires a confirm step before executing.
+- Expanded the church-admin sidebar nav on both the home dashboard (`/app/church-admin`) and the People page (`/app/church-admin/people`) to include direct links to: Communications Hub, Giving Dashboard, and Ministry Forge.
+- Added `addChurchgoerAction`, `inviteUserAction`, and `deactivateChurchAdminPersonAction` server actions in `app/app/actions.ts` with full local-DB and Supabase path support and church-admin session guards.
+
+### Fixed
+
+- Corrected `shouldUseLocalControlPlaneDbFallback` to guard `hasControlPlaneSupabaseEnv()` before calling `getControlPlaneSupabaseEnv()`, preventing a crash when no Supabase env vars are set.
+- Added early null-return to `resolveTenantViewTarget` when no control-plane backend is configured (preview mode), eliminating a runtime 500 in `launchTenantViewAction`.
+- Converted `TenantViewLauncher` and `ReturnToControlPlaneButton` from `<form action={...}>` to `useTransition` + try/catch + `notifications.show()` so server action errors surface as toasts instead of crashing the page.
+- `TenantViewLauncher` now accepts `isPreview` from `ControlPlaneDashboard` (derived from `session.source === "preview"`) and disables the launch button with an explanatory tooltip when Supabase is not running locally.
+
 ## [2.0.0] - 2026-04-19
 
 ### Added

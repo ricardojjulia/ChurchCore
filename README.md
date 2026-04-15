@@ -1,6 +1,6 @@
 # ChurchForge
 
-ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, and guardrailed AI ministry tools. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.5 and is at the `2.0.0` launch-ready release, incorporating Ministry Forge (Phases 1–3), Elders Discernment Room, Pastor Council Forge, Communications Hub, voluntary Stripe donations, GDPR/CCPA data rights, and a full pre-launch checklist.
+ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, and guardrailed AI ministry tools. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.5 and is at the `2.5.0` release, incorporating Ministry Forge (Phases 1–3), Elders Discernment Room, Pastor Council Forge, Communications Hub, voluntary Stripe donations, GDPR/CCPA data rights, a full pre-launch checklist, and complete church-admin people management (add, invite, deactivate).
 
 ## Stack
 
@@ -77,7 +77,7 @@ Primary routes:
 - `/app/[role]` church role workspace
 - `/app/calendar` tenant-facing working calendar hub backed by Supabase event reads when configured
 - `/portal` dedicated churchgoer portal entry route that resolves to the member workspace
-- `/app/church-admin/people` church-admin people-management route
+- `/app/church-admin/people` church-admin people-management — search, filter, edit, bulk update, add person (offline record), invite user (Supabase auth email), deactivate
 - `/app/church-admin/ministry/[id]` Ministry Forge dashboard (health score, vision board, volunteer matcher)
 - `/app/member/directory` member-facing directory route
 - `/app/member/family` member-facing household route
