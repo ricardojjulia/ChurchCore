@@ -2,7 +2,9 @@
 
 import {
   BrainCircuit,
+  DollarSign,
   HeartHandshake,
+  MessageSquare,
   ShieldCheck,
   Sparkles,
   UsersRound,
@@ -56,13 +58,36 @@ export function PortalWorkspace({
   ];
 
   if (role.id === "church-admin") {
-    navItems.push({
-      href: "/app/church-admin/people",
-      label: "People",
-      description: "Records and statuses",
-      icon: UsersRound,
-      active: false,
-    });
+    navItems.push(
+      {
+        href: "/app/church-admin/people",
+        label: "People",
+        description: "Records and statuses",
+        icon: UsersRound,
+        active: false,
+      },
+      {
+        href: "/app/communications",
+        label: "Communications",
+        description: "Broadcast and messaging",
+        icon: MessageSquare,
+        active: false,
+      },
+      {
+        href: "/app/giving",
+        label: "Giving",
+        description: "Donations dashboard",
+        icon: DollarSign,
+        active: false,
+      },
+      {
+        href: "/app/church-admin/ministry/overview",
+        label: "Ministry Forge",
+        description: "Health, vision, and impact",
+        icon: Sparkles,
+        active: false,
+      },
+    );
   }
 
   return (

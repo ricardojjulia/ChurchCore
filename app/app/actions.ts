@@ -2095,3 +2095,181 @@ export async function upsertMemberFamilyAction(input: UpdateFamilyInput) {
   revalidatePath("/app/pastor");
   revalidatePath("/app/pastor/people");
 }
+
+// ── Add churchgoer (offline record, no auth account required) ─────────────
+
+export type AddChurchgoerInput = {
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  membershipStatus: string;
+  role: string;
+};
+
+function validateAddChurchgoerInput(input: AddChurchgoerInput): string | null {
+  const name = input.fullName.trim();
+  if (!name) return "Full name is required.";
+  if (name.length > 200) return "Full name is too long.";
+  const validStatuses = new Set(["active", "visitor", "inactive", "baptized", "transferred"]);
+  if (!validStatuses.has(input.membershipStatus)) return "Invalid membership status.";
+  const validRoles = new Set(["church_admin", "pastor", "ministry_leader", "member"]);
+  if (!validRoles.has(input.role)) return "Invalid role.";
+  return null;
+}
+
+export async function addChurchgoerAction(input: AddChurchgoerInput) {
+  const validationError = validateAddChurchgoerInput(input);
+  if (validationError) throw new Error(validationError);
+
+  const session = await requireChurchAdminSession("/app/church-admin/people");
+  const churchId = session.appContext.church.id;
+
+  const fullName = input.fullName.trim();
+  const email = input.email?.trim().toLowerCase() || null;
+  const phone = input.phone?.trim() || null;
+
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    revalidatePath("/app/church-admin/people");
+    return;
+  }
+
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `
+        insert into public.profiles
+          (full_name, email, church_id, membership_status, directory_visible, contact_allowed,
+           phone, updated_at, created_at)
+        values ($1, $2, $3, $4, false, false, $5, timezone('utc', now()), timezone('utc', now()))
+        on conflict (email) where email is not null
+        do update set
+          church_id         = excluded.church_id,
+          full_name         = excluded.full_name,
+          membership_status = excluded.membership_status,
+          phone             = excluded.phone,
+          updated_at        = timezone('utc', now())
+      `,
+      [fullName, email, churchId, input.membershipStatus, phone],
+    );
+  } else {
+    const supabase = await createTenantServerClient();
+    const { error } = await supabase.from("profiles").insert({
+      full_name: fullName,
+      email,
+      church_id: churchId,
+      membership_status: input.membershipStatus,
+      phone,
+      directory_visible: false,
+      contact_allowed: false,
+    });
+    if (error) throw new Error(error.message);
+  }
+
+  revalidatePath("/app/church-admin");
+  revalidatePath("/app/church-admin/people");
+}
+
+// ── Invite user by email (Supabase auth invite or stub) ───────────────────
+
+export type InviteUserInput = {
+  email: string;
+  role: string;
+  fullName: string | null;
+};
+
+function validateInviteUserInput(input: InviteUserInput): string | null {
+  if (!input.email.trim()) return "Email is required.";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim())) return "Enter a valid email address.";
+  const validRoles = new Set(["church-admin", "pastor", "ministry-leader", "member"]);
+  if (!validRoles.has(input.role)) return "Invalid role.";
+  return null;
+}
+
+export async function inviteUserAction(input: InviteUserInput) {
+  const validationError = validateInviteUserInput(input);
+  if (validationError) throw new Error(validationError);
+
+  const session = await requireChurchAdminSession("/app/church-admin/people");
+
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    return { previewMode: true };
+  }
+
+  const supabase = await createTenantServerClient();
+
+  const { error } = await supabase.auth.admin.inviteUserByEmail(
+    input.email.trim().toLowerCase(),
+    {
+      data: {
+        full_name: input.fullName?.trim() || null,
+        church_id: session.appContext.church.id,
+        role: input.role,
+      },
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/app/${input.role}`,
+    },
+  );
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/app/church-admin/people");
+  return { previewMode: false };
+}
+
+// ── Deactivate a person from the church ──────────────────────────────────
+
+export type DeactivateChurchAdminPersonInput = {
+  profileId: string;
+};
+
+export async function deactivateChurchAdminPersonAction(
+  input: DeactivateChurchAdminPersonInput,
+) {
+  if (!input.profileId) throw new Error("A profile ID is required.");
+
+  const session = await requireChurchAdminSession("/app/church-admin/people");
+  const churchId = session.appContext.church.id;
+
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    revalidatePath("/app/church-admin/people");
+    return;
+  }
+
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `
+        update public.profiles
+        set membership_status = 'inactive',
+            directory_visible = false,
+            contact_allowed   = false,
+            updated_at        = timezone('utc', now())
+        where id        = $1
+          and church_id = $2
+      `,
+      [input.profileId, churchId],
+    );
+    await queryTenantLocalDb(
+      `
+        update public.church_memberships
+        set is_active  = false,
+            updated_at = timezone('utc', now())
+        where user_id  = (select id from public.profiles where id = $1 and church_id = $2 limit 1)
+          and church_id = $2
+      `,
+      [input.profileId, churchId],
+    );
+  } else {
+    const supabase = await createTenantServerClient();
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        membership_status: "inactive",
+        directory_visible: false,
+        contact_allowed: false,
+      })
+      .eq("id", input.profileId)
+      .eq("church_id", churchId);
+    if (error) throw new Error(error.message);
+  }
+
+  revalidatePath("/app/church-admin");
+  revalidatePath("/app/church-admin/people");
+}

@@ -3,9 +3,12 @@
 import { useMemo, useState } from "react";
 import {
   CheckSquare,
+  DollarSign,
   HeartHandshake,
+  MessageSquare,
   Search,
   ShieldCheck,
+  Sparkles,
   UsersRound,
 } from "lucide-react";
 import {
@@ -23,6 +26,8 @@ import {
 } from "@mantine/core";
 
 import { ApplicationShell } from "@/components/application/app-shell";
+import { ChurchAdminAddPerson } from "@/components/application/church-admin-add-person";
+import { ChurchAdminInviteUser } from "@/components/application/church-admin-invite-user";
 import { ChurchAdminPeopleBulkActions } from "@/components/application/church-admin-people-bulk-actions";
 import { ChurchAdminPersonEdit } from "@/components/application/church-admin-person-edit";
 import { ChurchAdminPersonRelationships } from "@/components/application/church-admin-person-relationships";
@@ -121,7 +126,31 @@ export function ChurchAdminPeopleWorkspace({
           icon: UsersRound,
           active: true,
         },
+        {
+          href: "/app/communications",
+          label: "Communications",
+          description: "Broadcast and messaging",
+          icon: MessageSquare,
+        },
+        {
+          href: "/app/giving",
+          label: "Giving",
+          description: "Donations dashboard",
+          icon: DollarSign,
+        },
+        {
+          href: "/app/church-admin/ministry/overview",
+          label: "Ministry Forge",
+          description: "Health, vision, and impact",
+          icon: Sparkles,
+        },
       ]}
+      topActions={
+        <Group gap="sm">
+          <ChurchAdminInviteUser />
+          <ChurchAdminAddPerson />
+        </Group>
+      }
     >
       <ChurchAppContextBanner session={session} />
 

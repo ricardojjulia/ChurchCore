@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil } from "lucide-react";
+import { Pencil, UserX } from "lucide-react";
 import {
   Button,
   Checkbox,
+  Divider,
   Group,
   Modal,
   Select,
@@ -13,9 +14,13 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { useDisclosure } from "@mantine/hooks";
 
-import { updateChurchAdminPersonAction } from "@/app/app/actions";
+import {
+  deactivateChurchAdminPersonAction,
+  updateChurchAdminPersonAction,
+} from "@/app/app/actions";
 import type { ChurchAdminPersonEntry } from "@/lib/church-admin-people-data";
 
 export function ChurchAdminPersonEdit({
@@ -26,7 +31,9 @@ export function ChurchAdminPersonEdit({
   const router = useRouter();
   const [opened, { open, close }] = useDisclosure(false);
   const [isPending, startTransition] = useTransition();
+  const [deactivatePending, startDeactivateTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
 
   const [fullName, setFullName] = useState(person.fullName);
   const [phone, setPhone] = useState(person.phone ?? "");
@@ -44,6 +51,26 @@ export function ChurchAdminPersonEdit({
   );
   const [directoryVisible, setDirectoryVisible] = useState(person.directoryVisible);
   const [contactAllowed, setContactAllowed] = useState(person.contactAllowed);
+
+  function handleDeactivate() {
+    startDeactivateTransition(async () => {
+      try {
+        await deactivateChurchAdminPersonAction({ profileId: person.id });
+        notifications.show({
+          title: "Person deactivated",
+          message: `${person.fullName} has been set to inactive and removed from the directory.`,
+          color: "orange",
+        });
+        setConfirmDeactivate(false);
+        close();
+        router.refresh();
+      } catch (error) {
+        setServerError(
+          error instanceof Error ? error.message : "Could not deactivate person.",
+        );
+      }
+    });
+  }
 
   function handleOpen() {
     setFullName(person.fullName);
@@ -200,6 +227,47 @@ export function ChurchAdminPersonEdit({
               Save
             </Button>
           </Group>
+
+          <Divider label="Danger zone" labelPosition="center" />
+
+          {confirmDeactivate ? (
+            <Stack gap="xs">
+              <Text size="sm" c="dimmed">
+                This will set {person.fullName} to inactive and hide them from
+                the directory. This can be reversed by editing the record again.
+              </Text>
+              <Group gap="sm">
+                <Button
+                  variant="default"
+                  radius="xl"
+                  size="xs"
+                  onClick={() => setConfirmDeactivate(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  color="red"
+                  radius="xl"
+                  size="xs"
+                  loading={deactivatePending}
+                  onClick={handleDeactivate}
+                >
+                  Confirm deactivate
+                </Button>
+              </Group>
+            </Stack>
+          ) : (
+            <Button
+              variant="subtle"
+              color="red"
+              radius="xl"
+              size="xs"
+              leftSection={<UserX size={14} />}
+              onClick={() => setConfirmDeactivate(true)}
+            >
+              Deactivate person
+            </Button>
+          )}
         </Stack>
       </Modal>
     </>
