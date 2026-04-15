@@ -1,7 +1,7 @@
 # ChurchForge Development Plan
 
 **Living Document** - Last Updated: April 14, 2026  
-**Version**: 1.6  
+**Version**: 1.7  
 **Purpose**: This is the single source of truth for all ChurchForge development. Every GitHub Issue, PR, sprint, and code review must reference this document. Update only via PR.
 
 ## Table of Contents
@@ -49,6 +49,7 @@ The two surfaces may share design systems and selected libraries, but they do no
 
 - Member directory with families and attendance.
 - Ministry membership and leadership assignment.
+- Specialized ministry pathways for men, women, children, youth, young adults, marriage, education, missions, and outreach.
 - Pastoral and minister profiles with fully customizable titles.
 - Donation management with Stripe.
 - Reporting and dashboards.
@@ -80,6 +81,7 @@ Implementation starts in later sprints.
 - RSVP system and volunteer shift management.
 - Working-calendar support for Month, Week, Day, Agenda, and resource-aware views.
 - Burnout guardrails including load warnings, rotation suggestions, and rest prompts.
+- Specialized ministry stewardship metrics including vitality scoring, discipleship velocity, and children-serving safety monitoring.
 - Real-time updates, conflict detection, and integrations with future AI support flows.
 
 ## 6. Technology Stack
@@ -97,6 +99,7 @@ Implementation starts in later sprints.
 ## 7. Security, Privacy & Compliance
 
 - **PII and PHI Guidelines**: Classify member information, donations, pastoral notes, prayer journals, volunteer feedback, and any care-related records as sensitive. Enforce data minimization, encryption at rest and in transit, UI masking, and row-level security in the database.
+- **High-Sensitivity Ministry Data**: Treat children's safety records, pickup data, marriage-care notes, pastoral review records, and mentorship access logs as higher-sensitivity slices requiring tighter RLS and field-level protection where needed.
 - **User Data Ownership**: Provide self-service export and delete aligned to GDPR and CCPA-style expectations. Church admins may honor individual requests with logged overrides when permitted.
 - **Consent & Auditing**: Require explicit consent for AI, communications, and tracking. Maintain full audit logs for sensitive access and role-sensitive actions.
 - **AppSec**: Run SAST, SCA, DAST, dependency scanning, secrets scanning, and OWASP Top 10 verification on every PR. Require manual review for PII, payment, or AI changes.

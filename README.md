@@ -1,6 +1,6 @@
 # ChurchForge
 
-ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, and guardrailed AI ministry tools. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.6 and is at release `2.6.0`, incorporating Ministry Forge (Phases 1–3), Elders Discernment Room, Pastor Council Forge, Communications Hub, voluntary Stripe donations, GDPR/CCPA data rights, a full pre-launch checklist, complete church-admin people management, and the Sprint 2 attendance / roster / member-identity flow.
+ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, and guardrailed AI ministry tools. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.7 and is at release `2.6.0`, incorporating Ministry Forge (Phases 1–3), Elders Discernment Room, Pastor Council Forge, Communications Hub, voluntary Stripe donations, GDPR/CCPA data rights, a full pre-launch checklist, complete church-admin people management, the Sprint 2 attendance / roster / member-identity flow, and the newly documented Advanced Ministry Forge specialization direction captured in `ministry-spec.md`.
 
 ## Stack
 
@@ -27,6 +27,7 @@ Current plan target:
 - A working calendar hub remains core, now with explicit event categories defined in the development plan.
 - An AI ministry tools suite that stays assistive only, requires consent, and never replaces prayer, Scripture study, or pastoral judgment.
 - Security and privacy expectations centered on sensitive-data classification, consent, auditing, and disciplined application security checks.
+- Future Ministry Forge work is now explicitly documented around specialized tracks for men, women, children, youth, young adults, marriage, education, missions, and outreach, with deterministic stewardship metrics and tighter safety/confidentiality rules.
 
 ## Release 2.6.0 Highlights
 
@@ -186,10 +187,12 @@ Every significant change must keep these files current:
 
 Current tracked follow-up:
 
+- See `ministry-spec.md` for the repo-level ministry source-of-truth and doc index for Ministry Forge planning.
 - See `docs/todo.md` for the remaining Supabase project hookup steps.
 - See `docs/church-admin-people.md` for the current ChurchAdmin people-management scope.
 - See `docs/church-admin-workspace.md` for the current ChurchAdmin operations, accounts, and event-management scope.
 - See `docs/sprint2-attendance-identity-flow.md` for the detailed Sprint 2 engineering description covering schema, routes, actions, and current constraints.
+- See `docs/advanced-ministry-forge-research-spec.md` for the reconciled engineering direction for specialized ministry tracks, stewardship metrics, children safety, mentorship visibility, and confidentiality guardrails.
 - See `SUPABASE.md` for the active local Supabase reference values used during development.
 - See `advanced_ministry_elder_pastor.md` for the advanced ministries, elders, and pastor-council feature direction.
 - See `churchgoer_data.md` for the churchgoer data and self-service portal source of truth.

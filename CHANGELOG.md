@@ -6,6 +6,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Documentation
+
+- Updated `DEVELOPMENT_PLAN.md` to version `1.7`, explicitly adding specialized ministry pathways for men, women, children, youth, young adults, marriage, education, missions, and outreach plus stronger stewardship-metric and safety/privacy guidance.
+- Updated `advanced_ministry_elder_pastor.md` to version `1.1` so Ministry Forge planning now points to the specialized track architecture and its stricter confidentiality requirements.
+- Added `ministry-spec.md` as the repo-level ministry source-of-truth summarizing approved pathways, deterministic metrics, security guardrails, and document precedence.
+- Added `docs/advanced-ministry-forge-research-spec.md`, a detailed engineering-direction document reconciling the new Ministry Forge research spec with the repo's existing `ministries`, `profile_ministries`, burnout, and member-identity foundations.
+- Updated `README.md` to reference the new advanced ministry research specification and the plan-version bump.
+
 ## [2.6.0] - 2026-04-14
 
 ### Added

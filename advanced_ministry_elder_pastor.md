@@ -1,11 +1,15 @@
 # ChurchForge - Advanced Ministries, Elders & Pastor Council Plan
 
-**Living Document** - Last Updated: April 12, 2026  
+**Living Document** - Last Updated: April 14, 2026  
 **Filename**: `advanced_ministry_elder_pastor.md`  
-**Version**: 1.0  
+**Version**: 1.1  
 **Purpose**: This is the single source of truth for the most distinctive and spiritually rich feature direction in ChurchForge: the areas intended to set the product apart from conventional church management software.
 
 This document extends `DEVELOPMENT_PLAN.md`, especially sections 2, 3, 4, 5, and 7. It also depends on the churchgoer data model direction defined in `churchgoer_data.md`.
+
+The repo-level ministry summary now lives in `ministry-spec.md`.
+
+The deeper 2026 specialization direction for demographic-specific and service-specific pathways is documented in `docs/advanced-ministry-forge-research-spec.md`. Use that document when reconciling new Ministry Forge work with the current tenant schema and Sprint 2 identity model.
 
 **Differentiator Statement**  
 "While other platforms manage schedules and donations, ChurchForge forges spiritually healthy ministries, protects elder unity, and equips pastors to lead with wisdom, powered by AI that knows its place beneath the Holy Spirit."
@@ -38,8 +42,30 @@ Create living digital spaces where ministries thrive, elders discern in unity, a
 - **Liturgical Intelligence**: Automatic awareness of church calendar seasons, lectionary readings, and feast days across planning tools.
 - **Burnout Guardian**: Proactive overload detection with sensitive rotation and rest suggestions.
 - **Kingdom Impact Dashboard**: Tracks narrative and ministry outcomes alongside traditional operational metrics.
+- **Specialized Ministry Tracks**: Separate pathway intelligence for men, women, children, youth, young adults, marriage, education, missions, and outreach instead of a single catch-all formation model.
 
 These features must remain assistive and subordinate to human pastoral authority, prayer, Scripture, and church governance.
+
+## 1.1 Specialized Track Expansion
+
+ChurchForge should treat the following as distinct long-range pathway categories:
+
+- `men`
+- `women`
+- `children`
+- `youth`
+- `young_adult`
+- `marriage`
+- `education`
+- `missions`
+- `outreach`
+
+These tracks are intentionally more granular than the current `ministries.ministry_type` field. The long-term model should distinguish:
+
+- ministry operations for concrete teams, assignments, and events
+- ministry tracks for formation, mentoring, lifecycle transitions, and strategic oversight
+
+Implementation-facing details, deterministic score definitions, and compatibility rules are maintained in `docs/advanced-ministry-forge-research-spec.md`.
 
 ## 2. Data Model & Schema Extensions
 
@@ -139,8 +165,11 @@ The Ministry Forge is the advanced ministry operating surface for leaders and pa
 - AI volunteer matcher based on gifts, availability, and human-reviewed calling data
 - Ministry vision board with scriptural anchors
 - Burnout Guardian alerts for ministry leaders
+- Track-level stewardship dashboards for demographic and service pathways
+- Mentorship and multiplication visibility for leadership development
 - Quick-log flow for post-event kingdom impact entries
 - Seasonal planning wizard tied to liturgical context
+- Children's safety visibility for clearance and ratio-sensitive serving contexts
 
 **Primary route**
 
@@ -200,6 +229,7 @@ The experience should feel like a reverent study-and-planning room, not a generi
 Every AI-enabled surface in this document must follow these rules:
 
 - Every AI response includes an assistive-only disclaimer.
+- Deterministic score components must be inspectable before any AI narrative layer is added.
 - Prompt templates are stored in a reviewed prompt library.
 - Retrieval uses only approved Bible translations and approved commentary sources.
 - Human approval is required before AI-generated content is shared with a church audience.
@@ -232,8 +262,10 @@ Integration expectations:
 ## 9. Security, Privacy & Ethical Guardrails
 
 - Elder and council data requires stricter RLS than ordinary church-admin surfaces.
+- Children's safety records, marriage-care insights, and pastoral review data require stricter access than ordinary ministry dashboards.
 - Confidential notes must never be visible to ChurchAdmin unless explicitly authorized by church governance rules.
 - Every access to elder or council spaces must be audit logged.
+- Every access to sensitive ministry-track views should be audit logged with purpose metadata.
 - AI consent must be captured before first use of Forge features.
 - Sensitive pastoral or discernment content should be reviewed for field-level encryption needs before implementation.
 
