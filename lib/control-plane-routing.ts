@@ -4,6 +4,7 @@ import type { ChurchSummary } from "@/lib/auth";
 import { extractRuntimeChurchId } from "@/lib/control-plane-registry";
 import {
   createControlPlaneServerClient,
+  hasControlPlaneBackendEnv,
   queryControlPlaneLocalDb,
   shouldUseLocalControlPlaneFallback,
 } from "@/lib/supabase/control-plane";
@@ -17,6 +18,11 @@ export type ResolvedTenantViewTarget = {
 export async function resolveTenantViewTarget(
   tenantId: string,
 ): Promise<ResolvedTenantViewTarget | null> {
+  // No backend at all (preview/local mode without Docker) — return null gracefully
+  if (!shouldUseLocalControlPlaneFallback() && !hasControlPlaneBackendEnv()) {
+    return null;
+  }
+
   if (shouldUseLocalControlPlaneFallback()) {
     const result = await queryControlPlaneLocalDb<{
       tenant_id: string;

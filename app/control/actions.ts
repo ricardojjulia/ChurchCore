@@ -47,7 +47,9 @@ export async function launchTenantViewAction(formData: FormData) {
   const resolvedTarget = await resolveTenantViewTarget(tenantId);
 
   if (!resolvedTarget) {
-    throw new Error("Tenant routing is not available for that tenant.");
+    throw new Error(
+      "Tenant routing is not available in preview mode. Start Supabase locally (npx supabase start) to launch a tenant view.",
+    );
   }
 
   if (resolvedTarget.connectionStatus !== "ready") {

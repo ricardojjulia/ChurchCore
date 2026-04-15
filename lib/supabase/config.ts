@@ -156,14 +156,13 @@ export function getTenantDbUrl() {
 }
 
 export function shouldUseLocalControlPlaneDbFallback() {
-  return Boolean(
-    hasControlPlaneDbUrl() &&
-      getControlPlaneSupabaseEnv().url.includes("127.0.0.1:54321"),
-  );
+  if (!hasControlPlaneDbUrl()) return false;
+  if (!hasControlPlaneSupabaseEnv()) return true; // DB present but no Supabase — use DB
+  return getControlPlaneSupabaseEnv().url.includes("127.0.0.1:54321");
 }
 
 export function shouldUseLocalTenantDbFallback() {
-  return Boolean(
-    hasTenantDbUrl() && getTenantSupabaseEnv().url.includes("127.0.0.1:54321"),
-  );
+  if (!hasTenantDbUrl()) return false;
+  if (!hasTenantSupabaseEnv()) return true; // DB present but no Supabase — use DB
+  return getTenantSupabaseEnv().url.includes("127.0.0.1:54321");
 }
