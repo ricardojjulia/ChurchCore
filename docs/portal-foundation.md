@@ -34,11 +34,16 @@ These map directly to the church-facing role structure defined in `DEVELOPMENT_P
 - Role-based routing across distinct church surfaces
 - A Mantine-based application shell with restrained visual hierarchy, navigation, and role context
 - A first real member-portal slice backed by live `profiles`, `profile_ministries`, family context, directory data, and upcoming `events`
-- A dedicated `/portal` route as the churchgoer-facing entry path into the member experience
+- A public `/portal` landing route with sign-in and request-access entry points
+- A public `/portal/register` route for member portal access requests
 - Dedicated `/app/member/directory` and `/app/member/family` routes so member detail is split into focused screens instead of one overloaded home page
+- Member-home visibility into personal attendance history and upcoming serving assignments
+- Self-service editing for `preferred_contact_method` and `interests`
 - A live calendar slice backed by categorized `events`
 - A simplified church-admin operations board with lane-based preview state
 - A dedicated `/app/church-admin/people` route for tenant-backed people management
+- A dedicated `/app/church-admin/accounts` route for portal-request review and approval
+- A dedicated `/app/church-admin/events/[id]` route for event roster and attendance management
 - A pastor-specific workspace backed by tenant profile, ministry, and follow-up data, plus a dedicated `/app/pastor/people` screen
 - A pastoral-care foundation on `/app/pastor/people` with confidential notes and care assignments
 - A simpler role workspace pattern for ministry-leader entry points
@@ -52,5 +57,21 @@ These map directly to the church-facing role structure defined in `DEVELOPMENT_P
 - Realtime updates
 - Background jobs
 - Migration of church runtime data access onto a tenant backend separated from the control plane
+- Automated tenant-aware host routing for public portal registration without relying on church selection in the form
 
 Those concerns now need to be implemented on Supabase instead of expanded as backend-agnostic placeholders.
+
+## Sprint 2 Notes
+
+Sprint 2 changes the meaning of the portal surface in two important ways.
+
+First, `/portal` is no longer only an authenticated entry point. It now serves as the public front door for member identity requests. That means the portal surface must now support both anonymous visitors and authenticated church members, while still keeping tenant data behind explicit request or session boundaries.
+
+Second, the member portal is no longer just a profile-and-directory view. It now exposes:
+
+- recent attendance history
+- upcoming serving assignments from event rosters
+- portal-safe member identity via `member_number`
+- expanded self-service profile preferences
+
+This makes the portal meaningfully useful to members without widening the public data surface.

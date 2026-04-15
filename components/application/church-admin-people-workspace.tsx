@@ -5,6 +5,7 @@ import {
   CheckSquare,
   DollarSign,
   HeartHandshake,
+  MailCheck,
   MessageSquare,
   Search,
   ShieldCheck,
@@ -125,6 +126,12 @@ export function ChurchAdminPeopleWorkspace({
           description: "Records and statuses",
           icon: UsersRound,
           active: true,
+        },
+        {
+          href: "/app/church-admin/accounts",
+          label: "Accounts",
+          description: "Portal approvals",
+          icon: MailCheck,
         },
         {
           href: "/app/communications",

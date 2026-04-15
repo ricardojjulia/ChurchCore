@@ -1,7 +1,7 @@
 # ChurchForge Development Plan
 
-**Living Document** - Last Updated: April 11, 2026  
-**Version**: 1.5  
+**Living Document** - Last Updated: April 14, 2026  
+**Version**: 1.6  
 **Purpose**: This is the single source of truth for all ChurchForge development. Every GitHub Issue, PR, sprint, and code review must reference this document. Update only via PR.
 
 ## Table of Contents

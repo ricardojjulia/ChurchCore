@@ -8,6 +8,7 @@ import {
   Modal,
   Select,
   Stack,
+  Textarea,
   Text,
   TextInput,
 } from "@mantine/core";
@@ -32,6 +33,7 @@ export function MemberProfileEdit({ profile }: Props) {
   const [preferredContactMethod, setPreferredContactMethod] = useState<
     string | null
   >(profile.preferredContactMethod ?? null);
+  const [interests, setInterests] = useState((profile.interests ?? []).join(", "));
   const [emergencyContactName, setEmergencyContactName] = useState(
     profile.emergencyContactName ?? "",
   );
@@ -49,6 +51,7 @@ export function MemberProfileEdit({ profile }: Props) {
     setPhone(profile.phone ?? "");
     setAddress(profile.address ?? "");
     setPreferredContactMethod(profile.preferredContactMethod ?? null);
+    setInterests((profile.interests ?? []).join(", "));
     setEmergencyContactName(profile.emergencyContactName ?? "");
     setEmergencyContactPhone(profile.emergencyContactPhone ?? "");
     setDirectoryVisible(profile.directoryVisible);
@@ -66,6 +69,10 @@ export function MemberProfileEdit({ profile }: Props) {
           phone: phone || null,
           address: address || null,
           preferredContactMethod,
+          interests: interests
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean),
           emergencyContactName: emergencyContactName || null,
           emergencyContactPhone: emergencyContactPhone || null,
           directoryVisible,
@@ -136,6 +143,16 @@ export function MemberProfileEdit({ profile }: Props) {
             ]}
             clearable
             placeholder="Select one"
+            radius="md"
+          />
+
+          <Textarea
+            label="Interests"
+            value={interests}
+            onChange={(e) => setInterests(e.currentTarget.value)}
+            placeholder="Community groups, hospitality, youth, prayer"
+            description="Comma-separated interests help your church match opportunities and follow-up."
+            minRows={2}
             radius="md"
           />
 

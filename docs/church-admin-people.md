@@ -29,6 +29,10 @@ The existing ChurchAdmin workspace handles operational preview lanes, but it did
   - emergency contact
   - directory visibility
   - contact permission
+- Offline member identity fields that now support downstream portal and attendance workflows:
+  - `member_number`
+  - `account_status`
+  - `is_roster_eligible`
 
 ## Data Rules
 
@@ -37,12 +41,15 @@ The existing ChurchAdmin workspace handles operational preview lanes, but it did
 - Duplicate merge updates downstream people records such as ministries, attendance, care assignments, and event RSVPs
 - This route does not expose pastoral notes or pastoral care records
 - Confidential pastoral workflows remain on the pastor side
+- Portal-request review now happens on `/app/church-admin/accounts`, but the linked member records still resolve from the same tenant `profiles` table documented here
+- Event attendance and rosters now resolve from `/app/church-admin/events/[id]`, and both workflows depend on the same church-scoped people records managed here
 
 ## Current Constraints
 
 - No CSV import yet
 - No auth-email change flow yet
 - Staff records stay out of the duplicate-merge flow
+- Public portal registration still requires church selection because automatic host-to-tenant routing is not yet implemented on `/portal/register`
 
 ## Why This Slice
 

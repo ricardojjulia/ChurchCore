@@ -1,13 +1,16 @@
 import "server-only";
 
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { Pool, type QueryResultRow } from "pg";
 
 import {
   getTenantDbUrl,
   getTenantSupabaseEnv,
+  getTenantServiceRoleKey,
   hasTenantSupabaseEnv,
+  hasTenantServiceRoleKey,
   shouldUseLocalTenantDbFallback,
 } from "@/lib/supabase/config";
 
@@ -27,6 +30,10 @@ function getTenantPool() {
 
 export function hasTenantBackendEnv() {
   return hasTenantSupabaseEnv();
+}
+
+export function hasTenantAdminBackendEnv() {
+  return hasTenantSupabaseEnv() && hasTenantServiceRoleKey();
 }
 
 export function shouldUseLocalTenantFallback() {
@@ -51,6 +58,17 @@ export async function createTenantServerClient() {
           // Request-time refresh is handled elsewhere when writes are not allowed.
         }
       },
+    },
+  });
+}
+
+export function createTenantAdminClient() {
+  const { url } = getTenantSupabaseEnv();
+
+  return createClient(url, getTenantServiceRoleKey(), {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
     },
   });
 }

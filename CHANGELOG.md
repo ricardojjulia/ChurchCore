@@ -6,6 +6,53 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-04-14
+
+### Added
+
+- Added Sprint 2 tenant migration `20260420000000_sprint2_attendance_identity_flow.sql`, which decouples offline `profiles` from `auth.users`, adds `member_number`, `account_status`, and `is_roster_eligible`, extends `attendance` with `church_id` and `check_in_method`, creates `event_rosters` and `account_requests`, tightens attendance RLS to church-admin / pastor management scope, and attaches audit triggers for attendance, rosters, and account-request changes.
+- Added public portal registration at `/portal/register` plus a public `/portal` landing page, backed by `list_portal_churches()` and `submit_account_request(...)` RPCs for church selection and request submission without exposing tenant profile tables directly.
+- Added `/app/church-admin/accounts` with a church-admin approval queue for public portal requests, including existing-member linking, generated member numbers, and invite delivery when a tenant Supabase service-role key is configured.
+- Added `/app/church-admin/events/[id]` for event-specific roster and attendance management, including roster assignment, confirmation toggles, quick member check-in, quick-add visitor + check-in, seven-day burnout warnings, and care-follow-up prompts with the standard AI disclaimer.
+- Extended the member portal data model and `/app/member` home so members can view attendance history, upcoming serving assignments, and edit `preferred_contact_method` plus `interests`.
+
+### Changed
+
+- Changed `/portal` from an authenticated redirect-only entry into a public landing page with sign-in and request-access entry points.
+- Changed the calendar event drawer so church-admin and pastor users can jump directly into the new event attendance / roster workspace.
+- Changed `inviteUserAction` to use the tenant service-role client when available and to wire invited users back into church memberships and tenant profile records instead of sending an auth invite only.
+
+### Fixed
+
+- Fixed member profile updates to persist `interests` alongside preferred contact method and other self-service profile fields.
+- Fixed the tenant profile-auth alignment model so new auth users can merge onto existing offline profiles by email instead of always creating a second record.
+
+### Release Notes
+
+This release closes the gap between church-admin people management and a usable member-facing identity flow.
+
+Before `2.6.0`, ChurchForge could manage tenant people records and send direct invites, but the product did not yet support the more realistic church workflow where:
+
+- someone is known to the church before they have an auth account
+- a member requests portal access from a public page
+- an admin reviews that request in tenant context
+- the approved member receives a church-scoped invitation
+- weekend event operations need rosters and check-in in the same place
+
+`2.6.0` introduces that missing connective tissue.
+
+The largest architectural shift in this release is the move from auth-coupled profiles to offline-capable profiles. `profiles.id` is no longer forced to equal `auth.users.id`; instead, `profiles.user_id` becomes the optional auth linkage. That lets ChurchForge create visitor and member records first, then attach an auth user later during invitation or first account activation. This is the foundation that makes public portal requests, event visitors, and roster-first operations practical.
+
+The public portal is now a real product surface. `/portal` is no longer just a protected redirect. It is now a public landing page with a clear split between existing sign-in and new access requests. `/portal/register` submits church-scoped requests with only the minimum identity fields required for review. Those requests are stored in `account_requests` and optionally linked to an existing member profile by matching email within the church boundary.
+
+On the church-admin side, `/app/church-admin/accounts` becomes the approval workspace for this new flow. Pending requests can be reviewed, approved, or rejected. Approval generates a collision-checked `member_number`, upgrades or creates the tenant profile, and sends a Supabase invitation when the tenant service-role key is available. In preview or reduced-backend mode, the record changes still occur but invite delivery is intentionally skipped with clear UI feedback.
+
+Weekend and event operations also deepen significantly in this release. `/app/church-admin/events/[id]` is a dedicated event workspace that combines roster management and attendance tracking instead of leaving those tasks spread across generic calendar editing and people screens. Church-admins and pastors can add roster entries with custom role titles, confirm assignments, check members in quickly, and create a visitor profile while logging attendance in the same action. The event drawer in the calendar now links directly into this deeper workspace for the roles that can manage it.
+
+Member self-service expands as well. The main member home now exposes attendance history, upcoming serving assignments, member-number visibility, and richer profile updates including `interests`. This keeps the member portal aligned with the new identity and roster model instead of making attendance and serving admin-only concepts.
+
+Security and tenant separation remain the controlling constraints across the release. Public request submission is mediated through explicit RPCs rather than raw table reads, attendance and roster access are narrowed to self or church-admin / pastor scope, and every new write-heavy table introduced by the release is attached to the existing audit trigger pattern. The implementation also continues to respect ADR 0002 by keeping these flows entirely in the tenant app and tenant data plane instead of crossing back into control-plane tables for day-to-day church operations.
+
 ## [2.5.0] - 2026-04-14
 
 ### Added

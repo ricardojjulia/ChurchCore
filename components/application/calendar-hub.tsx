@@ -72,6 +72,9 @@ export function CalendarHub({
     session.appContext.roleId === "church-admin" ||
     session.appContext.roleId === "pastor" ||
     session.appContext.roleId === "ministry-leader";
+  const canOpenEventWorkspace =
+    session.appContext.roleId === "church-admin" ||
+    session.appContext.roleId === "pastor";
 
   return (
     <ApplicationShell
@@ -106,6 +109,7 @@ export function CalendarHub({
           events={data.events}
           churchTimeZone={session.appContext.church.timezone}
           canManageEvents={canManageEvents}
+          canOpenEventWorkspace={canOpenEventWorkspace}
         />
 
         <Stack gap="lg">

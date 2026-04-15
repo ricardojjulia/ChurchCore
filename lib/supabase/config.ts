@@ -3,6 +3,14 @@ type SupabaseEnv = {
   publishableKey: string;
 };
 
+function getNamedServiceRoleKey(prefix: "CONTROL_PLANE" | "TENANT") {
+  return process.env[`${prefix}_SUPABASE_SERVICE_ROLE_KEY`];
+}
+
+function getSharedServiceRoleKey() {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY;
+}
+
 function hasNamedSupabaseEnv(prefix: "CONTROL_PLANE" | "TENANT") {
   return Boolean(
     process.env[`${prefix}_SUPABASE_URL`] &&
@@ -135,6 +143,22 @@ export function getTenantSupabaseEnv() {
   return hasNamedSupabaseEnv("TENANT")
     ? getNamedSupabaseEnv("TENANT")
     : getSharedSupabaseEnv();
+}
+
+export function hasTenantServiceRoleKey() {
+  return Boolean(getNamedServiceRoleKey("TENANT") || getSharedServiceRoleKey());
+}
+
+export function getTenantServiceRoleKey() {
+  const key = getNamedServiceRoleKey("TENANT") || getSharedServiceRoleKey();
+
+  if (!key) {
+    throw new Error(
+      "TENANT_SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_ROLE_KEY is missing.",
+    );
+  }
+
+  return key;
 }
 
 export function hasControlPlaneDbUrl() {

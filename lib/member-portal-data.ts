@@ -13,6 +13,7 @@ import {
 export type MemberPortalProfile = {
   id: string;
   fullName: string;
+  memberNumber: string | null;
   email: string | null;
   phone: string | null;
   address: string | null;
@@ -24,6 +25,7 @@ export type MemberPortalProfile = {
   directoryVisible: boolean;
   contactAllowed: boolean;
   preferredContactMethod: string | null;
+  interests: string[];
   // Sensitive fields — sourced from profile_sensitive_fields table
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
@@ -74,10 +76,28 @@ export type MemberDirectoryEntry = {
   contactAllowed: boolean;
 };
 
+export type MemberAttendanceRecord = {
+  id: string;
+  checkedInAt: string;
+  status: string;
+  checkInMethod: string;
+  eventTitle: string | null;
+};
+
+export type MemberServingAssignment = {
+  id: string;
+  roleTitle: string;
+  isConfirmed: boolean;
+  startsAt: string;
+  eventTitle: string;
+};
+
 export type MemberPortalData = {
   profile: MemberPortalProfile | null;
   ministries: MemberPortalMinistry[];
   upcomingEvents: MemberPortalEvent[];
+  attendanceHistory: MemberAttendanceRecord[];
+  upcomingServing: MemberServingAssignment[];
   family: MemberPortalFamily | null;
   directory: MemberDirectoryEntry[];
 };
@@ -89,6 +109,7 @@ function buildPreviewMemberPortalData(session: ChurchAppSession): MemberPortalDa
     profile: {
       id: session.userId,
       fullName: session.profile.name,
+      memberNumber: null,
       email: session.profile.email,
       phone: null,
       address: null,
@@ -100,6 +121,7 @@ function buildPreviewMemberPortalData(session: ChurchAppSession): MemberPortalDa
       directoryVisible: true,
       contactAllowed: true,
       preferredContactMethod: null,
+      interests: [],
       emergencyContactName: null,
       emergencyContactPhone: null,
       familyId: null,
@@ -117,6 +139,8 @@ function buildPreviewMemberPortalData(session: ChurchAppSession): MemberPortalDa
         visibility: "members",
         ministryName: null,
       })) ?? [],
+    attendanceHistory: [],
+    upcomingServing: [],
     family: null,
     directory: [],
   };
@@ -158,6 +182,7 @@ export async function getMemberPortalData(
       queryTenantLocalDb<{
         id: string;
         full_name: string | null;
+        member_number: string | null;
         email: string | null;
         phone: string | null;
         address: string | null;
@@ -169,6 +194,7 @@ export async function getMemberPortalData(
         directory_visible: boolean | null;
         contact_allowed: boolean | null;
         preferred_contact_method: string | null;
+        interests: string[] | null;
         emergency_contact_name: string | null;
         emergency_contact_phone: string | null;
         family_id: string | null;
@@ -178,6 +204,7 @@ export async function getMemberPortalData(
           select
             profile.id,
             profile.full_name,
+            profile.member_number,
             profile.email,
             profile.phone,
             profile.address,
@@ -189,6 +216,7 @@ export async function getMemberPortalData(
             profile.directory_visible,
             profile.contact_allowed,
             profile.preferred_contact_method,
+            profile.interests,
             sensitive.emergency_contact_name,
             sensitive.emergency_contact_phone,
             profile.family_id,
@@ -353,11 +381,69 @@ export async function getMemberPortalData(
           )
         : { rows: [] as Array<{ id: string; full_name: string; display_title: string | null }> };
 
+    const attendanceHistoryResult =
+      profileRow
+        ? await queryTenantLocalDb<{
+            id: string;
+            checked_in_at: string;
+            status: string;
+            check_in_method: string;
+            event_title: string | null;
+          }>(
+            `
+              select
+                attendance.id,
+                attendance.checked_in_at,
+                attendance.status,
+                attendance.check_in_method,
+                event.title as event_title
+              from public.attendance attendance
+              left join public.events event
+                on event.id = attendance.event_id
+              where attendance.profile_id = $1
+                and attendance.church_id = $2
+              order by attendance.checked_in_at desc
+              limit 8
+            `,
+            [profileRow.id, session.appContext.church.id],
+          )
+        : { rows: [] as Array<{ id: string; checked_in_at: string; status: string; check_in_method: string; event_title: string | null }> };
+
+    const servingResult =
+      profileRow
+        ? await queryTenantLocalDb<{
+            id: string;
+            role_title: string;
+            is_confirmed: boolean;
+            starts_at: string;
+            event_title: string;
+          }>(
+            `
+              select
+                roster.id,
+                roster.role_title,
+                roster.is_confirmed,
+                event.starts_at,
+                event.title as event_title
+              from public.event_rosters roster
+              join public.events event
+                on event.id = roster.event_id
+              where roster.profile_id = $1
+                and roster.church_id = $2
+                and event.starts_at >= timezone('utc', now())
+              order by event.starts_at asc
+              limit 8
+            `,
+            [profileRow.id, session.appContext.church.id],
+          )
+        : { rows: [] as Array<{ id: string; role_title: string; is_confirmed: boolean; starts_at: string; event_title: string }> };
+
     return {
       profile: profileRow
         ? {
             id: profileRow.id,
             fullName: profileRow.full_name ?? session.profile.name,
+            memberNumber: profileRow.member_number,
             email: profileRow.email,
             phone: profileRow.phone,
             address: profileRow.address,
@@ -369,6 +455,7 @@ export async function getMemberPortalData(
             directoryVisible: profileRow.directory_visible ?? true,
             contactAllowed: profileRow.contact_allowed ?? true,
             preferredContactMethod: profileRow.preferred_contact_method ?? null,
+            interests: profileRow.interests ?? [],
             emergencyContactName: profileRow.emergency_contact_name ?? null,
             emergencyContactPhone: profileRow.emergency_contact_phone ?? null,
             familyId: profileRow.family_id ?? null,
@@ -389,6 +476,20 @@ export async function getMemberPortalData(
         category: row.category,
         visibility: row.visibility,
         ministryName: row.ministry_name,
+      })),
+      attendanceHistory: attendanceHistoryResult.rows.map((row) => ({
+        id: row.id,
+        checkedInAt: row.checked_in_at,
+        status: row.status,
+        checkInMethod: row.check_in_method,
+        eventTitle: row.event_title,
+      })),
+      upcomingServing: servingResult.rows.map((row) => ({
+        id: row.id,
+        roleTitle: row.role_title,
+        isConfirmed: row.is_confirmed,
+        startsAt: row.starts_at,
+        eventTitle: row.event_title,
       })),
       family: familyResult.rows[0]
         ? {
@@ -424,7 +525,7 @@ export async function getMemberPortalData(
     supabase
       .from("profiles")
       .select(
-        "id, full_name, email, phone, address, display_title, role, is_pastoral, membership_status, joined_date, directory_visible, contact_allowed, preferred_contact_method, family_id, profile_sensitive_fields(emergency_contact_name, emergency_contact_phone)",
+        "id, full_name, member_number, email, phone, address, display_title, role, is_pastoral, membership_status, joined_date, directory_visible, contact_allowed, preferred_contact_method, interests, family_id, profile_sensitive_fields(emergency_contact_name, emergency_contact_phone)",
       )
       .eq("user_id", session.userId)
       .eq("church_id", session.appContext.church.id)
@@ -482,6 +583,29 @@ export async function getMemberPortalData(
           .order("full_name")
       : { data: [] as Array<{ id: string; full_name: string; display_title: string | null }> };
 
+  const [attendanceHistoryResult, servingResult] = profileRow
+    ? await Promise.all([
+        supabase
+          .from("attendance")
+          .select("id, checked_in_at, status, check_in_method, events(title)")
+          .eq("profile_id", profileRow.id)
+          .eq("church_id", session.appContext.church.id)
+          .order("checked_in_at", { ascending: false })
+          .limit(8),
+        supabase
+          .from("event_rosters")
+          .select("id, role_title, is_confirmed, events!inner(title, starts_at)")
+          .eq("profile_id", profileRow.id)
+          .eq("church_id", session.appContext.church.id)
+          .gte("events.starts_at", new Date().toISOString())
+          .order("created_at", { ascending: true })
+          .limit(8),
+      ])
+    : [
+        { data: [] as Array<{ id: string; checked_in_at: string; status: string; check_in_method: string; events: { title?: string | null } | { title?: string | null }[] | null }> },
+        { data: [] as Array<{ id: string; role_title: string; is_confirmed: boolean; events: { title?: string | null; starts_at?: string | null } | { title?: string | null; starts_at?: string | null }[] | null }> },
+      ];
+
   const directoryProfiles = directoryProfilesResult.data ?? [];
   const directoryIds = directoryProfiles.map((row) => row.id);
   const familyIds = Array.from(
@@ -528,6 +652,10 @@ export async function getMemberPortalData(
       ? {
           id: profileRow.id,
           fullName: profileRow.full_name ?? session.profile.name,
+          memberNumber:
+            "member_number" in profileRow && profileRow.member_number !== null
+              ? String(profileRow.member_number)
+              : null,
           email: profileRow.email,
           phone: profileRow.phone,
           address: profileRow.address,
@@ -539,6 +667,7 @@ export async function getMemberPortalData(
           directoryVisible: profileRow.directory_visible ?? true,
           contactAllowed: profileRow.contact_allowed ?? true,
           preferredContactMethod: profileRow.preferred_contact_method ?? null,
+          interests: profileRow.interests ?? [],
           emergencyContactName:
             (profileRow.profile_sensitive_fields as unknown as Array<{ emergency_contact_name: string | null }> | null)
               ?.[0]?.emergency_contact_name ?? null,
@@ -590,6 +719,47 @@ export async function getMemberPortalData(
             ? String((row.ministries as { name: unknown }).name)
             : null,
       })) ?? [],
+    attendanceHistory:
+      attendanceHistoryResult.data?.map((row) => ({
+        id: row.id,
+        checkedInAt: row.checked_in_at,
+        status: row.status,
+        checkInMethod: row.check_in_method,
+        eventTitle:
+          row.events &&
+          typeof row.events === "object" &&
+          "title" in row.events &&
+          (row.events as { title: unknown }).title !== null
+            ? String((row.events as { title: unknown }).title)
+            : Array.isArray(row.events) && row.events[0] && typeof row.events[0] === "object" && "title" in row.events[0]
+              && (row.events[0] as { title: unknown }).title !== null
+              ? String((row.events[0] as { title: unknown }).title)
+              : null,
+      })) ?? [],
+    upcomingServing:
+      servingResult.data?.flatMap((row) => {
+        const eventRecord = Array.isArray(row.events) ? row.events[0] : row.events;
+
+        if (!eventRecord || typeof eventRecord !== "object") {
+          return [];
+        }
+
+        return [
+          {
+            id: row.id,
+            roleTitle: row.role_title,
+            isConfirmed: row.is_confirmed,
+            startsAt:
+              "starts_at" in eventRecord && eventRecord.starts_at
+                ? String((eventRecord as { starts_at: unknown }).starts_at)
+                : "",
+            eventTitle:
+              "title" in eventRecord && eventRecord.title
+                ? String((eventRecord as { title: unknown }).title)
+                : "Serving assignment",
+          },
+        ];
+      }) ?? [],
     family:
       familyResult.data && typeof familyResult.data === "object"
         ? {

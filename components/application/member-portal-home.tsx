@@ -45,6 +45,13 @@ function formatEventDate(value: string) {
   }).format(date);
 }
 
+function formatShortDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(value));
+}
+
 export function MemberPortalHome({
   session,
   data,
@@ -119,10 +126,24 @@ export function MemberPortalHome({
               <Text c="dimmed" mt="sm">
                 {session.appContext.church.name}
               </Text>
+              {profile?.memberNumber ? (
+                <Text size="sm" mt="sm">
+                  Member number: {profile.memberNumber}
+                </Text>
+              ) : null}
               {profile?.familyName ? (
                 <Text size="sm" mt="sm">
                   Family: {profile.familyName}
                 </Text>
+              ) : null}
+              {profile?.interests.length ? (
+                <Group gap="xs" mt="md">
+                  {profile.interests.slice(0, 4).map((interest) => (
+                    <Badge key={interest} color="gray" variant="light">
+                      {interest}
+                    </Badge>
+                  ))}
+                </Group>
               ) : null}
             </Box>
 
@@ -280,6 +301,83 @@ export function MemberPortalHome({
             )}
           </Stack>
         </Paper>
+
+        <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
+          <Paper withBorder radius="xl" p="xl">
+            <Group justify="space-between" align="center" mb="lg">
+              <Title order={3} size="h4">
+                My History
+              </Title>
+              <Badge color="gray" variant="light">
+                {data.attendanceHistory.length}
+              </Badge>
+            </Group>
+
+            <Stack gap="sm">
+              {data.attendanceHistory.length ? (
+                data.attendanceHistory.map((entry) => (
+                  <Paper key={entry.id} withBorder radius="xl" p="lg">
+                    <Group justify="space-between" align="flex-start" gap="md">
+                      <Box>
+                        <Text fw={600}>{entry.eventTitle || "Church attendance"}</Text>
+                        <Text c="dimmed" size="sm" mt={6}>
+                          {formatEventDate(entry.checkedInAt)}
+                        </Text>
+                      </Box>
+                      <Stack gap={4} align="flex-end">
+                        <Badge color="teal" variant="light">
+                          {entry.status}
+                        </Badge>
+                        <Text size="xs" c="dimmed">
+                          {entry.checkInMethod.replaceAll("_", " ")}
+                        </Text>
+                      </Stack>
+                    </Group>
+                  </Paper>
+                ))
+              ) : (
+                <Text size="sm" c="dimmed">
+                  No attendance history is available yet.
+                </Text>
+              )}
+            </Stack>
+          </Paper>
+
+          <Paper withBorder radius="xl" p="xl">
+            <Group justify="space-between" align="center" mb="lg">
+              <Title order={3} size="h4">
+                Upcoming serving
+              </Title>
+              <Badge color="gray" variant="light">
+                {data.upcomingServing.length}
+              </Badge>
+            </Group>
+
+            <Stack gap="sm">
+              {data.upcomingServing.length ? (
+                data.upcomingServing.map((assignment) => (
+                  <Paper key={assignment.id} withBorder radius="xl" p="lg">
+                    <Group justify="space-between" align="flex-start" gap="md">
+                      <Box>
+                        <Text fw={600}>{assignment.eventTitle}</Text>
+                        <Text c="dimmed" size="sm" mt={6}>
+                          {formatShortDate(assignment.startsAt)} • {assignment.roleTitle}
+                        </Text>
+                      </Box>
+                      <Badge color={assignment.isConfirmed ? "teal" : "yellow"} variant="light">
+                        {assignment.isConfirmed ? "Confirmed" : "Pending"}
+                      </Badge>
+                    </Group>
+                  </Paper>
+                ))
+              ) : (
+                <Text size="sm" c="dimmed">
+                  No serving assignments are scheduled right now.
+                </Text>
+              )}
+            </Stack>
+          </Paper>
+        </SimpleGrid>
       </Stack>
     </ApplicationShell>
   );

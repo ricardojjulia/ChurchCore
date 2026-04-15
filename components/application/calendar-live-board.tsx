@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useRef, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock, ChevronLeft, ChevronRight, MapPin, Tags } from "lucide-react";
@@ -152,10 +153,12 @@ export function CalendarLiveBoard({
   events,
   churchTimeZone,
   canManageEvents,
+  canOpenEventWorkspace = false,
 }: {
   events: ChurchCalendarEvent[];
   churchTimeZone: string;
   canManageEvents: boolean;
+  canOpenEventWorkspace?: boolean;
 }) {
   const router = useRouter();
   const createFormRef = useRef<HTMLFormElement>(null);
@@ -892,6 +895,22 @@ export function CalendarLiveBoard({
 
             {canManageEvents ? (
               <Paper withBorder p="md">
+                {canOpenEventWorkspace ? (
+                  <Group justify="space-between" align="center" mb="sm">
+                    <Text fw={600} size="sm">
+                      Event workspace
+                    </Text>
+                    <Button
+                      component={Link}
+                      href={`/app/church-admin/events/${selectedEvent.id}`}
+                      size="xs"
+                      variant="default"
+                    >
+                      Open check-in
+                    </Button>
+                  </Group>
+                ) : null}
+
                 <Text fw={600} size="sm" mb="sm">
                   Edit event
                 </Text>

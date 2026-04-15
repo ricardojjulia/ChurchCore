@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
 import {
+  createTenantAdminClient,
   createTenantServerClient,
+  hasTenantAdminBackendEnv,
   hasTenantBackendEnv,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
@@ -15,6 +17,7 @@ export type UpdateProfileInput = {
   phone: string | null;
   address: string | null;
   preferredContactMethod: string | null;
+  interests: string[];
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
   directoryVisible: boolean;
@@ -86,6 +89,9 @@ function validateInput(input: UpdateProfileInput): string | null {
     !ALLOWED_CONTACT_METHODS.has(input.preferredContactMethod)
   ) {
     return "Invalid contact method.";
+  }
+  if (input.interests.some((interest) => interest.trim().length > 120)) {
+    return "Each interest must be 120 characters or fewer.";
   }
   return null;
 }
@@ -285,6 +291,10 @@ export async function updateMemberProfileAction(input: UpdateProfileInput) {
   const fullName = input.fullName.trim();
   const phone = input.phone?.trim() || null;
   const address = input.address?.trim() || null;
+  const interests = input.interests
+    .map((interest) => interest.trim())
+    .filter(Boolean)
+    .slice(0, 12);
   const emergencyContactName = input.emergencyContactName?.trim() || null;
   const emergencyContactPhone = input.emergencyContactPhone?.trim() || null;
 
@@ -304,17 +314,19 @@ export async function updateMemberProfileAction(input: UpdateProfileInput) {
           phone                    = $2,
           address                  = $3,
           preferred_contact_method = $4,
-          directory_visible        = $5,
-          contact_allowed          = $6,
+          interests                = $5,
+          directory_visible        = $6,
+          contact_allowed          = $7,
           updated_at               = timezone('utc', now())
-        where user_id   = $7
-          and church_id = $8
+        where user_id   = $8
+          and church_id = $9
       `,
       [
         fullName,
         phone,
         address,
         input.preferredContactMethod,
+        interests,
         input.directoryVisible,
         input.contactAllowed,
         session.userId,
@@ -345,6 +357,7 @@ export async function updateMemberProfileAction(input: UpdateProfileInput) {
         phone,
         address,
         preferred_contact_method: input.preferredContactMethod,
+        interests,
         directory_visible: input.directoryVisible,
         contact_allowed: input.contactAllowed,
       })
@@ -2194,21 +2207,91 @@ export async function inviteUserAction(input: InviteUserInput) {
     return { previewMode: true };
   }
 
-  const supabase = await createTenantServerClient();
+  const email = input.email.trim().toLowerCase();
+  const fullName = input.fullName?.trim() || null;
+  const membershipRole =
+    input.role === "church-admin"
+      ? "church_admin"
+      : input.role === "ministry-leader"
+        ? "ministry_leader"
+        : input.role;
+  const profileRole =
+    input.role === "church-admin"
+      ? "church_admin"
+      : input.role === "ministry-leader"
+        ? "ministry_leader"
+        : input.role === "pastor"
+          ? "pastor_elder"
+          : "member_volunteer";
 
-  const { error } = await supabase.auth.admin.inviteUserByEmail(
-    input.email.trim().toLowerCase(),
-    {
-      data: {
-        full_name: input.fullName?.trim() || null,
-        church_id: session.appContext.church.id,
-        role: input.role,
-      },
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/app/${input.role}`,
+  if (!hasTenantAdminBackendEnv()) {
+    return { previewMode: true };
+  }
+
+  const admin = createTenantAdminClient();
+  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+    data: {
+      full_name: fullName,
+      church_id: session.appContext.church.id,
+      role: membershipRole,
     },
-  );
+    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/app/${input.role}`,
+  });
 
   if (error) throw new Error(error.message);
+
+  const userId = data.user?.id;
+
+  if (userId) {
+    const { data: existingProfile, error: existingProfileError } = await admin
+      .from("profiles")
+      .select("id, member_number")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (existingProfileError) throw new Error(existingProfileError.message);
+
+    let memberNumber = existingProfile?.member_number ?? null;
+
+    if (!memberNumber && membershipRole === "member") {
+      const { data: generatedMemberNumber, error: memberNumberError } = await admin.rpc(
+        "generate_member_number",
+      );
+
+      if (memberNumberError) throw new Error(memberNumberError.message);
+      memberNumber = generatedMemberNumber as string;
+    }
+
+    if (existingProfile) {
+      const { error: profileError } = await admin
+        .from("profiles")
+        .update({
+          church_id: session.appContext.church.id,
+          email,
+          full_name: fullName,
+          role: profileRole,
+          account_status: "active",
+          member_number: memberNumber,
+        })
+        .eq("id", existingProfile.id);
+
+      if (profileError) throw new Error(profileError.message);
+    }
+
+    const { error: membershipError } = await admin
+      .from("church_memberships")
+      .upsert(
+        {
+          church_id: session.appContext.church.id,
+          user_id: userId,
+          role: membershipRole,
+          is_active: true,
+        },
+        { onConflict: "church_id,user_id,role" },
+      );
+
+    if (membershipError) throw new Error(membershipError.message);
+  }
 
   revalidatePath("/app/church-admin/people");
   return { previewMode: false };
