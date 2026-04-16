@@ -88,25 +88,106 @@ function buildBurnoutWarnings(members: MinistryMember[]): string[] {
     );
 }
 
+const PREVIEW_MINISTRIES: MinistryForgeEntry[] = [
+  {
+    id: "preview-worship",
+    name: "Worship Team",
+    ministryType: "worship",
+    visionStatement: "Lead the congregation into an authentic encounter with God through music and song.",
+    scripturalAnchor: ["Psalm 150:6", "Colossians 3:16"],
+    healthScore: 8.4,
+    lastHealthAssessment: "2026-04-01",
+    memberCount: 12,
+  },
+  {
+    id: "preview-men",
+    name: "Men's Ministry",
+    ministryType: "men",
+    visionStatement: "Raise up men of integrity who lead their families, church, and community well.",
+    scripturalAnchor: ["Joshua 1:9", "Proverbs 27:17"],
+    healthScore: 7.1,
+    lastHealthAssessment: "2026-03-15",
+    memberCount: 24,
+  },
+  {
+    id: "preview-women",
+    name: "Women's Ministry",
+    ministryType: "women",
+    visionStatement: "Connect women across every season of life through biblical community and mutual support.",
+    scripturalAnchor: ["Titus 2:3-5", "Proverbs 31:26"],
+    healthScore: 8.9,
+    lastHealthAssessment: "2026-04-01",
+    memberCount: 31,
+  },
+  {
+    id: "preview-marriage",
+    name: "Marriage Ministry",
+    ministryType: "marriage",
+    visionStatement: "Strengthen marriages by connecting couples with mentors and enrichment cohorts.",
+    scripturalAnchor: ["Ecclesiastes 4:12", "Ephesians 5:25"],
+    healthScore: 7.6,
+    lastHealthAssessment: "2026-03-20",
+    memberCount: 18,
+  },
+  {
+    id: "preview-missions",
+    name: "Global Missions",
+    ministryType: "missions",
+    visionStatement: "Extend the love of Christ to every nation through partnership, prayer, and presence.",
+    scripturalAnchor: ["Matthew 28:19-20", "Isaiah 6:8"],
+    healthScore: 8.2,
+    lastHealthAssessment: "2026-04-05",
+    memberCount: 9,
+  },
+  {
+    id: "preview-children",
+    name: "Children's Ministry",
+    ministryType: "children",
+    visionStatement: "Nurture a generation of young disciples in the love and knowledge of Christ.",
+    scripturalAnchor: ["Mark 10:14", "Deuteronomy 6:6-7"],
+    healthScore: 7.8,
+    lastHealthAssessment: "2026-03-28",
+    memberCount: 15,
+  },
+];
+
+const PREVIEW_MEMBERS: MinistryMember[] = [
+  { profileId: "pm1", fullName: "Sarah Mitchell", role: "leader", displayTitle: "Worship Director", spiritualGifts: ["leadership", "music"], ministryCount: 2 },
+  { profileId: "pm2", fullName: "James Ortega", role: "member", displayTitle: null, spiritualGifts: ["music", "teaching"], ministryCount: 1 },
+  { profileId: "pm3", fullName: "Aisha Thompson", role: "member", displayTitle: null, spiritualGifts: ["service", "music"], ministryCount: 3 },
+  { profileId: "pm4", fullName: "David Chen", role: "co-leader", displayTitle: "Associate Director", spiritualGifts: ["administration", "leadership"], ministryCount: 2 },
+];
+
 function buildPreviewMinistryList(): MinistryForgeListData {
-  return { ministries: [] };
+  return { ministries: PREVIEW_MINISTRIES };
 }
 
 function buildPreviewMinistryDetail(ministryId: string): MinistryForgeDetail {
+  const found = PREVIEW_MINISTRIES.find((m) => m.id === ministryId);
+  const ministry: MinistryForgeEntry = found ?? {
+    id: ministryId,
+    name: "Preview Ministry",
+    ministryType: null,
+    visionStatement: "A place to serve, grow, and belong.",
+    scripturalAnchor: ["Romans 12:6"],
+    healthScore: 6.5,
+    lastHealthAssessment: "2026-04-01",
+    memberCount: 4,
+  };
+
   return {
-    ministry: {
-      id: ministryId,
-      name: "Preview Ministry",
-      ministryType: null,
-      visionStatement: null,
-      scripturalAnchor: [],
-      healthScore: 0,
-      lastHealthAssessment: null,
-      memberCount: 0,
-    },
-    members: [],
-    healthHistory: [],
-    recentImpacts: [],
+    ministry,
+    members: PREVIEW_MEMBERS.slice(0, ministry.memberCount > 0 ? Math.min(4, ministry.memberCount) : 2),
+    healthHistory: [
+      { id: "hh1", healthScore: ministry.healthScore, assessmentDate: "2026-04-01", notes: "Quarterly review — strong momentum." },
+      { id: "hh2", healthScore: Math.max(ministry.healthScore - 0.8, 5), assessmentDate: "2026-01-01", notes: "Post-holiday dip in attendance; back on track." },
+      { id: "hh3", healthScore: Math.max(ministry.healthScore - 0.3, 5), assessmentDate: "2025-10-01", notes: "New leader onboarded, energy improving." },
+    ],
+    recentImpacts: [
+      { id: "ki1", impactType: "salvation", description: "Two people made first-time commitments during Sunday worship.", occurredAt: "2026-04-06", createdByName: "Sarah Mitchell" },
+      { id: "ki2", impactType: "service", description: "Ministry team served 40+ families at the community food bank.", occurredAt: "2026-03-29", createdByName: "David Chen" },
+      { id: "ki3", impactType: "discipleship", description: "Completed 6-week discipleship cohort with 8 participants.", occurredAt: "2026-03-15", createdByName: "James Ortega" },
+    ],
     burnoutWarnings: [],
   };
 }

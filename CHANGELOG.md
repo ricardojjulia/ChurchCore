@@ -6,6 +6,45 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-04-15
+
+### Added
+
+- Added local Supabase development setup with full schema and seed data. Running `npx supabase db reset && ./supabase/scripts/create-dev-users.sh` applies all migrations and seeds Grace Harbor Church with 8 profiles, 6 ministries (worship, men's, women's, marriage, missions, outreach), health history, kingdom impacts, and complete track-panel data for all five specialized ministry types.
+- Added `supabase/scripts/create-dev-users.sh` — a one-shot script that creates `sarah@churchforge.app` (church-admin + platform-admin) and `david@graceharbor.church` (member) via the Supabase Admin API and re-runs the seed. Required after every `db reset` because Supabase resets `auth.users` on each reset.
+- Added `church-forge-supabasesetup.md` — comprehensive local Supabase setup guide covering prerequisites, first-time setup, `.env.local` configuration, seeded demo accounts and data, day-to-day commands, auth flow notes, key env variable reference, schema bug fixes applied, and troubleshooting.
+- Added Ministry Forge Phase 4 track panels (worship, men's, women's, marriage, missions) — five new dedicated management tabs that appear conditionally when a ministry's `ministry_type` matches a panel type. Each panel surfaces type-specific data: song library and rehearsal schedule (worship), mentorship pairs and discipleship groups (men's), life-stage circles and support pairings (women's), mentor couples and enrichment cohorts with confidentiality guardrails (marriage), and mission partners plus trip roster with impact metrics (missions).
+- Added `supabase/migrations/20260421000000_ministry_tracks_phase4.sql` — new tables for `worship_songs`, `worship_rehearsals`, `mentorship_pairs`, `discipleship_groups`, `life_stage_circles`, `support_pairings`, `mentor_couples`, `marriage_cohorts`, `mission_partners`, and `mission_trips`, all with RLS. Marriage tables are manager-only. Mentorship pairs carry an audit trigger.
+- Added `components/application/ministry-track-worship.tsx`, `ministry-track-mens.tsx`, `ministry-track-womens.tsx`, `ministry-track-marriage.tsx`, `ministry-track-missions.tsx` — the five track panel UI components with preview-safe stub data rendering.
+- Added Ministry Forge index page at `/app/church-admin/ministry` — a grid of all church ministries with health-band indicators, type badges, member counts, track-panel callouts, and a summary strip. Clicking any card navigates to that ministry's detail dashboard.
+- Added `components/application/ministry-forge-list.tsx` — the Ministry Forge index UI component.
+
+### Changed
+
+- Changed Ministry Forge nav links from the broken `/app/church-admin/ministry/overview` to the new index route `/app/church-admin/ministry` in both `church-admin-people-workspace.tsx` and `portal-workspace.tsx`.
+- Changed `supabase/seed.sql` from a minimal 2-ministry skeleton to a full demo dataset covering all five track panel types with realistic seeded content (songs, rehearsals, mentorship pairs, discipleship groups, life-stage circles, support pairings, mentor couples, cohorts, mission partners, and trips).
+- Changed `buildPreviewMinistryList()` and `buildPreviewMinistryDetail()` in `lib/ministry-forge-data.ts` to return six demo ministries (one per track type plus outreach) with realistic vision statements, health scores, health history, and impact log entries. Preview mode now shows fully populated ministry cards and all five track panel tabs without a backend connection.
+- Changed `.env.local` to include all four required local Supabase variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (JWT eyJ… format), `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_DB_URL`.
+
+### Fixed
+
+- Fixed 404 at `/app/church-admin/ministry` — created `app/app/church-admin/ministry/page.tsx` as the Ministry Forge index. Previously only the `[id]` detail route existed, so the nav link always 404'd.
+- Fixed `platform_admins.user_id` FK — migration `20260422` changes the foreign key from `profiles(id)` to `auth.users(id)`. The `is_platform_admin()` RLS function compares against `auth.uid()` (an auth user UUID), so the original FK was incorrect and caused seed failures.
+- Fixed `church_memberships.user_id` FK — migration `20260423` applies the same correction. The auth layer queries `church_memberships.user_id = auth.uid()` which is an auth user UUID, not a profile UUID.
+- Fixed `audit_mentorship_pairs()` trigger — migration `20260424` corrects a column name typo: the trigger referenced `changed_by` but the `audit_log` table uses `actor_id`.
+
+### Release Notes
+
+Release 2.8.0 transitions ChurchForge from preview-only mode to a fully operational local development environment backed by a real Supabase instance.
+
+**What changed in the data layer:** The local Supabase stack is now correctly wired end-to-end. Three schema-level bugs — all introduced by inconsistencies between the RLS layer (which uses `auth.uid()`) and table FK definitions (which pointed at `profiles.id`) — are fixed in three targeted migrations. A fourth migration corrects a column name typo in the mentorship audit trigger. The seed file is now a proper demo dataset rather than a skeleton.
+
+**What changed in the UI:** The Ministry Forge directory page (previously 404) now exists as a proper index at `/app/church-admin/ministry`, showing all ministries in a card grid with health-band color coding, type badges, track-panel indicators, and a summary strip. From there, clicking any card navigates to the full ministry detail dashboard. The five track panel tabs (worship, men's, women's, marriage, missions) show real seeded content when running locally with Supabase, or realistic in-memory stub data in preview mode.
+
+**Env setup:** `.env.local` now documents all four required variables. The publishable key must be the JWT `eyJ…` format from `npx supabase status --output env` — not the `sb_publishable_*` format shown in the default status output, which is incompatible with `@supabase/ssr`.
+
+**Developer workflow:** `npx supabase db reset && ./supabase/scripts/create-dev-users.sh` is the single command that gets a clean local environment with all demo data. Full documentation is in `church-forge-supabasesetup.md`.
+
 ## [2.7.0] - 2026-04-15
 
 ### Added

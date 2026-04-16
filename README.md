@@ -1,6 +1,6 @@
 # ChurchForge
 
-ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, guardrailed AI ministry tools, and graphical stewardship reporting. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.8 and is at release `2.7.0`, incorporating Ministry Forge (Phases 1–3), Elders Discernment Room, Pastor Council Forge, Communications Hub, voluntary Stripe donations, GDPR/CCPA data rights, a full pre-launch checklist, complete church-admin people management, the Sprint 2 attendance / roster / member-identity flow, the newly documented Advanced Ministry Forge specialization direction captured in `ministry-spec.md`, and the first reporting-suite foundation.
+ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, guardrailed AI ministry tools, and graphical stewardship reporting. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.8 and is at release `2.8.0`, incorporating Ministry Forge (Phases 1–4 with five specialized track panels), Elders Discernment Room, Pastor Council Forge, Communications Hub, voluntary Stripe donations, GDPR/CCPA data rights, a full pre-launch checklist, complete church-admin people management, the Sprint 2 attendance / roster / member-identity flow, the Advanced Ministry Forge specialization tracks documented in `ministry-spec.md`, the first reporting-suite foundation, and a fully operational local Supabase development environment with seed data.
 
 ## Stack
 
@@ -30,13 +30,13 @@ Current plan target:
 - Future Ministry Forge work is now explicitly documented around specialized tracks for men, women, children, youth, young adults, marriage, education, missions, and outreach, with deterministic stewardship metrics and tighter safety/confidentiality rules.
 - Future reporting work is now explicitly documented as a multi-surface reporting suite spanning members, events, giving, ministries, communications, and outreach, with graphical dashboards and differentiated stewardship insights.
 
-## Release 2.7.0 Highlights
+## Release 2.8.0 Highlights
 
-- ChurchForge now includes a first reporting-suite foundation under `/app/reports`, `/app/reports/members`, `/app/reports/events`, and `/app/reports/giving` for pastor and church-admin roles, with graphical dashboards, range switching, and preview-safe data loading.
-- Member reporting now surfaces attendance momentum, engagement mix, membership-status distribution, and a Shepherding Watchlist for quiet-drift visibility.
-- Event reporting now surfaces turnout curves, category yield, weekday rhythm, check-in method usage, and volunteer pressure context on top events.
-- Giving reporting now goes beyond totals into donor journey, gift mix, and fund breakdown, while preserving anonymous-giving protections.
-- Tenant giving and communications dashboards no longer crash when Supabase env vars are missing; they now render safe empty states in preview or reduced-backend mode.
+- **Local Supabase fully operational.** Running `npx supabase db reset && ./supabase/scripts/create-dev-users.sh` gives you a complete local environment with Grace Harbor Church, 8 profiles, 6 ministries, and full track data seeded. See `church-forge-supabasesetup.md` for the complete guide.
+- **Ministry Forge Phase 4 — five specialized track panels.** Worship, men's, women's, marriage, and missions ministry types now each have a dedicated tab in the Ministry Forge dashboard, surfacing type-specific management data (song library, rehearsal schedule, mentorship pairs, discipleship groups, life-stage circles, support pairings, mentor couples, enrichment cohorts, mission partners, and trip roster with impact metrics).
+- **Ministry Forge index page.** `/app/church-admin/ministry` now exists as a proper grid index showing all ministries with health-band indicators, type badges, member counts, and track-panel callouts. The previous nav link (which targeted a non-existent route) is fixed.
+- **Three schema bugs fixed.** `platform_admins.user_id` and `church_memberships.user_id` FKs now correctly reference `auth.users(id)` instead of `profiles(id)`. The `audit_mentorship_pairs` trigger column name typo is corrected. All three fixes are applied as non-destructive migrations.
+- **Preview mode fully populated.** All six demo ministries (one per track type) now show realistic stub data in preview mode — health history, kingdom impacts, and all five track panel tabs — without requiring a backend connection.
 
 ## Getting Started
 
@@ -47,16 +47,39 @@ npm ci
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000`. The app runs in **preview mode** with no backend — all data is in-memory stubs.
 
-For Supabase execution, copy `.env.example` to `.env.local` and supply:
+### Local Supabase (full backend)
 
-- Current repo runtime still uses the transitional single-backend environment variables below.
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` or `TENANT_SUPABASE_SERVICE_ROLE_KEY` if you want real auth invite delivery for church-admin invites and portal-request approvals
-- `SUPABASE_DB_URL` for local direct-database fallback when the local Supabase REST schema cache is unavailable
-- `NEXT_PUBLIC_APP_URL` if you want explicit signup confirmation redirects outside the local default
+For a fully operational local environment with real data:
+
+```bash
+# 1. Start Docker, then:
+npx supabase start
+
+# 2. Apply all migrations and seed demo data:
+npx supabase db reset && ./supabase/scripts/create-dev-users.sh
+```
+
+Your `.env.local` needs these four variables (use JWT-format keys from `npx supabase status --output env`):
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJ...   # ANON_KEY from supabase status --output env
+SUPABASE_SERVICE_ROLE_KEY=eyJ...              # SERVICE_ROLE_KEY from supabase status --output env
+SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+```
+
+> **Important:** Use the `eyJ…` JWT key, not the `sb_publishable_*` key shown in the default `supabase status` output. The JWT key comes from `npx supabase status --output env`.
+
+**Dev accounts after seeding:**
+
+| Email                         | Password       | Role                          |
+|-------------------------------|----------------|-------------------------------|
+| `sarah@churchforge.app`       | `Password123!` | Church Admin + Platform Admin |
+| `david@graceharbor.church`    | `Password123!` | Member                        |
+
+See `church-forge-supabasesetup.md` for the complete local setup guide.
 
 For voluntary donations (Sprint 7+), also supply:
 
@@ -92,7 +115,8 @@ Primary routes:
 - `/app/church-admin/people` church-admin people-management — search, filter, edit, bulk update, add person (offline record), invite user (Supabase auth email), deactivate
 - `/app/church-admin/accounts` church-admin account-request approval queue
 - `/app/church-admin/events/[id]` event-specific attendance and roster workspace with quick check-in, burnout warnings, and visitor add flow
-- `/app/church-admin/ministry/[id]` Ministry Forge dashboard (health score, vision board, volunteer matcher)
+- `/app/church-admin/ministry` Ministry Forge index — grid of all ministries with health-band indicators, type badges, and member counts
+- `/app/church-admin/ministry/[id]` Ministry Forge detail dashboard — health score, vision board, volunteer matcher, and type-specific track panel (worship / men's / women's / marriage / missions)
 - `/app/reports` graphical reporting suite overview for pastor and church-admin
 - `/app/reports/members` member intelligence dashboard with attendance, engagement, and drift reporting
 - `/app/reports/events` event intelligence dashboard with turnout, staffing pressure, and visitor-touch reporting
@@ -200,7 +224,7 @@ Current tracked follow-up:
 - See `docs/church-admin-workspace.md` for the current ChurchAdmin operations, accounts, and event-management scope.
 - See `docs/sprint2-attendance-identity-flow.md` for the detailed Sprint 2 engineering description covering schema, routes, actions, and current constraints.
 - See `docs/advanced-ministry-forge-research-spec.md` for the reconciled engineering direction for specialized ministry tracks, stewardship metrics, children safety, mentorship visibility, and confidentiality guardrails.
-- See `SUPABASE.md` for the active local Supabase reference values used during development.
+- See `church-forge-supabasesetup.md` for the complete local Supabase setup guide, dev account credentials, seeded demo data reference, and troubleshooting.
 - See `advanced_ministry_elder_pastor.md` for the advanced ministries, elders, and pastor-council feature direction.
 - See `churchgoer_data.md` for the churchgoer data and self-service portal source of truth.
 - See `docs/churchgoer-pastor-execution-plan.md` for the current execution sequence across churchgoer and pastor data work.

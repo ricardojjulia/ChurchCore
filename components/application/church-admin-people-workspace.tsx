@@ -153,7 +153,7 @@ export function ChurchAdminPeopleWorkspace({
           icon: BarChart2,
         },
         {
-          href: "/app/church-admin/ministry/overview",
+          href: "/app/church-admin/ministry",
           label: "Ministry Forge",
           description: "Health, vision, and impact",
           icon: Sparkles,
