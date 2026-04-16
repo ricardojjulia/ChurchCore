@@ -23,7 +23,9 @@ import { notifications } from "@mantine/notifications";
 import {
   BookOpen,
   FlameKindling,
+  Globe,
   Heart,
+  Music,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -35,13 +37,23 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import { BurnoutGuardianBanner } from "@/components/application/burnout-guardian-banner";
 import { HealthScoreCard } from "@/components/application/health-score-card";
 import { KingdomImpactLogModal } from "@/components/application/kingdom-impact-log-modal";
+import { MarriageTrackPanel } from "@/components/application/ministry-track-marriage";
+import { MensMinistryPanel } from "@/components/application/ministry-track-mens";
+import { MissionsTrackPanel } from "@/components/application/ministry-track-missions";
+import { WomensMinistryPanel } from "@/components/application/ministry-track-womens";
+import { WorshipTrackPanel } from "@/components/application/ministry-track-worship";
 import { VolunteerMatcherPanel } from "@/components/application/volunteer-matcher-panel";
 import { VisionBoard } from "@/components/application/vision-board";
 import type { ChurchAppSession } from "@/lib/auth";
 import type {
+  MarriageTrackData,
+  MensTrackData,
   MinistryForgeDetail,
   MinistryType,
+  MissionsTrackData,
   VolunteerMatcherData,
+  WomensTrackData,
+  WorshipTrackData,
 } from "@/lib/ministry-forge-types";
 import type {
   AssignMembersToMinistryInput,
@@ -87,16 +99,36 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+const TRACK_TAB_META: Record<string, { label: string; icon: React.ComponentType<{ size?: number }> }> = {
+  worship:  { label: "Worship",  icon: Music },
+  men:      { label: "Men",      icon: Users },
+  women:    { label: "Women",    icon: Heart },
+  marriage: { label: "Marriage", icon: Heart },
+  missions: { label: "Missions", icon: Globe },
+};
+
 export function MinistryForgeDashboard({
   session,
   detail,
   allPeople,
   matcherData,
+  hasTrackPanel: showTrackPanel = false,
+  worshipData,
+  mensData,
+  womensData,
+  marriageData,
+  missionsData,
 }: {
   session: ChurchAppSession;
   detail: MinistryForgeDetail;
   allPeople: Array<{ id: string; fullName: string }>;
   matcherData?: VolunteerMatcherData;
+  hasTrackPanel?: boolean;
+  worshipData?: WorshipTrackData | null;
+  mensData?: MensTrackData | null;
+  womensData?: WomensTrackData | null;
+  marriageData?: MarriageTrackData | null;
+  missionsData?: MissionsTrackData | null;
 }) {
   const { ministry, members, healthHistory, recentImpacts, burnoutWarnings } = detail;
   const isManager =
@@ -307,6 +339,14 @@ export function MinistryForgeDashboard({
               Volunteer Matcher
             </Tabs.Tab>
           ) : null}
+          {showTrackPanel && ministry.ministryType && TRACK_TAB_META[ministry.ministryType] ? (() => {
+            const meta = TRACK_TAB_META[ministry.ministryType!];
+            return (
+              <Tabs.Tab value="track" leftSection={<meta.icon size={14} />}>
+                {meta.label}
+              </Tabs.Tab>
+            );
+          })() : null}
         </Tabs.List>
 
         {/* === OVERVIEW === */}
@@ -523,6 +563,22 @@ export function MinistryForgeDashboard({
               initialBurnoutAlerts={matcherData?.burnoutAlerts ?? []}
               isManager={isManager}
             />
+          </Tabs.Panel>
+        ) : null}
+
+        {/* === TRACK-SPECIFIC PANEL === */}
+        {showTrackPanel ? (
+          <Tabs.Panel value="track" pt="lg">
+            {worshipData ? <WorshipTrackPanel data={worshipData} /> : null}
+            {mensData ? <MensMinistryPanel data={mensData} /> : null}
+            {womensData ? <WomensMinistryPanel data={womensData} /> : null}
+            {marriageData ? (
+              <MarriageTrackPanel
+                data={marriageData}
+                isPastor={session.appContext.roleId === "pastor"}
+              />
+            ) : null}
+            {missionsData ? <MissionsTrackPanel data={missionsData} /> : null}
           </Tabs.Panel>
         ) : null}
       </Tabs>

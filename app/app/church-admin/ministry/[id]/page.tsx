@@ -4,9 +4,15 @@ import { MinistryForgeDashboard } from "@/components/application/ministry-forge-
 import { requireChurchSession } from "@/lib/auth";
 import { getChurchAdminPeopleData } from "@/lib/church-admin-people-data";
 import {
+  getMarriageTrackData,
+  getMensTrackData,
   getMinistryForgeDetail,
+  getMissionsTrackData,
   getVolunteerMatcherData,
+  getWomensTrackData,
+  getWorshipTrackData,
 } from "@/lib/ministry-forge-data";
+import { hasTrackPanel } from "@/lib/ministry-forge-types";
 
 export default async function MinistryForgePage({
   params,
@@ -34,8 +40,18 @@ export default async function MinistryForgePage({
     fullName: p.fullName,
   }));
 
-  // Phase 3: load matcher data in parallel (non-blocking — empty on preview mode)
   const matcherData = await getVolunteerMatcherData(session, id);
+
+  // Phase 4: load the type-specific track data if this ministry has a dedicated panel
+  const ministryType = detail.ministry.ministryType;
+  const [worshipData, mensData, womensData, marriageData, missionsData] =
+    await Promise.all([
+      ministryType === "worship" ? getWorshipTrackData(session, id) : Promise.resolve(null),
+      ministryType === "men"     ? getMensTrackData(session, id)    : Promise.resolve(null),
+      ministryType === "women"   ? getWomensTrackData(session, id)  : Promise.resolve(null),
+      ministryType === "marriage"? getMarriageTrackData(session, id): Promise.resolve(null),
+      ministryType === "missions"? getMissionsTrackData(session, id): Promise.resolve(null),
+    ]);
 
   return (
     <MinistryForgeDashboard
@@ -43,6 +59,12 @@ export default async function MinistryForgePage({
       detail={detail}
       allPeople={allPeople}
       matcherData={matcherData}
+      hasTrackPanel={hasTrackPanel(ministryType)}
+      worshipData={worshipData}
+      mensData={mensData}
+      womensData={womensData}
+      marriageData={marriageData}
+      missionsData={missionsData}
     />
   );
 }

@@ -1,6 +1,6 @@
 # ChurchForge Ministry Specification
 
-**Living Document** - Last Updated: April 14, 2026  
+**Living Document** - Last Updated: April 15, 2026  
 **Purpose**: This file is the repo-level master ministry specification for ChurchForge. It summarizes the approved Ministry Forge direction and points to the deeper engineering documents that govern implementation detail.
 
 This specification should be read alongside:
@@ -25,17 +25,87 @@ ChurchForge ministry features are not limited to assignment tracking. The produc
 
 ChurchForge should support distinct pathway intelligence for:
 
+- `worship`
 - `men`
 - `women`
+- `marriage` (married couples)
+- `missions`
 - `children`
 - `youth`
 - `young_adult`
-- `marriage`
 - `education`
-- `missions`
 - `outreach`
 
 These pathways are separate from ordinary event attendance and separate from the current operational `ministries.ministry_type` classification.
+
+## Ministry-Specific Management Screens
+
+Each ministry type that has dedicated track logic must surface a **ministry-specific management panel** inside the Ministry Forge dashboard alongside the existing Overview, Members, Impact Log, Vision, and Volunteer Matcher tabs. The core overview functions must be preserved exactly as-is — the type-specific panel is additive.
+
+### Worship Ministry
+
+Dedicated tab: **Worship**
+
+Fields and functions:
+
+- **Rehearsal schedule** — upcoming rehearsal dates with RSVP count
+- **Set list tracker** — current series set list, song library (title, key, last used date)
+- **Team roster by instrument/role** — vocals, keys, guitar, bass, drums, tech, media
+- **Rotation planner** — who serves this week vs. next, burnout-aware swap suggestions
+- **Preparation notes** — pastor-facing notes for Sunday flow and liturgical alignment
+- **Song usage history** — last 12 weeks; prevent over-repetition
+
+### Men's Ministry
+
+Dedicated tab: **Men**
+
+Fields and functions:
+
+- **Mentorship map** — who is mentoring whom; pairing status (active / seeking / available)
+- **Discipleship groups** — small group assignments, leader name, meeting cadence
+- **Multiplication tracker** — how many disciples each mentor has produced
+- **Brotherhood events** — upcoming events with RSVP; past event attendance trend
+- **Accountability pairs** — optional private pairs visible only to pastor role
+- **Leadership pipeline** — who is ready to lead a group, mentor status, training milestone
+
+### Women's Ministry
+
+Dedicated tab: **Women**
+
+Fields and functions:
+
+- **Life-stage circles** — groups by life stage (new moms, empty nesters, single women, widows, young women)
+- **Study groups** — current study title, leader, enrollment, schedule
+- **Support pairing** — interest-aware and season-aware pairings; pairing request queue
+- **Events and retreats** — upcoming women's events with registration status
+- **Care follow-up queue** — members flagged for pastoral follow-up (pastor-scoped only)
+- **Mentorship availability** — who is available to mentor, who is seeking
+
+### Marriage Ministry (Married Couples)
+
+Dedicated tab: **Marriage**
+
+Fields and functions:
+
+- **Mentor-couple registry** — active mentor couples with availability and cohort assignment
+- **Enrichment cohorts** — couples grouped by cohort (newlywed, 1–5 years, 5–15 years, 25+)
+- **Event and retreat schedule** — couples nights, retreats, counseling workshops
+- **Aggregate pastoral themes** — anonymous aggregate signals (e.g. "stress" themes) visible only to pastor for sermon and care planning; never individual-attributed
+- **Care referral queue** — referrals to pastoral care (pastor-elder scoped, strictly confidential)
+- **Anniversary recognition** — upcoming milestones for pastoral recognition
+
+### Missions Ministry
+
+Dedicated tab: **Missions**
+
+Fields and functions:
+
+- **Partner organization registry** — name, region, focus area, relationship status
+- **Trip roster and history** — past and upcoming trips, participants, roles
+- **Impact ledger** — hours served, people reached, funds deployed, outcomes logged
+- **Prayer and support partners** — members committed to prayer or financial support for specific partners
+- **Financial summary** — total giving to missions by fund, period comparison
+- **Member engagement** — who has gone, who wants to go, who is prayer-only
 
 Use this distinction:
 
@@ -165,7 +235,7 @@ ChurchForge ministry data should support three historical perspectives over the 
 
 ## Security Guardrails
 
-### Children
+### Children's Data Security
 
 - medical alerts and pickup data must not be stored in open text fields
 - sensitive children data requires tighter access and encrypted storage patterns

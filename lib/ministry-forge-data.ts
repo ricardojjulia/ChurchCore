@@ -9,17 +9,32 @@ import {
 } from "@/lib/supabase/tenant";
 import type {
   BurnoutAlert,
+  DiscipleshipGroup,
   HealthHistoryEntry,
   KingdomImpactEntry,
+  LifeStageCircle,
+  MarriageCohort,
+  MarriageTrackData,
   MemberMinistriesData,
   MemberMinistryEntry,
+  MensTrackData,
+  MentorCouple,
+  MentorshipPair,
   MinistryForgeDetail,
   MinistryForgeEntry,
   MinistryForgeListData,
   MinistryMember,
   MinistryType,
+  MissionPartner,
+  MissionTrip,
+  MissionsTrackData,
+  SupportPairing,
   VolunteerMatchSuggestion,
   VolunteerMatcherData,
+  WomensTrackData,
+  WorshipRehearsal,
+  WorshipSong,
+  WorshipTrackData,
 } from "@/lib/ministry-forge-types";
 import {
   BURNOUT_THRESHOLD_HIGH,
@@ -807,5 +822,452 @@ export function computeMinistryBurnoutAlerts(
   }
 
   return alerts;
+}
+
+// ── Phase 4: Per-track data loaders ──────────────────────────────────────────
+// All loaders return empty preview-safe data when no backend is configured.
+
+// ── Worship ───────────────────────────────────────────────────────────────────
+
+function buildPreviewWorshipData(): WorshipTrackData {
+  return {
+    songs: [
+      { id: "s1", title: "Great Is Thy Faithfulness", artist: "Traditional", songKey: "G", tempo: "Moderate", tags: ["hymn", "sunday"], lastUsedAt: "2026-04-06" },
+      { id: "s2", title: "Build My Life", artist: "Housefires", songKey: "D", tempo: "Medium", tags: ["contemporary"], lastUsedAt: "2026-03-30" },
+      { id: "s3", title: "Way Maker", artist: "Sinach", songKey: "A", tempo: "Moderate", tags: ["worship", "contemporary"], lastUsedAt: "2026-03-23" },
+    ],
+    rehearsals: [
+      { id: "r1", scheduledAt: "2026-04-19T10:00:00Z", notes: "Run through Easter Sunday set", rsvpCount: 8, songIds: ["s1", "s2"] },
+      { id: "r2", scheduledAt: "2026-04-26T10:00:00Z", notes: null, rsvpCount: 6, songIds: ["s3"] },
+    ],
+  };
+}
+
+export async function getWorshipTrackData(
+  session: ChurchAppSession,
+  ministryId: string,
+): Promise<WorshipTrackData> {
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    return buildPreviewWorshipData();
+  }
+
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const [songsResult, rehearsalsResult] = await Promise.all([
+      queryTenantLocalDb<{
+        id: string; title: string; artist: string | null; song_key: string | null;
+        tempo: string | null; tags: string[]; last_used_at: string | null;
+      }>(
+        `select id, title, artist, song_key, tempo, tags, last_used_at::text
+         from public.worship_songs
+         where ministry_id = $1 and church_id = $2
+         order by last_used_at desc nulls last`,
+        [ministryId, churchId],
+      ),
+      queryTenantLocalDb<{
+        id: string; scheduled_at: string; notes: string | null;
+        rsvp_count: number; song_ids: string[];
+      }>(
+        `select id, scheduled_at::text, notes, rsvp_count, song_ids
+         from public.worship_rehearsals
+         where ministry_id = $1 and church_id = $2
+         order by scheduled_at desc limit 10`,
+        [ministryId, churchId],
+      ),
+    ]);
+
+    const songs: WorshipSong[] = songsResult.rows.map((r) => ({
+      id: r.id, title: r.title, artist: r.artist, songKey: r.song_key,
+      tempo: r.tempo, tags: r.tags ?? [], lastUsedAt: r.last_used_at,
+    }));
+    const rehearsals: WorshipRehearsal[] = rehearsalsResult.rows.map((r) => ({
+      id: r.id, scheduledAt: r.scheduled_at, notes: r.notes,
+      rsvpCount: r.rsvp_count, songIds: r.song_ids ?? [],
+    }));
+    return { songs, rehearsals };
+  }
+
+  const supabase = await createTenantServerClient();
+  const [{ data: songsData }, { data: rehearsalsData }] = await Promise.all([
+    supabase.from("worship_songs").select("*").eq("ministry_id", ministryId).eq("church_id", churchId).order("last_used_at", { ascending: false }),
+    supabase.from("worship_rehearsals").select("*").eq("ministry_id", ministryId).eq("church_id", churchId).order("scheduled_at", { ascending: false }).limit(10),
+  ]);
+
+  const songs: WorshipSong[] = (songsData ?? []).map((r) => ({
+    id: r.id, title: r.title, artist: r.artist ?? null, songKey: r.song_key ?? null,
+    tempo: r.tempo ?? null, tags: r.tags ?? [], lastUsedAt: r.last_used_at ?? null,
+  }));
+  const rehearsals: WorshipRehearsal[] = (rehearsalsData ?? []).map((r) => ({
+    id: r.id, scheduledAt: r.scheduled_at, notes: r.notes ?? null,
+    rsvpCount: r.rsvp_count ?? 0, songIds: r.song_ids ?? [],
+  }));
+  return { songs, rehearsals };
+}
+
+// ── Men's Ministry ────────────────────────────────────────────────────────────
+
+function buildPreviewMensData(): MensTrackData {
+  return {
+    mentorshipPairs: [
+      { id: "mp1", mentorId: "p1", mentorName: "Robert James", menteeId: "p2", menteeName: "David Chen", status: "active", startedAt: "2026-01-15", notes: null },
+      { id: "mp2", mentorId: "p3", mentorName: "Marcus Williams", menteeId: "p4", menteeName: "Tyler Brooks", status: "active", startedAt: "2026-02-01", notes: null },
+    ],
+    discipleshipGroups: [
+      { id: "dg1", name: "Iron Sharpens Iron", leaderId: "p1", leaderName: "Robert James", cadence: "Tuesdays 7pm", isOpen: false, memberCount: 6 },
+      { id: "dg2", name: "Young Men's Discipleship", leaderId: "p3", leaderName: "Marcus Williams", cadence: "Thursdays 6:30pm", isOpen: true, memberCount: 4 },
+    ],
+  };
+}
+
+export async function getMensTrackData(
+  session: ChurchAppSession,
+  ministryId: string,
+): Promise<MensTrackData> {
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    return buildPreviewMensData();
+  }
+
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const [pairsResult, groupsResult] = await Promise.all([
+      queryTenantLocalDb<{
+        id: string; mentor_id: string; mentor_name: string; mentee_id: string;
+        mentee_name: string; status: string; started_at: string | null; notes: string | null;
+      }>(
+        `select mp.id, mp.mentor_id, pm.full_name as mentor_name,
+                mp.mentee_id, pe.full_name as mentee_name,
+                mp.status, mp.started_at::text, mp.notes
+         from public.mentorship_pairs mp
+         join public.profiles pm on pm.id = mp.mentor_id
+         join public.profiles pe on pe.id = mp.mentee_id
+         where mp.ministry_id = $1 and mp.church_id = $2
+         order by mp.created_at desc`,
+        [ministryId, churchId],
+      ),
+      queryTenantLocalDb<{
+        id: string; name: string; leader_id: string | null; leader_name: string | null;
+        cadence: string | null; is_open: boolean; member_count: number;
+      }>(
+        `select dg.id, dg.name, dg.leader_id,
+                p.full_name as leader_name, dg.cadence, dg.is_open,
+                cardinality(dg.member_ids) as member_count
+         from public.discipleship_groups dg
+         left join public.profiles p on p.id = dg.leader_id
+         where dg.ministry_id = $1 and dg.church_id = $2`,
+        [ministryId, churchId],
+      ),
+    ]);
+
+    const mentorshipPairs: MentorshipPair[] = pairsResult.rows.map((r) => ({
+      id: r.id, mentorId: r.mentor_id, mentorName: r.mentor_name,
+      menteeId: r.mentee_id, menteeName: r.mentee_name,
+      status: r.status, startedAt: r.started_at, notes: r.notes,
+    }));
+    const discipleshipGroups: DiscipleshipGroup[] = groupsResult.rows.map((r) => ({
+      id: r.id, name: r.name, leaderId: r.leader_id, leaderName: r.leader_name,
+      cadence: r.cadence, isOpen: r.is_open, memberCount: r.member_count,
+    }));
+    return { mentorshipPairs, discipleshipGroups };
+  }
+
+  const supabase = await createTenantServerClient();
+  const [{ data: pairsData }, { data: groupsData }] = await Promise.all([
+    supabase.from("mentorship_pairs").select("*, mentor:profiles!mentor_id(full_name), mentee:profiles!mentee_id(full_name)").eq("ministry_id", ministryId).eq("church_id", churchId),
+    supabase.from("discipleship_groups").select("*, leader:profiles(full_name)").eq("ministry_id", ministryId).eq("church_id", churchId),
+  ]);
+
+  const mentorshipPairs: MentorshipPair[] = (pairsData ?? []).map((r) => ({
+    id: r.id,
+    mentorId: r.mentor_id,
+    mentorName: (r.mentor as { full_name: string } | null)?.full_name ?? "Unknown",
+    menteeId: r.mentee_id,
+    menteeName: (r.mentee as { full_name: string } | null)?.full_name ?? "Unknown",
+    status: r.status,
+    startedAt: r.started_at ?? null,
+    notes: r.notes ?? null,
+  }));
+  const discipleshipGroups: DiscipleshipGroup[] = (groupsData ?? []).map((r) => ({
+    id: r.id, name: r.name, leaderId: r.leader_id ?? null,
+    leaderName: (r.leader as { full_name: string } | null)?.full_name ?? null,
+    cadence: r.cadence ?? null, isOpen: r.is_open,
+    memberCount: (r.member_ids as string[] | null)?.length ?? 0,
+  }));
+  return { mentorshipPairs, discipleshipGroups };
+}
+
+// ── Women's Ministry ──────────────────────────────────────────────────────────
+
+function buildPreviewWomensData(): WomensTrackData {
+  return {
+    lifeStageCircles: [
+      { id: "lsc1", name: "New Moms Circle", lifeStage: "new_mom", leaderId: "p5", leaderName: "Sarah Mitchell", memberCount: 8, meetingCadence: "Saturdays 10am" },
+      { id: "lsc2", name: "Women of Wisdom", lifeStage: "empty_nester", leaderId: "p6", leaderName: "Grace Thompson", memberCount: 12, meetingCadence: "Wednesdays 1pm" },
+    ],
+    supportPairings: [
+      { id: "sp1", supporterId: "p5", supporterName: "Sarah Mitchell", supportedId: "p7", supportedName: "Emily Davis", pairingReason: "new_mom support", status: "active" },
+    ],
+  };
+}
+
+export async function getWomensTrackData(
+  session: ChurchAppSession,
+  ministryId: string,
+): Promise<WomensTrackData> {
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    return buildPreviewWomensData();
+  }
+
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const [circlesResult, pairingsResult] = await Promise.all([
+      queryTenantLocalDb<{
+        id: string; name: string; life_stage: string; leader_id: string | null;
+        leader_name: string | null; member_count: number; meeting_cadence: string | null;
+      }>(
+        `select lsc.id, lsc.name, lsc.life_stage, lsc.leader_id,
+                p.full_name as leader_name,
+                cardinality(lsc.member_ids) as member_count,
+                lsc.meeting_cadence
+         from public.life_stage_circles lsc
+         left join public.profiles p on p.id = lsc.leader_id
+         where lsc.ministry_id = $1 and lsc.church_id = $2`,
+        [ministryId, churchId],
+      ),
+      queryTenantLocalDb<{
+        id: string; supporter_id: string; supporter_name: string;
+        supported_id: string; supported_name: string;
+        pairing_reason: string | null; status: string;
+      }>(
+        `select sp.id, sp.supporter_id, ps.full_name as supporter_name,
+                sp.supported_id, pe.full_name as supported_name,
+                sp.pairing_reason, sp.status
+         from public.support_pairings sp
+         join public.profiles ps on ps.id = sp.supporter_id
+         join public.profiles pe on pe.id = sp.supported_id
+         where sp.ministry_id = $1 and sp.church_id = $2`,
+        [ministryId, churchId],
+      ),
+    ]);
+
+    const lifeStageCircles: LifeStageCircle[] = circlesResult.rows.map((r) => ({
+      id: r.id, name: r.name, lifeStage: r.life_stage, leaderId: r.leader_id,
+      leaderName: r.leader_name, memberCount: r.member_count, meetingCadence: r.meeting_cadence,
+    }));
+    const supportPairings: SupportPairing[] = pairingsResult.rows.map((r) => ({
+      id: r.id, supporterId: r.supporter_id, supporterName: r.supporter_name,
+      supportedId: r.supported_id, supportedName: r.supported_name,
+      pairingReason: r.pairing_reason, status: r.status,
+    }));
+    return { lifeStageCircles, supportPairings };
+  }
+
+  const supabase = await createTenantServerClient();
+  const [{ data: circlesData }, { data: pairingsData }] = await Promise.all([
+    supabase.from("life_stage_circles").select("*, leader:profiles(full_name)").eq("ministry_id", ministryId).eq("church_id", churchId),
+    supabase.from("support_pairings").select("*, supporter:profiles!supporter_id(full_name), supported:profiles!supported_id(full_name)").eq("ministry_id", ministryId).eq("church_id", churchId),
+  ]);
+
+  const lifeStageCircles: LifeStageCircle[] = (circlesData ?? []).map((r) => ({
+    id: r.id, name: r.name, lifeStage: r.life_stage, leaderId: r.leader_id ?? null,
+    leaderName: (r.leader as { full_name: string } | null)?.full_name ?? null,
+    memberCount: (r.member_ids as string[] | null)?.length ?? 0,
+    meetingCadence: r.meeting_cadence ?? null,
+  }));
+  const supportPairings: SupportPairing[] = (pairingsData ?? []).map((r) => ({
+    id: r.id, supporterId: r.supporter_id,
+    supporterName: (r.supporter as { full_name: string } | null)?.full_name ?? "Unknown",
+    supportedId: r.supported_id,
+    supportedName: (r.supported as { full_name: string } | null)?.full_name ?? "Unknown",
+    pairingReason: r.pairing_reason ?? null, status: r.status,
+  }));
+  return { lifeStageCircles, supportPairings };
+}
+
+// ── Marriage Ministry ─────────────────────────────────────────────────────────
+
+function buildPreviewMarriageData(): MarriageTrackData {
+  return {
+    mentorCouples: [
+      { id: "mc1", partner1Id: "p8", partner1Name: "John & Mary Anderson", partner2Id: null, partner2Name: null, coupleName: "The Andersons", yearsMarried: 28, isAvailable: true, cohortFocus: "newlywed" },
+      { id: "mc2", partner1Id: "p9", partner1Name: "Carlos & Rosa Mendez", partner2Id: null, partner2Name: null, coupleName: "The Mendezes", yearsMarried: 15, isAvailable: false, cohortFocus: "5_15_years" },
+    ],
+    cohorts: [
+      { id: "co1", name: "Newlywed Cohort 2026", cohortStage: "newlywed", mentorCoupleId: "mc1", mentorCoupleName: "The Andersons", coupleCount: 4 },
+      { id: "co2", name: "Growing Together", cohortStage: "5_15_years", mentorCoupleId: "mc2", mentorCoupleName: "The Mendezes", coupleCount: 6 },
+    ],
+  };
+}
+
+export async function getMarriageTrackData(
+  session: ChurchAppSession,
+  ministryId: string,
+): Promise<MarriageTrackData> {
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    return buildPreviewMarriageData();
+  }
+
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const [couplesResult, cohortsResult] = await Promise.all([
+      queryTenantLocalDb<{
+        id: string; partner1_id: string; partner1_name: string;
+        partner2_id: string | null; partner2_name: string | null;
+        couple_name: string | null; years_married: number | null;
+        is_available: boolean; cohort_focus: string | null;
+      }>(
+        `select mc.id, mc.partner1_id, p1.full_name as partner1_name,
+                mc.partner2_id, p2.full_name as partner2_name,
+                mc.couple_name, mc.years_married, mc.is_available, mc.cohort_focus
+         from public.mentor_couples mc
+         join public.profiles p1 on p1.id = mc.partner1_id
+         left join public.profiles p2 on p2.id = mc.partner2_id
+         where mc.ministry_id = $1 and mc.church_id = $2`,
+        [ministryId, churchId],
+      ),
+      queryTenantLocalDb<{
+        id: string; name: string; cohort_stage: string;
+        mentor_couple_id: string | null; mentor_couple_name: string | null; couple_count: number;
+      }>(
+        `select mco.id, mco.name, mco.cohort_stage, mco.mentor_couple_id,
+                mc.couple_name as mentor_couple_name,
+                cardinality(mco.couple_ids) as couple_count
+         from public.marriage_cohorts mco
+         left join public.mentor_couples mc on mc.id = mco.mentor_couple_id
+         where mco.ministry_id = $1 and mco.church_id = $2`,
+        [ministryId, churchId],
+      ),
+    ]);
+
+    const mentorCouples: MentorCouple[] = couplesResult.rows.map((r) => ({
+      id: r.id, partner1Id: r.partner1_id, partner1Name: r.partner1_name,
+      partner2Id: r.partner2_id, partner2Name: r.partner2_name,
+      coupleName: r.couple_name, yearsMarried: r.years_married,
+      isAvailable: r.is_available, cohortFocus: r.cohort_focus,
+    }));
+    const cohorts: MarriageCohort[] = cohortsResult.rows.map((r) => ({
+      id: r.id, name: r.name, cohortStage: r.cohort_stage,
+      mentorCoupleId: r.mentor_couple_id, mentorCoupleName: r.mentor_couple_name,
+      coupleCount: r.couple_count,
+    }));
+    return { mentorCouples, cohorts };
+  }
+
+  const supabase = await createTenantServerClient();
+  const [{ data: couplesData }, { data: cohortsData }] = await Promise.all([
+    supabase.from("mentor_couples").select("*, p1:profiles!partner1_id(full_name), p2:profiles!partner2_id(full_name)").eq("ministry_id", ministryId).eq("church_id", churchId),
+    supabase.from("marriage_cohorts").select("*, mc:mentor_couples(couple_name)").eq("ministry_id", ministryId).eq("church_id", churchId),
+  ]);
+
+  const mentorCouples: MentorCouple[] = (couplesData ?? []).map((r) => ({
+    id: r.id, partner1Id: r.partner1_id,
+    partner1Name: (r.p1 as { full_name: string } | null)?.full_name ?? "Unknown",
+    partner2Id: r.partner2_id ?? null,
+    partner2Name: (r.p2 as { full_name: string } | null)?.full_name ?? null,
+    coupleName: r.couple_name ?? null, yearsMarried: r.years_married ?? null,
+    isAvailable: r.is_available, cohortFocus: r.cohort_focus ?? null,
+  }));
+  const cohorts: MarriageCohort[] = (cohortsData ?? []).map((r) => ({
+    id: r.id, name: r.name, cohortStage: r.cohort_stage,
+    mentorCoupleId: r.mentor_couple_id ?? null,
+    mentorCoupleName: (r.mc as { couple_name: string } | null)?.couple_name ?? null,
+    coupleCount: (r.couple_ids as string[] | null)?.length ?? 0,
+  }));
+  return { mentorCouples, cohorts };
+}
+
+// ── Missions ─────────────────────────────────────────────────────────────────
+
+function buildPreviewMissionsData(): MissionsTrackData {
+  return {
+    partners: [
+      { id: "mpr1", name: "Hope Africa Initiative", region: "East Africa", focusArea: "Church planting", relationshipStatus: "active", contactName: "Pastor Samuel Osei", contactEmail: "samuel@hopeafrica.org" },
+      { id: "mpr2", name: "Guatemala Serve", region: "Central America", focusArea: "Medical outreach", relationshipStatus: "active", contactName: "Maria Gonzalez", contactEmail: "maria@guatemalaserve.org" },
+    ],
+    trips: [
+      { id: "mt1", name: "Kenya 2026", destination: "Nairobi, Kenya", departsAt: "2026-06-15", returnsAt: "2026-06-29", status: "confirmed", participantCount: 12, hoursServed: 0, peopleReached: 0, impactNotes: null, partnerId: "mpr1", partnerName: "Hope Africa Initiative" },
+      { id: "mt2", name: "Guatemala Medical 2025", destination: "Antigua, Guatemala", departsAt: "2025-11-01", returnsAt: "2025-11-10", status: "completed", participantCount: 8, hoursServed: 480, peopleReached: 320, impactNotes: "Served 320 community members; ran 4 mobile clinics.", partnerId: "mpr2", partnerName: "Guatemala Serve" },
+    ],
+  };
+}
+
+export async function getMissionsTrackData(
+  session: ChurchAppSession,
+  ministryId: string,
+): Promise<MissionsTrackData> {
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    return buildPreviewMissionsData();
+  }
+
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const [partnersResult, tripsResult] = await Promise.all([
+      queryTenantLocalDb<{
+        id: string; name: string; region: string | null; focus_area: string | null;
+        relationship_status: string; contact_name: string | null; contact_email: string | null;
+      }>(
+        `select id, name, region, focus_area, relationship_status, contact_name, contact_email
+         from public.mission_partners
+         where ministry_id = $1 and church_id = $2
+         order by name`,
+        [ministryId, churchId],
+      ),
+      queryTenantLocalDb<{
+        id: string; name: string; destination: string | null;
+        departs_at: string | null; returns_at: string | null; status: string;
+        participant_count: number; hours_served: number; people_reached: number;
+        impact_notes: string | null; partner_id: string | null; partner_name: string | null;
+      }>(
+        `select mt.id, mt.name, mt.destination,
+                mt.departs_at::text, mt.returns_at::text, mt.status,
+                cardinality(mt.participant_ids) as participant_count,
+                mt.hours_served, mt.people_reached, mt.impact_notes,
+                mt.partner_id, mp.name as partner_name
+         from public.mission_trips mt
+         left join public.mission_partners mp on mp.id = mt.partner_id
+         where mt.ministry_id = $1 and mt.church_id = $2
+         order by mt.departs_at desc`,
+        [ministryId, churchId],
+      ),
+    ]);
+
+    const partners: MissionPartner[] = partnersResult.rows.map((r) => ({
+      id: r.id, name: r.name, region: r.region, focusArea: r.focus_area,
+      relationshipStatus: r.relationship_status, contactName: r.contact_name, contactEmail: r.contact_email,
+    }));
+    const trips: MissionTrip[] = tripsResult.rows.map((r) => ({
+      id: r.id, name: r.name, destination: r.destination,
+      departsAt: r.departs_at, returnsAt: r.returns_at, status: r.status,
+      participantCount: r.participant_count, hoursServed: r.hours_served,
+      peopleReached: r.people_reached, impactNotes: r.impact_notes,
+      partnerId: r.partner_id, partnerName: r.partner_name,
+    }));
+    return { partners, trips };
+  }
+
+  const supabase = await createTenantServerClient();
+  const [{ data: partnersData }, { data: tripsData }] = await Promise.all([
+    supabase.from("mission_partners").select("*").eq("ministry_id", ministryId).eq("church_id", churchId).order("name"),
+    supabase.from("mission_trips").select("*, partner:mission_partners(name)").eq("ministry_id", ministryId).eq("church_id", churchId).order("departs_at", { ascending: false }),
+  ]);
+
+  const partners: MissionPartner[] = (partnersData ?? []).map((r) => ({
+    id: r.id, name: r.name, region: r.region ?? null, focusArea: r.focus_area ?? null,
+    relationshipStatus: r.relationship_status, contactName: r.contact_name ?? null,
+    contactEmail: r.contact_email ?? null,
+  }));
+  const trips: MissionTrip[] = (tripsData ?? []).map((r) => ({
+    id: r.id, name: r.name, destination: r.destination ?? null,
+    departsAt: r.departs_at ?? null, returnsAt: r.returns_at ?? null, status: r.status,
+    participantCount: (r.participant_ids as string[] | null)?.length ?? 0,
+    hoursServed: r.hours_served ?? 0, peopleReached: r.people_reached ?? 0,
+    impactNotes: r.impact_notes ?? null, partnerId: r.partner_id ?? null,
+    partnerName: (r.partner as { name: string } | null)?.name ?? null,
+  }));
+  return { partners, trips };
 }
 

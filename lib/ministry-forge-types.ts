@@ -9,7 +9,23 @@ export type MinistryType =
   | "administration"
   | "youth"
   | "children"
-  | "missions";
+  | "missions"
+  | "men"
+  | "women"
+  | "marriage";
+
+// Ministry types that have dedicated track management panels
+export const TRACK_PANEL_TYPES = new Set<MinistryType>([
+  "worship",
+  "men",
+  "women",
+  "marriage",
+  "missions",
+]);
+
+export function hasTrackPanel(type: MinistryType | null): type is MinistryType {
+  return type !== null && TRACK_PANEL_TYPES.has(type);
+}
 
 export type MinistryHealthBand = "green" | "yellow" | "red";
 
@@ -131,3 +147,135 @@ export function burnoutSeverity(load: number): BurnoutAlertSeverity | null {
 /** Canonical AI disclaimer — must appear on every AI-generated surface */
 export const AI_ASSISTIVE_DISCLAIMER =
   "This is an assistive tool only. It does not replace prayer, pastoral discernment, or human calling. All suggestions require human review and approval before any assignment is made.";
+
+// ── Phase 4: Ministry Track Panel Types ──────────────────────────────────────
+
+export type WorshipSong = {
+  id: string;
+  title: string;
+  artist: string | null;
+  songKey: string | null;
+  tempo: string | null;
+  tags: string[];
+  lastUsedAt: string | null;
+};
+
+export type WorshipRehearsal = {
+  id: string;
+  scheduledAt: string;
+  notes: string | null;
+  rsvpCount: number;
+  songIds: string[];
+};
+
+export type WorshipTrackData = {
+  songs: WorshipSong[];
+  rehearsals: WorshipRehearsal[];
+};
+
+export type MentorshipPair = {
+  id: string;
+  mentorId: string;
+  mentorName: string;
+  menteeId: string;
+  menteeName: string;
+  status: string;
+  startedAt: string | null;
+  notes: string | null;
+};
+
+export type DiscipleshipGroup = {
+  id: string;
+  name: string;
+  leaderId: string | null;
+  leaderName: string | null;
+  cadence: string | null;
+  isOpen: boolean;
+  memberCount: number;
+};
+
+export type MensTrackData = {
+  mentorshipPairs: MentorshipPair[];
+  discipleshipGroups: DiscipleshipGroup[];
+};
+
+export type LifeStageCircle = {
+  id: string;
+  name: string;
+  lifeStage: string;
+  leaderId: string | null;
+  leaderName: string | null;
+  memberCount: number;
+  meetingCadence: string | null;
+};
+
+export type SupportPairing = {
+  id: string;
+  supporterId: string;
+  supporterName: string;
+  supportedId: string;
+  supportedName: string;
+  pairingReason: string | null;
+  status: string;
+};
+
+export type WomensTrackData = {
+  lifeStageCircles: LifeStageCircle[];
+  supportPairings: SupportPairing[];
+};
+
+export type MentorCouple = {
+  id: string;
+  partner1Id: string;
+  partner1Name: string;
+  partner2Id: string | null;
+  partner2Name: string | null;
+  coupleName: string | null;
+  yearsMarried: number | null;
+  isAvailable: boolean;
+  cohortFocus: string | null;
+};
+
+export type MarriageCohort = {
+  id: string;
+  name: string;
+  cohortStage: string;
+  mentorCoupleId: string | null;
+  mentorCoupleName: string | null;
+  coupleCount: number;
+};
+
+export type MarriageTrackData = {
+  mentorCouples: MentorCouple[];
+  cohorts: MarriageCohort[];
+};
+
+export type MissionPartner = {
+  id: string;
+  name: string;
+  region: string | null;
+  focusArea: string | null;
+  relationshipStatus: string;
+  contactName: string | null;
+  contactEmail: string | null;
+};
+
+export type MissionTrip = {
+  id: string;
+  name: string;
+  destination: string | null;
+  departsAt: string | null;
+  returnsAt: string | null;
+  status: string;
+  participantCount: number;
+  hoursServed: number;
+  peopleReached: number;
+  impactNotes: string | null;
+  partnerId: string | null;
+  partnerName: string | null;
+};
+
+export type MissionsTrackData = {
+  partners: MissionPartner[];
+  trips: MissionTrip[];
+};

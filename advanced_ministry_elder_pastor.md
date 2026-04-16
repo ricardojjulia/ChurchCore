@@ -1,6 +1,6 @@
 # ChurchForge - Advanced Ministries, Elders & Pastor Council Plan
 
-**Living Document** - Last Updated: April 14, 2026  
+**Living Document** - Last Updated: April 15, 2026  
 **Filename**: `advanced_ministry_elder_pastor.md`  
 **Version**: 1.1  
 **Purpose**: This is the single source of truth for the most distinctive and spiritually rich feature direction in ChurchForge: the areas intended to set the product apart from conventional church management software.
@@ -159,7 +159,7 @@ Implementation requirements:
 
 The Ministry Forge is the advanced ministry operating surface for leaders and pastors.
 
-**Capabilities**
+### Core capabilities (preserved in all ministry types)
 
 - Ministry dashboard with Health Score and trend view
 - AI volunteer matcher based on gifts, availability, and human-reviewed calling data
@@ -171,9 +171,34 @@ The Ministry Forge is the advanced ministry operating surface for leaders and pa
 - Seasonal planning wizard tied to liturgical context
 - Children's safety visibility for clearance and ratio-sensitive serving contexts
 
+### Ministry-type-specific management panels
+
+When a ministry's `ministry_type` matches one of the five supported track types, an additional dedicated tab appears in the Ministry Forge dashboard. The existing Overview, Members, Impact Log, Vision, and Volunteer Matcher tabs are always preserved.
+
+Supported dedicated panels:
+
+- **Worship** (`ministry_type = 'worship'`) — rehearsal schedule, set list tracker, team roster by instrument/role, rotation planner, song usage history, Sunday preparation notes
+- **Men's Ministry** (`ministry_type = 'men'`) — mentorship map, discipleship group assignments, multiplication tracker, brotherhood events, accountability pairs (pastor-only), leadership pipeline
+- **Women's Ministry** (`ministry_type = 'women'`) — life-stage circles, study groups, support pairing, events and retreats, care follow-up queue (pastor-only), mentorship availability
+- **Marriage Ministry** (`ministry_type = 'marriage'`) — mentor-couple registry, enrichment cohorts, event schedule, aggregate pastoral themes (anonymous, pastor-only), care referral queue, anniversary recognition
+- **Missions** (`ministry_type = 'missions'`) — partner organization registry, trip roster and history, impact ledger, prayer and support partners, financial summary, member engagement
+
+These panels are additive. The ministry_type determines which panel tab is shown. A ministry without a matching type shows only the standard tabs.
+
+### Ministry_type constraint extension
+
+The `ministries.ministry_type` check constraint must be extended to include:
+
+- `worship`
+- `men`
+- `women`
+- `marriage`
+
+(These are added alongside the already-supported `outreach`, `discipleship`, `care`, `administration`, `youth`, `children`, `missions`.)
+
 **Primary route**
 
-- `/ministry/[id]`
+- `/app/church-admin/ministry/[id]`
 
 **Expected surface design**
 
@@ -181,6 +206,7 @@ The Ministry Forge is the advanced ministry operating surface for leaders and pa
 - Metrics visible only when useful
 - Narrative ministry context preserved alongside charts and status
 - Mantine-first implementation aligned with ChurchForge UI standards
+- Type-specific tabs appear conditionally — never cluttering ministries that don't match
 
 ## 4. Elders Discernment Room
 
