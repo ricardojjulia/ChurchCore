@@ -21,6 +21,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
+  BarChart2,
   CheckCircle,
   Mail,
   MessageSquare,
@@ -133,6 +134,12 @@ export function CommunicationsHub({
       description: "Messages & notifications",
       icon: Send,
       active: true,
+    },
+    {
+      href: "/app/reports",
+      label: "Reports",
+      description: "Members, events, giving",
+      icon: BarChart2,
     },
   ];
 

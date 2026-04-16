@@ -1,7 +1,7 @@
 # ChurchForge Development Plan
 
-**Living Document** - Last Updated: April 14, 2026  
-**Version**: 1.7  
+**Living Document** - Last Updated: April 15, 2026  
+**Version**: 1.8  
 **Purpose**: This is the single source of truth for all ChurchForge development. Every GitHub Issue, PR, sprint, and code review must reference this document. Update only via PR.
 
 ## Table of Contents
@@ -52,7 +52,7 @@ The two surfaces may share design systems and selected libraries, but they do no
 - Specialized ministry pathways for men, women, children, youth, young adults, marriage, education, missions, and outreach.
 - Pastoral and minister profiles with fully customizable titles.
 - Donation management with Stripe.
-- Reporting and dashboards.
+- Graphical multi-surface reporting and dashboards across members, events, giving, ministries, communications, and outreach.
 - Communications across email and SMS.
 
 ## 4. AI Ministry Tools Suite

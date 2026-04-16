@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
+  BarChart2,
   CheckSquare,
   DollarSign,
   HeartHandshake,
@@ -144,6 +145,12 @@ export function ChurchAdminPeopleWorkspace({
           label: "Giving",
           description: "Donations dashboard",
           icon: DollarSign,
+        },
+        {
+          href: "/app/reports",
+          label: "Reports",
+          description: "Members, events, giving",
+          icon: BarChart2,
         },
         {
           href: "/app/church-admin/ministry/overview",

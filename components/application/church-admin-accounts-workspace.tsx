@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { BellRing, DollarSign, HeartHandshake, MailCheck, Sparkles, UsersRound } from "lucide-react";
+import { BarChart2, BellRing, DollarSign, HeartHandshake, MailCheck, Sparkles, UsersRound } from "lucide-react";
 import {
   Badge,
   Button,
@@ -124,6 +124,12 @@ export function ChurchAdminAccountsWorkspace({
           label: "Giving",
           description: "Donations dashboard",
           icon: DollarSign,
+        },
+        {
+          href: "/app/reports",
+          label: "Reports",
+          description: "Members, events, giving",
+          icon: BarChart2,
         },
         {
           href: "/app/church-admin/ministry/overview",

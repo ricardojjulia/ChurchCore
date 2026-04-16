@@ -6,13 +6,36 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
-### Documentation
+## [2.7.0] - 2026-04-15
 
-- Updated `DEVELOPMENT_PLAN.md` to version `1.7`, explicitly adding specialized ministry pathways for men, women, children, youth, young adults, marriage, education, missions, and outreach plus stronger stewardship-metric and safety/privacy guidance.
-- Updated `advanced_ministry_elder_pastor.md` to version `1.1` so Ministry Forge planning now points to the specialized track architecture and its stricter confidentiality requirements.
-- Added `ministry-spec.md` as the repo-level ministry source-of-truth summarizing approved pathways, deterministic metrics, security guardrails, and document precedence.
-- Added `docs/advanced-ministry-forge-research-spec.md`, a detailed engineering-direction document reconciling the new Ministry Forge research spec with the repo's existing `ministries`, `profile_ministries`, burnout, and member-identity foundations.
-- Updated `README.md` to reference the new advanced ministry research specification and the plan-version bump.
+### Added
+
+- Added the first reporting-suite foundation under `/app/reports`, `/app/reports/members`, `/app/reports/events`, and `/app/reports/giving`, with a shared reporting shell, range switching, graphical dashboards, and preview-safe fallback behavior for pastor and church-admin roles.
+- Added `lib/reports-data.ts` to compute member, event, and giving report datasets across preview, local direct-DB fallback, and live tenant Supabase paths.
+- Added navigation entry points into the reporting suite from existing pastor and church-admin management surfaces.
+- Added `Reports-implementation.md`, a detailed implementation plan for ChurchForge's future reporting suite across members, events, giving, ministries, communications, outreach, and executive stewardship dashboards.
+
+### Changed
+
+- Updated `DEVELOPMENT_PLAN.md` to version `1.8`, explicitly positioning graphical multi-surface reporting as a core ChurchForge feature area.
+- Updated `README.md` to release `2.7.0` and documented the new reporting suite routes, release highlights, and repo-level reporting plan reference.
+
+### Fixed
+
+- Fixed tenant giving loaders so `/app/giving` and `/app/member/giving` return safe empty-state data when tenant Supabase environment variables are not configured, instead of throwing during server render in preview or reduced-backend mode.
+- Fixed the communications hub loader so `/app/communications` also returns safe empty-state data when tenant Supabase environment variables are missing, matching the rest of the preview-mode tenant surfaces.
+
+### Release Notes
+
+This release establishes ChurchForge's first real reporting surface rather than treating reporting as a future-only concept.
+
+Before `2.7.0`, the product had point dashboards such as giving and ministry health, but it did not yet have a unified reporting suite where leadership could move between member, event, and giving intelligence with one consistent visual and filtering model.
+
+`2.7.0` closes that gap with a shared reporting shell and three real analytical surfaces.
+
+The new reports are intentionally not generic business dashboards. Member reporting emphasizes attendance momentum, engagement mix, and quiet-drift visibility. Event reporting highlights turnout, visitor touches, category yield, and volunteer pressure. Giving reporting adds donor-journey and fund-breakdown visibility while preserving anonymous-giving protections.
+
+Just as importantly, this release tightens the preview and reduced-backend story. The giving and communications loaders now fail safely when tenant Supabase environment variables are absent, which keeps the application usable during local preview work instead of crashing on server render.
 
 ## [2.6.0] - 2026-04-14
 

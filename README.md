@@ -1,6 +1,6 @@
 # ChurchForge
 
-ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, and guardrailed AI ministry tools. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.7 and is at release `2.6.0`, incorporating Ministry Forge (Phases 1–3), Elders Discernment Room, Pastor Council Forge, Communications Hub, voluntary Stripe donations, GDPR/CCPA data rights, a full pre-launch checklist, complete church-admin people management, the Sprint 2 attendance / roster / member-identity flow, and the newly documented Advanced Ministry Forge specialization direction captured in `ministry-spec.md`.
+ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, guardrailed AI ministry tools, and graphical stewardship reporting. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.8 and is at release `2.7.0`, incorporating Ministry Forge (Phases 1–3), Elders Discernment Room, Pastor Council Forge, Communications Hub, voluntary Stripe donations, GDPR/CCPA data rights, a full pre-launch checklist, complete church-admin people management, the Sprint 2 attendance / roster / member-identity flow, the newly documented Advanced Ministry Forge specialization direction captured in `ministry-spec.md`, and the first reporting-suite foundation.
 
 ## Stack
 
@@ -28,14 +28,15 @@ Current plan target:
 - An AI ministry tools suite that stays assistive only, requires consent, and never replaces prayer, Scripture study, or pastoral judgment.
 - Security and privacy expectations centered on sensitive-data classification, consent, auditing, and disciplined application security checks.
 - Future Ministry Forge work is now explicitly documented around specialized tracks for men, women, children, youth, young adults, marriage, education, missions, and outreach, with deterministic stewardship metrics and tighter safety/confidentiality rules.
+- Future reporting work is now explicitly documented as a multi-surface reporting suite spanning members, events, giving, ministries, communications, and outreach, with graphical dashboards and differentiated stewardship insights.
 
-## Release 2.6.0 Highlights
+## Release 2.7.0 Highlights
 
-- Public portal access is now a real flow instead of a redirect-only entry. `/portal` is public, `/portal/register` submits church-scoped access requests, and church-admins review those requests from `/app/church-admin/accounts`.
-- Event operations now have a dedicated tenant workspace at `/app/church-admin/events/[id]` for roster assignment, roster confirmation, quick check-in, visitor capture, and seven-day burnout visibility.
-- Member identity is now safer and more practical for church operations. Portal-facing actions use `member_number` instead of raw UUIDs, offline people records are supported before auth accounts exist, and invited users can merge back onto those existing profiles.
-- The member home now shows attendance history, upcoming serving assignments, and additional self-service profile controls such as `preferred_contact_method` and `interests`.
-- Audit coverage has been extended to the new attendance, roster, and account-request write paths.
+- ChurchForge now includes a first reporting-suite foundation under `/app/reports`, `/app/reports/members`, `/app/reports/events`, and `/app/reports/giving` for pastor and church-admin roles, with graphical dashboards, range switching, and preview-safe data loading.
+- Member reporting now surfaces attendance momentum, engagement mix, membership-status distribution, and a Shepherding Watchlist for quiet-drift visibility.
+- Event reporting now surfaces turnout curves, category yield, weekday rhythm, check-in method usage, and volunteer pressure context on top events.
+- Giving reporting now goes beyond totals into donor journey, gift mix, and fund breakdown, while preserving anonymous-giving protections.
+- Tenant giving and communications dashboards no longer crash when Supabase env vars are missing; they now render safe empty states in preview or reduced-backend mode.
 
 ## Getting Started
 
@@ -92,6 +93,10 @@ Primary routes:
 - `/app/church-admin/accounts` church-admin account-request approval queue
 - `/app/church-admin/events/[id]` event-specific attendance and roster workspace with quick check-in, burnout warnings, and visitor add flow
 - `/app/church-admin/ministry/[id]` Ministry Forge dashboard (health score, vision board, volunteer matcher)
+- `/app/reports` graphical reporting suite overview for pastor and church-admin
+- `/app/reports/members` member intelligence dashboard with attendance, engagement, and drift reporting
+- `/app/reports/events` event intelligence dashboard with turnout, staffing pressure, and visitor-touch reporting
+- `/app/reports/giving` giving intelligence dashboard with fund, donor-journey, and generosity-mix reporting
 - `/app/member/directory` member-facing directory route
 - `/app/member/family` member-facing household route
 - `/app/member/ministries` member-facing ministry assignments route
@@ -150,6 +155,7 @@ public/               Static assets
 - ChurchAdmin people management now includes household reassignment and duplicate-profile merge tooling, with merged profiles retired from downstream member and pastor views.
 - The church-admin side now includes `/app/church-admin/accounts` for reviewing public portal requests, approving them with generated member numbers, and sending member invites when the tenant service-role key is configured.
 - The church-admin and pastor flows now include `/app/church-admin/events/[id]`, an event-specific attendance and roster workspace with quick check-in, visitor capture, roster confirmation, and seven-day burnout warnings.
+- Church leadership roles now also have `/app/reports`, `/app/reports/members`, `/app/reports/events`, and `/app/reports/giving`, a first reporting-suite foundation with graphical stewardship dashboards and preview-safe fallback behavior.
 - The churchgoer portal now has a public `/portal` landing page plus `/portal/register`, where prospective members can request portal access and be linked to an existing profile by email when possible.
 - The member experience is now split further into dedicated directory and household routes, and the main member home now includes attendance history, upcoming serving assignments, and interest / contact-preference self-service.
 - The pastor role now resolves to a pastor-specific workspace backed by tenant profile, ministry, and follow-up data instead of the generic role shell.
@@ -187,6 +193,7 @@ Every significant change must keep these files current:
 
 Current tracked follow-up:
 
+- See `Reports-implementation.md` for the reporting-suite implementation plan covering member, event, giving, ministry, communications, outreach, and executive dashboards.
 - See `ministry-spec.md` for the repo-level ministry source-of-truth and doc index for Ministry Forge planning.
 - See `docs/todo.md` for the remaining Supabase project hookup steps.
 - See `docs/church-admin-people.md` for the current ChurchAdmin people-management scope.

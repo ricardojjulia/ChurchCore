@@ -10,7 +10,7 @@ import {
   Tabs,
   Text,
 } from "@mantine/core";
-import { BarChart2, DollarSign, RefreshCw } from "lucide-react";
+import { BarChart2, DollarSign, RefreshCw, TrendingUp } from "lucide-react";
 
 import { ApplicationShell } from "@/components/application/app-shell";
 import type { ChurchAppSession } from "@/lib/auth";
@@ -62,6 +62,12 @@ export function GivingDashboard({
       description: "Donation reports",
       icon: BarChart2,
       active: true,
+    },
+    {
+      href: "/app/reports/giving",
+      label: "Reports",
+      description: "Reporting suite",
+      icon: TrendingUp,
     },
   ];
 

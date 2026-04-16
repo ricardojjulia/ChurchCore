@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   createTenantServerClient,
+  hasTenantBackendEnv,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
@@ -36,9 +37,18 @@ export type CommunicationsHubData = {
   recipients: CommunicationRecipient[];
 };
 
+const EMPTY_COMMUNICATIONS_HUB_DATA: CommunicationsHubData = {
+  recentLogs: [],
+  recipients: [],
+};
+
 export async function getCommunicationsHubData(
   session: ChurchAppSession,
 ): Promise<CommunicationsHubData> {
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    return EMPTY_COMMUNICATIONS_HUB_DATA;
+  }
+
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {

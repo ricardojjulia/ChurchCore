@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   createTenantServerClient,
+  hasTenantBackendEnv,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
@@ -43,9 +44,26 @@ export type GivingDashboardData = {
   recurringCount: number;
 };
 
+const EMPTY_DONOR_PORTAL_DATA: DonorPortalData = {
+  donations: [],
+  totalGiven: 0,
+};
+
+const EMPTY_GIVING_DASHBOARD_DATA: GivingDashboardData = {
+  recentDonations: [],
+  reportByFund: [],
+  totalThisMonth: 0,
+  totalAllTime: 0,
+  recurringCount: 0,
+};
+
 export async function getDonorPortalData(
   session: ChurchAppSession,
 ): Promise<DonorPortalData> {
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    return EMPTY_DONOR_PORTAL_DATA;
+  }
+
   const churchId = session.appContext.church.id;
   const profileId = session.profile.id;
 
@@ -104,6 +122,10 @@ export async function getDonorPortalData(
 export async function getGivingDashboardData(
   session: ChurchAppSession,
 ): Promise<GivingDashboardData> {
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    return EMPTY_GIVING_DASHBOARD_DATA;
+  }
+
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {

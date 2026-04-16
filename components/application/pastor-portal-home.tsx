@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  BarChart2,
   BrainCircuit,
   HeartPulse,
   Phone,
@@ -69,6 +70,12 @@ export function PastorPortalHome({
           label: "People",
           description: "Directory and follow-up",
           icon: UsersRound,
+        },
+        {
+          href: "/app/reports",
+          label: "Reports",
+          description: "Members, events, giving",
+          icon: BarChart2,
         },
       ]}
     >
