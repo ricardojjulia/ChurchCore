@@ -225,7 +225,7 @@ export async function getMinistryForgeList(
           m.scriptural_anchor,
           m.health_score,
           m.last_health_assessment,
-          count(pm.id)::text as member_count
+          count(pm.profile_id)::text as member_count
         from public.ministries m
         left join public.profile_ministries pm
           on pm.ministry_id = m.id
