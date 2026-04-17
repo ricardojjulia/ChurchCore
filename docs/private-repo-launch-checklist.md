@@ -9,6 +9,7 @@ Use this checklist immediately after creating the private GitHub repository for 
 - Require the CI workflow to pass before merge.
 - Require at least one review on pull requests.
 - Restrict force pushes and branch deletion on protected branches.
+- Replace the placeholder in `.github/CODEOWNERS` with the real GitHub handle or team slug for the repository owner.
 
 ## Security Features
 
@@ -30,6 +31,8 @@ The repository already includes workflow-level checks for CI, CodeQL, dependency
 - Run `npx supabase db reset`.
 - Run `./supabase/scripts/create-dev-users.sh`.
 - Read the generated local demo credentials from `.demo-credentials.local`.
+- Or use `npm run setup:local` as the one-command setup path.
+- With the app server running, use `npm run smoke:preview` and `npm run smoke:local`.
 
 ## First Review Pass
 

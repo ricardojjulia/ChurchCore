@@ -49,6 +49,12 @@ SUPABASE_DB_URL=postgresql://postgres:<local-db-password>@127.0.0.1:54322/postgr
 ### 3. Apply migrations and seed
 
 ```bash
+npm run setup:local
+```
+
+Equivalent manual flow:
+
+```bash
 # Apply all migrations (wipes and recreates the DB)
 npx supabase db reset
 
@@ -72,6 +78,11 @@ The password is either:
 
 - the value of `CHURCHFORGE_DEV_PASSWORD`, if you set it before running the script
 - or a generated password printed by the script and saved to `.demo-credentials.local`
+
+The generated file also includes:
+
+- `CHURCHFORGE_DEMO_ADMIN_EMAIL`
+- `CHURCHFORGE_DEMO_MEMBER_EMAIL`
 
 Sarah can access:
 - `/app` — Church admin workspace
@@ -140,6 +151,15 @@ npx supabase stop
 
 # Full reset (wipes DB, re-runs all migrations, re-seeds)
 npx supabase db reset && ./supabase/scripts/create-dev-users.sh
+
+# One-command setup helper
+npm run setup:local
+
+# Preview-mode smoke checks (requires app server running)
+npm run smoke:preview
+
+# Local seeded-mode smoke checks (requires app server running)
+npm run smoke:local
 
 # Open Studio (database browser)
 open http://127.0.0.1:54323

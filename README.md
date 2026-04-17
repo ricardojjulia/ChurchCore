@@ -37,6 +37,7 @@ Current plan target:
 - Included demo scope: preview mode without a backend, or local Supabase with seeded Grace Harbor Church data
 - Current repo posture: local credential material is not committed; demo credentials are generated locally by the bootstrap script and saved to the gitignored `.demo-credentials.local`
 - Security posture in repo: lint/build CI plus CodeQL, dependency review, and secret-scanning workflows for GitHub
+- Evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, and `npm run smoke:local`
 
 ## Release 2.11.1 Highlights
 
@@ -170,9 +171,29 @@ npm run dev
 
 Open `http://localhost:3000`. The app runs in **preview mode** with no backend — all data is in-memory stubs.
 
+Quick local evaluator path:
+
+```bash
+npm run setup:local
+npm run dev
+```
+
+In another terminal:
+
+```bash
+npm run smoke:preview
+npm run smoke:local
+```
+
 ### Local Supabase (full backend)
 
 For a fully operational local environment with real data:
+
+```bash
+npm run setup:local
+```
+
+Equivalent manual flow:
 
 ```bash
 # 1. Start Docker, then:
@@ -195,6 +216,7 @@ SUPABASE_DB_URL=postgresql://postgres:<local-db-password>@127.0.0.1:54322/postgr
 
 > **Important:** Use the `eyJ…` JWT key, not the `sb_publishable_*` key shown in the default `supabase status` output. The JWT key comes from `npx supabase status --output env`.
 > **Optional:** Set `CHURCHFORGE_DEV_PASSWORD` before running `./supabase/scripts/create-dev-users.sh` if you want deterministic demo credentials. Otherwise the script generates a password and writes it to `.demo-credentials.local`.
+> The generated credentials file also includes `CHURCHFORGE_DEMO_ADMIN_EMAIL` and `CHURCHFORGE_DEMO_MEMBER_EMAIL` for smoke-test automation.
 
 **Dev accounts after seeding:**
 
@@ -225,6 +247,7 @@ Architectural note:
 - The current single-project local Supabase setup is transitional and must not be treated as the final model.
 
 For the current local Supabase development endpoints, keys, and service URLs, see `SUPABASE.md`.
+For owner assignment after repo creation, replace the placeholder in `.github/CODEOWNERS` with the real GitHub handle or team slug.
 
 Primary routes:
 

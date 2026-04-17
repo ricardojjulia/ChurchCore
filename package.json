@@ -9,7 +9,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "check": "npm run lint && npm run build"
+    "check": "npm run lint && npm run build",
+    "setup:local": "./supabase/scripts/setup-local.sh",
+    "smoke:preview": "./supabase/scripts/smoke-demo.sh preview",
+    "smoke:local": "./supabase/scripts/smoke-demo.sh local"
   },
   "dependencies": {
     "@mantine/core": "^9.0.1",

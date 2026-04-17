@@ -6,6 +6,16 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Added
+
+- Added local evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, and `npm run smoke:local`, backed by `supabase/scripts/setup-local.sh` and `supabase/scripts/smoke-demo.sh`.
+- Added a placeholder `.github/CODEOWNERS` template so owner assignment has an obvious home immediately after repository creation.
+
+### Changed
+
+- `create-dev-users.sh` now writes shell-compatible demo credential metadata into `.demo-credentials.local`, including admin/member email variables for local automation.
+- README and local setup docs now point evaluators to the setup/smoke helpers and explicitly call out the pending `CODEOWNERS` owner replacement step.
+
 ## [2.11.1] - 2026-04-17
 
 ### Overview
