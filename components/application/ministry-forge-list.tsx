@@ -3,7 +3,6 @@
 import Link from "next/link";
 import {
   Badge,
-  Button,
   Group,
   Paper,
   SimpleGrid,

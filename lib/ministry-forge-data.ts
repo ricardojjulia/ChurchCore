@@ -19,14 +19,11 @@ import type {
   DiscipleshipVelocity,
   EducationCourse,
   EducationTrackData,
-  HealthHistoryEntry,
-  KingdomImpactEntry,
   LifeStageCircle,
   MarriageCohort,
   MarriageTrackData,
   MemberDoctrinalProgress,
   MemberMinistriesData,
-  MemberMinistryEntry,
   MensTrackData,
   MentorCouple,
   MentorshipPair,
@@ -57,44 +54,6 @@ import {
   BURNOUT_THRESHOLD_HIGH,
   BURNOUT_THRESHOLD_MEDIUM,
 } from "@/lib/ministry-forge-types";
-
-// ============================================================
-// Health score computation (Phase 2 foundation — rule-based)
-// Formula: (attendanceRate * 0.4) + (memberEngagement * 0.3)
-//          + (retention * 0.2) + (impactCount * 0.1)
-// Phase 3 will make this AI-assisted.
-// ============================================================
-function computeHealthScore(params: {
-  memberCount: number;
-  recentAttendanceCount: number;
-  activeAssignmentCount: number;
-  impactCount90d: number;
-}): number {
-  const { memberCount, recentAttendanceCount, activeAssignmentCount, impactCount90d } = params;
-
-  if (memberCount === 0) return 0;
-
-  // Attendance rate: recent attendances vs expected (members * 4 weeks)
-  const expectedAttendances = memberCount * 4;
-  const attendanceRate = Math.min(recentAttendanceCount / Math.max(expectedAttendances, 1), 1);
-
-  // Engagement: active care assignments relative to member count
-  const engagement = Math.min(activeAssignmentCount / Math.max(memberCount, 1), 1);
-
-  // Retention: simple flat score when member count >= 2
-  const retention = memberCount >= 2 ? 0.8 : 0.4;
-
-  // Impact: normalize to a 0-1 score, cap at 10 impacts = 1.0
-  const impactRate = Math.min(impactCount90d / 10, 1);
-
-  const raw =
-    attendanceRate * 0.4 +
-    engagement * 0.3 +
-    retention * 0.2 +
-    impactRate * 0.1;
-
-  return Math.round(raw * 10 * 100) / 100; // 0–10 scale, 2 decimal places
-}
 
 function buildBurnoutWarnings(members: MinistryMember[]): string[] {
   return members
@@ -1961,4 +1920,3 @@ export async function getBurnoutCandidates(
     activeTracks: (r.active_tracks as string[]) ?? [],
   }));
 }
-
