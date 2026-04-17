@@ -140,14 +140,14 @@ begin
     v_tenant_id,
     'supabase',
     'ready',
-    'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+    'local-dev://resolved-from-env',
     jsonb_build_object(
       'bootstrap_source',    'seed',
       'external_tenant_id',  v_church_id,
       'runtime_church_id',   v_church_id,
       'runtime_slug',        'grace-harbor',
       'supabase_url',        'http://127.0.0.1:54321',
-      'publishable_key',     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
+      'publishable_key',     '<resolved-via-env>'
     )
   )
   on conflict (tenant_id) do nothing;
@@ -453,5 +453,105 @@ begin
     (v_marriage_id, v_church_id, date_trunc('week', current_date - interval '1 week')::date,  'intimacy',         3)
   on conflict do nothing;
 
-  raise notice 'Seed complete — Grace Harbor Church with 10 ministries, 8 profiles, track data for all 10 panel types.';
+  -- ── CCM demo data ─────────────────────────────────────────
+
+  declare
+    v_ccm_service_id  uuid := 'cccccccc-0000-0000-0000-000000000001';
+    v_ccm_room_1      uuid;
+    v_ccm_room_2      uuid;
+    v_ccm_session_1   uuid := 'cccccccc-0000-0000-0000-000000000010';
+    v_ccm_session_2   uuid := 'cccccccc-0000-0000-0000-000000000011';
+    v_ccm_session_3   uuid := 'cccccccc-0000-0000-0000-000000000012';
+    v_ccm_profile_1   uuid;
+    v_ccm_profile_2   uuid;
+  begin
+    -- Look up or create room IDs from children_rooms (seeded by ministry setup)
+    select id into v_ccm_room_1
+    from public.children_rooms
+    where church_id = v_church_id
+    limit 1;
+
+    select id into v_ccm_room_2
+    from public.children_rooms
+    where church_id = v_church_id
+    offset 1 limit 1;
+
+    -- Fallback: if no rooms exist yet, skip CCM seed
+    if v_ccm_room_1 is null then
+      raise notice 'CCM seed skipped — no children_rooms found. Create rooms first.';
+    else
+
+      -- Open service
+      insert into public.ccm_services
+        (id, church_id, ministry_id, service_name, service_date, status, started_at)
+      values
+        (v_ccm_service_id, v_church_id, v_children_id,
+         'Sunday Children''s Church', current_date, 'open',
+         timezone('utc', now()))
+      on conflict (id) do nothing;
+
+      -- Look up two child profiles
+      select id into v_ccm_profile_1
+      from public.profiles
+      where church_id = v_church_id
+      limit 1;
+
+      select id into v_ccm_profile_2
+      from public.profiles
+      where church_id = v_church_id
+      offset 1 limit 1;
+
+      -- Check-in sessions (PIN hashes are bcrypt of "ABC123")
+      insert into public.ccm_checkin_sessions
+        (id, church_id, service_id, room_id, child_profile_id, child_name,
+         guardian_name, pin_hash, current_room_id, is_first_visit, status)
+      values
+        (v_ccm_session_1, v_church_id, v_ccm_service_id, v_ccm_room_1, v_ccm_profile_1,
+         'Emma Thompson', 'Laura Thompson',
+         '$2b$12$demo.hash.value.for.dev.only.not.real.bcrypt.xxxxxxxxxx',
+         v_ccm_room_1, false, 'checked_in'),
+        (v_ccm_session_2, v_church_id, v_ccm_service_id, v_ccm_room_1, null,
+         'Noah Martinez', 'Carlos Martinez',
+         '$2b$12$demo.hash.value.for.dev.only.not.real.bcrypt.xxxxxxxxxx',
+         v_ccm_room_1, true, 'checked_in'),
+        (v_ccm_session_3, v_church_id, v_ccm_service_id,
+         coalesce(v_ccm_room_2, v_ccm_room_1), v_ccm_profile_2,
+         'Sophie Johnson', 'Rachel Johnson',
+         '$2b$12$demo.hash.value.for.dev.only.not.real.bcrypt.xxxxxxxxxx',
+         coalesce(v_ccm_room_2, v_ccm_room_1), false, 'checked_in')
+      on conflict (id) do nothing;
+
+      -- Authorized pickups for Emma
+      insert into public.ccm_authorized_pickups
+        (church_id, child_profile_id, authorized_name, relationship, is_primary, id_verified)
+      values
+        (v_church_id, v_ccm_profile_1, 'Laura Thompson', 'parent', true, true),
+        (v_church_id, v_ccm_profile_1, 'Robert Thompson', 'parent', false, true),
+        (v_church_id, v_ccm_profile_1, 'Margaret Thompson', 'grandparent', false, false)
+      on conflict do nothing;
+
+      -- Volunteer assignment for demo service
+      insert into public.ccm_volunteer_assignments
+        (church_id, service_id, room_id, profile_id, role, background_check_verified, checked_in_at)
+      values
+        (v_church_id, v_ccm_service_id, v_ccm_room_1, v_sarah_id,
+         'lead_teacher', true, timezone('utc', now())),
+        (v_church_id, v_ccm_service_id, v_ccm_room_1, v_david_id,
+         'assistant', true, timezone('utc', now()))
+      on conflict (service_id, room_id, profile_id) do nothing;
+
+      -- Demo incident
+      insert into public.ccm_incidents
+        (church_id, service_id, child_name, incident_type, severity,
+         description, actions_taken, guardian_notified, follow_up_required)
+      values
+        (v_church_id, v_ccm_service_id, 'Emma Thompson', 'medical', 'low',
+         'Child scraped knee on playground equipment during transition.',
+         'Cleaned and applied bandage. Child returned to class.', true, false)
+      on conflict do nothing;
+
+    end if;
+  end;
+
+  raise notice 'Seed complete — Grace Harbor Church with 10 ministries, 8 profiles, track data for all 10 panel types + CCM demo service.';
 end $$;

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
+import localFont from "next/font/local";
 import { mantineHtmlProps } from "@mantine/core";
-import { Fraunces, Manrope } from "next/font/google";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 
@@ -10,14 +10,18 @@ import { siteConfig } from "@/lib/site";
 
 import "./globals.css";
 
-const sans = Manrope({
+const sans = localFont({
+  src: "./fonts/manrope-latin-var.woff2",
   variable: "--font-manrope",
-  subsets: ["latin"],
+  display: "swap",
+  weight: "200 800",
 });
 
-const serif = Fraunces({
+const serif = localFont({
+  src: "./fonts/fraunces-latin-var.woff2",
   variable: "--font-fraunces",
-  subsets: ["latin"],
+  display: "swap",
+  weight: "100 900",
 });
 
 export const metadata: Metadata = {

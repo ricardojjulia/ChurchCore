@@ -6,6 +6,93 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [2.11.1] - 2026-04-17
+
+### Overview
+
+Release 2.11.1 is the first private-repo readiness snapshot for ChurchForge. It keeps the new CCM module intact while hardening the repository for invited evaluation: local credential material is no longer embedded in setup paths, repo metadata is aligned to the current release state, and GitHub-side security workflows are added alongside the existing lint/build checks.
+
+### Fixed
+
+- CCM local-read paths now degrade safely when the local tenant database has not applied the CCM migration yet, instead of crashing the route on `relation "public.ccm_services" does not exist`.
+- The local CCM "Open Service" action now returns an explicit setup message telling the operator to rerun `npx supabase db reset && ./supabase/scripts/create-dev-users.sh` when the CCM schema is missing.
+- Added a follow-up migration to correct audit trigger functions that still wrote `audit_log.changed_by` after the audit schema standardized on `actor_id`. This unblocks local resets and CCM seed/bootstrap flows.
+- Bundled the app fonts locally and switched off `next/font/google` so production builds no longer depend on live Google font downloads.
+
+### Changed
+
+- `supabase/scripts/create-dev-users.sh` now loads local env from `.env.local`, requires `SUPABASE_SERVICE_ROLE_KEY` from env instead of embedding it, generates a local demo password when one is not supplied, and saves the result to the gitignored `.demo-credentials.local`.
+- Repo docs no longer publish exact local Supabase auth/storage keys or a fixed demo password. Setup guides now tell contributors how to derive local values from `npx supabase status --output env`.
+- Seeded tenant-connection metadata now uses neutral local placeholders instead of committed token-shaped values.
+- Added repo scaffolding for private collaboration: `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, and GitHub workflows for CodeQL, dependency review, and secret scanning.
+
+## [2.11.0] - 2026-04-17
+
+### Overview
+
+Release 2.11.0 ships the **Children's Church Ministry (CCM) module** — a full operational check-in, safety, and roster system. Benchmarked against Planning Center Check-Ins, KidCheck, Shelby Arena, Ministry Safe, the Church GRACE guidelines, and COPPA, the module addresses all 16 identified gaps in the user's original specification and delivers a production-ready child safety system with PIN/QR pickup verification, custody restriction enforcement, two-adult rule monitoring, emergency evacuation rosters, and insurance-grade incident reporting.
+
+---
+
+### Added — Children's Church Ministry (CCM) Module
+
+#### Database (`supabase/migrations/20260501000000_ccm_module.sql`)
+
+- **`ccm_services`** — service session per event date. Status lifecycle: `open` → `closed` | `emergency`. Grouped check-ins, incidents, and volunteer assignments per service.
+- **`ccm_checkin_sessions`** — per-child check-in record. `pin_hash text` stores a bcrypt-12 hash; the plaintext PIN is returned exactly once at creation and never persisted. `qr_token uuid` is service-scoped to prevent replay attacks: a QR code from a prior service will not match the current open service's token.
+- **`ccm_authorized_pickups`** — relational authorized guardian table (replaces `authorized_guardians text[]`). Includes relationship type, phone, photo URL, ID-verified flag, and primary-guardian flag.
+- **`ccm_custody_restrictions`** — restricted individuals per child. Readable by `can_manage_church()` only — zero member or volunteer read path. Court-order flag, relationship, and encrypted notes.
+- **`ccm_volunteer_assignments`** — per-volunteer per-room per-service record powering the two-adult rule engine. Background-check-verified flag and check-in/check-out timestamps.
+- **`ccm_incidents`** — insurance-required incident reports. Type (medical, behavioral, security, property, near_miss, other), severity (low/medium/high/critical), guardian-notified flag, and follow-up flag.
+- **`ccm_badge_print_jobs`** — print audit log (badge type, printer, printed-by).
+- Extends `children_sensitive_data` with `dob`, `photo_url`, `no_photo_flag`, `allergies jsonb` (structured: `[{name, severity}]`), `special_needs_notes`, `custody_notes`.
+- `generate_checkin_pin()` Postgres function — 6-character code from an unambiguous charset (no O, 0, I, 1, B, 8, S, 5, Z, 2).
+- `audit_ccm_access()` trigger on `ccm_checkin_sessions`, `ccm_authorized_pickups`, `ccm_custody_restrictions`, and `ccm_incidents` — all writes recorded to `audit_log`.
+
+#### Types and Data Layer
+
+- **`lib/ccm-types.ts`** — complete shared type system. `pin_hash` is never present in any TypeScript read type; `CcmCheckinResult` returns the plaintext PIN once for badge printing only.
+- **`lib/ccm-data.ts`** — dual-path data fetchers following the `shouldUseLocalTenantFallback()` pattern. `getCcmDashboard` computes `twoAdultRuleMet`, `ratioStatus`, late pickups, and open incidents. `getEmergencyRoster` returns a stripped view (name, room, allergy only — no private medical notes) for emergency use.
+- **`app/app/ccm-actions.ts`** — server actions with bcrypt PIN hashing (bcryptjs, cost 12). `checkinChildAction` generates and hashes the PIN atomically. `checkoutChildAction` verifies via `bcrypt.compare` or QR token match. All actions protected by `requireCcmSession()` (church-admin role required).
+
+#### Routes (`app/app/church-admin/children/`)
+
+17 new server-component pages: dashboard, checkin kiosk, checkout kiosk, child directory, child profile, new child registration, services list, new service, service detail, roster, emergency roster, incidents list, new incident, volunteers, rooms, settings, and root redirect.
+
+#### UI Components (`components/application/`)
+
+- **`ccm-nav.ts`** — `ccmNavItems(activePath)` sidebar helper with 10 items.
+- **`ccm-dashboard.tsx`** — live service dashboard. Ratio exceeded / two-adult rule violation alert banners. Summary strip (checked-in / checked-out / late pickups / open incidents). `CcmRoomCard` SimpleGrid.
+- **`ccm-room-card.tsx`** — per-room card with ratio Progress bar, two-adult rule `ShieldAlert`, volunteer chips with background-check expiry coloring.
+- **`ccm-checkin-kiosk.tsx`** — drop-off kiosk. Check-in form → `checkinChildAction` → `CcmBadgePreview` on success.
+- **`ccm-checkout-kiosk.tsx`** — pick-up station. Two-step: child search (filtered cards with allergy/no-photo badges) → PIN/QR verification. Calls `checkoutChildAction` with `bcrypt.compare` server-side.
+- **`ccm-badge-preview.tsx`** — client-side badge renderer. `AllergyBar` in red for anaphylactic/moderate allergies. `NO PHOTOS` red banner when `no_photo_flag` is set. PIN in 28pt monospace for easy reading. Guardian claim check with matching PIN. `window.print()` trigger.
+- **`ccm-child-profile.tsx`** — child directory list + profile editor. `CcmChildProfileView` renders custody restriction red Alert at the highest visual position. Structured `AllergyEditor`. Authorized pickups table with inline add form. Background check status.
+- **`ccm-roster.tsx`** — full service roster (`CcmRosterView`) and emergency roster (`CcmEmergencyRoster`) grouped by room, stripped of PII, print-optimized.
+- **`ccm-incident-form.tsx`** — incident list (`CcmIncidentList`) and filing form (`CcmIncidentForm`). High/critical severity fires a staff-action prompt. Guardian notified and follow-up checkboxes.
+- **`ccm-volunteer-panel.tsx`** — volunteer assignments per service. Background check verification badges. Expiring-soon warnings. Assign form (role + BG check flag).
+- **`ccm-service-manager.tsx`** — service list, open-service form, service detail with close-service action, room manager, and module settings (ratio thresholds, late-pickup timeout, two-adult enforcement, COPPA data retention notice).
+
+#### Navigation Integration
+
+- `components/application/portal-workspace.tsx` — added "Children's Ministry" nav item (ShieldCheck icon) after Finance for church-admin role.
+- `components/application/ministry-track-children.tsx` — added "Open Full CCM Module" button linking to `/app/church-admin/children`.
+
+#### Seed Data
+
+- `supabase/seed.sql` — CCM demo service (open), three check-in sessions (Emma Thompson, Noah Martinez, Sophie Johnson), authorized pickups, two volunteer assignments (lead teacher + assistant), and a low-severity demo incident.
+
+#### Security Architecture
+
+- **PIN hashing**: bcrypt cost 12. Plaintext PIN returned once at creation and immediately discarded. `pin_hash` is never exposed in TypeScript read types.
+- **QR replay prevention**: `qr_token` is UUID-per-session. QR encodes `{serviceId}:{sessionId}:{qrToken}`; a token from a prior service fails because the `service_id` won't match the current open service.
+- **Custody restrictions**: `can_manage_church()` read-only — no volunteer or member path. Rendered as a full-width red Alert at the top of the checkout UI before the release button is reachable.
+- **Two-adult rule**: `confirmedVolunteers.filter(v => v.checkedInAt).length >= 2`. Dashboard shows red `ShieldAlert` badge and top-level alert when unmet.
+- **Audit trail**: all CCM PII table writes logged to `audit_log` via triggers.
+- **Data retention**: COPPA — check-in records 7-year liability retention, child PII annual review, custody restrictions retained indefinitely until manually removed by church admin.
+
+---
+
 ## [2.10.0] - 2026-04-17
 
 ### Overview

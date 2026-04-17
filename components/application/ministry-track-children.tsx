@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import {
   Alert,
   Badge,
+  Button,
   Group,
   Paper,
   Progress,
@@ -13,7 +15,7 @@ import {
   ThemeIcon,
   Title,
 } from "@mantine/core";
-import { AlertTriangle, CheckCircle, ShieldAlert, ShieldCheck, Users } from "lucide-react";
+import { AlertTriangle, CheckCircle, ExternalLink, ShieldAlert, ShieldCheck, Users } from "lucide-react";
 
 import { AI_ASSISTIVE_DISCLAIMER } from "@/lib/ministry-forge-types";
 import type { ChildrenTrackData } from "@/lib/ministry-forge-types";
@@ -28,12 +30,31 @@ export function ChildrenTrackPanel({ data }: { data: ChildrenTrackData }) {
   const { rooms, recentCheckins, safetySnapshot, backgroundChecksDue } = data;
 
   const alertRooms = safetySnapshot.filter((r) => r.ratioStatus === "alert");
+
+  // ── CCM Module link ──────────────────────────────────────────────────────
+  const ccmModuleLink = (
+    <Group justify="flex-end" mb="md">
+      <Button
+        component={Link}
+        href="/app/church-admin/children"
+        variant="light"
+        color="churchBlue"
+        size="sm"
+        leftSection={<ShieldCheck size={14} />}
+        rightSection={<ExternalLink size={12} />}
+      >
+        Open Full CCM Module
+      </Button>
+    </Group>
+  );
   const warningRooms = safetySnapshot.filter((r) => r.ratioStatus === "warning");
   const overdueChecks = backgroundChecksDue.filter((p) => !p.clearanceDate);
   const expiringSoon = backgroundChecksDue.filter((p) => p.clearanceDate);
 
   return (
     <Stack gap="lg">
+      {ccmModuleLink}
+
       {/* Safety Index Alert Banner */}
       {alertRooms.length > 0 && (
         <Alert

@@ -23,6 +23,9 @@
 # misc
 .DS_Store
 *.pem
+.claude/
+.sixth/
+.demo-credentials.local
 
 # debug
 npm-debug.log*

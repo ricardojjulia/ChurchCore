@@ -27,20 +27,20 @@ This launches the local stack: Postgres, Auth, REST API, Studio, and Mailpit. Se
 | API       | http://127.0.0.1:54321     |
 | Studio    | http://127.0.0.1:54323     |
 | Mailpit   | http://127.0.0.1:54324     |
-| DB (psql) | postgresql://postgres:postgres@127.0.0.1:54322/postgres |
+| DB (psql) | postgresql://postgres:<local-db-password>@127.0.0.1:54322/postgres |
 
 ### 2. Configure `.env.local`
 
-Your `.env.local` should contain:
+Your `.env.local` should contain values derived from `npx supabase status --output env`:
 
 ```env
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 # Local Supabase
 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
-SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJ...   # ANON_KEY from supabase status --output env
+SUPABASE_SERVICE_ROLE_KEY=eyJ...              # SERVICE_ROLE_KEY from supabase status --output env
+SUPABASE_DB_URL=postgresql://postgres:<local-db-password>@127.0.0.1:54322/postgres
 ```
 
 > **Note:** The publishable key is the JWT `eyJ…` format. The `sb_publishable_*` format shown in `supabase status` (non-`--output env`) is NOT compatible with `@supabase/ssr`.
@@ -57,15 +57,21 @@ npx supabase db reset
 ```
 
 > `db reset` wipes `auth.users`. You must run `create-dev-users.sh` after every reset.
+> When `CHURCHFORGE_DEV_PASSWORD` is not set, the script generates a local password and writes it to the gitignored `.demo-credentials.local`.
 
 ---
 
 ## Development Accounts
 
-| Email | Password | Role |
-|-------|----------|------|
-| `sarah@churchforge.app` | `Password123!` | Church Admin + Platform Admin |
-| `david@graceharbor.church` | `Password123!` | Member |
+| Email | Role |
+|-------|------|
+| `sarah@churchforge.app` | Church Admin + Platform Admin |
+| `david@graceharbor.church` | Member |
+
+The password is either:
+
+- the value of `CHURCHFORGE_DEV_PASSWORD`, if you set it before running the script
+- or a generated password printed by the script and saved to `.demo-credentials.local`
 
 Sarah can access:
 - `/app` — Church admin workspace
@@ -80,7 +86,7 @@ David can access:
 
 The seed creates **Grace Harbor Church** with the following:
 
-### Ministries (all 6, including all 5 track panel types)
+### Ministries (10 total)
 
 | Ministry | Type | Track Panel |
 |----------|------|-------------|
@@ -89,7 +95,11 @@ The seed creates **Grace Harbor Church** with the following:
 | Women's Ministry | `women` | Women's tab: life-stage circles + support pairings |
 | Marriage Ministry | `marriage` | Marriage tab: mentor couples + enrichment cohorts |
 | Global Missions | `missions` | Missions tab: partners + trip roster with impact |
-| Community Outreach | `outreach` | No track tab (general type) |
+| Community Outreach | `outreach` | Outreach tab: events + zones |
+| Children's Church | `children` | CCM dashboard + services + check-in/check-out |
+| Youth Ministry | `youth` | Youth tab: milestones + readiness tracking |
+| Young Adults | `young_adult` | Young adults tab: mentorship pairs |
+| Discipleship Classes | `education` | Education tab: course coverage |
 
 ### Profiles
 
@@ -111,6 +121,11 @@ The seed creates **Grace Harbor Church** with the following:
 - **Women's:** 3 life-stage circles, 2 support pairings
 - **Marriage:** 2 mentor couples, 2 enrichment cohorts
 - **Missions:** 3 partner organizations, 2 trips (1 completed, 1 confirmed)
+- **Outreach:** 5 events and 5 neighborhood zones
+- **CCM:** 1 open service, 3 check-in sessions, volunteer assignments, pickups, and 1 incident
+- **Youth:** milestone and graduation-readiness demo data
+- **Young Adults:** career mentorship demo data
+- **Education:** 7 discipleship courses with enrollment coverage data
 
 ---
 
@@ -145,7 +160,8 @@ Sign in:         http://localhost:3000/sign-in
 App (member):    http://localhost:3000/app
 Control plane:   http://localhost:3000/control
 Calendar:        http://localhost:3000/app/calendar
-Ministry Forge:  http://localhost:3000/app/church-admin/ministry/overview
+Ministry Forge:  http://localhost:3000/app/church-admin/ministry
+CCM Dashboard:   http://localhost:3000/app/church-admin/children/dashboard
 ```
 
 ---
@@ -195,7 +211,7 @@ npx supabase status --output env
 Use `ANON_KEY` as `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `SERVICE_ROLE_KEY` as `SUPABASE_SERVICE_ROLE_KEY`.
 
 **Track panel tab not showing**
-The tab appears only when `ministry.ministry_type` is one of: `worship`, `men`, `women`, `marriage`, `missions`. The seed sets these correctly for the 5 demo ministries.
+The specialized tabs appear only when `ministry.ministry_type` is one of: `worship`, `men`, `women`, `marriage`, `missions`, `children`, `youth`, `young_adult`, `education`, `outreach`. The seed sets these correctly for the 10 demo ministries.
 
 **RLS blocking queries in dev**
 The local fallback path uses raw SQL (bypassing RLS) when `SUPABASE_DB_URL` is set and the URL includes `127.0.0.1`. If you're seeing empty data, check that `SUPABASE_DB_URL` is set in `.env.local`.

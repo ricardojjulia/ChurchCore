@@ -95,6 +95,13 @@ export function PortalWorkspace({
         icon: Landmark,
         active: false,
       },
+      {
+        href: "/app/church-admin/children",
+        label: "Children's Ministry",
+        description: "Check-in, safety & roster",
+        icon: ShieldCheck,
+        active: false,
+      },
     );
   }
 

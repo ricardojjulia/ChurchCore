@@ -1,8 +1,8 @@
 # Supabase Local Development
 
-This document records the current local Supabase development environment for ChurchForge.
+This document records the local Supabase workflow for ChurchForge without committing live local tokens into the repository.
 
-These values are for local development only. They are not production-safe.
+These instructions are for local development only. They are not production-safe.
 
 Architectural note:
 
@@ -27,41 +27,33 @@ Architectural note:
 | GraphQL | `http://127.0.0.1:54321/graphql/v1` |
 | Edge Functions | `http://127.0.0.1:54321/functions/v1` |
 
-## Database
+## Getting Local Values
 
-| Field | Value |
-| --- | --- |
-| URL | `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
+Use these commands on your own machine instead of copying token values from the repository:
 
-## Authentication Keys
+```bash
+npx supabase status
+npx supabase status --output env
+```
 
-| Key | Value |
-| --- | --- |
-| Publishable | `sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH` |
-| Secret | `sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz` |
-
-## Storage (S3)
-
-| Field | Value |
-| --- | --- |
-| URL | `http://127.0.0.1:54321/storage/v1/s3` |
-| Access Key | `625729a08b95bf1b7ff351a663f3a23c` |
-| Secret Key | `850181e4652dd023b7a98c58ae0d2d34bd487ee0cc3254aed6eda37307425907` |
-| Region | `local` |
+The second command prints the JWT-format keys that ChurchForge expects in `.env.local`.
 
 ## ChurchForge Environment Mapping
 
-The local app should be configured with:
+The local app should be configured with values derived from `npx supabase status --output env`:
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH
-SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJ...   # ANON_KEY from supabase status --output env
+SUPABASE_SERVICE_ROLE_KEY=eyJ...              # SERVICE_ROLE_KEY from supabase status --output env
+SUPABASE_DB_URL=postgresql://postgres:<local-db-password>@127.0.0.1:54322/postgres
 ```
+
+> **Important:** ChurchForge uses `@supabase/ssr`, which requires the JWT `eyJ...` anon key from `npx supabase status --output env`, not the `sb_publishable_*` format shown by the default status output.
 
 ## Local Dev Security Notice
 
 - All services bind to `0.0.0.0`, so they are network-accessible and not limited to localhost.
-- API keys and JWT secrets are shared local defaults and must never be used in production.
+- Local API keys, storage credentials, and JWT secrets are shared dev defaults. Do not reuse them outside local Supabase.
 - Studio, pgMeta (`/pg/*`), and analytics have no authentication in this local setup.

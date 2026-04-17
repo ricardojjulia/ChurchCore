@@ -1,6 +1,6 @@
 # ChurchForge
 
-ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, guardrailed AI ministry tools, and graphical stewardship reporting. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.8 and is at release `2.10.0`, incorporating the Financial Management module (full double-entry accounting, chart of accounts, budgets, import engine, and financial reports), Advanced Ministry Forge (ten specialized track panels covering all ministry kinds with stewardship metrics and security guardrails), Ministry Forge Phases 1–4, Elders Discernment Room, Pastor Council Forge, Communications Hub, voluntary Stripe donations, GDPR/CCPA data rights, a full pre-launch checklist, complete church-admin people management, the Sprint 2 attendance / roster / member-identity flow, the Advanced Ministry Forge specialization tracks documented in `ministry-spec.md`, the first reporting-suite foundation, and a fully operational local Supabase development environment with seed data.
+ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, guardrailed AI ministry tools, and graphical stewardship reporting. This private evaluation snapshot is aligned to `DEVELOPMENT_PLAN.md` v1.8 and is at release `2.11.1`, incorporating the Children's Church Ministry (CCM) module, the Financial Management module, Advanced Ministry Forge, Communications Hub, GDPR/CCPA data rights, and a fully operational local Supabase development environment with safe demo data.
 
 ## Stack
 
@@ -29,6 +29,21 @@ Current plan target:
 - Security and privacy expectations centered on sensitive-data classification, consent, auditing, and disciplined application security checks.
 - Future Ministry Forge work is now explicitly documented around specialized tracks for men, women, children, youth, young adults, marriage, education, missions, and outreach, with deterministic stewardship metrics and tighter safety/confidentiality rules.
 - Future reporting work is now explicitly documented as a multi-surface reporting suite spanning members, events, giving, ministries, communications, and outreach, with graphical dashboards and differentiated stewardship insights.
+
+## Private Evaluation Snapshot
+
+- Current repo version: `2.11.1`
+- Intended use: private evaluation, invited collaboration, and local demo environments
+- Included demo scope: preview mode without a backend, or local Supabase with seeded Grace Harbor Church data
+- Current repo posture: local credential material is not committed; demo credentials are generated locally by the bootstrap script and saved to the gitignored `.demo-credentials.local`
+- Security posture in repo: lint/build CI plus CodeQL, dependency review, and secret-scanning workflows for GitHub
+
+## Release 2.11.1 Highlights
+
+Release 2.11.1 packages the new **Children's Church Ministry (CCM)** module together with private-repo hardening for invited evaluation. The main product addition is the full child check-in and safety workflow; the repo addition is safer local bootstrap and stronger GitHub-side validation.
+
+- **CCM module:** check-in and checkout kiosks, service dashboard, child profiles, emergency roster, volunteer coordination, custody restrictions, incidents, PIN/QR pickup verification, and seeded demo service data.
+- **Private-repo hardening:** local fonts instead of live Google font fetches, env-driven local bootstrap, generated demo credentials, and removal of committed local token-shaped values from docs and seed metadata.
 
 ## Release 2.10.0 Highlights
 
@@ -167,25 +182,29 @@ npx supabase start
 npx supabase db reset && ./supabase/scripts/create-dev-users.sh
 ```
 
+If you pull a new schema migration such as the CCM module, rerun the reset command before opening the new routes locally.
+
 Your `.env.local` needs these four variables (use JWT-format keys from `npx supabase status --output env`):
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJ...   # ANON_KEY from supabase status --output env
 SUPABASE_SERVICE_ROLE_KEY=eyJ...              # SERVICE_ROLE_KEY from supabase status --output env
-SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+SUPABASE_DB_URL=postgresql://postgres:<local-db-password>@127.0.0.1:54322/postgres
 ```
 
 > **Important:** Use the `eyJ…` JWT key, not the `sb_publishable_*` key shown in the default `supabase status` output. The JWT key comes from `npx supabase status --output env`.
+> **Optional:** Set `CHURCHFORGE_DEV_PASSWORD` before running `./supabase/scripts/create-dev-users.sh` if you want deterministic demo credentials. Otherwise the script generates a password and writes it to `.demo-credentials.local`.
 
 **Dev accounts after seeding:**
 
-| Email                         | Password       | Role                          |
-|-------------------------------|----------------|-------------------------------|
-| `sarah@churchforge.app`       | `Password123!` | Church Admin + Platform Admin |
-| `david@graceharbor.church`    | `Password123!` | Member                        |
+| Email                         | Role                          |
+|-------------------------------|-------------------------------|
+| `sarah@churchforge.app`       | Church Admin + Platform Admin |
+| `david@graceharbor.church`    | Member                        |
 
 See `church-forge-supabasesetup.md` for the complete local setup guide.
+For repository creation and GitHub-side hardening after the first push, use `docs/private-repo-launch-checklist.md`.
 
 For voluntary donations (Sprint 7+), also supply:
 
