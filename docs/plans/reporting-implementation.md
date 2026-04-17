@@ -8,8 +8,8 @@ This plan is intentionally product-forward and engineering-specific. It is desig
 This document should be read alongside:
 
 - `DEVELOPMENT_PLAN.md`
-- `ministry-spec.md`
-- `advanced_ministry_elder_pastor.md`
+- `docs/plans/ministry-spec.md`
+- `docs/plans/advanced-ministry-elders-pastor.md`
 - `docs/advanced-ministry-forge-research-spec.md`
 - `docs/sprint2-attendance-identity-flow.md`
 

@@ -9,12 +9,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ### Added
 
 - Added local evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, and `npm run smoke:local`, backed by `supabase/scripts/setup-local.sh` and `supabase/scripts/smoke-demo.sh`.
-- Added a placeholder `.github/CODEOWNERS` template so owner assignment has an obvious home immediately after repository creation.
+- Added `.github/CODEOWNERS` with the current repository owner to make review ownership explicit from the first push.
 
 ### Changed
 
 - `create-dev-users.sh` now writes shell-compatible demo credential metadata into `.demo-credentials.local`, including admin/member email variables for local automation.
-- README and local setup docs now point evaluators to the setup/smoke helpers and explicitly call out the pending `CODEOWNERS` owner replacement step.
+- README and local setup docs now point evaluators to the setup/smoke helpers and the post-create GitHub hardening checklist.
+- Reorganized the repo documentation tree by moving setup guides into `docs/setup/` and long-form planning documents into `docs/plans/`, which removes document clutter from the repository root and keeps the root focused on active repo controls.
 
 ## [2.11.1] - 2026-04-17
 
@@ -402,7 +403,7 @@ Finance module is restricted to `church-admin` role only. All route pages includ
 
 - Added local Supabase development setup with full schema and seed data. Running `npx supabase db reset && ./supabase/scripts/create-dev-users.sh` applies all migrations and seeds Grace Harbor Church with 8 profiles, 6 ministries (worship, men's, women's, marriage, missions, outreach), health history, kingdom impacts, and complete track-panel data for all five specialized ministry types.
 - Added `supabase/scripts/create-dev-users.sh` — a one-shot script that creates `sarah@churchforge.app` (church-admin + platform-admin) and `david@graceharbor.church` (member) via the Supabase Admin API and re-runs the seed. Required after every `db reset` because Supabase resets `auth.users` on each reset.
-- Added `church-forge-supabasesetup.md` — comprehensive local Supabase setup guide covering prerequisites, first-time setup, `.env.local` configuration, seeded demo accounts and data, day-to-day commands, auth flow notes, key env variable reference, schema bug fixes applied, and troubleshooting.
+- Added `docs/setup/local-supabase.md` — comprehensive local Supabase setup guide covering prerequisites, first-time setup, `.env.local` configuration, seeded demo accounts and data, day-to-day commands, auth flow notes, key env variable reference, schema bug fixes applied, and troubleshooting.
 - Added Ministry Forge Phase 4 track panels (worship, men's, women's, marriage, missions) — five new dedicated management tabs that appear conditionally when a ministry's `ministry_type` matches a panel type. Each panel surfaces type-specific data: song library and rehearsal schedule (worship), mentorship pairs and discipleship groups (men's), life-stage circles and support pairings (women's), mentor couples and enrichment cohorts with confidentiality guardrails (marriage), and mission partners plus trip roster with impact metrics (missions).
 - Added `supabase/migrations/20260421000000_ministry_tracks_phase4.sql` — new tables for `worship_songs`, `worship_rehearsals`, `mentorship_pairs`, `discipleship_groups`, `life_stage_circles`, `support_pairings`, `mentor_couples`, `marriage_cohorts`, `mission_partners`, and `mission_trips`, all with RLS. Marriage tables are manager-only. Mentorship pairs carry an audit trigger.
 - Added `components/application/ministry-track-worship.tsx`, `ministry-track-mens.tsx`, `ministry-track-womens.tsx`, `ministry-track-marriage.tsx`, `ministry-track-missions.tsx` — the five track panel UI components with preview-safe stub data rendering.
@@ -433,7 +434,7 @@ Release 2.8.0 transitions ChurchForge from preview-only mode to a fully operatio
 
 **Env setup:** `.env.local` now documents all four required variables. The publishable key must be the JWT `eyJ…` format from `npx supabase status --output env` — not the `sb_publishable_*` format shown in the default status output, which is incompatible with `@supabase/ssr`.
 
-**Developer workflow:** `npx supabase db reset && ./supabase/scripts/create-dev-users.sh` is the single command that gets a clean local environment with all demo data. Full documentation is in `church-forge-supabasesetup.md`.
+**Developer workflow:** `npx supabase db reset && ./supabase/scripts/create-dev-users.sh` is the single command that gets a clean local environment with all demo data. Full documentation is in `docs/setup/local-supabase.md`.
 
 ## [2.7.0] - 2026-04-15
 
@@ -442,7 +443,7 @@ Release 2.8.0 transitions ChurchForge from preview-only mode to a fully operatio
 - Added the first reporting-suite foundation under `/app/reports`, `/app/reports/members`, `/app/reports/events`, and `/app/reports/giving`, with a shared reporting shell, range switching, graphical dashboards, and preview-safe fallback behavior for pastor and church-admin roles.
 - Added `lib/reports-data.ts` to compute member, event, and giving report datasets across preview, local direct-DB fallback, and live tenant Supabase paths.
 - Added navigation entry points into the reporting suite from existing pastor and church-admin management surfaces.
-- Added `Reports-implementation.md`, a detailed implementation plan for ChurchForge's future reporting suite across members, events, giving, ministries, communications, outreach, and executive stewardship dashboards.
+- Added `docs/plans/reporting-implementation.md`, a detailed implementation plan for ChurchForge's future reporting suite across members, events, giving, ministries, communications, outreach, and executive stewardship dashboards.
 
 ### Changed
 
@@ -559,7 +560,7 @@ Security and tenant separation remain the controlling constraints across the rel
 - Added `NotificationPreferencesForm` reusable component for members to opt in/out of each notification channel from their profile.
 - Added `/app/member/ministries` to the `MemberBottomNav` tab bar (Home, Calendar, Directory, Ministries, Family) and to the PWA offline cache list in `public/sw.js`.
 - Added SendGrid and Twilio env var stubs to `.env.example` (`SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`).
-- Added Phase 4 — Elders Discernment Room foundations: `elder_notes`, `discernment_sessions`, `prayer_requests`, `prayer_acknowledgements` tables with stricter-than-admin RLS via new `can_access_elder_data()` helper (pastor / elder role only — church admins explicitly excluded per `advanced_ministry_elder_pastor.md §9`).
+- Added Phase 4 — Elders Discernment Room foundations: `elder_notes`, `discernment_sessions`, `prayer_requests`, `prayer_acknowledgements` tables with stricter-than-admin RLS via new `can_access_elder_data()` helper (pastor / elder role only — church admins explicitly excluded per `docs/plans/advanced-ministry-elders-pastor.md §9`).
 - Added `council_notes` table for Pastor Council Forge with `note_type` enum (`general`, `sermon_outline`, `series_plan`, `council_minutes`, `sabbath_reflection`) and auto-incrementing version trigger; accessible by pastor and church-admin via `can_access_council_data()`.
 - Added `prayer_acknowledgements` table with a unique `(prayer_request_id, profile_id)` constraint and a trigger that keeps `prayer_requests.prayed_count` in sync — full "I Prayed" audit trail without in-place counter mutation.
 - Added full audit trigger coverage for all four Phase 4 tables via the existing `audit_log_changes()` function.
@@ -596,8 +597,8 @@ Security and tenant separation remain the controlling constraints across the rel
 - Added seven new server actions in `app/app/actions.ts`: `createMinistryAction`, `updateMinistryAction`, `deleteMinistryAction`, `assignMembersToMinistryAction`, `removeMemberFromMinistryAction`, `updateMinistryHealthScoreAction`, `logKingdomImpactAction`, `updateMinistryVisionAction`.
 - Added `lib/ministry-forge-data.ts` with `getMinistryForgeList`, `getMinistryForgeDetail`, and `getMemberMinistriesData` data loaders with both Supabase and local-DB fallback paths.
 - Added rule-based Health Score formula as Phase 2 foundation (attendance × 0.4 + engagement × 0.3 + retention × 0.2 + impact × 0.1); Phase 3 will make it AI-assisted.
-- Added `advanced_ministry_elder_pastor.md` to document the advanced ministries, elders, and pastor-council feature direction and its AI guardrails.
-- Added `churchgoer_data.md` to document the churchgoer data model, directory rules, and self-service portal direction.
+- Added `docs/plans/advanced-ministry-elders-pastor.md` to document the advanced ministries, elders, and pastor-council feature direction and its AI guardrails.
+- Added `docs/plans/churchgoer-data.md` to document the churchgoer data model, directory rules, and self-service portal direction.
 - Added `docs/churchgoer-pastor-execution-plan.md` to define the current implementation sequence for churchgoer and pastor data work.
 - Added `docs/UI-UPDATES.md` to document the approved blue-neutral UI direction, component rules, and the current dark-mode deferral.
 - Added dedicated member routes for `/app/member/directory` and `/app/member/family`, plus a pastor people route at `/app/pastor/people`.
@@ -620,7 +621,7 @@ Security and tenant separation remain the controlling constraints across the rel
 ### Changed
 
 - Changed pastor portal home so each led-ministry card links directly to the Ministry Forge dashboard.
-- Retired `churchgoer_implement.md` so `churchgoer_data.md` is now the only churchgoer data source-of-truth document.
+- Retired `churchgoer_implement.md` so `docs/plans/churchgoer-data.md` is now the only churchgoer data source-of-truth document.
 - Changed the member portal data layer to include family and directory context instead of only profile, ministries, and upcoming events.
 - Changed the member home screen to a lighter overview and moved directory and household detail into dedicated routes.
 - Changed the pastor data layer to expose a fuller people list for dedicated directory and follow-up screens.
@@ -648,7 +649,7 @@ Security and tenant separation remain the controlling constraints across the rel
 ### Added
 
 - Added a `/controll` compatibility redirect to `/control`.
-- Added `SUPABASE.md` to document the current local Supabase development URLs, keys, storage settings, and app env mapping.
+- Added `docs/setup/local-supabase.md` to document the current local Supabase development URLs, keys, storage settings, and app env mapping.
 - Added Supabase SSR foundations including browser and server helpers, a root `proxy.ts`, and an auth confirmation route.
 - Added `.env.example` plus an initial Supabase SQL migration for profiles, churches, memberships, ministries, events, RSVPs, and volunteer shifts with RLS foundations.
 - Added preview sign-in scaffolding with cookie-backed protected-route flow for the workspace and calendar modules.

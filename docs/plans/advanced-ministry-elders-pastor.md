@@ -1,13 +1,13 @@
 # ChurchForge - Advanced Ministries, Elders & Pastor Council Plan
 
 **Living Document** - Last Updated: April 15, 2026  
-**Filename**: `advanced_ministry_elder_pastor.md`  
+**Filename**: `docs/plans/advanced-ministry-elders-pastor.md`  
 **Version**: 1.1  
 **Purpose**: This is the single source of truth for the most distinctive and spiritually rich feature direction in ChurchForge: the areas intended to set the product apart from conventional church management software.
 
-This document extends `DEVELOPMENT_PLAN.md`, especially sections 2, 3, 4, 5, and 7. It also depends on the churchgoer data model direction defined in `churchgoer_data.md`.
+This document extends `DEVELOPMENT_PLAN.md`, especially sections 2, 3, 4, 5, and 7. It also depends on the churchgoer data model direction defined in `docs/plans/churchgoer-data.md`.
 
-The repo-level ministry summary now lives in `ministry-spec.md`.
+The repo-level ministry summary now lives in `docs/plans/ministry-spec.md`.
 
 The deeper 2026 specialization direction for demographic-specific and service-specific pathways is documented in `docs/advanced-ministry-forge-research-spec.md`. Use that document when reconciling new Ministry Forge work with the current tenant schema and Sprint 2 identity model.
 

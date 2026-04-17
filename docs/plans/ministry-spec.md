@@ -6,7 +6,7 @@
 This specification should be read alongside:
 
 - `DEVELOPMENT_PLAN.md`
-- `advanced_ministry_elder_pastor.md`
+- `docs/plans/advanced-ministry-elders-pastor.md`
 - `docs/advanced-ministry-forge-research-spec.md`
 - `docs/sprint2-attendance-identity-flow.md`
 
@@ -293,6 +293,6 @@ Because of that, the next ministry expansion must be additive:
 Use these documents in this order:
 
 1. `DEVELOPMENT_PLAN.md` for product and release discipline
-2. `ministry-spec.md` for the repo-level ministry summary
-3. `advanced_ministry_elder_pastor.md` for the broader distinctive product direction
+2. `docs/plans/ministry-spec.md` for the repo-level ministry summary
+3. `docs/plans/advanced-ministry-elders-pastor.md` for the broader distinctive product direction
 4. `docs/advanced-ministry-forge-research-spec.md` for implementation-facing ministry architecture and compatibility constraints

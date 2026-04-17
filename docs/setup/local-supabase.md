@@ -10,6 +10,18 @@ This document covers how to start, seed, and reset the local Supabase instance f
 - Docker Desktop running
 - Supabase CLI available via `npx supabase`
 
+## Quick Reference
+
+| Tool | URL |
+| --- | --- |
+| Project URL | `http://127.0.0.1:54321` |
+| Studio | `http://127.0.0.1:54323` |
+| Mailpit | `http://127.0.0.1:54324` |
+| REST | `http://127.0.0.1:54321/rest/v1` |
+| GraphQL | `http://127.0.0.1:54321/graphql/v1` |
+| Edge Functions | `http://127.0.0.1:54321/functions/v1` |
+| App | `http://localhost:3000` |
+
 ---
 
 ## First-Time Setup
@@ -235,3 +247,9 @@ The specialized tabs appear only when `ministry.ministry_type` is one of: `worsh
 
 **RLS blocking queries in dev**
 The local fallback path uses raw SQL (bypassing RLS) when `SUPABASE_DB_URL` is set and the URL includes `127.0.0.1`. If you're seeing empty data, check that `SUPABASE_DB_URL` is set in `.env.local`.
+
+## Local Dev Security Notice
+
+- All local Supabase services are development-only and should not be treated as production-safe.
+- Local JWT keys, storage credentials, and service-role access are shared local values. Keep them out of git and derive them from your own `npx supabase status --output env`.
+- Studio, pgMeta, and other local admin surfaces are for local development only and should not be exposed publicly.

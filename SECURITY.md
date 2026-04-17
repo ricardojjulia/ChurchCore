@@ -28,8 +28,8 @@ This repository is configured for:
 - pull-request dependency review
 - secret scanning in GitHub Actions
 
-Enable GitHub secret scanning, push protection, code scanning, Dependabot alerts, and dependency graph support in the GitHub repository settings immediately after the first push. See `docs/private-repo-launch-checklist.md`.
+Enable GitHub secret scanning, push protection, code scanning, Dependabot alerts, and dependency graph support in the GitHub repository settings immediately after the first push. See `docs/setup/private-repo-launch-checklist.md`.
 
 ## Ownership Metadata
 
-The repository includes a placeholder `.github/CODEOWNERS` file. Replace its commented example with the real owner handle or team slug immediately after repository creation so review ownership is explicit.
+Review ownership is currently assigned through `.github/CODEOWNERS`. Update it if the repository moves from a single-owner setup to a team-owned workflow.

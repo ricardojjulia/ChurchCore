@@ -154,7 +154,7 @@ Every new track panel component renders `AI_ASSISTIVE_DISCLAIMER` in its footer,
 
 ## Release 2.8.0 Highlights
 
-- **Local Supabase fully operational.** Running `npx supabase db reset && ./supabase/scripts/create-dev-users.sh` gives you a complete local environment with Grace Harbor Church, 8 profiles, 6 ministries, and full track data seeded. See `church-forge-supabasesetup.md` for the complete guide.
+- **Local Supabase fully operational.** Running `npm run setup:local` gives you a complete local environment with Grace Harbor Church, 8 profiles, 10 ministries, full Ministry Forge track data, and seeded CCM data. See `docs/setup/local-supabase.md` for the complete guide.
 - **Ministry Forge Phase 4 — five specialized track panels.** Worship, men's, women's, marriage, and missions ministry types now each have a dedicated tab in the Ministry Forge dashboard, surfacing type-specific management data (song library, rehearsal schedule, mentorship pairs, discipleship groups, life-stage circles, support pairings, mentor couples, enrichment cohorts, mission partners, and trip roster with impact metrics).
 - **Ministry Forge index page.** `/app/church-admin/ministry` now exists as a proper grid index showing all ministries with health-band indicators, type badges, member counts, and track-panel callouts. The previous nav link (which targeted a non-existent route) is fixed.
 - **Three schema bugs fixed.** `platform_admins.user_id` and `church_memberships.user_id` FKs now correctly reference `auth.users(id)` instead of `profiles(id)`. The `audit_mentorship_pairs` trigger column name typo is corrected. All three fixes are applied as non-destructive migrations.
@@ -225,8 +225,8 @@ SUPABASE_DB_URL=postgresql://postgres:<local-db-password>@127.0.0.1:54322/postgr
 | `sarah@churchforge.app`       | Church Admin + Platform Admin |
 | `david@graceharbor.church`    | Member                        |
 
-See `church-forge-supabasesetup.md` for the complete local setup guide.
-For repository creation and GitHub-side hardening after the first push, use `docs/private-repo-launch-checklist.md`.
+See `docs/setup/local-supabase.md` for the complete local setup guide.
+For repository creation and GitHub-side hardening after the first push, use `docs/setup/private-repo-launch-checklist.md`.
 
 For voluntary donations (Sprint 7+), also supply:
 
@@ -246,8 +246,7 @@ Architectural note:
 - ADR 0002 now makes separate control-plane and tenant databases the target architecture.
 - The current single-project local Supabase setup is transitional and must not be treated as the final model.
 
-For the current local Supabase development endpoints, keys, and service URLs, see `SUPABASE.md`.
-For owner assignment after repo creation, replace the placeholder in `.github/CODEOWNERS` with the real GitHub handle or team slug.
+For the current local Supabase development endpoints, setup steps, and local security notes, see `docs/setup/local-supabase.md`.
 
 Primary routes:
 
@@ -379,16 +378,16 @@ Every significant change must keep these files current:
 
 Current tracked follow-up:
 
-- See `Reports-implementation.md` for the reporting-suite implementation plan covering member, event, giving, ministry, communications, outreach, and executive dashboards.
-- See `ministry-spec.md` for the repo-level ministry source-of-truth and doc index for Ministry Forge planning.
+- See `docs/plans/reporting-implementation.md` for the reporting-suite implementation plan covering member, event, giving, ministry, communications, outreach, and executive dashboards.
+- See `docs/plans/ministry-spec.md` for the repo-level ministry source-of-truth and doc index for Ministry Forge planning.
 - See `docs/todo.md` for the remaining Supabase project hookup steps.
 - See `docs/church-admin-people.md` for the current ChurchAdmin people-management scope.
 - See `docs/church-admin-workspace.md` for the current ChurchAdmin operations, accounts, and event-management scope.
 - See `docs/sprint2-attendance-identity-flow.md` for the detailed Sprint 2 engineering description covering schema, routes, actions, and current constraints.
 - See `docs/advanced-ministry-forge-research-spec.md` for the reconciled engineering direction for specialized ministry tracks, stewardship metrics, children safety, mentorship visibility, and confidentiality guardrails.
-- See `church-forge-supabasesetup.md` for the complete local Supabase setup guide, dev account credentials, seeded demo data reference, and troubleshooting.
-- See `advanced_ministry_elder_pastor.md` for the advanced ministries, elders, and pastor-council feature direction.
-- See `churchgoer_data.md` for the churchgoer data and self-service portal source of truth.
+- See `docs/setup/local-supabase.md` for the complete local Supabase setup guide, dev account credentials, seeded demo data reference, and troubleshooting.
+- See `docs/plans/advanced-ministry-elders-pastor.md` for the advanced ministries, elders, and pastor-council feature direction.
+- See `docs/plans/churchgoer-data.md` for the churchgoer data and self-service portal source of truth.
 - See `docs/churchgoer-pastor-execution-plan.md` for the current execution sequence across churchgoer and pastor data work.
 - See `docs/pastoral-care-foundation.md` for the current pastoral notes and care assignment scope.
 - Phase 6 Communications Hub requires `SENDGRID_*` and `TWILIO_*` env vars for live sends; see `.env.example` for the full list.

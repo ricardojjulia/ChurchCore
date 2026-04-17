@@ -5,9 +5,9 @@
 
 This specification is the planning bridge between:
 
-- `ministry-spec.md`
+- `docs/plans/ministry-spec.md`
 - `DEVELOPMENT_PLAN.md`
-- `advanced_ministry_elder_pastor.md`
+- `docs/plans/advanced-ministry-elders-pastor.md`
 - `docs/sprint2-attendance-identity-flow.md`
 
 It does not replace the current shipped schema. It defines the next approved direction for specialized ministry pathways, deterministic stewardship metrics, and stricter safety and confidentiality controls.

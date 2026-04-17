@@ -9,7 +9,7 @@ Use this checklist immediately after creating the private GitHub repository for 
 - Require the CI workflow to pass before merge.
 - Require at least one review on pull requests.
 - Restrict force pushes and branch deletion on protected branches.
-- Replace the placeholder in `.github/CODEOWNERS` with the real GitHub handle or team slug for the repository owner.
+- Confirm `.github/CODEOWNERS` reflects the intended review owner or owning team.
 
 ## Security Features
 

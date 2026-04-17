@@ -90,7 +90,7 @@ export type CouncilForgeData = {
 
 // ── Canonical AI disclaimer ──────────────────────────────────
 // Must appear on every AI-generated surface per §6 of
-// advanced_ministry_elder_pastor.md.
+// docs/plans/advanced-ministry-elders-pastor.md.
 export const ELDER_AI_DISCLAIMER =
   "This is an assistive tool only. It never replaces prayer, Scripture study, or human pastoral discernment. AI suggestions require elder review before any decision is made or shared.";
 

@@ -3,8 +3,8 @@
 This document defines the next implementation slice for ChurchForge people data and role-facing screens. It is aligned to:
 
 - `DEVELOPMENT_PLAN.md`
-- `churchgoer_data.md`
-- `advanced_ministry_elder_pastor.md`
+- `docs/plans/churchgoer-data.md`
+- `docs/plans/advanced-ministry-elders-pastor.md`
 
 ## Purpose
 

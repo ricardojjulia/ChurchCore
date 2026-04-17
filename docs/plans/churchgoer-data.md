@@ -1,11 +1,11 @@
 # ChurchForge - Churchgoer Data Management Plan
 
 **Living Document** - Last Updated: April 12, 2026  
-**Filename**: `churchgoer_data.md`  
+**Filename**: `docs/plans/churchgoer-data.md`  
 **Version**: 1.1  
 **Purpose**: This is the single source of truth for all churchgoer data handling in ChurchForge. It covers how churchgoer information is collected, maintained, searched, protected, and used throughout the platform, along with the complete design of the self-service Churchgoer Portal.
 
-This document works directly with `DEVELOPMENT_PLAN.md` and `advanced_ministry_elder_pastor.md`.
+This document works directly with `DEVELOPMENT_PLAN.md` and `docs/plans/advanced-ministry-elders-pastor.md`.
 
 ## Table of Contents
 
@@ -238,9 +238,9 @@ This route is the intended default landing page for `member_volunteer` users onc
 
 ## 10. How to Use This Document
 
-1. Reference `churchgoer_data.md` in every issue or PR related to members, profiles, directory, or the portal.
+1. Reference `docs/plans/churchgoer-data.md` in every issue or PR related to members, profiles, directory, or the portal.
 2. Update this document only through Pull Request.
-3. Read this document alongside `DEVELOPMENT_PLAN.md` and `advanced_ministry_elder_pastor.md`.
+3. Read this document alongside `DEVELOPMENT_PLAN.md` and `docs/plans/advanced-ministry-elders-pastor.md`.
 4. Treat this document as the governing spec for churchgoer data and self-service flows.
 
 This document defines how ChurchForge treats every churchgoer with dignity, care, and respect for their data.
