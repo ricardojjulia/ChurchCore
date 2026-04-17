@@ -1,6 +1,6 @@
 # ChurchForge
 
-ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, guardrailed AI ministry tools, and graphical stewardship reporting. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.8 and is at release `2.9.0`, incorporating Ministry Forge (Phases 1–4 with five specialized track panels), Financial Management (double-entry accounting, budgets, and import), Elders Discernment Room, Pastor Council Forge, Communications Hub, voluntary Stripe donations, GDPR/CCPA data rights, a full pre-launch checklist, complete church-admin people management, the Sprint 2 attendance / roster / member-identity flow, the Advanced Ministry Forge specialization tracks documented in `ministry-spec.md`, the first reporting-suite foundation, and a fully operational local Supabase development environment with seed data.
+ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, guardrailed AI ministry tools, and graphical stewardship reporting. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.8 and is at release `2.10.0`, incorporating the Financial Management module (full double-entry accounting, chart of accounts, budgets, import engine, and financial reports), Advanced Ministry Forge (ten specialized track panels covering all ministry kinds with stewardship metrics and security guardrails), Ministry Forge Phases 1–4, Elders Discernment Room, Pastor Council Forge, Communications Hub, voluntary Stripe donations, GDPR/CCPA data rights, a full pre-launch checklist, complete church-admin people management, the Sprint 2 attendance / roster / member-identity flow, the Advanced Ministry Forge specialization tracks documented in `ministry-spec.md`, the first reporting-suite foundation, and a fully operational local Supabase development environment with seed data.
 
 ## Stack
 
@@ -29,6 +29,106 @@ Current plan target:
 - Security and privacy expectations centered on sensitive-data classification, consent, auditing, and disciplined application security checks.
 - Future Ministry Forge work is now explicitly documented around specialized tracks for men, women, children, youth, young adults, marriage, education, missions, and outreach, with deterministic stewardship metrics and tighter safety/confidentiality rules.
 - Future reporting work is now explicitly documented as a multi-surface reporting suite spanning members, events, giving, ministries, communications, and outreach, with graphical dashboards and differentiated stewardship insights.
+
+## Release 2.10.0 Highlights
+
+Release 2.10.0 is the largest single feature release in the project's history. It ships two major system expansions simultaneously: a full church **Financial Management module** and an **Advanced Ministry Forge** that brings all ten ministry track kinds to full panel coverage with active Kingdom Stewardship metrics.
+
+### Financial Management Module
+
+Church admins now have a complete internal bookkeeping system at `/app/church-admin/finance`, independent of the existing Stripe donations flow. It is designed to satisfy 501(c)(3) annual reporting requirements, stewardship accountability, and annual audits.
+
+**Database (`supabase/migrations/20260417000000_financial_management.sql`):**
+Six new tables, all church-scoped with RLS enforced via `can_manage_church()` (church-admin only). All monetary values are stored as `amount_cents integer` — no floating point, consistent with the `donations` table.
+
+- `finance_accounts` — hierarchical chart of accounts with `parent_id` self-reference for multi-level account trees (e.g. `5000 Expenses → 5100 Salaries → 5110 Pastoral Salaries`). Account type constrained to `asset`, `liability`, `equity`, `income`, or `expense`.
+- `finance_journals` — journal batch records with `draft → posted → voided` status lifecycle. Tracks who posted and voided with timestamps.
+- `finance_journal_lines` — individual debit and credit lines. The app layer validates `sum(debits) = sum(credits)` before any journal persists.
+- `finance_budgets` — named budget versions per fiscal year with `is_active` flag.
+- `finance_budget_lines` — per-account budgeted amount within a budget.
+- `finance_imports` — import job log with filename, detected format, row counts, status (`pending → processing → completed / failed`), and error details.
+- Audit triggers on `finance_journals` and `finance_accounts` write to `audit_log`.
+
+**Data and actions layer:**
+
+- `lib/finance-types.ts` — comprehensive shared TypeScript types: enums (`AccountType`, `JournalStatus`, `JournalType`, `ImportFormat`), entity types, report aggregates (`FinanceDashboardData`, `IncomeStatementData`, `BalanceSheetData`, `BudgetVarianceRow`), and import wizard types.
+- `lib/finance-data.ts` — server-only data fetchers following the dual-path pattern (`shouldUseLocalTenantFallback()` → direct Postgres vs. Supabase REST). Functions: `getFinanceAccounts`, `getFinanceJournals`, `getFinanceJournalWithLines`, `getFinanceBudgets`, `getBudgetVariance`, `getFinanceImports`, `getFinanceDashboardData`, `getIncomeStatement`, `getBalanceSheet`, `getFinanceBudgetLines`.
+- `app/app/finance-actions.ts` — role-guarded server actions: `createAccountAction`, `updateAccountAction`, `createJournalAction` (validates balance before insert), `postJournalAction`, `voidJournalAction`, `deleteJournalDraftAction`, `createBudgetAction`, `upsertBudgetLinesAction`, `importFinanceRowsAction`.
+- `lib/finance-import.ts` — client-safe import parsers: CSV via `papaparse` with fallback, Excel `.xlsx`/`.xls` via `xlsx` library, QuickBooks IIF (tab-delimited `!TRNS`/`ENDTRNS` parser), OFX/QFX (SGML `<STMTTRN>` block extractor), and plain-text auto-detection. Format auto-detected from filename extension and content sniffing.
+
+**Routes (11 new, all church-admin only):**
+`finance/dashboard` · `finance/accounts` · `finance/accounts/[id]` · `finance/journals` · `finance/journals/new` · `finance/journals/[id]` · `finance/budgets` · `finance/budgets/[id]` · `finance/import` · `finance/reports`
+
+**UI Components (7 new):**
+
+- `finance-dashboard.tsx` — summary cards (total income, expenses, net position), `RingProgress` budget utilization, income/expense breakdown tables, recent journals table.
+- `finance-accounts-workspace.tsx` — hierarchical chart of accounts grouped by type; add-account modal with type selector and parent account picker.
+- `finance-journal-workspace.tsx` — journal list with `Badge` status indicators (draft / posted / voided) and journal type badges.
+- `finance-journal-editor.tsx` — editable debit/credit line table with running balance display (green when balanced, red when not); read-only mode for posted/voided journals.
+- `finance-budget-workspace.tsx` — budget list and line-by-line detail view showing budgeted, actual year-to-date, variance, and a heat-map color indicator per line.
+- `finance-import-wizard.tsx` — four-step `Stepper`: file upload with auto-format detection → column mapping (CSV/Excel only) → 20-row preview with per-row error badges → completion with link to the created draft journal.
+- `finance-reports-workspace.tsx` — tabbed reports: Income Statement, Balance Sheet, Budget Variance.
+
+**Dependencies added:** `xlsx` (Apache-licensed Excel parsing), `papaparse` + `@types/papaparse` (robust CSV parsing with quoted-field support).
+
+**ADR:** `docs/adr/0003-financial-management-module.md` documents the decision to build full double-entry accounting (rather than a simple expense tracker), the choice to add `xlsx` and `papaparse`, and the integer-cents monetary storage policy.
+
+---
+
+### Advanced Ministry Forge — 10 Specialized Track Panels
+
+The Ministry Forge previously had dedicated management panels for worship, men's, women's, marriage, and missions. This release adds five more, expanding full panel coverage to all ten ministry track kinds. It also introduces stewardship-level metrics — Burnout Guardian, Discipleship Velocity, Safety Index — and schema-level security guardrails for sensitive ministry data.
+
+**Database (`supabase/migrations/20260430000000_advanced_ministry_forge.sql`):**
+
+Profile extensions: `profiles.member_number` (unique human-readable ID), `profiles.safety_clearance_date` (background check date for Children's Safety Index), `profiles.specialized_tags` (interest/career tags for life-stage and mentorship matching).
+
+Ministry type expansion: `ministries.ministry_type` constraint updated to include `young_adult` and `education`.
+
+New table groups by ministry kind:
+
+- **Children's Ministry:** `children_rooms` (classroom definitions with capacity and `target_ratio`), `children_checkins` (per-service check-in/out log), `children_sensitive_data` (pickup codes, medical alerts, authorized guardians — `can_manage_church` RLS only, full audit trigger, Vault encryption noted for production).
+- **Youth Ministry:** `youth_milestones` (milestone catalog per ministry — Baptism, First Serve, Faith Class, Student Leader), `youth_graduation_tracking` (per-student per-milestone completion with graduation year).
+- **Young Adults Ministry:** `young_adult_career_mentorships` (career-kingdom mentor/mentee pairs with industry and focus area; status: `active`, `completed`, `paused`, `seeking`).
+- **Education / Discipleship:** `education_courses` (course catalog with 10 constrained `curriculum_area` values), `education_enrollments` (per-member course enrollment with completion tracking).
+- **Outreach Ministry:** `outreach_events` (community events with GPS coordinates, volunteer count, people served), `outreach_zones` (neighborhood heatmap summary with `coverage_level`: `low`, `medium`, `high`).
+- **Marriage Ministry:** `marriage_pulse_entries` — completely anonymous weekly sentiment entries. **No `profile_id` column — anonymity is enforced at the schema level, not just by policy.**
+- **Stewardship views:** `discipleship_velocity` (avg days from church join to first leader role), `burnout_category_counts` (members active in more than 3 distinct track kinds).
+
+**Type system (`lib/ministry-forge-types.ts`):**
+
+- `MinistryType` union and `TRACK_PANEL_TYPES` set are the single source of truth. Any addition propagates automatically to the data layer, dashboard, and list components.
+- New data types for all five track kinds: `ChildrenRoomSafety` (with `ratioStatus: "safe" | "warning" | "alert"`), `YouthStudent` (with `readinessPercent` 0–100 and `alertLevel: "on_track" | "at_risk" | "critical"`), `CareerMentorship`, `MemberDoctrinalProgress` (with `coveragePercent`), `OutreachZone`, plus stewardship types `DiscipleshipVelocity` and `BurnoutCandidate`.
+
+**Data layer (`lib/ministry-forge-data.ts`) — 7 new functions:**
+
+- `getChildrenTrackData` — rooms, check-ins, background check status; computes `safetySnapshot[]` with real-time ratio alerts.
+- `getYouthTrackData` — milestones and per-student tracking; computes `readinessPercent` and alert levels (critical when < 50% ready and graduation ≤ 1 year).
+- `getYoungAdultTrackData` — mentorship pairs with names; derives `seekingMentors` list.
+- `getEducationTrackData` — course catalog with enrollment/completion counts; per-member `coveragePercent` across curriculum areas.
+- `getOutreachTrackData` — events and zone summaries; computes `totalVolunteerHours` and `totalPeopleServed`.
+- `getDiscipleshipVelocity` — reads the `discipleship_velocity` view for stewardship reporting.
+- `getBurnoutCandidates` — reads `burnout_category_counts` filtered to > 3 active track kinds.
+
+**New UI components (5):**
+
+- `ministry-track-children.tsx` — red alert banner when any room exceeds target ratio; safety index grid with color-coded `Progress` bars; background check expiry table; recent check-ins.
+- `ministry-track-youth.tsx` — graduation readiness table sorted critical-first with `Progress` bars and alert badges; milestone catalog.
+- `ministry-track-young-adult.tsx` — career–kingdom mentorship pairs table; seeking-a-mentor table; industry coverage stats.
+- `ministry-track-education.tsx` — course catalog with curriculum area badges; doctrinal blueprint showing per-member theological coverage `Progress` bar and completed area badges.
+- `ministry-track-outreach.tsx` — neighborhood density zone table with coverage level badges; low-coverage zone callout; event log.
+
+Every new track panel component renders `AI_ASSISTIVE_DISCLAIMER` in its footer, consistent with the project-wide canonical disclaimer.
+
+**Seed data:** `supabase/seed.sql` extended to 10 ministries with demo data for all 10 panel types — 5 children's rooms, 4 youth milestones, 4 career mentorship pairs, 7 education courses with enrollments, 5 outreach zones and 5 events, and 8 anonymous marriage pulse entries.
+
+**Security guardrails:**
+
+- Children's PII is in an isolated table (`children_sensitive_data`) with `can_manage_church` RLS and a write-audit trigger. No member role can read this data under any circumstance. The migration comments specify Supabase Vault (`pgsodium`) encryption before production deployment.
+- Marriage pulse entries have anonymity enforced at the schema level — no `profile_id` column exists.
+- Every track panel that surfaces AI-derived or computed stewardship data carries the canonical AI assistive disclaimer.
+
+---
 
 ## Release 2.9.0 Highlights
 
@@ -122,7 +222,18 @@ Primary routes:
 - `/app/church-admin/accounts` church-admin account-request approval queue
 - `/app/church-admin/events/[id]` event-specific attendance and roster workspace with quick check-in, burnout warnings, and visitor add flow
 - `/app/church-admin/ministry` Ministry Forge index — grid of all ministries with health-band indicators, type badges, and member counts
-- `/app/church-admin/ministry/[id]` Ministry Forge detail dashboard — health score, vision board, volunteer matcher, and type-specific track panel (worship / men's / women's / marriage / missions)
+- `/app/church-admin/ministry/[id]` Ministry Forge detail dashboard — health score, vision board, volunteer matcher, and type-specific track panel for all ten ministry kinds (worship, men's, women's, marriage, missions, children's, youth, young adults, education/discipleship, outreach)
+- `/app/church-admin/finance` Financial Management hub — redirects to dashboard
+- `/app/church-admin/finance/dashboard` Finance dashboard — income/expense summary cards, budget utilization, recent journals
+- `/app/church-admin/finance/accounts` Chart of accounts — hierarchical account list grouped by type; add/edit accounts
+- `/app/church-admin/finance/accounts/[id]` Account ledger — all journal lines for the selected account
+- `/app/church-admin/finance/journals` Journal list — status badges (draft / posted / voided), journal type indicators
+- `/app/church-admin/finance/journals/new` New journal entry — debit/credit line editor with live balance checker
+- `/app/church-admin/finance/journals/[id]` Journal detail — edit draft lines, post, void, or view read-only
+- `/app/church-admin/finance/budgets` Budget list — all budget versions by fiscal year
+- `/app/church-admin/finance/budgets/[id]` Budget detail — per-account budgeted vs. actual vs. variance
+- `/app/church-admin/finance/import` Import wizard — CSV, Excel, QuickBooks IIF, OFX/QFX, plain text
+- `/app/church-admin/finance/reports` Financial reports — Income Statement, Balance Sheet, Budget Variance tabs
 - `/app/reports` graphical reporting suite overview for pastor and church-admin
 - `/app/reports/members` member intelligence dashboard with attendance, engagement, and drift reporting
 - `/app/reports/events` event intelligence dashboard with turnout, staffing pressure, and visitor-touch reporting
@@ -210,6 +321,9 @@ public/               Static assets
 - Members can download a full JSON export of their personal data or request account deletion with a 30-day grace period from `/app/member/data-rights` (GDPR/CCPA aligned).
 - Pastors and church-admins have a giving reporting dashboard at `/app/giving` with fund breakdown, monthly and all-time totals, and recurring-gift counts. Anonymous donations are never de-anonymised in the UI.
 - Platform operators have a `/control/launch-checklist` with 47 interactive verification items across RLS, donations, AI guardrails, communications, data rights, security, mobile/PWA, and role access.
+- Church admins now have a full double-entry accounting system at `/app/church-admin/finance` for internal bookkeeping, 501(c)(3) reporting, and annual audits. The finance module is isolated from Stripe donations and is accessible to the church-admin role only. It includes a chart of accounts, journal entries (draft → posted → voided), annual budgets with per-account lines, actuals vs. budget reporting, a multi-step import wizard supporting CSV/Excel/QuickBooks IIF/OFX/QFX, and three financial report views.
+- Ministry Forge now covers all ten ministry track kinds with dedicated management panels. In addition to the original five (worship, men's, women's, marriage, missions), v2.10.0 adds: Children's (safety index with real-time ratio alerts, background check expiry tracking, check-in log), Youth (graduation readiness tracker with milestone-completion progress), Young Adults (career-kingdom mentorship map), Education (doctrinal blueprint showing per-member theological coverage), and Outreach (neighborhood density heatmap and event log). Stewardship metrics include Discipleship Velocity (avg days to first leader role) and Burnout Guardian (members active across > 3 track kinds).
+- Children's sensitive data (pickup codes, medical alerts, authorized guardians) is stored in an isolated table with `can_manage_church`-only RLS and a write-audit trigger. Marriage pulse entries are schema-level anonymous — no profile ID column exists. All new track panels carry the canonical AI assistive disclaimer.
 
 ## Documentation Discipline
 

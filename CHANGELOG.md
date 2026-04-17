@@ -6,6 +6,278 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-04-17
+
+### Overview
+
+Release 2.10.0 is the largest single feature release in the project's history. It ships two major system expansions simultaneously: the **Financial Management module** — a full double-entry accounting system built for 501(c)(3) church operations — and the **Advanced Ministry Forge** — an expanded set of ten specialized track panels that move the platform from administrative tracking into active Kingdom Stewardship. Together these additions bring ChurchForge to full coverage of the five most critical operational domains any church leadership team manages: people, ministry programs, finances, reporting, and communications.
+
+---
+
+### Added — Financial Management Module
+
+The finance module lives under `/app/church-admin/finance` and is restricted to the `church-admin` role. It provides a complete internal bookkeeping system independent of the existing Stripe donations flow, allowing churches to manage their full general ledger, track against budgets, and satisfy 501(c)(3) annual reporting requirements.
+
+#### Database
+
+- **`supabase/migrations/20260417000000_financial_management.sql`** — introduces six new tables, all church-scoped with RLS enforced via `can_manage_church()`:
+  - `finance_accounts` — hierarchical chart of accounts with `parent_id` self-reference for multi-level account trees (e.g. `5000 Expenses → 5100 Salaries → 5110 Pastoral Salaries`). Account type is constrained to `asset`, `liability`, `equity`, `income`, or `expense`.
+  - `finance_journals` — journal batch records with status lifecycle: `draft` → `posted` → `voided`. Each journal has a `journal_type` (general, accounts_payable, bank, payroll, adjustment) and tracks who posted and voided it with timestamps.
+  - `finance_journal_lines` — individual debit and credit lines linked to a journal and account. `amount_cents integer` — no floating point, consistent with the `donations` table. App layer validates that `sum(debits) = sum(credits)` before persisting.
+  - `finance_budgets` — a named budget version per fiscal year per church, with `is_active` flag and fiscal year range.
+  - `finance_budget_lines` — per-account budgeted amount within a budget, with `amount_cents`.
+  - `finance_imports` — import job log recording filename, detected format, row counts, status (`pending`, `processing`, `completed`, `failed`), and error details for audit and retry.
+  - Audit triggers on `finance_journals` and `finance_accounts` write to `audit_log`.
+
+#### Data & Actions Layer
+
+- **`lib/finance-types.ts`** — comprehensive shared TypeScript types for the entire finance domain:
+  - Enums: `AccountType`, `JournalStatus`, `JournalType`, `ImportFormat`, `ImportStatus`, `JournalLineSide`
+  - Entity types: `FinanceAccount`, `FinanceJournal`, `FinanceJournalLine`, `FinanceBudget`, `FinanceBudgetLine`, `FinanceImport`
+  - Report aggregates: `FinanceDashboardData`, `IncomeStatementData`, `BalanceSheetData`, `BudgetVarianceRow`
+  - Import wizard types: `ImportColumnMapping`, `ImportPreviewRow`
+
+- **`lib/finance-data.ts`** — server-only data fetchers following the dual-path pattern (Supabase REST client vs. direct `queryTenantLocalDb` Postgres pool), selected by `shouldUseLocalTenantFallback()`:
+  - `getFinanceAccounts` — fetches the full chart of accounts for a church, optionally filtered by active status
+  - `getFinanceJournals` — journal list with status filtering and pagination-ready structure
+  - `getFinanceJournalWithLines` — full journal detail including all debit/credit lines with account codes and names
+  - `getFinanceBudgets` — budget list for a church with active flag
+  - `getBudgetVariance` — per-account actual vs. budgeted totals joined across `finance_journal_lines` and `finance_budget_lines` for the selected budget period
+  - `getFinanceImports` — import history list ordered by creation date
+  - `getFinanceDashboardData` — aggregated dashboard metrics: total income, total expenses, net position, and budget utilization percentage
+  - `getIncomeStatement` — income and expense accounts with period totals, sorted by account code
+  - `getBalanceSheet` — asset, liability, and equity accounts with running balances
+  - `getFinanceBudgetLines` — per-account budget line amounts for a specific budget version
+
+- **`app/app/finance-actions.ts`** — server actions with role-guarded access (church-admin only):
+  - `createAccountAction` / `updateAccountAction` — create and update chart of accounts entries with parent hierarchy support
+  - `createJournalAction` — validates debit/credit balance (`sum(debits) === sum(credits)`) before inserting; rejects unbalanced entries with a descriptive error
+  - `postJournalAction` — transitions a draft journal to `posted` status with `posted_at` and `posted_by` recorded
+  - `voidJournalAction` — voids a posted journal with `voided_at`, `voided_by`, and a required reason
+  - `deleteJournalDraftAction` — hard-deletes a draft journal and its lines (posted and voided journals cannot be deleted)
+  - `createBudgetAction` / `upsertBudgetLinesAction` — create budget versions and upsert per-account line amounts
+  - `importFinanceRowsAction` — creates an import job record and a corresponding draft journal entry, inserts debit/credit lines for each imported row using the user-selected default debit and credit accounts
+
+#### Routes
+
+Eleven new routes under `app/app/church-admin/finance/`, all protected with `requireChurchSession` and `church-admin` role guard:
+
+| Route | Purpose |
+|---|---|
+| `finance/` | Redirect to `finance/dashboard` |
+| `finance/dashboard` | Summary cards, budget health ring, income/expense breakdowns, recent journal list |
+| `finance/accounts` | Chart of accounts grouped by type; add account modal |
+| `finance/accounts/[id]` | Account detail: ledger view of all journal lines for the account |
+| `finance/journals` | Journal list with status badges and type indicators |
+| `finance/journals/new` | New journal entry form with live debit/credit balance checker |
+| `finance/journals/[id]` | Journal detail; edit draft lines; post or void; read-only for posted/voided |
+| `finance/budgets` | Budget list by fiscal year |
+| `finance/budgets/[id]` | Budget detail: per-account budgeted vs. actual vs. variance table |
+| `finance/import` | Multi-step import wizard |
+| `finance/reports` | Tabbed financial reports: Income Statement, Balance Sheet, Budget Variance |
+
+#### UI Components
+
+- **`finance-dashboard.tsx`** — dashboard with `SimpleGrid` summary cards (total income, expenses, net position, budget utilization `RingProgress`), income-by-account and expense-by-account breakdown tables, and a recent journals table with direct links to detail pages.
+- **`finance-accounts-workspace.tsx`** — hierarchical chart of accounts grouped by account type (`asset`, `liability`, `equity`, `income`, `expense`). Includes an add-account modal with type selector, optional parent account picker, account code, name, and description fields.
+- **`finance-journal-workspace.tsx`** — journal list with `Badge` status indicators (draft/posted/voided) and journal type badges. Clicking any row navigates to the detail page.
+- **`finance-journal-editor.tsx`** — full journal editor with an editable debit/credit line table, running balance display (green when balanced, red when not), and action buttons for posting, voiding, and deleting. Read-only mode is enforced for posted/voided journals.
+- **`finance-budget-workspace.tsx`** — budget list view switching to a line-by-line detail view showing account code, account name, budgeted amount, actual year-to-date, variance (absolute and percentage), and a heat-map color indicator per line.
+- **`finance-import-wizard.tsx`** — four-step `Stepper` wizard: (1) file upload with auto-format detection; (2) column mapping for CSV/Excel files (skipped for auto-parsed IIF/OFX); (3) 20-row preview table with per-row error badges; (4) completion screen with link to review the created draft journal entry.
+- **`finance-reports-workspace.tsx`** — tabbed reports surface with Income Statement (income accounts, expense accounts, net income), Balance Sheet (assets, liabilities, equity), and Budget Variance (per-account budgeted/actual/difference). Built with Mantine `Tabs`, `Table`, and `Badge`.
+- **`finance-nav.ts`** — shared `financeNavItems(activePath: string)` helper used by all finance route pages to construct the consistent sidebar navigation array.
+
+#### Import Engine
+
+- **`lib/finance-import.ts`** — client-safe import parsers, no DB access:
+  - `parseDollarsToCents(value)` — strips `$`, `,`, whitespace; converts to integer cents; handles negative amounts
+  - `normalizeDate(value)` — normalizes ISO, `MM/DD/YYYY`, `MM-DD-YYYY`, and `YYYYMMDD` (OFX compact) formats to `YYYY-MM-DD`
+  - `parseCsv(raw)` — async; uses `papaparse` with `trimHeaders: true` and `skipEmptyLines: true`; falls back to a minimal built-in parser if `papaparse` is unavailable in the current environment
+  - `parseXlsx(buffer, sheetIndex?)` — async; uses the `xlsx` library; reads the first sheet as header-keyed rows; `cellDates: true` for proper date handling
+  - `parseCsvBuiltin(raw)` — synchronous fallback CSV parser with quoted-field support
+  - `csvRowsToPreview(rows, mapping)` — converts header-keyed rows + column mapping to `ImportPreviewRow[]`, flagging invalid dates and zero amounts as errors
+  - `parseIif(raw)` — QuickBooks IIF tab-delimited parser; handles `!TRNS`, `TRNS`, `!SPL`/`!SPLT`, `SPL`/`SPLT`, and `ENDTRNS` markers; captures account name, split account, memo, amount, and doc number
+  - `iifToPreview(transactions)` — maps IIF transaction objects to `ImportPreviewRow[]`, using amount sign to assign debit/credit account codes
+  - `parseOfx(raw)` — OFX/QFX SGML parser using regex extraction on `<STMTTRN>` blocks; extracts `DTPOSTED`, `NAME`/`PAYEE`, `TRNAMT`, `FITID`, `MEMO`, `TRNTYPE`
+  - `ofxToPreview(transactions)` — maps OFX transactions to `ImportPreviewRow[]`, using `TRNTYPE` and amount sign to assign debit/credit side; uses `"BANK"` as a placeholder account code for the bank-clearing side
+  - `parsePlainText(raw)` — auto-detects tab-delimited or pipe-delimited plain text, falls back to CSV
+  - `detectFormat(filename, rawText?)` — prioritizes filename extension; sniffs content for `<OFX>`, `<STMTTRN>`, `!TRNS`, `ENDTRNS` markers when extension is ambiguous
+
+#### Dependencies Added
+
+- `xlsx` — Apache-licensed Excel read/write library for `.xlsx` and `.xls` parsing
+- `papaparse` + `@types/papaparse` — robust, well-supported CSV parsing with quoted-field handling and configurable options
+
+#### Architecture Decision Record
+
+- **`docs/adr/0003-financial-management-module.md`** — documents the decision to build full fund-based double-entry accounting rather than a simple expense tracker, the decision to add `xlsx` and `papaparse` as dependencies, and the decision to keep monetary values as integer cents throughout.
+
+---
+
+### Added — Advanced Ministry Forge (10 Specialized Track Panels)
+
+The existing Ministry Forge had dedicated management panels for worship, men's, women's, marriage, and missions ministries. This release adds five more, expanding full panel coverage to all ten ministry track kinds supported by the data model.
+
+#### Database
+
+- **`supabase/migrations/20260430000000_advanced_ministry_forge.sql`** — introduces the following schema additions:
+
+**Profile extensions:**
+- `profiles.member_number` (`text`, unique per church) — non-sequential human-readable identifier, nullable for backward compatibility
+- `profiles.safety_clearance_date` (`date`) — background check clearance date, used by the Children's Safety Index
+- `profiles.specialized_tags` (`text[]`) — hobby, career, or interest tags used for life-stage matching and career-kingdom mentorship
+
+**Ministry type expansion:**
+- `ministries.ministry_type` constraint updated to include `young_adult` and `education`
+- `ministry_tracks.track_kind` constraint updated to be consistent with all ten track kinds
+
+**Children's Ministry:**
+- `children_rooms` — classroom definitions with `name`, `age_min`, `age_max`, `capacity`, and `target_ratio` (children per leader). Per-ministry, church-scoped. RLS: `belongs_to_church` for read, `can_manage_church` for write.
+- `children_checkins` — per-service check-in/out log: `child_name`, `guardian_name`, `checked_in_at`, `checked_out_at`, `leader_count`, `service_date`. RLS: manager-only (no member read).
+- `children_sensitive_data` — one row per child per church for pickup codes, authorized guardian names, medical alerts, and emergency contact. **RLS: `can_manage_church` only — intentionally excludes member read.** Full audit trigger writes every access to `audit_log`. Note in migration: fields should be encrypted via Supabase Vault (`pgsodium`) before production deployment.
+
+**Youth Ministry:**
+- `youth_milestones` — milestone catalog per ministry: name, description, order, and `is_required` flag. Examples: Baptism, First Serve, Faith Foundations Class, Student Leader Role.
+- `youth_graduation_tracking` — per-student, per-milestone completion record with `completed_at` date and expected `graduation_year`. Unique on `(church_id, profile_id, milestone_id)`. RLS: `belongs_to_church` for read.
+
+**Young Adults Ministry:**
+- `young_adult_career_mentorships` — career-kingdom mentor/mentee pairs with `industry` and `focus_area` fields. Status: `active`, `completed`, `paused`, `seeking`. RLS: participants see their own pairs; managers see all.
+
+**Education / Discipleship:**
+- `education_courses` — course catalog with `title`, `curriculum_area` (constrained to `theology`, `bible_survey`, `spiritual_disciplines`, `church_history`, `apologetics`, `leadership`, `marriage_family`, `missions`, `finance`, `other`), `duration_weeks`, `is_active`, and `course_order`.
+- `education_enrollments` — per-member course enrollment with `enrolled_at`, `completed_at`, and `certificate_issued`. Unique on `(church_id, course_id, profile_id)`. RLS: members can see their own; managers see all.
+
+**Outreach Ministry:**
+- `outreach_events` — community partnership events with date, location, `zone_name`, GPS coordinates (`latitude`, `longitude`), `volunteer_count`, `people_served`, and status.
+- `outreach_zones` — neighborhood/zone summary table for heatmap display: `zone_name`, running totals for events/volunteers/served, `last_event_date`, and `coverage_level` (`low`, `medium`, `high`). Unique on `(church_id, zone_name)`.
+
+**Marriage Ministry:**
+- `marriage_pulse_entries` — completely anonymous weekly sentiment entries: `survey_week` (ISO week start Monday), `theme` (communication, parenting, finance, intimacy, conflict, purpose, spiritual_growth, other), `sentiment` (1–5). **No `profile_id` column — anonymity is enforced at the schema level.** Members can insert; only managers can read aggregates.
+
+**Stewardship views:**
+- `discipleship_velocity` — PostgreSQL view computing per-church: `leader_count`, `avg_days_to_leader`, `min_days`, `max_days`. Calculated from the gap between `profiles.created_at` and the `ministry_tracks.created_at` of their first leader-role track entry.
+- `burnout_category_counts` — view flagging members active in more than 3 distinct `track_kind` categories. Columns: `church_id`, `profile_id`, `full_name`, `distinct_track_count`, `active_tracks[]`. Used by the Burnout Guardian.
+
+#### Type System
+
+- **`lib/ministry-forge-types.ts`** extended with:
+  - `MinistryType` union expanded to include `"young_adult"` and `"education"`
+  - `TRACK_PANEL_TYPES` set expanded from 5 to 10: adds `children`, `youth`, `young_adult`, `education`, `outreach`
+  - **Children's types:** `ChildrenRoom`, `ChildrenCheckin`, `ChildrenRoomSafety` (with `ratioStatus: "safe" | "warning" | "alert"`), `ChildrenTrackData`
+  - **Youth types:** `YouthMilestone`, `YouthStudent` (with `readinessPercent` 0–100 and `alertLevel: "on_track" | "at_risk" | "critical"`), `YouthTrackData`
+  - **Young Adults types:** `CareerMentorship`, `YoungAdultTrackData` (includes `seekingMentors` list)
+  - **Education types:** `EducationCourse` (with `enrolledCount` and `completedCount`), `MemberDoctrinalProgress` (with `completedAreas[]` and `coveragePercent`), `EducationTrackData`
+  - **Outreach types:** `OutreachEvent`, `OutreachZone` (with `coverageLevel`), `OutreachTrackData` (includes `totalVolunteerHours` and `totalPeopleServed` aggregates)
+  - **Stewardship types:** `DiscipleshipVelocity`, `BurnoutCandidate`, `MarriagePulseEntry`
+
+#### Data Layer
+
+Five new exported functions added to **`lib/ministry-forge-data.ts`**, each following the existing dual-path pattern:
+
+- **`getChildrenTrackData(session, ministryId)`** — fetches rooms, recent check-ins (50 records), and background check status for ministry leaders. Builds a `safetySnapshot[]` on the fly by comparing today's active check-ins per room against the room's `target_ratio`. `ratioStatus` is `"alert"` when `actualRatio > targetRatio`, `"warning"` when within 10% of the limit. Background check array includes leaders with no clearance date or clearance expiring within 30 days.
+- **`getYouthTrackData(session, ministryId)`** — fetches milestones and per-student tracking records. Computes `readinessPercent` as the fraction of required milestones completed. Sets `alertLevel` to `"critical"` when readiness < 50% and graduation ≤ 1 year away, `"at_risk"` when readiness < 75% and graduation ≤ 2 years away.
+- **`getYoungAdultTrackData(session, ministryId)`** — fetches career mentorship pairs with mentor/mentee names. Derives `seekingMentors` list from pairs with `status = "seeking"`.
+- **`getEducationTrackData(session, ministryId)`** — fetches course catalog (with enrollment/completion counts aggregated in SQL for the local path), then builds per-member `MemberDoctrinalProgress` by walking enrollments. `coveragePercent` is the fraction of distinct `curriculum_area` values the member has completed at least one course in.
+- **`getOutreachTrackData(session, ministryId)`** — fetches events (50 records, most recent first) and zones (sorted by `total_served` descending). Computes `totalVolunteerHours` as an estimate (3 hours × volunteer count per event) and `totalPeopleServed` as the sum of all `people_served` values.
+- **`getDiscipleshipVelocity(session)`** — reads from the `discipleship_velocity` view for the current church.
+- **`getBurnoutCandidates(session)`** — reads from the `burnout_category_counts` view, filtered to `distinct_track_count > 3`.
+
+#### UI Components
+
+Five new track panel components, each following the established design language (Mantine UI, Lucide icons, `AI_ASSISTIVE_DISCLAIMER` footer):
+
+- **`ministry-track-children.tsx` — Safety-First Dashboard**
+  - Top-level red alert banner fires when any classroom exceeds its target ratio; orange warning banner fires when within 10% of the limit.
+  - Safety Index grid: one `Paper` card per room showing current child count, leader count, actual ratio, target ratio, a `Progress` bar (color-coded by status), and a `RatioStatusBadge`.
+  - Background Check Status table: leaders with no clearance record shown in red; leaders expiring within 30 days shown in orange.
+  - Recent Check-ins table: last 15 records with check-out status badge.
+
+- **`ministry-track-youth.tsx` — Graduation Readiness Tracker**
+  - Summary strip: total students, required milestone count, at-risk count (orange), critical count (red).
+  - Graduation Readiness Table sorted by alert level (critical first): student name, graduation year, `Progress` bar with percentage, completed/required count, and an `AlertBadge`.
+  - Milestone Catalog table: ordered list of all milestones with required/optional badge.
+
+- **`ministry-track-young-adult.tsx` — Career–Kingdom Mentorship Map**
+  - Summary stats: active pairs, completed pairs, seeking count, industries covered.
+  - Career–Kingdom Mentorship Pairs table: mentor, mentee, industry, focus area, status badge.
+  - Seeking a Mentor table: young adults waiting for a match with their industry interest.
+
+- **`ministry-track-education.tsx` — Doctrinal Blueprint**
+  - Summary stats: active courses, curriculum areas, total enrollments, total completions.
+  - Course Catalog table: title, curriculum area badge (color-coded by area), duration in weeks, enrollment and completion counts.
+  - Doctrinal Blueprint table: per-member `Progress` bar for theological coverage percentage; completed area badges; courses completed count.
+
+- **`ministry-track-outreach.tsx` — Neighborhood Density**
+  - Summary stats: events completed, upcoming events, estimated volunteer hours, people served.
+  - Neighborhood Density zone table: zone name, event count, volunteer count, people served, last event date, coverage level badge (red/yellow/green).
+  - Low-coverage zone callout text listing zone names needing attention.
+  - Event Log table: last 15 events with date, zone, volunteer count, served count, and status badge.
+
+#### Dashboard Integration
+
+- **`ministry-forge-dashboard.tsx`** updated:
+  - `TRACK_TAB_META` expanded with entries for `children`, `youth`, `young_adult`, `education`, `outreach` — each with label and Lucide icon (`ShieldCheck`, `GraduationCap`, `Briefcase`, `BookOpen`, `Globe`).
+  - `MINISTRY_TYPE_OPTIONS` expanded to include `young_adult`, `men`, `women`, `marriage`, and `education` (previously missing from the settings selector).
+  - Component props extended with `childrenData?`, `youthData?`, `youngAdultData?`, `educationData?`, `outreachData?`.
+  - Track panel render block updated to render the appropriate panel component for each of the five new types.
+  - `Briefcase` and `GraduationCap` added to Lucide imports.
+
+- **`app/app/church-admin/ministry/[id]/page.tsx`** updated:
+  - Imports all five new data fetchers.
+  - Parallel `Promise.all` block expanded from 5 to 10 conditional fetches — each fetcher is called only when `ministryType` matches, so unrelated ministries pay zero overhead.
+  - All five new data props passed through to `MinistryForgeDashboard`.
+
+- **`ministry-forge-list.tsx`** updated:
+  - `TYPE_META` record (typed as `Record<MinistryType, …>`) extended with `young_adult` and `education` entries to satisfy the exhaustive type constraint.
+  - `GraduationCap` and `Briefcase` added to Lucide imports.
+
+#### Seed Data
+
+`supabase/seed.sql` extended with demo data for all five new track types:
+
+- **Children's:** 5 rooms (Nursery 0–2, Toddler 3–4, Pre-K/Kinder, Elementary 7–10, Pre-Teen 11–12) with capacity and target ratios; 3 sample check-ins for today's service.
+- **Youth:** 4 milestones (Baptism ✓ required, First Serve ✓ required, Faith Foundations ✓ required, Student Leader optional); 2 completion records for David Chen with graduation year 2027.
+- **Young Adults:** 4 career mentorships across Finance, Technology, Education, and Healthcare industries, including one `seeking` entry.
+- **Education:** 7 courses across 6 curriculum areas (theology, bible_survey, spiritual_disciplines, church_history, apologetics, finance); 6 enrollment records for Sarah, Robert, and Marcus with mix of completed and in-progress.
+- **Outreach:** 5 zones (Riverside District, Downtown Core, East Side Families, Northgate Schools, South Harbor Seniors) with coverage levels; 5 events including 4 completed and 1 planned.
+- **Marriage:** 8 anonymous pulse entries across 4 weeks covering themes: communication, parenting, finance, spiritual_growth, conflict, intimacy.
+
+---
+
+### Added — Ministry List Type Coverage
+
+- `ministry-forge-list.tsx` `TYPE_META` record now covers all 13 `MinistryType` values, resolving a TypeScript strict-mode error that would have caused build failures as the type union grew.
+
+---
+
+### Fixed
+
+- Fixed `NEXT_REDIRECT` error being swallowed as a toast in `tenant-view-controls.tsx`. Next.js `redirect()` throws a special error with a `digest` starting with `"NEXT_REDIRECT"`. Both `handleLaunch` and `handleReturn` now re-throw this error so Next.js can complete navigation rather than displaying a spurious "Cannot launch tenant view" notification.
+- Fixed `shouldUseLocalTenantFallback()` called with an argument in all five new data fetchers. The function signature takes zero arguments; the session argument was removed from all call sites.
+- Fixed `profiles.first_name` / `profiles.last_name` references in new data fetchers. The `profiles` table uses a single `full_name` column. All new SQL queries and Supabase `.select()` calls updated accordingly.
+- Fixed `education_enrollments` seed inserts incorrectly including a `ministry_id` column that does not exist on that table. Column removed from all enrollment insert statements.
+- Fixed `discipleship_velocity` view referencing `p.first_visit_at` which does not exist on `profiles`. Updated to use `p.created_at`.
+- Fixed `burnout_category_counts` view referencing `p.first_name || ' ' || p.last_name` — updated to `p.full_name`.
+
+---
+
+### Security & Ethical Guardrails
+
+- **Children's PII:** `children_sensitive_data` (pickup codes, medical alerts, authorized guardians) is in an isolated table with `can_manage_church` RLS — no member-role read access under any circumstance. A trigger audits every write to `audit_log`. Migration comment specifies that `pickup_code` and `medical_alerts` columns should be encrypted via Supabase Vault (`pgsodium.create_key + vault.create_secret`) before any production deployment.
+- **Marriage confidentiality:** `marriage_pulse_entries` has no `profile_id` column. Anonymity is a schema constraint, not just a policy. Members can submit; only managers can read aggregate results.
+- **Pastoral separation:** Marriage and pastoral care data remain in isolated tables (established in prior releases) with `can_manage_church` / `pastor_elder`-scoped RLS. This release adds no relaxation of those boundaries.
+- **AI disclaimer:** Every new track panel component renders `AI_ASSISTIVE_DISCLAIMER` ("This is an assistive tool only and does not replace prayer, Scripture, or human discernment.") in its footer, consistent with the project-wide canonical disclaimer in `ministry-forge-types.ts`.
+
+---
+
+### Changed
+
+- `lib/ministry-forge-types.ts`: `MinistryType` union and `TRACK_PANEL_TYPES` set are now the single source of truth for which ministry kinds exist and which have dedicated panels. Any addition here automatically propagates to type checks across the data layer, dashboard, and list components.
+- `supabase/seed.sql` notice message updated from "6 ministries, 8 profiles, track data for all 5 panel types" to "10 ministries, 8 profiles, track data for all 10 panel types".
+- `DEVELOPMENT_PLAN.md` updated to reflect Financial Management and Advanced Ministry Forge as shipped features in Sprint 4.
+
+---
+
 ## [2.9.0] - 2026-04-16
 
 ### Added
