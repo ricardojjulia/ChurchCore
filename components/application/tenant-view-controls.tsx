@@ -40,6 +40,11 @@ export function TenantViewLauncher({
       try {
         await launchTenantViewAction(formData);
       } catch (err) {
+        // redirect() throws a NEXT_REDIRECT error — this is success, not failure.
+        // Re-throw so Next.js can complete the navigation.
+        const digest = (err as { digest?: string }).digest ?? "";
+        if (digest.startsWith("NEXT_REDIRECT")) throw err;
+
         notifications.show({
           title: "Cannot launch tenant view",
           message:
@@ -96,6 +101,9 @@ export function ReturnToControlPlaneButton() {
       try {
         await returnToControlPlaneAction();
       } catch (err) {
+        const digest = (err as { digest?: string }).digest ?? "";
+        if (digest.startsWith("NEXT_REDIRECT")) throw err;
+
         notifications.show({
           title: "Error",
           message: err instanceof Error ? err.message : "Something went wrong.",

@@ -9,12 +9,22 @@ import {
 } from "@/lib/supabase/tenant";
 import type {
   BurnoutAlert,
+  BurnoutCandidate,
+  CareerMentorship,
+  ChildrenCheckin,
+  ChildrenRoom,
+  ChildrenRoomSafety,
+  ChildrenTrackData,
   DiscipleshipGroup,
+  DiscipleshipVelocity,
+  EducationCourse,
+  EducationTrackData,
   HealthHistoryEntry,
   KingdomImpactEntry,
   LifeStageCircle,
   MarriageCohort,
   MarriageTrackData,
+  MemberDoctrinalProgress,
   MemberMinistriesData,
   MemberMinistryEntry,
   MensTrackData,
@@ -28,6 +38,9 @@ import type {
   MissionPartner,
   MissionTrip,
   MissionsTrackData,
+  OutreachEvent,
+  OutreachTrackData,
+  OutreachZone,
   SupportPairing,
   VolunteerMatchSuggestion,
   VolunteerMatcherData,
@@ -35,6 +48,10 @@ import type {
   WorshipRehearsal,
   WorshipSong,
   WorshipTrackData,
+  YouthMilestone,
+  YouthStudent,
+  YouthTrackData,
+  YoungAdultTrackData,
 } from "@/lib/ministry-forge-types";
 import {
   BURNOUT_THRESHOLD_HIGH,
@@ -1350,5 +1367,598 @@ export async function getMissionsTrackData(
     partnerName: (r.partner as { name: string } | null)?.name ?? null,
   }));
   return { partners, trips };
+}
+
+// ── Phase 5: Advanced Track Data Fetchers ────────────────────────────────────
+
+export async function getChildrenTrackData(
+  session: ChurchAppSession,
+  ministryId: string,
+): Promise<ChildrenTrackData> {
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const [roomsResult, checkinsResult, bgChecksResult] = await Promise.all([
+      queryTenantLocalDb<{
+        id: string; name: string; age_min: number | null; age_max: number | null;
+        capacity: number; target_ratio: string; is_active: boolean;
+      }>(
+        `select id, name, age_min, age_max, capacity, target_ratio, is_active
+         from public.children_rooms
+         where ministry_id = $1 and church_id = $2
+         order by age_min asc nulls last`,
+        [ministryId, churchId],
+      ),
+      queryTenantLocalDb<{
+        id: string; room_id: string; room_name: string; child_name: string;
+        guardian_name: string | null; checked_in_at: string; checked_out_at: string | null;
+        leader_count: number; service_date: string;
+      }>(
+        `select cc.id, cc.room_id, cr.name as room_name, cc.child_name,
+                cc.guardian_name, cc.checked_in_at::text, cc.checked_out_at::text,
+                cc.leader_count, cc.service_date::text
+         from public.children_checkins cc
+         join public.children_rooms cr on cr.id = cc.room_id
+         where cc.church_id = $1 and cr.ministry_id = $2
+         order by cc.service_date desc, cc.checked_in_at desc
+         limit 50`,
+        [churchId, ministryId],
+      ),
+      queryTenantLocalDb<{ id: string; full_name: string; safety_clearance_date: string | null }>(
+        `select p.id, p.full_name, p.safety_clearance_date
+         from public.profiles p
+         join public.profile_ministries pm on pm.profile_id = p.id
+         join public.ministries m on m.id = pm.ministry_id
+         where m.id = $1 and p.church_id = $2
+           and pm.role in ('leader', 'assistant_leader')`,
+        [ministryId, churchId],
+      ),
+    ]);
+
+    const rooms: ChildrenRoom[] = roomsResult.rows.map((r) => ({
+      id: r.id, name: r.name, ageMin: r.age_min, ageMax: r.age_max,
+      capacity: r.capacity, targetRatio: parseFloat(r.target_ratio), isActive: r.is_active,
+    }));
+
+    const recentCheckins: ChildrenCheckin[] = checkinsResult.rows.map((r) => ({
+      id: r.id, roomId: r.room_id, roomName: r.room_name, childName: r.child_name,
+      guardianName: r.guardian_name, checkedInAt: r.checked_in_at,
+      checkedOutAt: r.checked_out_at, leaderCount: r.leader_count, serviceDate: r.service_date,
+    }));
+
+    // Build safety snapshot from today's check-ins
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const safetySnapshot: ChildrenRoomSafety[] = rooms.map((room) => {
+      const todayCheckins = recentCheckins.filter(
+        (c) => c.roomId === room.id && c.serviceDate === todayStr && !c.checkedOutAt,
+      );
+      const currentChildren = todayCheckins.length;
+      const currentLeaders = todayCheckins[0]?.leaderCount ?? 0;
+      const actualRatio = currentLeaders > 0 ? currentChildren / currentLeaders : currentChildren;
+      let ratioStatus: ChildrenRoomSafety["ratioStatus"] = "safe";
+      if (actualRatio > room.targetRatio) ratioStatus = "alert";
+      else if (actualRatio > room.targetRatio * 0.9) ratioStatus = "warning";
+      return {
+        roomId: room.id, roomName: room.name, capacity: room.capacity,
+        targetRatio: room.targetRatio, currentChildren, currentLeaders,
+        actualRatio: Math.round(actualRatio * 10) / 10, ratioStatus,
+      };
+    });
+
+    const today = new Date();
+    const thirtyDaysOut = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const backgroundChecksDue = bgChecksResult.rows
+      .filter((r) => !r.safety_clearance_date || r.safety_clearance_date <= thirtyDaysOut)
+      .map((r) => ({
+        profileId: r.id,
+        name: r.full_name,
+        clearanceDate: r.safety_clearance_date,
+      }));
+
+    return { rooms, recentCheckins, safetySnapshot, backgroundChecksDue };
+  }
+
+  // Supabase path
+  const supabase = await createTenantServerClient();
+  const [{ data: roomsData }, { data: checkinsData }, { data: bgData }] = await Promise.all([
+    supabase.from("children_rooms").select("*").eq("ministry_id", ministryId).eq("church_id", churchId).order("age_min"),
+    supabase.from("children_checkins").select("*, room:children_rooms(name)").eq("church_id", churchId).order("service_date", { ascending: false }).limit(50),
+    supabase.from("profiles").select("id, full_name, safety_clearance_date").eq("church_id", churchId),
+  ]);
+
+  const rooms: ChildrenRoom[] = (roomsData ?? []).map((r) => ({
+    id: r.id, name: r.name, ageMin: r.age_min ?? null, ageMax: r.age_max ?? null,
+    capacity: r.capacity, targetRatio: parseFloat(String(r.target_ratio)), isActive: r.is_active,
+  }));
+  const recentCheckins: ChildrenCheckin[] = (checkinsData ?? []).map((r) => ({
+    id: r.id, roomId: r.room_id, roomName: (r.room as { name: string } | null)?.name ?? "",
+    childName: r.child_name, guardianName: r.guardian_name ?? null,
+    checkedInAt: r.checked_in_at, checkedOutAt: r.checked_out_at ?? null,
+    leaderCount: r.leader_count, serviceDate: r.service_date,
+  }));
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const safetySnapshot: ChildrenRoomSafety[] = rooms.map((room) => {
+    const todayCheckins = recentCheckins.filter(
+      (c) => c.roomId === room.id && c.serviceDate === todayStr && !c.checkedOutAt,
+    );
+    const currentChildren = todayCheckins.length;
+    const currentLeaders = todayCheckins[0]?.leaderCount ?? 0;
+    const actualRatio = currentLeaders > 0 ? currentChildren / currentLeaders : currentChildren;
+    let ratioStatus: ChildrenRoomSafety["ratioStatus"] = "safe";
+    if (actualRatio > room.targetRatio) ratioStatus = "alert";
+    else if (actualRatio > room.targetRatio * 0.9) ratioStatus = "warning";
+    return {
+      roomId: room.id, roomName: room.name, capacity: room.capacity,
+      targetRatio: room.targetRatio, currentChildren, currentLeaders,
+      actualRatio: Math.round(actualRatio * 10) / 10, ratioStatus,
+    };
+  });
+
+  const thirtyDaysOut = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const backgroundChecksDue = (bgData ?? [])
+    .filter((r) => !r.safety_clearance_date || r.safety_clearance_date <= thirtyDaysOut)
+    .map((r) => ({
+      profileId: r.id,
+      name: r.full_name ?? "",
+      clearanceDate: r.safety_clearance_date ?? null,
+    }));
+
+  return { rooms, recentCheckins, safetySnapshot, backgroundChecksDue };
+}
+
+export async function getYouthTrackData(
+  session: ChurchAppSession,
+  ministryId: string,
+): Promise<YouthTrackData> {
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const [milestonesResult, trackingResult] = await Promise.all([
+      queryTenantLocalDb<{
+        id: string; name: string; description: string | null;
+        milestone_order: number; is_required: boolean;
+      }>(
+        `select id, name, description, milestone_order, is_required
+         from public.youth_milestones
+         where ministry_id = $1 and church_id = $2
+         order by milestone_order`,
+        [ministryId, churchId],
+      ),
+      queryTenantLocalDb<{
+        profile_id: string; full_name: string; graduation_year: number | null;
+        milestone_id: string; completed_at: string | null;
+      }>(
+        `select ygt.profile_id,
+                p.full_name,
+                ygt.graduation_year,
+                ygt.milestone_id,
+                ygt.completed_at::text
+         from public.youth_graduation_tracking ygt
+         join public.profiles p on p.id = ygt.profile_id
+         where ygt.ministry_id = $1 and ygt.church_id = $2`,
+        [ministryId, churchId],
+      ),
+    ]);
+
+    const milestones: YouthMilestone[] = milestonesResult.rows.map((r) => ({
+      id: r.id, name: r.name, description: r.description,
+      milestoneOrder: r.milestone_order, isRequired: r.is_required,
+    }));
+
+    const requiredMilestones = milestones.filter((m) => m.isRequired);
+    const studentMap = new Map<string, YouthStudent>();
+    for (const row of trackingResult.rows) {
+      if (!studentMap.has(row.profile_id)) {
+        studentMap.set(row.profile_id, {
+          profileId: row.profile_id, name: row.full_name,
+          graduationYear: row.graduation_year,
+          completedMilestoneIds: [], completedCount: 0,
+          totalRequired: requiredMilestones.length,
+          readinessPercent: 0, alertLevel: "on_track",
+        });
+      }
+      const student = studentMap.get(row.profile_id)!;
+      if (row.completed_at) {
+        student.completedMilestoneIds.push(row.milestone_id);
+        student.completedCount++;
+      }
+    }
+    const currentYear = new Date().getFullYear();
+    const students: YouthStudent[] = Array.from(studentMap.values()).map((s) => {
+      const readinessPercent = s.totalRequired > 0
+        ? Math.round((s.completedMilestoneIds.filter((id) =>
+            requiredMilestones.some((m) => m.id === id)
+          ).length / s.totalRequired) * 100)
+        : 100;
+      const yearsLeft = s.graduationYear ? s.graduationYear - currentYear : null;
+      let alertLevel: YouthStudent["alertLevel"] = "on_track";
+      if (readinessPercent < 50 && yearsLeft !== null && yearsLeft <= 1) alertLevel = "critical";
+      else if (readinessPercent < 75 && yearsLeft !== null && yearsLeft <= 2) alertLevel = "at_risk";
+      return { ...s, readinessPercent, alertLevel };
+    });
+
+    return { milestones, students };
+  }
+
+  const supabase = await createTenantServerClient();
+  const [{ data: milestonesData }, { data: trackingData }] = await Promise.all([
+    supabase.from("youth_milestones").select("*").eq("ministry_id", ministryId).eq("church_id", churchId).order("milestone_order"),
+    supabase.from("youth_graduation_tracking").select("*, profile:profiles(full_name)").eq("ministry_id", ministryId).eq("church_id", churchId),
+  ]);
+
+  const milestones: YouthMilestone[] = (milestonesData ?? []).map((r) => ({
+    id: r.id, name: r.name, description: r.description ?? null,
+    milestoneOrder: r.milestone_order, isRequired: r.is_required,
+  }));
+  const requiredMilestones = milestones.filter((m) => m.isRequired);
+  const studentMap = new Map<string, YouthStudent>();
+  for (const row of (trackingData ?? [])) {
+    const prof = row.profile as { full_name: string } | null;
+    if (!studentMap.has(row.profile_id)) {
+      studentMap.set(row.profile_id, {
+        profileId: row.profile_id,
+        name: prof?.full_name ?? "Unknown",
+        graduationYear: row.graduation_year ?? null,
+        completedMilestoneIds: [], completedCount: 0,
+        totalRequired: requiredMilestones.length, readinessPercent: 0, alertLevel: "on_track",
+      });
+    }
+    const student = studentMap.get(row.profile_id)!;
+    if (row.completed_at) {
+      student.completedMilestoneIds.push(row.milestone_id);
+      student.completedCount++;
+    }
+  }
+  const currentYear = new Date().getFullYear();
+  const students: YouthStudent[] = Array.from(studentMap.values()).map((s) => {
+    const readinessPercent = s.totalRequired > 0
+      ? Math.round((s.completedMilestoneIds.filter((id) =>
+          requiredMilestones.some((m) => m.id === id)
+        ).length / s.totalRequired) * 100)
+      : 100;
+    const yearsLeft = s.graduationYear ? s.graduationYear - currentYear : null;
+    let alertLevel: YouthStudent["alertLevel"] = "on_track";
+    if (readinessPercent < 50 && yearsLeft !== null && yearsLeft <= 1) alertLevel = "critical";
+    else if (readinessPercent < 75 && yearsLeft !== null && yearsLeft <= 2) alertLevel = "at_risk";
+    return { ...s, readinessPercent, alertLevel };
+  });
+  return { milestones, students };
+}
+
+export async function getYoungAdultTrackData(
+  session: ChurchAppSession,
+  ministryId: string,
+): Promise<YoungAdultTrackData> {
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{
+      id: string; mentor_id: string; mentor_name: string;
+      mentee_id: string; mentee_name: string;
+      industry: string | null; focus_area: string | null;
+      status: string; started_at: string | null;
+    }>(
+      `select yacm.id,
+              yacm.mentor_id, pm.full_name as mentor_name,
+              yacm.mentee_id, pe.full_name as mentee_name,
+              yacm.industry, yacm.focus_area, yacm.status, yacm.started_at::text
+       from public.young_adult_career_mentorships yacm
+       join public.profiles pm on pm.id = yacm.mentor_id
+       join public.profiles pe on pe.id = yacm.mentee_id
+       where yacm.ministry_id = $1 and yacm.church_id = $2
+       order by yacm.started_at desc`,
+      [ministryId, churchId],
+    );
+
+    const careerMentorships: CareerMentorship[] = result.rows.map((r) => ({
+      id: r.id, mentorId: r.mentor_id, mentorName: r.mentor_name,
+      menteeId: r.mentee_id, menteeName: r.mentee_name,
+      industry: r.industry, focusArea: r.focus_area,
+      status: r.status, startedAt: r.started_at,
+    }));
+
+    const seekingMentors = careerMentorships
+      .filter((m) => m.status === "seeking")
+      .map((m) => ({ profileId: m.menteeId, name: m.menteeName, industry: m.industry }));
+
+    return { careerMentorships, seekingMentors };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data } = await supabase
+    .from("young_adult_career_mentorships")
+    .select("*, mentor:profiles!mentor_id(full_name), mentee:profiles!mentee_id(full_name)")
+    .eq("ministry_id", ministryId)
+    .eq("church_id", churchId)
+    .order("started_at", { ascending: false });
+
+  const careerMentorships: CareerMentorship[] = (data ?? []).map((r) => {
+    const mentor = r.mentor as { full_name: string } | null;
+    const mentee = r.mentee as { full_name: string } | null;
+    return {
+      id: r.id,
+      mentorId: r.mentor_id, mentorName: mentor?.full_name ?? "Unknown",
+      menteeId: r.mentee_id, menteeName: mentee?.full_name ?? "Unknown",
+      industry: r.industry ?? null, focusArea: r.focus_area ?? null,
+      status: r.status, startedAt: r.started_at ?? null,
+    };
+  });
+  const seekingMentors = careerMentorships
+    .filter((m) => m.status === "seeking")
+    .map((m) => ({ profileId: m.menteeId, name: m.menteeName, industry: m.industry }));
+
+  return { careerMentorships, seekingMentors };
+}
+
+export async function getEducationTrackData(
+  session: ChurchAppSession,
+  ministryId: string,
+): Promise<EducationTrackData> {
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const [coursesResult, enrollmentsResult] = await Promise.all([
+      queryTenantLocalDb<{
+        id: string; title: string; curriculum_area: string; description: string | null;
+        duration_weeks: number | null; is_active: boolean; course_order: number;
+        enrolled_count: number; completed_count: number;
+      }>(
+        `select ec.id, ec.title, ec.curriculum_area, ec.description,
+                ec.duration_weeks, ec.is_active, ec.course_order,
+                count(ee.id)::int as enrolled_count,
+                count(ee.completed_at)::int as completed_count
+         from public.education_courses ec
+         left join public.education_enrollments ee on ee.course_id = ec.id
+         where ec.ministry_id = $1 and ec.church_id = $2
+         group by ec.id
+         order by ec.course_order`,
+        [ministryId, churchId],
+      ),
+      queryTenantLocalDb<{
+        profile_id: string; full_name: string;
+        course_id: string; curriculum_area: string; completed_at: string | null;
+      }>(
+        `select ee.profile_id,
+                p.full_name,
+                ee.course_id, ec.curriculum_area, ee.completed_at::text
+         from public.education_enrollments ee
+         join public.profiles p on p.id = ee.profile_id
+         join public.education_courses ec on ec.id = ee.course_id
+         where ec.ministry_id = $1 and ee.church_id = $2`,
+        [ministryId, churchId],
+      ),
+    ]);
+
+    const courses: EducationCourse[] = coursesResult.rows.map((r) => ({
+      id: r.id, title: r.title, curriculumArea: r.curriculum_area,
+      description: r.description, durationWeeks: r.duration_weeks,
+      isActive: r.is_active, courseOrder: r.course_order,
+      enrolledCount: r.enrolled_count, completedCount: r.completed_count,
+    }));
+
+    const totalCourses = courses.length;
+    const profileMap = new Map<string, MemberDoctrinalProgress>();
+    for (const row of enrollmentsResult.rows) {
+      if (!profileMap.has(row.profile_id)) {
+        profileMap.set(row.profile_id, {
+          profileId: row.profile_id, name: row.full_name,
+          completedCourseIds: [], completedAreas: [],
+          totalCourses, completedCount: 0, coveragePercent: 0,
+        });
+      }
+      const prog = profileMap.get(row.profile_id)!;
+      if (row.completed_at) {
+        prog.completedCourseIds.push(row.course_id);
+        prog.completedCount++;
+        if (!prog.completedAreas.includes(row.curriculum_area)) {
+          prog.completedAreas.push(row.curriculum_area);
+        }
+      }
+    }
+    const allAreas = [...new Set(courses.map((c) => c.curriculumArea))];
+    const memberProgress: MemberDoctrinalProgress[] = Array.from(profileMap.values()).map((p) => ({
+      ...p,
+      coveragePercent: allAreas.length > 0
+        ? Math.round((p.completedAreas.length / allAreas.length) * 100)
+        : 0,
+    }));
+
+    return { courses, memberProgress };
+  }
+
+  const supabase = await createTenantServerClient();
+  const [{ data: coursesData }, { data: enrollmentsData }] = await Promise.all([
+    supabase.from("education_courses").select("*").eq("ministry_id", ministryId).eq("church_id", churchId).order("course_order"),
+    supabase.from("education_enrollments").select("*, course:education_courses(curriculum_area), profile:profiles(full_name)").eq("church_id", churchId),
+  ]);
+
+  const courses: EducationCourse[] = (coursesData ?? []).map((r) => ({
+    id: r.id, title: r.title, curriculumArea: r.curriculum_area,
+    description: r.description ?? null, durationWeeks: r.duration_weeks ?? null,
+    isActive: r.is_active, courseOrder: r.course_order,
+    enrolledCount: 0, completedCount: 0,
+  }));
+  // Count enrollments per course
+  for (const enr of (enrollmentsData ?? [])) {
+    const course = courses.find((c) => c.id === enr.course_id);
+    if (course) {
+      course.enrolledCount++;
+      if (enr.completed_at) course.completedCount++;
+    }
+  }
+
+  const totalCourses = courses.length;
+  const profileMap = new Map<string, MemberDoctrinalProgress>();
+  for (const row of (enrollmentsData ?? [])) {
+    const prof = row.profile as { full_name: string } | null;
+    const course = row.course as { curriculum_area: string } | null;
+    if (!profileMap.has(row.profile_id)) {
+      profileMap.set(row.profile_id, {
+        profileId: row.profile_id,
+        name: prof?.full_name ?? "Unknown",
+        completedCourseIds: [], completedAreas: [],
+        totalCourses, completedCount: 0, coveragePercent: 0,
+      });
+    }
+    const prog = profileMap.get(row.profile_id)!;
+    if (row.completed_at) {
+      prog.completedCourseIds.push(row.course_id);
+      prog.completedCount++;
+      const area = course?.curriculum_area;
+      if (area && !prog.completedAreas.includes(area)) prog.completedAreas.push(area);
+    }
+  }
+  const allAreas = [...new Set(courses.map((c) => c.curriculumArea))];
+  const memberProgress: MemberDoctrinalProgress[] = Array.from(profileMap.values()).map((p) => ({
+    ...p,
+    coveragePercent: allAreas.length > 0
+      ? Math.round((p.completedAreas.length / allAreas.length) * 100)
+      : 0,
+  }));
+
+  return { courses, memberProgress };
+}
+
+export async function getOutreachTrackData(
+  session: ChurchAppSession,
+  ministryId: string,
+): Promise<OutreachTrackData> {
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const [eventsResult, zonesResult] = await Promise.all([
+      queryTenantLocalDb<{
+        id: string; name: string; event_date: string; location: string | null;
+        zone_name: string | null; volunteer_count: number; people_served: number; status: string;
+      }>(
+        `select id, name, event_date::text, location, zone_name,
+                volunteer_count, people_served, status
+         from public.outreach_events
+         where ministry_id = $1 and church_id = $2
+         order by event_date desc
+         limit 50`,
+        [ministryId, churchId],
+      ),
+      queryTenantLocalDb<{
+        id: string; zone_name: string; description: string | null;
+        total_events: number; total_volunteers: number; total_served: number;
+        last_event_date: string | null; coverage_level: string;
+      }>(
+        `select id, zone_name, description, total_events, total_volunteers,
+                total_served, last_event_date::text, coverage_level
+         from public.outreach_zones
+         where ministry_id = $1 and church_id = $2
+         order by total_served desc`,
+        [ministryId, churchId],
+      ),
+    ]);
+
+    const events: OutreachEvent[] = eventsResult.rows.map((r) => ({
+      id: r.id, name: r.name, eventDate: r.event_date, location: r.location,
+      zoneName: r.zone_name, volunteerCount: r.volunteer_count,
+      peopleServed: r.people_served, status: r.status,
+    }));
+    const zones: OutreachZone[] = zonesResult.rows.map((r) => ({
+      id: r.id, zoneName: r.zone_name, description: r.description,
+      totalEvents: r.total_events, totalVolunteers: r.total_volunteers,
+      totalServed: r.total_served, lastEventDate: r.last_event_date,
+      coverageLevel: r.coverage_level as OutreachZone["coverageLevel"],
+    }));
+    const totalVolunteerHours = events.reduce((sum, e) => sum + e.volunteerCount * 3, 0); // estimate 3h/volunteer
+    const totalPeopleServed = events.reduce((sum, e) => sum + e.peopleServed, 0);
+    return { events, zones, totalVolunteerHours, totalPeopleServed };
+  }
+
+  const supabase = await createTenantServerClient();
+  const [{ data: eventsData }, { data: zonesData }] = await Promise.all([
+    supabase.from("outreach_events").select("*").eq("ministry_id", ministryId).eq("church_id", churchId).order("event_date", { ascending: false }).limit(50),
+    supabase.from("outreach_zones").select("*").eq("ministry_id", ministryId).eq("church_id", churchId).order("total_served", { ascending: false }),
+  ]);
+
+  const events: OutreachEvent[] = (eventsData ?? []).map((r) => ({
+    id: r.id, name: r.name, eventDate: r.event_date, location: r.location ?? null,
+    zoneName: r.zone_name ?? null, volunteerCount: r.volunteer_count,
+    peopleServed: r.people_served, status: r.status,
+  }));
+  const zones: OutreachZone[] = (zonesData ?? []).map((r) => ({
+    id: r.id, zoneName: r.zone_name, description: r.description ?? null,
+    totalEvents: r.total_events, totalVolunteers: r.total_volunteers,
+    totalServed: r.total_served, lastEventDate: r.last_event_date ?? null,
+    coverageLevel: r.coverage_level as OutreachZone["coverageLevel"],
+  }));
+  const totalVolunteerHours = events.reduce((sum, e) => sum + e.volunteerCount * 3, 0);
+  const totalPeopleServed = events.reduce((sum, e) => sum + e.peopleServed, 0);
+  return { events, zones, totalVolunteerHours, totalPeopleServed };
+}
+
+export async function getDiscipleshipVelocity(
+  session: ChurchAppSession,
+): Promise<DiscipleshipVelocity> {
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{
+      leader_count: string; avg_days_to_leader: string | null;
+      min_days: number | null; max_days: number | null;
+    }>(
+      `select leader_count, avg_days_to_leader, min_days, max_days
+       from public.discipleship_velocity
+       where church_id = $1`,
+      [churchId],
+    );
+    const row = result.rows[0];
+    return {
+      leaderCount: row ? parseInt(row.leader_count) : 0,
+      avgDaysToLeader: row?.avg_days_to_leader ? parseFloat(row.avg_days_to_leader) : null,
+      minDays: row?.min_days ?? null, maxDays: row?.max_days ?? null,
+    };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data } = await supabase.from("discipleship_velocity").select("*").eq("church_id", churchId).single();
+  return {
+    leaderCount: data ? Number(data.leader_count) : 0,
+    avgDaysToLeader: data?.avg_days_to_leader ? Number(data.avg_days_to_leader) : null,
+    minDays: data?.min_days ?? null, maxDays: data?.max_days ?? null,
+  };
+}
+
+export async function getBurnoutCandidates(
+  session: ChurchAppSession,
+): Promise<BurnoutCandidate[]> {
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{
+      profile_id: string; full_name: string;
+      distinct_track_count: string; active_tracks: string[];
+    }>(
+      `select profile_id, full_name, distinct_track_count, active_tracks
+       from public.burnout_category_counts
+       where church_id = $1 and distinct_track_count > 3
+       order by distinct_track_count desc`,
+      [churchId],
+    );
+    return result.rows.map((r) => ({
+      profileId: r.profile_id, fullName: r.full_name,
+      distinctTrackCount: parseInt(r.distinct_track_count),
+      activeTracks: r.active_tracks,
+    }));
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data } = await supabase
+    .from("burnout_category_counts")
+    .select("*")
+    .eq("church_id", churchId)
+    .gt("distinct_track_count", 3)
+    .order("distinct_track_count", { ascending: false });
+
+  return (data ?? []).map((r) => ({
+    profileId: r.profile_id, fullName: r.full_name,
+    distinctTrackCount: Number(r.distinct_track_count),
+    activeTracks: (r.active_tracks as string[]) ?? [],
+  }));
 }
 

@@ -1,6 +1,6 @@
 # ChurchForge
 
-ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, guardrailed AI ministry tools, and graphical stewardship reporting. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.8 and is at release `2.8.0`, incorporating Ministry Forge (Phases 1–4 with five specialized track panels), Elders Discernment Room, Pastor Council Forge, Communications Hub, voluntary Stripe donations, GDPR/CCPA data rights, a full pre-launch checklist, complete church-admin people management, the Sprint 2 attendance / roster / member-identity flow, the Advanced Ministry Forge specialization tracks documented in `ministry-spec.md`, the first reporting-suite foundation, and a fully operational local Supabase development environment with seed data.
+ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, guardrailed AI ministry tools, and graphical stewardship reporting. This repository is aligned to `DEVELOPMENT_PLAN.md` v1.8 and is at release `2.9.0`, incorporating Ministry Forge (Phases 1–4 with five specialized track panels), Financial Management (double-entry accounting, budgets, and import), Elders Discernment Room, Pastor Council Forge, Communications Hub, voluntary Stripe donations, GDPR/CCPA data rights, a full pre-launch checklist, complete church-admin people management, the Sprint 2 attendance / roster / member-identity flow, the Advanced Ministry Forge specialization tracks documented in `ministry-spec.md`, the first reporting-suite foundation, and a fully operational local Supabase development environment with seed data.
 
 ## Stack
 
@@ -29,6 +29,12 @@ Current plan target:
 - Security and privacy expectations centered on sensitive-data classification, consent, auditing, and disciplined application security checks.
 - Future Ministry Forge work is now explicitly documented around specialized tracks for men, women, children, youth, young adults, marriage, education, missions, and outreach, with deterministic stewardship metrics and tighter safety/confidentiality rules.
 - Future reporting work is now explicitly documented as a multi-surface reporting suite spanning members, events, giving, ministries, communications, and outreach, with graphical dashboards and differentiated stewardship insights.
+
+## Release 2.9.0 Highlights
+
+- **Financial Management module.** Church admins now have a full double-entry accounting system at `/app/church-admin/finance`. Create a chart of accounts, post journal entries (draft → posted), set annual budgets with per-account lines, view actuals vs. budget, and import transactions from CSV, Excel, QuickBooks IIF, OFX/QFX bank feeds, or plain text. Financial reports include income statement, balance sheet, and budget variance.
+- **Import wizard.** A multi-step wizard auto-detects file format, allows column mapping for CSV/Excel, previews rows with error flagging, and posts imported rows as a draft journal entry ready for review.
+- **Access controls.** The finance module is church-admin only. All routes include role guards consistent with the existing pattern.
 
 ## Release 2.8.0 Highlights
 

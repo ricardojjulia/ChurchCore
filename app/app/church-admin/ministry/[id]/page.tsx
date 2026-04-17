@@ -4,13 +4,18 @@ import { MinistryForgeDashboard } from "@/components/application/ministry-forge-
 import { requireChurchSession } from "@/lib/auth";
 import { getChurchAdminPeopleData } from "@/lib/church-admin-people-data";
 import {
+  getChildrenTrackData,
+  getEducationTrackData,
   getMarriageTrackData,
   getMensTrackData,
   getMinistryForgeDetail,
   getMissionsTrackData,
+  getOutreachTrackData,
   getVolunteerMatcherData,
   getWomensTrackData,
   getWorshipTrackData,
+  getYoungAdultTrackData,
+  getYouthTrackData,
 } from "@/lib/ministry-forge-data";
 import { hasTrackPanel } from "@/lib/ministry-forge-types";
 
@@ -42,16 +47,23 @@ export default async function MinistryForgePage({
 
   const matcherData = await getVolunteerMatcherData(session, id);
 
-  // Phase 4: load the type-specific track data if this ministry has a dedicated panel
+  // Load the type-specific track data if this ministry has a dedicated panel
   const ministryType = detail.ministry.ministryType;
-  const [worshipData, mensData, womensData, marriageData, missionsData] =
-    await Promise.all([
-      ministryType === "worship" ? getWorshipTrackData(session, id) : Promise.resolve(null),
-      ministryType === "men"     ? getMensTrackData(session, id)    : Promise.resolve(null),
-      ministryType === "women"   ? getWomensTrackData(session, id)  : Promise.resolve(null),
-      ministryType === "marriage"? getMarriageTrackData(session, id): Promise.resolve(null),
-      ministryType === "missions"? getMissionsTrackData(session, id): Promise.resolve(null),
-    ]);
+  const [
+    worshipData, mensData, womensData, marriageData, missionsData,
+    childrenData, youthData, youngAdultData, educationData, outreachData,
+  ] = await Promise.all([
+    ministryType === "worship"     ? getWorshipTrackData(session, id)     : Promise.resolve(null),
+    ministryType === "men"         ? getMensTrackData(session, id)         : Promise.resolve(null),
+    ministryType === "women"       ? getWomensTrackData(session, id)       : Promise.resolve(null),
+    ministryType === "marriage"    ? getMarriageTrackData(session, id)     : Promise.resolve(null),
+    ministryType === "missions"    ? getMissionsTrackData(session, id)     : Promise.resolve(null),
+    ministryType === "children"    ? getChildrenTrackData(session, id)     : Promise.resolve(null),
+    ministryType === "youth"       ? getYouthTrackData(session, id)        : Promise.resolve(null),
+    ministryType === "young_adult" ? getYoungAdultTrackData(session, id)   : Promise.resolve(null),
+    ministryType === "education"   ? getEducationTrackData(session, id)    : Promise.resolve(null),
+    ministryType === "outreach"    ? getOutreachTrackData(session, id)     : Promise.resolve(null),
+  ]);
 
   return (
     <MinistryForgeDashboard
@@ -65,6 +77,11 @@ export default async function MinistryForgePage({
       womensData={womensData}
       marriageData={marriageData}
       missionsData={missionsData}
+      childrenData={childrenData}
+      youthData={youthData}
+      youngAdultData={youngAdultData}
+      educationData={educationData}
+      outreachData={outreachData}
     />
   );
 }

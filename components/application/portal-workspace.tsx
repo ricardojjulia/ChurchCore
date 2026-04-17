@@ -4,6 +4,7 @@ import {
   BrainCircuit,
   DollarSign,
   HeartHandshake,
+  Landmark,
   MessageSquare,
   ShieldCheck,
   Sparkles,
@@ -85,6 +86,13 @@ export function PortalWorkspace({
         label: "Ministry Forge",
         description: "Health, vision, and impact",
         icon: Sparkles,
+        active: false,
+      },
+      {
+        href: "/app/church-admin/finance",
+        label: "Finance",
+        description: "Accounts, budgets & journals",
+        icon: Landmark,
         active: false,
       },
     );

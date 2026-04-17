@@ -12,7 +12,9 @@ export type MinistryType =
   | "missions"
   | "men"
   | "women"
-  | "marriage";
+  | "marriage"
+  | "young_adult"
+  | "education";
 
 // Ministry types that have dedicated track management panels
 export const TRACK_PANEL_TYPES = new Set<MinistryType>([
@@ -21,6 +23,11 @@ export const TRACK_PANEL_TYPES = new Set<MinistryType>([
   "women",
   "marriage",
   "missions",
+  "children",
+  "youth",
+  "young_adult",
+  "education",
+  "outreach",
 ]);
 
 export function hasTrackPanel(type: MinistryType | null): type is MinistryType {
@@ -278,4 +285,170 @@ export type MissionTrip = {
 export type MissionsTrackData = {
   partners: MissionPartner[];
   trips: MissionTrip[];
+};
+
+// ── Phase 5: Advanced Track Panel Types ──────────────────────────────────────
+
+// Children's Ministry
+export type ChildrenRoom = {
+  id: string;
+  name: string;
+  ageMin: number | null;
+  ageMax: number | null;
+  capacity: number;
+  targetRatio: number;
+  isActive: boolean;
+};
+
+export type ChildrenCheckin = {
+  id: string;
+  roomId: string;
+  roomName: string;
+  childName: string;
+  guardianName: string | null;
+  checkedInAt: string;
+  checkedOutAt: string | null;
+  leaderCount: number;
+  serviceDate: string;
+};
+
+export type ChildrenRoomSafety = {
+  roomId: string;
+  roomName: string;
+  capacity: number;
+  targetRatio: number;
+  currentChildren: number;
+  currentLeaders: number;
+  actualRatio: number;      // children per leader
+  ratioStatus: "safe" | "warning" | "alert";  // < target = safe, +10% = warning, exceeded = alert
+};
+
+export type ChildrenTrackData = {
+  rooms: ChildrenRoom[];
+  recentCheckins: ChildrenCheckin[];
+  safetySnapshot: ChildrenRoomSafety[];
+  backgroundChecksDue: Array<{ profileId: string; name: string; clearanceDate: string | null }>;
+};
+
+// Youth Ministry
+export type YouthMilestone = {
+  id: string;
+  name: string;
+  description: string | null;
+  milestoneOrder: number;
+  isRequired: boolean;
+};
+
+export type YouthStudent = {
+  profileId: string;
+  name: string;
+  graduationYear: number | null;
+  completedMilestoneIds: string[];
+  completedCount: number;
+  totalRequired: number;
+  readinessPercent: number;     // 0–100
+  alertLevel: "on_track" | "at_risk" | "critical";
+};
+
+export type YouthTrackData = {
+  milestones: YouthMilestone[];
+  students: YouthStudent[];
+};
+
+// Young Adults Ministry
+export type CareerMentorship = {
+  id: string;
+  mentorId: string;
+  mentorName: string;
+  menteeId: string;
+  menteeName: string;
+  industry: string | null;
+  focusArea: string | null;
+  status: string;
+  startedAt: string | null;
+};
+
+export type YoungAdultTrackData = {
+  careerMentorships: CareerMentorship[];
+  seekingMentors: Array<{ profileId: string; name: string; industry: string | null }>;
+};
+
+// Education / Discipleship Track
+export type EducationCourse = {
+  id: string;
+  title: string;
+  curriculumArea: string;
+  description: string | null;
+  durationWeeks: number | null;
+  isActive: boolean;
+  courseOrder: number;
+  enrolledCount: number;
+  completedCount: number;
+};
+
+export type MemberDoctrinalProgress = {
+  profileId: string;
+  name: string;
+  completedCourseIds: string[];
+  completedAreas: string[];     // curriculum_area values completed at least once
+  totalCourses: number;
+  completedCount: number;
+  coveragePercent: number;      // % of curriculum areas covered
+};
+
+export type EducationTrackData = {
+  courses: EducationCourse[];
+  memberProgress: MemberDoctrinalProgress[];
+};
+
+// Outreach Ministry
+export type OutreachEvent = {
+  id: string;
+  name: string;
+  eventDate: string;
+  location: string | null;
+  zoneName: string | null;
+  volunteerCount: number;
+  peopleServed: number;
+  status: string;
+};
+
+export type OutreachZone = {
+  id: string;
+  zoneName: string;
+  description: string | null;
+  totalEvents: number;
+  totalVolunteers: number;
+  totalServed: number;
+  lastEventDate: string | null;
+  coverageLevel: "low" | "medium" | "high";
+};
+
+export type OutreachTrackData = {
+  events: OutreachEvent[];
+  zones: OutreachZone[];
+  totalVolunteerHours: number;
+  totalPeopleServed: number;
+};
+
+// Stewardship aggregates
+export type DiscipleshipVelocity = {
+  leaderCount: number;
+  avgDaysToLeader: number | null;
+  minDays: number | null;
+  maxDays: number | null;
+};
+
+export type BurnoutCandidate = {
+  profileId: string;
+  fullName: string;
+  distinctTrackCount: number;
+  activeTracks: string[];
+};
+
+export type MarriagePulseEntry = {
+  theme: string;
+  avgSentiment: number;
+  responseCount: number;
+  weekOf: string;
 };

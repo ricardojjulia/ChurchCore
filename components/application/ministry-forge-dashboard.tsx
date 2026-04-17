@@ -22,8 +22,10 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
   BookOpen,
+  Briefcase,
   FlameKindling,
   Globe,
+  GraduationCap,
   Heart,
   Music,
   Settings,
@@ -37,23 +39,33 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import { BurnoutGuardianBanner } from "@/components/application/burnout-guardian-banner";
 import { HealthScoreCard } from "@/components/application/health-score-card";
 import { KingdomImpactLogModal } from "@/components/application/kingdom-impact-log-modal";
+import { ChildrenTrackPanel } from "@/components/application/ministry-track-children";
+import { EducationTrackPanel } from "@/components/application/ministry-track-education";
 import { MarriageTrackPanel } from "@/components/application/ministry-track-marriage";
 import { MensMinistryPanel } from "@/components/application/ministry-track-mens";
 import { MissionsTrackPanel } from "@/components/application/ministry-track-missions";
+import { OutreachTrackPanel } from "@/components/application/ministry-track-outreach";
 import { WomensMinistryPanel } from "@/components/application/ministry-track-womens";
 import { WorshipTrackPanel } from "@/components/application/ministry-track-worship";
+import { YoungAdultTrackPanel } from "@/components/application/ministry-track-young-adult";
+import { YouthTrackPanel } from "@/components/application/ministry-track-youth";
 import { VolunteerMatcherPanel } from "@/components/application/volunteer-matcher-panel";
 import { VisionBoard } from "@/components/application/vision-board";
 import type { ChurchAppSession } from "@/lib/auth";
 import type {
+  ChildrenTrackData,
+  EducationTrackData,
   MarriageTrackData,
   MensTrackData,
   MinistryForgeDetail,
   MinistryType,
   MissionsTrackData,
+  OutreachTrackData,
   VolunteerMatcherData,
   WomensTrackData,
   WorshipTrackData,
+  YoungAdultTrackData,
+  YouthTrackData,
 } from "@/lib/ministry-forge-types";
 import type {
   AssignMembersToMinistryInput,
@@ -74,8 +86,13 @@ const MINISTRY_TYPE_OPTIONS = [
   { value: "care", label: "Care" },
   { value: "administration", label: "Administration" },
   { value: "youth", label: "Youth" },
+  { value: "young_adult", label: "Young Adults" },
   { value: "children", label: "Children" },
   { value: "missions", label: "Missions" },
+  { value: "men", label: "Men" },
+  { value: "women", label: "Women" },
+  { value: "marriage", label: "Marriage" },
+  { value: "education", label: "Education" },
 ];
 
 const IMPACT_TYPE_LABELS: Record<string, string> = {
@@ -100,11 +117,16 @@ function formatDate(value: string) {
 }
 
 const TRACK_TAB_META: Record<string, { label: string; icon: React.ComponentType<{ size?: number }> }> = {
-  worship:  { label: "Worship",  icon: Music },
-  men:      { label: "Men",      icon: Users },
-  women:    { label: "Women",    icon: Heart },
-  marriage: { label: "Marriage", icon: Heart },
-  missions: { label: "Missions", icon: Globe },
+  worship:     { label: "Worship",      icon: Music },
+  men:         { label: "Men",          icon: Users },
+  women:       { label: "Women",        icon: Heart },
+  marriage:    { label: "Marriage",     icon: Heart },
+  missions:    { label: "Missions",     icon: Globe },
+  children:    { label: "Children",     icon: ShieldCheck },
+  youth:       { label: "Youth",        icon: GraduationCap },
+  young_adult: { label: "Young Adults", icon: Briefcase },
+  education:   { label: "Education",    icon: BookOpen },
+  outreach:    { label: "Outreach",     icon: Globe },
 };
 
 export function MinistryForgeDashboard({
@@ -118,6 +140,11 @@ export function MinistryForgeDashboard({
   womensData,
   marriageData,
   missionsData,
+  childrenData,
+  youthData,
+  youngAdultData,
+  educationData,
+  outreachData,
 }: {
   session: ChurchAppSession;
   detail: MinistryForgeDetail;
@@ -129,6 +156,11 @@ export function MinistryForgeDashboard({
   womensData?: WomensTrackData | null;
   marriageData?: MarriageTrackData | null;
   missionsData?: MissionsTrackData | null;
+  childrenData?: ChildrenTrackData | null;
+  youthData?: YouthTrackData | null;
+  youngAdultData?: YoungAdultTrackData | null;
+  educationData?: EducationTrackData | null;
+  outreachData?: OutreachTrackData | null;
 }) {
   const { ministry, members, healthHistory, recentImpacts, burnoutWarnings } = detail;
   const isManager =
@@ -579,6 +611,11 @@ export function MinistryForgeDashboard({
               />
             ) : null}
             {missionsData ? <MissionsTrackPanel data={missionsData} /> : null}
+            {childrenData ? <ChildrenTrackPanel data={childrenData} /> : null}
+            {youthData ? <YouthTrackPanel data={youthData} /> : null}
+            {youngAdultData ? <YoungAdultTrackPanel data={youngAdultData} /> : null}
+            {educationData ? <EducationTrackPanel data={educationData} /> : null}
+            {outreachData ? <OutreachTrackPanel data={outreachData} /> : null}
           </Tabs.Panel>
         ) : null}
       </Tabs>

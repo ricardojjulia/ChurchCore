@@ -14,8 +14,10 @@ import {
 } from "@mantine/core";
 import {
   BookOpen,
+  Briefcase,
   FlameKindling,
   Globe,
+  GraduationCap,
   Heart,
   Music,
   Settings,
@@ -45,8 +47,10 @@ const TYPE_META: Record<
   discipleship:   { label: "Discipleship",   color: "indigo",  icon: <BookOpen size={13} /> },
   care:           { label: "Care",           color: "pink",    icon: <Heart size={13} /> },
   administration: { label: "Admin",          color: "gray",    icon: <Settings size={13} /> },
-  youth:          { label: "Youth",          color: "lime",    icon: <Users size={13} /> },
+  youth:          { label: "Youth",          color: "lime",    icon: <GraduationCap size={13} /> },
   children:       { label: "Children's",     color: "yellow",  icon: <Users size={13} /> },
+  young_adult:    { label: "Young Adults",   color: "teal",    icon: <Briefcase size={13} /> },
+  education:      { label: "Education",      color: "indigo",  icon: <BookOpen size={13} /> },
 };
 
 const HEALTH_COLOR: Record<string, string> = {

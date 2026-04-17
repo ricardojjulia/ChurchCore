@@ -6,6 +6,27 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-04-16
+
+### Added
+
+- Added Financial Management module — a full double-entry accounting system for churches with chart of accounts, journal entries, budgets, and financial reporting.
+- Added `supabase/migrations/20260417000000_financial_management.sql` — six new tables: `finance_accounts` (hierarchical chart of accounts), `finance_journals` (journal batches), `finance_journal_lines` (debit/credit lines), `finance_budgets`, `finance_budget_lines`, and `finance_imports`. All tables have RLS enforced via `can_manage_church()` (church-admin only). Audit triggers on journals and accounts.
+- Added `lib/finance-types.ts` — shared TypeScript types for all finance entities (FinanceAccount, FinanceJournal, FinanceBudget, etc.).
+- Added `lib/finance-data.ts` — server-only data fetchers for dashboard, accounts, journals, budgets, budget variance, income statement, and balance sheet. Follows dual-path pattern (Supabase client + local `queryTenantLocalDb`).
+- Added `lib/finance-import.ts` — import parsers for CSV (via papaparse), Excel .xlsx (via xlsx library), QuickBooks IIF, OFX/QFX bank feeds, and plain text. Auto-detects format from filename/content.
+- Added `app/app/finance-actions.ts` — server actions: `createAccountAction`, `updateAccountAction`, `createJournalAction`, `postJournalAction`, `voidJournalAction`, `deleteJournalDraftAction`, `createBudgetAction`, `upsertBudgetLinesAction`, `importFinanceRowsAction`.
+- Added route tree at `app/app/church-admin/finance/` — dashboard, accounts, accounts/[id], journals, journals/new, journals/[id], budgets, budgets/[id], import, and reports pages.
+- Added 7 UI components: `finance-dashboard.tsx`, `finance-accounts-workspace.tsx`, `finance-journal-workspace.tsx`, `finance-journal-editor.tsx`, `finance-budget-workspace.tsx`, `finance-import-wizard.tsx`, `finance-reports-workspace.tsx`.
+- Added `components/application/finance-nav.ts` — shared sidebar nav items for the finance module.
+- Added `docs/adr/0003-financial-management-module.md` — ADR documenting the decision to implement full double-entry accounting, and the addition of `xlsx` and `papaparse` dependencies.
+- Added `xlsx` and `papaparse` (+ `@types/papaparse`) npm dependencies for Excel and CSV import parsing.
+- Added Finance nav item to `portal-workspace.tsx` for the church-admin role (Landmark icon, routes to `/app/church-admin/finance`).
+
+### Access
+
+Finance module is restricted to `church-admin` role only. All route pages include a role guard that redirects non-admin users.
+
 ## [2.8.0] - 2026-04-15
 
 ### Added

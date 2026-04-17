@@ -113,7 +113,7 @@ Implementation starts in later sprints.
 | 1 | Foundation & Member Portal | Working auth, members, ministries, pastoral profiles, categorized calendar | 2 weeks |
 | 2 | Admin Dashboard & Church Setup | Full admin tools, church settings, directory | 2 weeks |
 | 3 | Events & Volunteer Management | Advanced calendar, RSVPs, volunteer tools | 2 weeks |
-| 4 | Donations & Reporting | Stripe integration, dashboards | 2 weeks |
+| 4 | Donations, Reporting & Financial Management | Stripe integration, dashboards, double-entry accounting, budgets, import | 3 weeks |
 | 5 | AI Ministry Tools (Phase 1) | Sermon planner, Bible study assistant | 3 weeks |
 | 6 | Communications & Polish | Notifications, mobile responsiveness | 2 weeks |
 | 7+ | Advanced features, payment tiers, launch | Final polish and production launch | Ongoing |
