@@ -107,14 +107,14 @@ export async function getCommunicationsHubData(
            coalesce(np.sms_opt_in,  false) as sms_opt_in
          from public.profiles p
          join public.church_memberships cm
-           on cm.profile_id = p.id and cm.church_id = $1
+           on cm.user_id = p.id and cm.church_id = $1
          left join public.profile_ministries pm
            on pm.profile_id = p.id
          left join public.ministries m
            on m.id = pm.ministry_id and m.church_id = $1
          left join public.notification_preferences np
            on np.profile_id = p.id and np.church_id = $1
-         where p.is_merged_away is not true
+         where p.merged_into_profile_id is null
          group by p.id, p.full_name, p.email, p.phone, cm.role,
                   np.email_opt_in, np.sms_opt_in
          order by p.full_name`,

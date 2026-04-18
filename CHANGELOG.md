@@ -6,16 +6,85 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
-### Added
+### Unreleased — Added
 
 - Added local evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, and `npm run smoke:local`, backed by `supabase/scripts/setup-local.sh` and `supabase/scripts/smoke-demo.sh`.
 - Added `.github/CODEOWNERS` with the current repository owner to make review ownership explicit from the first push.
 
-### Changed
+### Unreleased — Changed
 
 - `create-dev-users.sh` now writes shell-compatible demo credential metadata into `.demo-credentials.local`, including admin/member email variables for local automation.
 - README and local setup docs now point evaluators to the setup/smoke helpers and the post-create GitHub hardening checklist.
 - Reorganized the repo documentation tree by moving setup guides into `docs/setup/` and long-form planning documents into `docs/plans/`, which removes document clutter from the repository root and keeps the root focused on active repo controls.
+
+---
+
+## [2.12.0] - 2026-04-17
+
+### Overview
+
+Release 2.12.0 ships **Phase 1 of the ChurchForge product strategy** — closing the critical feature gaps between ChurchForge and Planning Center. This release adds the Small Groups module (completely new), Giving GL auto-posting, a public-facing giving page, a complete Events directory with create flow, service attendance headcount tracking, first-time visitor workflow scaffolding, and navigation updates across all roles.
+
+### Added
+
+#### Small Groups Module (`supabase/migrations/20260502000000_groups_module.sql`, `lib/groups-types.ts`, `lib/groups-data.ts`, `app/app/groups-actions.ts`)
+
+- **Database**: five new tables — `groups`, `group_members`, `group_meetings`, `group_attendance`, `group_resources` — all with `church_id` FK, RLS, and audit-capable structure.
+- **Group directory**: church-admin and pastor can create, edit, activate/deactivate groups with category, meeting day/time/location, capacity, and open/closed status.
+- **Group membership**: role-based (leader, co-leader, member); member join requests (status: pending until approved); leader assignment.
+- **Meeting logging**: create meeting records with date, location, notes; attendance tracking per meeting (present/absent/excused).
+- **Member-facing browse**: members see all open groups, can request to join via bottom nav → Groups.
+- **Admin routes**: `/app/church-admin/groups`, `/app/church-admin/groups/[id]`
+- **Member routes**: `/app/member/groups`
+
+#### Giving GL Auto-Posting (`app/app/giving-actions.ts`)
+
+- `upsertFundMappingAction` — maps a fund designation to asset + income GL accounts.
+- `postDonationToGlAction` — creates a balanced journal entry (debit asset, credit income) for a succeeded donation; records to `donation_gl_posts` audit table; idempotent (duplicate post blocked).
+- `upsertGivingPageAction` — manage public giving page configuration.
+- **New tables** (in migration): `giving_fund_accounts`, `donation_gl_posts`, `public_giving_pages`.
+
+#### Public Giving Page (`app/give/[slug]/page.tsx`, `components/application/public-giving-page.tsx`)
+
+- Public route at `/give/[churchSlug]` — no authentication required.
+- Fund selection, one-time / weekly / monthly frequency, preset amounts, anonymous option.
+- Stripe Elements integration scaffold — wired to receive Stripe PaymentIntent client secret; submission UX complete.
+- Thank-you confirmation state after successful gift.
+
+#### Events Module (list + create)
+
+- **`lib/church-admin-events-data.ts`**: added `getChurchAdminEventsList` function — returns all church events sorted by date with roster count.
+- **`app/app/church-admin/events/page.tsx`**: events directory with upcoming/past tabs.
+- **`components/application/church-admin-event-workspace.tsx`**: added `EventsListWorkspace` component — table view with upcoming/past tab, create event modal.
+- **`app/app/church-admin-actions.ts`**: added `createEventAction` — inserts into `events` table, returns new event ID for redirect.
+
+#### Attendance Tracking (`app/app/church-admin/attendance/page.tsx`, `components/application/attendance-dashboard.tsx`)
+
+- New route `/app/church-admin/attendance` for service headcount logging.
+- Log attendance by service date, type (Sunday morning/evening, Wednesday, special), and headcount.
+- 4-week average and trend indicator (up/down) computed client-side.
+- Upsert-on-conflict for editing a past record by re-submitting the same date.
+
+#### First-Time Visitor Scaffolding
+
+- **Database**: `first_time_visitors` table with workflow stages (new → day1_sent → day7_sent → call_prompted → converted → inactive).
+- **Actions**: `addFirstTimeVisitorAction`, `advanceVisitorWorkflowAction`.
+
+#### Service Attendance Database
+
+- `service_attendance` table with unique constraint on (church_id, service_date, service_type).
+
+### Changed
+
+- **`components/application/portal-workspace.tsx`**: added Small Groups, Events, and Attendance nav items for church-admin role.
+- **`components/application/member-bottom-nav.tsx`**: added Groups tab linking to `/app/member/groups`.
+- **`docs/product-strategy.md`**: new file — full competitive analysis, pricing strategy, and three-phase build plan.
+
+### Security
+
+- All new tables have RLS enabled with `can_manage_church` / `belongs_to_church` policies consistent with the existing pattern.
+- `donation_gl_posts` is append-only in the data layer — no update/delete path exposed.
+- Public giving page does not expose any tenant data — only displays configuration from `public_giving_pages` (is_live = true).
 
 ## [2.11.1] - 2026-04-17
 

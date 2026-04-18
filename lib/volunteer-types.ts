@@ -1,0 +1,104 @@
+export type ServicePlanStatus = "draft" | "published" | "complete" | "cancelled";
+export type ConfirmationStatus = "pending" | "confirmed" | "declined" | "substitute";
+
+export type ServicePlan = {
+  id: string;
+  churchId: string;
+  eventId: string | null;
+  name: string;
+  serviceDate: string;
+  serviceTime: string | null;
+  status: ServicePlanStatus;
+  notes: string | null;
+  createdBy: string | null;
+  createdAt: string;
+};
+
+export type ServicePlanPosition = {
+  id: string;
+  planId: string;
+  churchId: string;
+  roleName: string;
+  quantityNeeded: number;
+  ministryId: string | null;
+  sortOrder: number;
+};
+
+export type VolunteerShift = {
+  id: string;
+  churchId: string;
+  eventId: string | null;
+  planId: string | null;
+  positionId: string | null;
+  assignedUserId: string | null;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  status: string;
+  confirmationStatus: ConfirmationStatus;
+  declineReason: string | null;
+  respondedAt: string | null;
+  volunteerNotes: string | null;
+  // joined
+  volunteerName: string | null;
+  volunteerEmail: string | null;
+  volunteerPhone: string | null;
+};
+
+export type ServicePlanDetail = {
+  plan: ServicePlan;
+  positions: Array<ServicePlanPosition & {
+    shifts: VolunteerShift[];
+    filled: number;
+    pending: number;
+  }>;
+  unfilledCount: number;
+  confirmedCount: number;
+  pendingCount: number;
+};
+
+export type ServicePlanListEntry = ServicePlan & {
+  positionCount: number;
+  filledCount: number;
+  confirmedCount: number;
+};
+
+export type VolunteerPoolEntry = {
+  profileId: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  skills: string[];
+  isBlocked: boolean;
+  recentShiftCount: number;
+  totalHours: number;
+};
+
+export type VolunteerDirectoryEntry = {
+  profileId: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  skills: string[];
+  totalHours: number;
+  shiftsThisYear: number;
+  lastServedDate: string | null;
+  backgroundCheckDate: string | null;
+};
+
+export type ServicePlanTemplate = {
+  id: string;
+  name: string;
+  positions: Array<{ roleName: string; quantity: number }>;
+  isActive: boolean;
+};
+
+export type MemberScheduleEntry = {
+  shiftId: string;
+  planName: string;
+  serviceDate: string;
+  roleName: string;
+  startsAt: string;
+  endsAt: string;
+  confirmationStatus: ConfirmationStatus;
+};

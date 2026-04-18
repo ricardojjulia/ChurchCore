@@ -813,3 +813,262 @@ export async function rejectAccountRequestAction(
   revalidatePath("/app/church-admin/accounts");
   return { previewMode: false };
 }
+
+// ── Event creation ────────────────────────────────────────────
+
+export type CreateEventInput = {
+  title: string;
+  description?: string;
+  category: string;
+  location?: string;
+  startsAt: string;
+  endsAt: string;
+};
+
+export async function createEventAction(
+  input: CreateEventInput,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const session = await requireChurchSession("/app/church-admin/events");
+  const role = session.appContext.roleId;
+  if (role !== "church-admin" && role !== "pastor") {
+    return { ok: false, error: "Unauthorized." };
+  }
+
+  const churchId = session.appContext.church.id;
+  const profileId = session.profile.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `insert into public.events
+         (church_id, title, description, category, location, starts_at, ends_at, created_by)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)
+       returning id`,
+      [
+        churchId, input.title, input.description ?? null, input.category,
+        input.location ?? null, input.startsAt, input.endsAt, profileId,
+      ],
+    );
+    revalidatePath("/app/church-admin/events");
+    return { ok: true, id: result.rows[0]?.id };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("events")
+    .insert({
+      church_id: churchId,
+      title: input.title,
+      description: input.description ?? null,
+      category: input.category,
+      location: input.location ?? null,
+      starts_at: input.startsAt,
+      ends_at: input.endsAt,
+      created_by: profileId,
+    })
+    .select("id")
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/app/church-admin/events");
+  return { ok: true, id: data.id };
+}
+
+// ── Event registration settings ───────────────────────────────
+
+export type UpsertRegistrationSettingsInput = {
+  eventId: string;
+  registrationOpen: boolean;
+  capacity?: number;
+  priceCents?: number;
+  deadline?: string;
+  confirmationMessage?: string;
+  waitlistEnabled?: boolean;
+};
+
+export async function upsertRegistrationSettingsAction(
+  input: UpsertRegistrationSettingsInput,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireChurchSession("/app/church-admin/events");
+  const role = session.appContext.roleId;
+  if (role !== "church-admin" && role !== "pastor") return { ok: false, error: "Unauthorized." };
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `insert into public.event_registration_settings
+         (event_id, church_id, registration_open, capacity, price_cents,
+          deadline, confirmation_message, waitlist_enabled)
+       values ($1,$2,$3,$4,$5,$6,$7,$8)
+       on conflict (event_id)
+       do update set
+         registration_open = $3, capacity = $4, price_cents = $5,
+         deadline = $6, confirmation_message = $7, waitlist_enabled = $8,
+         updated_at = now()`,
+      [
+        input.eventId, churchId, input.registrationOpen,
+        input.capacity ?? null, input.priceCents ?? 0,
+        input.deadline ?? null, input.confirmationMessage ?? null,
+        input.waitlistEnabled ?? false,
+      ],
+    );
+    revalidatePath(`/app/church-admin/events/${input.eventId}`);
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { error } = await supabase.from("event_registration_settings").upsert(
+    {
+      event_id: input.eventId, church_id: churchId,
+      registration_open: input.registrationOpen,
+      capacity: input.capacity ?? null, price_cents: input.priceCents ?? 0,
+      deadline: input.deadline ?? null, confirmation_message: input.confirmationMessage ?? null,
+      waitlist_enabled: input.waitlistEnabled ?? false,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "event_id" },
+  );
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/app/church-admin/events/${input.eventId}`);
+  return { ok: true };
+}
+
+export type RegisterForEventInput = {
+  eventId: string;
+  churchId: string;
+  registrantName: string;
+  registrantEmail?: string;
+  registrantPhone?: string;
+  notes?: string;
+};
+
+export async function registerForEventAction(
+  input: RegisterForEventInput,
+): Promise<{ ok: boolean; registrationId?: string; isWaitlisted?: boolean; error?: string }> {
+  if (!input.registrantName.trim()) return { ok: false, error: "Name is required." };
+
+  if (shouldUseLocalTenantFallback()) {
+    // Check capacity
+    const settingsResult = await queryTenantLocalDb<{
+      capacity: number | null; waitlist_enabled: boolean; registration_open: boolean;
+    }>(
+      `select capacity, waitlist_enabled, registration_open
+       from public.event_registration_settings
+       where event_id = $1`,
+      [input.eventId],
+    );
+    const settings = settingsResult.rows[0];
+    if (settings && !settings.registration_open) {
+      return { ok: false, error: "Registration is closed for this event." };
+    }
+
+    let isWaitlisted = false;
+    if (settings?.capacity) {
+      const countResult = await queryTenantLocalDb<{ cnt: number }>(
+        `select count(*)::int as cnt from public.event_registrations
+         where event_id = $1 and is_waitlisted = false and status != 'cancelled'`,
+        [input.eventId],
+      );
+      const count = countResult.rows[0]?.cnt ?? 0;
+      if (count >= settings.capacity) {
+        if (!settings.waitlist_enabled) {
+          return { ok: false, error: "This event is full and does not have a waitlist." };
+        }
+        isWaitlisted = true;
+      }
+    }
+
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `insert into public.event_registrations
+         (event_id, church_id, registrant_name, registrant_email, registrant_phone,
+          status, is_waitlisted, notes)
+       values ($1,$2,$3,$4,$5,$6,$7,$8)
+       returning id`,
+      [
+        input.eventId, input.churchId, input.registrantName.trim(),
+        input.registrantEmail ?? null, input.registrantPhone ?? null,
+        isWaitlisted ? "waitlisted" : "confirmed",
+        isWaitlisted, input.notes ?? null,
+      ],
+    );
+    revalidatePath(`/app/church-admin/events/${input.eventId}`);
+    return { ok: true, registrationId: result.rows[0]?.id, isWaitlisted };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("event_registrations")
+    .insert({
+      event_id: input.eventId, church_id: input.churchId,
+      registrant_name: input.registrantName.trim(),
+      registrant_email: input.registrantEmail ?? null,
+      registrant_phone: input.registrantPhone ?? null,
+      status: "confirmed", is_waitlisted: false,
+      notes: input.notes ?? null,
+    })
+    .select("id")
+    .single();
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/app/church-admin/events/${input.eventId}`);
+  return { ok: true, registrationId: data.id, isWaitlisted: false };
+}
+
+export async function cancelRegistrationAction(
+  registrationId: string,
+  eventId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireChurchSession("/app/church-admin/events");
+  const role = session.appContext.roleId;
+  if (role !== "church-admin" && role !== "pastor") return { ok: false, error: "Unauthorized." };
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `update public.event_registrations
+       set status = 'cancelled' where id = $1 and church_id = $2`,
+      [registrationId, churchId],
+    );
+    revalidatePath(`/app/church-admin/events/${eventId}`);
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { error } = await supabase
+    .from("event_registrations")
+    .update({ status: "cancelled" })
+    .eq("id", registrationId)
+    .eq("church_id", churchId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/app/church-admin/events/${eventId}`);
+  return { ok: true };
+}
+
+export async function checkInRegistrantAction(
+  registrationId: string,
+  eventId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireChurchSession("/app/church-admin/events");
+  const role = session.appContext.roleId;
+  if (role !== "church-admin" && role !== "pastor") return { ok: false, error: "Unauthorized." };
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `update public.event_registrations
+       set status = 'attended', checked_in_at = now()
+       where id = $1 and church_id = $2`,
+      [registrationId, churchId],
+    );
+    revalidatePath(`/app/church-admin/events/${eventId}`);
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { error } = await supabase
+    .from("event_registrations")
+    .update({ status: "attended", checked_in_at: new Date().toISOString() })
+    .eq("id", registrationId)
+    .eq("church_id", churchId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/app/church-admin/events/${eventId}`);
+  return { ok: true };
+}

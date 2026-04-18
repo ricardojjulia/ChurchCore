@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarRange, HeartHandshake, Home, Layers, UsersRound } from "lucide-react";
+import { CalendarCheck, CalendarRange, HeartHandshake, Home, Layers, Users, UsersRound } from "lucide-react";
 import { Group, Stack, Text, UnstyledButton } from "@mantine/core";
 
 type BottomNavItem = {
@@ -39,6 +39,16 @@ const NAV_ITEMS: BottomNavItem[] = [
     href: "/app/member/family",
     label: "Family",
     icon: Home,
+  },
+  {
+    href: "/app/member/groups",
+    label: "Groups",
+    icon: Users,
+  },
+  {
+    href: "/app/member/schedule",
+    label: "Schedule",
+    icon: CalendarCheck,
   },
 ];
 

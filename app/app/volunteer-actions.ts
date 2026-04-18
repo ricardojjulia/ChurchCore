@@ -1,0 +1,325 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+
+import { requireChurchSession } from "@/lib/auth";
+import {
+  createTenantServerClient,
+  queryTenantLocalDb,
+  shouldUseLocalTenantFallback,
+} from "@/lib/supabase/tenant";
+
+const SCHEDULES_PATH = "/app/church-admin/volunteers/schedules";
+
+async function requireAdminSession() {
+  const session = await requireChurchSession(SCHEDULES_PATH);
+  if (session.appContext.roleId !== "church-admin") {
+    throw new Error("Unauthorized");
+  }
+  return session;
+}
+
+// ── Create service plan ──────────────────────────────────────
+
+export type CreateServicePlanInput = {
+  name: string;
+  serviceDate: string;
+  serviceTime?: string;
+  notes?: string;
+  templateId?: string;
+};
+
+export async function createServicePlanAction(
+  input: CreateServicePlanInput,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const session = await requireAdminSession();
+  const churchId = session.appContext.church.id;
+  const profileId = session.profile.id;
+
+  if (!input.name.trim() || !input.serviceDate) {
+    return { ok: false, error: "Name and service date are required." };
+  }
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `insert into public.service_plans (church_id, name, service_date, service_time, notes, created_by)
+       values ($1, $2, $3, $4, $5, $6)
+       returning id`,
+      [churchId, input.name.trim(), input.serviceDate, input.serviceTime ?? null, input.notes ?? null, profileId],
+    );
+    const planId = result.rows[0]?.id;
+    if (!planId) return { ok: false, error: "Failed to create plan." };
+
+    // Apply template positions if provided
+    if (input.templateId) {
+      const tmpl = await queryTenantLocalDb<{ positions: string }>(
+        `select positions from public.service_plan_templates where id = $1 and church_id = $2`,
+        [input.templateId, churchId],
+      );
+      const positions = tmpl.rows[0]?.positions;
+      if (positions) {
+        const parsed: Array<{ roleName: string; quantity: number }> =
+          typeof positions === "string" ? JSON.parse(positions) : positions;
+        for (let i = 0; i < parsed.length; i++) {
+          await queryTenantLocalDb(
+            `insert into public.service_plan_positions (plan_id, church_id, role_name, quantity_needed, sort_order)
+             values ($1, $2, $3, $4, $5)`,
+            [planId, churchId, parsed[i].roleName, parsed[i].quantity, i],
+          );
+        }
+      }
+    }
+
+    revalidatePath(SCHEDULES_PATH);
+    return { ok: true, id: planId };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data: plan, error } = await supabase.from("service_plans").insert({
+    church_id: churchId, name: input.name.trim(), service_date: input.serviceDate,
+    service_time: input.serviceTime ?? null, notes: input.notes ?? null, created_by: profileId,
+  }).select("id").single();
+
+  if (error || !plan) return { ok: false, error: error?.message ?? "Failed." };
+  revalidatePath(SCHEDULES_PATH);
+  return { ok: true, id: plan.id };
+}
+
+// ── Publish / complete plan ──────────────────────────────────
+
+export async function updateServicePlanStatusAction(
+  planId: string,
+  status: "draft" | "published" | "complete" | "cancelled",
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireAdminSession();
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `update public.service_plans set status = $3 where id = $1 and church_id = $2`,
+      [planId, churchId, status],
+    );
+    revalidatePath(`${SCHEDULES_PATH}/${planId}`);
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { error } = await supabase.from("service_plans")
+    .update({ status }).eq("id", planId).eq("church_id", churchId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`${SCHEDULES_PATH}/${planId}`);
+  return { ok: true };
+}
+
+// ── Add position to plan ─────────────────────────────────────
+
+export async function addPlanPositionAction(input: {
+  planId: string;
+  roleName: string;
+  quantityNeeded: number;
+  sortOrder?: number;
+}): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const session = await requireAdminSession();
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `insert into public.service_plan_positions (plan_id, church_id, role_name, quantity_needed, sort_order)
+       values ($1, $2, $3, $4, $5)
+       returning id`,
+      [input.planId, churchId, input.roleName.trim(), input.quantityNeeded, input.sortOrder ?? 0],
+    );
+    revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+    return { ok: true, id: result.rows[0]?.id };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase.from("service_plan_positions").insert({
+    plan_id: input.planId, church_id: churchId, role_name: input.roleName.trim(),
+    quantity_needed: input.quantityNeeded, sort_order: input.sortOrder ?? 0,
+  }).select("id").single();
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+  return { ok: true, id: data?.id };
+}
+
+// ── Assign volunteer to position ─────────────────────────────
+
+export async function assignVolunteerAction(input: {
+  planId: string;
+  positionId: string;
+  profileId: string;
+  roleName: string;
+  startsAt: string;
+  endsAt: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireAdminSession();
+  const churchId = session.appContext.church.id;
+
+  // Conflict check: is this volunteer already assigned on the same day?
+  const datePrefix = input.startsAt.slice(0, 10);
+
+  if (shouldUseLocalTenantFallback()) {
+    const conflict = await queryTenantLocalDb<{ id: string }>(
+      `select vs.id from public.volunteer_shifts vs
+       join public.service_plans sp on sp.id = vs.plan_id
+       where vs.assigned_user_id = $1
+         and vs.church_id = $2
+         and sp.service_date = $3::date
+         and vs.confirmation_status != 'declined'`,
+      [input.profileId, churchId, datePrefix],
+    );
+    if (conflict.rows.length > 0) {
+      return { ok: false, error: "This volunteer is already assigned on this service date." };
+    }
+
+    await queryTenantLocalDb(
+      `insert into public.volunteer_shifts
+         (church_id, event_id, plan_id, position_id, assigned_user_id, title, starts_at, ends_at, status, confirmation_status)
+       values ($1, null, $2, $3, $4, $5, $6, $7, 'assigned', 'pending')`,
+      [churchId, input.planId, input.positionId, input.profileId, input.roleName, input.startsAt, input.endsAt],
+    );
+    revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { error } = await supabase.from("volunteer_shifts").insert({
+    church_id: churchId, plan_id: input.planId, position_id: input.positionId,
+    assigned_user_id: input.profileId, title: input.roleName,
+    starts_at: input.startsAt, ends_at: input.endsAt,
+    status: "assigned", confirmation_status: "pending",
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+  return { ok: true };
+}
+
+// ── Remove assignment ────────────────────────────────────────
+
+export async function removeAssignmentAction(
+  shiftId: string,
+  planId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireAdminSession();
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `delete from public.volunteer_shifts where id = $1 and church_id = $2`,
+      [shiftId, churchId],
+    );
+    revalidatePath(`${SCHEDULES_PATH}/${planId}`);
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { error } = await supabase.from("volunteer_shifts")
+    .delete().eq("id", shiftId).eq("church_id", churchId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`${SCHEDULES_PATH}/${planId}`);
+  return { ok: true };
+}
+
+// ── Volunteer responds (confirm / decline) ───────────────────
+
+export async function respondToShiftAction(
+  shiftId: string,
+  response: "confirmed" | "declined",
+  reason?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireChurchSession("/app/member/schedule");
+  const profileId = session.profile.id;
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `update public.volunteer_shifts
+       set confirmation_status = $3,
+           decline_reason = $4,
+           responded_at = now(),
+           status = case when $3 = 'confirmed' then 'confirmed' else 'open' end
+       where id = $1 and assigned_user_id = $2 and church_id = $5`,
+      [shiftId, profileId, response, reason ?? null, churchId],
+    );
+    revalidatePath("/app/member/schedule");
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { error } = await supabase.from("volunteer_shifts")
+    .update({
+      confirmation_status: response,
+      decline_reason: reason ?? null,
+      responded_at: new Date().toISOString(),
+      status: response === "confirmed" ? "confirmed" : "open",
+    })
+    .eq("id", shiftId)
+    .eq("assigned_user_id", profileId)
+    .eq("church_id", churchId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/app/member/schedule");
+  return { ok: true };
+}
+
+// ── Log volunteer hours ──────────────────────────────────────
+
+export async function logVolunteerHoursAction(input: {
+  profileId: string;
+  shiftId?: string;
+  serviceDate: string;
+  hours: number;
+  roleName?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireAdminSession();
+  const churchId = session.appContext.church.id;
+  const loggedBy = session.profile.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `insert into public.volunteer_hours_log (church_id, profile_id, shift_id, service_date, hours, role_name, logged_by)
+       values ($1, $2, $3, $4, $5, $6, $7)`,
+      [churchId, input.profileId, input.shiftId ?? null, input.serviceDate, input.hours, input.roleName ?? null, loggedBy],
+    );
+    revalidatePath("/app/church-admin/volunteers");
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { error } = await supabase.from("volunteer_hours_log").insert({
+    church_id: churchId, profile_id: input.profileId, shift_id: input.shiftId ?? null,
+    service_date: input.serviceDate, hours: input.hours, role_name: input.roleName ?? null, logged_by: loggedBy,
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/app/church-admin/volunteers");
+  return { ok: true };
+}
+
+// ── Save template ────────────────────────────────────────────
+
+export async function saveServicePlanTemplateAction(input: {
+  name: string;
+  positions: Array<{ roleName: string; quantity: number }>;
+}): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireAdminSession();
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `insert into public.service_plan_templates (church_id, name, positions)
+       values ($1, $2, $3)`,
+      [churchId, input.name.trim(), JSON.stringify(input.positions)],
+    );
+    revalidatePath(SCHEDULES_PATH);
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { error } = await supabase.from("service_plan_templates").insert({
+    church_id: churchId, name: input.name.trim(), positions: input.positions,
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(SCHEDULES_PATH);
+  return { ok: true };
+}

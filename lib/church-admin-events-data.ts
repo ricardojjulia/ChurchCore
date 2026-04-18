@@ -113,6 +113,191 @@ function withSevenDayLoad<T extends { profileId: string }>(
   }));
 }
 
+export type EventRegistration = {
+  id: string;
+  eventId: string;
+  registrantName: string;
+  registrantEmail: string | null;
+  registrantPhone: string | null;
+  status: "confirmed" | "cancelled" | "waitlisted" | "attended";
+  isWaitlisted: boolean;
+  amountPaidCents: number;
+  customFields: Record<string, unknown> | null;
+  notes: string | null;
+  registeredAt: string;
+  checkedInAt: string | null;
+};
+
+export type EventRegistrationSettings = {
+  id: string;
+  eventId: string;
+  registrationOpen: boolean;
+  capacity: number | null;
+  priceCents: number;
+  deadline: string | null;
+  confirmationMessage: string | null;
+  waitlistEnabled: boolean;
+  registrationCount: number;
+  waitlistCount: number;
+};
+
+export async function getEventRegistrations(
+  session: ChurchAppSession,
+  eventId: string,
+): Promise<{ registrations: EventRegistration[]; settings: EventRegistrationSettings | null }> {
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    return { registrations: [], settings: null };
+  }
+
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const [regRows, settingsRows] = await Promise.all([
+      queryTenantLocalDb<{
+        id: string; event_id: string; registrant_name: string;
+        registrant_email: string | null; registrant_phone: string | null;
+        status: string; is_waitlisted: boolean; amount_paid_cents: number;
+        custom_fields: Record<string, unknown> | null; notes: string | null;
+        registered_at: string; checked_in_at: string | null;
+      }>(
+        `select id, event_id, registrant_name, registrant_email, registrant_phone,
+                status, is_waitlisted, amount_paid_cents, custom_fields, notes,
+                registered_at, checked_in_at
+         from public.event_registrations
+         where event_id = $1 and church_id = $2
+         order by registered_at asc`,
+        [eventId, churchId],
+      ),
+      queryTenantLocalDb<{
+        id: string; event_id: string; registration_open: boolean;
+        capacity: number | null; price_cents: number; deadline: string | null;
+        confirmation_message: string | null; waitlist_enabled: boolean;
+      }>(
+        `select id, event_id, registration_open, capacity, price_cents,
+                deadline, confirmation_message, waitlist_enabled
+         from public.event_registration_settings
+         where event_id = $1`,
+        [eventId],
+      ),
+    ]);
+
+    const registrations: EventRegistration[] = regRows.rows.map((r) => ({
+      id: r.id, eventId: r.event_id, registrantName: r.registrant_name,
+      registrantEmail: r.registrant_email, registrantPhone: r.registrant_phone,
+      status: r.status as EventRegistration["status"], isWaitlisted: r.is_waitlisted,
+      amountPaidCents: r.amount_paid_cents, customFields: r.custom_fields,
+      notes: r.notes, registeredAt: r.registered_at, checkedInAt: r.checked_in_at,
+    }));
+
+    const s = settingsRows.rows[0];
+    const settings: EventRegistrationSettings | null = s ? {
+      id: s.id, eventId: s.event_id, registrationOpen: s.registration_open,
+      capacity: s.capacity, priceCents: s.price_cents, deadline: s.deadline,
+      confirmationMessage: s.confirmation_message, waitlistEnabled: s.waitlist_enabled,
+      registrationCount: registrations.filter((r) => !r.isWaitlisted && r.status !== "cancelled").length,
+      waitlistCount: registrations.filter((r) => r.isWaitlisted).length,
+    } : null;
+
+    return { registrations, settings };
+  }
+
+  const supabase = await createTenantServerClient();
+  const [{ data: regData }, { data: settingsData }] = await Promise.all([
+    supabase
+      .from("event_registrations")
+      .select("*")
+      .eq("event_id", eventId)
+      .eq("church_id", churchId)
+      .order("registered_at"),
+    supabase
+      .from("event_registration_settings")
+      .select("*")
+      .eq("event_id", eventId)
+      .maybeSingle(),
+  ]);
+
+  const registrations: EventRegistration[] = (regData ?? []).map((r) => ({
+    id: r.id, eventId: r.event_id, registrantName: r.registrant_name,
+    registrantEmail: r.registrant_email, registrantPhone: r.registrant_phone,
+    status: r.status as EventRegistration["status"], isWaitlisted: r.is_waitlisted,
+    amountPaidCents: r.amount_paid_cents,
+    customFields: r.custom_fields as Record<string, unknown> | null,
+    notes: r.notes, registeredAt: r.registered_at, checkedInAt: r.checked_in_at,
+  }));
+
+  const s = settingsData;
+  const settings: EventRegistrationSettings | null = s ? {
+    id: s.id, eventId: s.event_id, registrationOpen: s.registration_open,
+    capacity: s.capacity, priceCents: s.price_cents, deadline: s.deadline,
+    confirmationMessage: s.confirmation_message, waitlistEnabled: s.waitlist_enabled,
+    registrationCount: registrations.filter((r) => !r.isWaitlisted && r.status !== "cancelled").length,
+    waitlistCount: registrations.filter((r) => r.isWaitlisted).length,
+  } : null;
+
+  return { registrations, settings };
+}
+
+export type ChurchAdminEventsListEntry = {
+  id: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  category: string;
+  location: string | null;
+  approvalStatus: string;
+  rosterCount: number;
+};
+
+export async function getChurchAdminEventsList(
+  session: ChurchAppSession,
+): Promise<ChurchAdminEventsListEntry[]> {
+  if (!hasTenantBackendEnv() || session.source !== "supabase") return [];
+
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{
+      id: string;
+      title: string;
+      starts_at: string;
+      ends_at: string;
+      category: string;
+      location: string | null;
+      approval_status: string;
+      roster_count: number;
+    }>(
+      `select e.id, e.title, e.starts_at, e.ends_at, e.category, e.location,
+              e.approval_status::text as approval_status,
+              coalesce((select count(*)::int from public.event_rosters er
+                         where er.event_id = e.id), 0) as roster_count
+       from public.events e
+       where e.church_id = $1
+       order by e.starts_at desc
+       limit 100`,
+      [churchId],
+    );
+    return result.rows.map((r) => ({
+      id: r.id, title: r.title, startsAt: r.starts_at, endsAt: r.ends_at,
+      category: r.category, location: r.location,
+      approvalStatus: r.approval_status, rosterCount: r.roster_count,
+    }));
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data } = await supabase
+    .from("events")
+    .select("id, title, starts_at, ends_at, category, location, approval_status")
+    .eq("church_id", churchId)
+    .order("starts_at", { ascending: false })
+    .limit(100);
+
+  return (data ?? []).map((r) => ({
+    id: r.id, title: r.title, startsAt: r.starts_at, endsAt: r.ends_at,
+    category: r.category, location: r.location,
+    approvalStatus: r.approval_status, rosterCount: 0,
+  }));
+}
+
 export async function getChurchAdminEventWorkspaceData(
   session: ChurchAppSession,
   eventId: string,

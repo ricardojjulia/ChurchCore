@@ -14,7 +14,8 @@ import { BarChart2, DollarSign, RefreshCw, TrendingUp } from "lucide-react";
 
 import { ApplicationShell } from "@/components/application/app-shell";
 import type { ChurchAppSession } from "@/lib/auth";
-import type { GivingDashboardData, DonationEntry } from "@/lib/donations-data";
+import type { GivingAnalyticsData, GivingDashboardData, DonationEntry } from "@/lib/donations-data";
+import { GivingAnalyticsPanel } from "@/components/application/giving-analytics";
 
 function formatCents(cents: number, currency = "usd"): string {
   return new Intl.NumberFormat("en-US", {
@@ -43,9 +44,11 @@ const STATUS_COLORS: Record<DonationEntry["status"], string> = {
 export function GivingDashboard({
   session,
   data,
+  analytics,
 }: {
   session: ChurchAppSession;
   data: GivingDashboardData;
+  analytics?: GivingAnalyticsData;
 }) {
   const { recentDonations, reportByFund, totalThisMonth, totalAllTime, recurringCount } = data;
 
@@ -125,6 +128,11 @@ export function GivingDashboard({
           <Tabs.Tab value="funds" leftSection={<BarChart2 size={14} />}>
             By Fund
           </Tabs.Tab>
+          {analytics && (
+            <Tabs.Tab value="analytics" leftSection={<TrendingUp size={14} />}>
+              Analytics
+            </Tabs.Tab>
+          )}
         </Tabs.List>
 
         {/* Recent donations */}
@@ -250,6 +258,13 @@ export function GivingDashboard({
           )}
         </Tabs.Panel>
       </Tabs>
+
+      {/* Analytics tab */}
+      {analytics && (
+        <Tabs.Panel value="analytics" pt="lg">
+          <GivingAnalyticsPanel analytics={analytics} />
+        </Tabs.Panel>
+      )}
 
       {/* Privacy note */}
       <Text fz="xs" c="dimmed" ta="center" mt="xl">

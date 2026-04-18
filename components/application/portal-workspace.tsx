@@ -2,12 +2,14 @@
 
 import {
   BrainCircuit,
+  Calendar,
   DollarSign,
   HeartHandshake,
   Landmark,
   MessageSquare,
   ShieldCheck,
   Sparkles,
+  Users,
   UsersRound,
 } from "lucide-react";
 import {
@@ -100,6 +102,48 @@ export function PortalWorkspace({
         label: "Children's Ministry",
         description: "Check-in, safety & roster",
         icon: ShieldCheck,
+        active: false,
+      },
+      {
+        href: "/app/church-admin/groups",
+        label: "Small Groups",
+        description: "Group directory & attendance",
+        icon: Users,
+        active: false,
+      },
+      {
+        href: "/app/church-admin/events",
+        label: "Events",
+        description: "Event roster & check-in",
+        icon: Calendar,
+        active: false,
+      },
+      {
+        href: "/app/church-admin/attendance",
+        label: "Attendance",
+        description: "Service headcounts & trends",
+        icon: Calendar,
+        active: false,
+      },
+      {
+        href: "/app/church-admin/volunteers",
+        label: "Volunteers",
+        description: "Scheduling, hours & directory",
+        icon: Users,
+        active: false,
+      },
+      {
+        href: "/app/church-admin/visitors",
+        label: "Visitors",
+        description: "First-visit follow-up pipeline",
+        icon: UsersRound,
+        active: false,
+      },
+      {
+        href: "/app/church-admin/giving",
+        label: "Giving Admin",
+        description: "Analytics & fund GL mappings",
+        icon: DollarSign,
         active: false,
       },
     );
