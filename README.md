@@ -169,6 +169,13 @@ npm ci
 npm run dev
 ```
 
+For automated verification beyond lint and build:
+
+```bash
+npm run test
+npm run test:coverage
+```
+
 Open `http://localhost:3000`. The app runs in **preview mode** with no backend — all data is in-memory stubs.
 
 Quick local evaluator path:
@@ -227,6 +234,7 @@ SUPABASE_DB_URL=postgresql://postgres:<local-db-password>@127.0.0.1:54322/postgr
 
 See `docs/setup/local-supabase.md` for the complete local setup guide.
 For repository creation and GitHub-side hardening after the first push, use `docs/setup/private-repo-launch-checklist.md`.
+For the application-specific route, action, and domain coverage map, see `docs/testing-schema.md`.
 
 For voluntary donations (Sprint 7+), also supply:
 

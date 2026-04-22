@@ -10,12 +10,20 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 - Added local evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, and `npm run smoke:local`, backed by `supabase/scripts/setup-local.sh` and `supabase/scripts/smoke-demo.sh`.
 - Added `.github/CODEOWNERS` with the current repository owner to make review ownership explicit from the first push.
+- Added a Vitest-based test harness with `npm run test`, `npm run test:watch`, and `npm run test:coverage`.
+- Added first-pass executable coverage for shared utility logic, finance import parsing, and member bottom navigation.
+- Added `docs/testing-schema.md` to map the current route, action, data, and component surface to required unit, integration, smoke, and security tests.
+- Added server-action integration suites for `app/sign-in/actions.ts`, `app/app/giving-actions.ts`, `app/app/groups-actions.ts`, and `app/app/finance-actions.ts`, including role-gate, validation, and fallback branch coverage.
+- Added server-action integration suites for `app/app/church-admin-actions.ts` and `app/app/ccm-actions.ts`, covering authorization, registration/attendance flows, schema fallback handling, and critical revalidation paths.
+- Added server-action integration suites for `app/app/donations-actions.ts` and `app/app/volunteer-actions.ts`, covering donation lifecycle behaviors, receipt/cancellation flow, volunteer scheduling conflicts, and member response handling.
+- Added route execution tests for `app/sign-in/page.tsx`, `app/app/member/giving/page.tsx`, `app/app/church-admin/volunteers/schedules/page.tsx`, and `app/app/church-admin/children/dashboard/page.tsx` to verify auth redirects, state wiring, and high-value screen rendering.
 
 ### Unreleased — Changed
 
 - `create-dev-users.sh` now writes shell-compatible demo credential metadata into `.demo-credentials.local`, including admin/member email variables for local automation.
 - README and local setup docs now point evaluators to the setup/smoke helpers and the post-create GitHub hardening checklist.
 - Reorganized the repo documentation tree by moving setup guides into `docs/setup/` and long-form planning documents into `docs/plans/`, which removes document clutter from the repository root and keeps the root focused on active repo controls.
+- README now documents the new automated test commands and links the application-specific testing schema.
 
 ---
 
