@@ -10,7 +10,10 @@ const {
   clearAppContextSelectionMock,
   getDemoProfileMock,
   sanitizeRedirectTargetMock,
-  hasSupabaseEnvMock,
+  getPreferredSupabaseSurfaceForRedirectMock,
+  hasSupabaseEnvForSurfaceMock,
+  hasControlPlaneSupabaseEnvMock,
+  hasTenantSupabaseEnvMock,
   toFriendlySupabaseErrorMessageMock,
   signOutMock,
   signInWithPasswordMock,
@@ -33,7 +36,13 @@ const {
   const getDemoProfile = vi.fn();
   const sanitizeRedirectTarget = vi.fn((target: string) => target);
 
-  const hasSupabaseEnv = vi.fn();
+  const getPreferredSupabaseSurfaceForRedirect = vi.fn(
+    (target?: string) =>
+      target?.startsWith("/control") ? "control-plane" : "tenant",
+  );
+  const hasSupabaseEnvForSurface = vi.fn();
+  const hasControlPlaneSupabaseEnv = vi.fn();
+  const hasTenantSupabaseEnv = vi.fn();
   const toFriendlySupabaseErrorMessage = vi.fn((message: string) => message);
 
   const signOut = vi.fn(async () => ({ error: null }));
@@ -57,7 +66,10 @@ const {
     clearAppContextSelectionMock: clearAppContextSelection,
     getDemoProfileMock: getDemoProfile,
     sanitizeRedirectTargetMock: sanitizeRedirectTarget,
-    hasSupabaseEnvMock: hasSupabaseEnv,
+    getPreferredSupabaseSurfaceForRedirectMock: getPreferredSupabaseSurfaceForRedirect,
+    hasSupabaseEnvForSurfaceMock: hasSupabaseEnvForSurface,
+    hasControlPlaneSupabaseEnvMock: hasControlPlaneSupabaseEnv,
+    hasTenantSupabaseEnvMock: hasTenantSupabaseEnv,
     toFriendlySupabaseErrorMessageMock: toFriendlySupabaseErrorMessage,
     signOutMock: signOut,
     signInWithPasswordMock: signInWithPassword,
@@ -87,7 +99,11 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 vi.mock("@/lib/supabase/config", () => ({
-  hasSupabaseEnv: hasSupabaseEnvMock,
+  getPreferredSupabaseSurfaceForRedirect:
+    getPreferredSupabaseSurfaceForRedirectMock,
+  hasSupabaseEnvForSurface: hasSupabaseEnvForSurfaceMock,
+  hasControlPlaneSupabaseEnv: hasControlPlaneSupabaseEnvMock,
+  hasTenantSupabaseEnv: hasTenantSupabaseEnvMock,
 }));
 
 vi.mock("@/lib/supabase/postgrest", () => ({
@@ -104,7 +120,13 @@ describe("sign-in actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sanitizeRedirectTargetMock.mockImplementation((target: string) => target);
-    hasSupabaseEnvMock.mockReturnValue(false);
+    getPreferredSupabaseSurfaceForRedirectMock.mockImplementation(
+      (target?: string) =>
+        target?.startsWith("/control") ? "control-plane" : "tenant",
+    );
+    hasSupabaseEnvForSurfaceMock.mockReturnValue(false);
+    hasControlPlaneSupabaseEnvMock.mockReturnValue(false);
+    hasTenantSupabaseEnvMock.mockReturnValue(false);
   });
 
   it("redirects to profile error in preview mode when demo profile is missing", async () => {
@@ -142,7 +164,7 @@ describe("sign-in actions", () => {
   });
 
   it("redirects with validation error when Supabase sign-in is missing credentials", async () => {
-    hasSupabaseEnvMock.mockReturnValue(true);
+    hasSupabaseEnvForSurfaceMock.mockReturnValue(true);
 
     const formData = new FormData();
     formData.set("intent", "sign-in");
@@ -157,8 +179,6 @@ describe("sign-in actions", () => {
   });
 
   it("clears app context and redirects to sign-in on sign-out in preview mode", async () => {
-    hasSupabaseEnvMock.mockReturnValue(false);
-
     await expect(signOutAction()).rejects.toMatchObject({
       url: "/sign-in",
     });
@@ -169,13 +189,46 @@ describe("sign-in actions", () => {
   });
 
   it("calls Supabase auth sign-out when Supabase environment is enabled", async () => {
-    hasSupabaseEnvMock.mockReturnValue(true);
+    hasTenantSupabaseEnvMock.mockReturnValue(true);
+    hasControlPlaneSupabaseEnvMock.mockReturnValue(true);
 
     await expect(signOutAction()).rejects.toMatchObject({
       url: "/sign-in",
     });
 
-    expect(signOutMock).toHaveBeenCalled();
-    expect(createSupabaseServerClientMock).toHaveBeenCalled();
+    expect(signOutMock).toHaveBeenCalledTimes(2);
+    expect(createSupabaseServerClientMock).toHaveBeenCalledWith("tenant");
+    expect(createSupabaseServerClientMock).toHaveBeenCalledWith("control-plane");
+  });
+
+  it("uses the control-plane auth client when redirecting into control", async () => {
+    hasSupabaseEnvForSurfaceMock.mockReturnValue(true);
+
+    const formData = new FormData();
+    formData.set("intent", "sign-in");
+    formData.set("email", "admin@churchforge.app");
+    formData.set("password", "secret");
+    formData.set("redirectTo", "/control");
+
+    await expect(signInAction(formData)).rejects.toMatchObject({
+      url: "/control",
+    });
+
+    expect(getPreferredSupabaseSurfaceForRedirectMock).toHaveBeenCalledWith("/control");
+    expect(createSupabaseServerClientMock).toHaveBeenCalledWith("control-plane");
+  });
+
+  it("rejects self-sign-up on the control-plane surface", async () => {
+    hasSupabaseEnvForSurfaceMock.mockReturnValue(true);
+
+    const formData = new FormData();
+    formData.set("intent", "sign-up");
+    formData.set("email", "admin@churchforge.app");
+    formData.set("password", "secret");
+    formData.set("redirectTo", "/control");
+
+    await expect(signInAction(formData)).rejects.toMatchObject({
+      url: "/sign-in?error=Control-plane%20accounts%20must%20be%20provisioned%20by%20ChurchForge%20staff.&redirectTo=%2Fcontrol",
+    });
   });
 });

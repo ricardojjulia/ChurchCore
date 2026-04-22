@@ -161,7 +161,7 @@ This is collision-checked against existing profile rows before returning.
   - offers sign-in and request-access actions
 
 - `/portal/register`
-  - church selection
+  - host-resolved church when available, with manual selection fallback
   - first name
   - last name
   - email
@@ -210,7 +210,7 @@ This is collision-checked against existing profile rows before returning.
   - existing-member match counts
 
 - `lib/public-portal-data.ts`
-  - public church selection list
+  - public church lookup and host-aware church resolution
 
 ### New action files
 
@@ -256,7 +256,7 @@ This complements the existing shared audit model already used elsewhere in the t
 
 Public registration collects only:
 
-- church selection
+- host-resolved church or explicit church selection
 - first name
 - last name
 - email
@@ -278,7 +278,6 @@ No LLM generation or autonomous action is performed in this flow.
 
 These parts are intentionally incomplete:
 
-- public portal requests still require a church selector instead of host-based tenant resolution
 - invite delivery requires `SUPABASE_SERVICE_ROLE_KEY` or `TENANT_SUPABASE_SERVICE_ROLE_KEY`
 - no dedicated member self-confirm / self-decline serving action yet
 - roster role titles are free text today; no controlled vocabulary yet

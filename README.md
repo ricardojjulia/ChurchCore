@@ -22,6 +22,8 @@ Current plan target:
 
 - Role-based portals with least-privilege enforcement for platform, church, ministry, and member workflows.
 - The control plane and the tenant-facing church app are now explicitly different products with separate long-term data boundaries.
+- Ministry Forge supports designated ministry leaders, and that leader assignment now feeds pastor-facing led-ministry visibility.
+- Public portal entry can resolve a church from the request hostname, and member communication preferences now write append-only consent records.
 - Core product scope spanning member directory, ministries, pastoral profiles, giving, reporting, communications, and leadership collaboration.
 - Sprint 1 is now explicitly focused on foundation, member portal data, ministries, pastoral titles, and a categorized calendar.
 - A working calendar hub remains core, now with explicit event categories defined in the development plan.
@@ -328,11 +330,13 @@ public/               Static assets
 ## Current Application Surface
 
 - The landing page is now a minimal entry surface instead of a feature-heavy marketing preview.
-- The sign-in route is intentionally minimal and routes through Supabase SSR auth when configured, with preview auth retained only as a local fallback.
+- The sign-in route is intentionally minimal and now chooses the control-plane or tenant Supabase auth surface from the requested redirect target, with preview auth retained only as a local fallback.
 - The control-plane routes provide a protected platform-operator surface for tenant lifecycle, billing, support, and provisioning.
 - The church-app routes provide protected role-based portals for ChurchAdmin, Pastor / Elder, MinistryAdmin / Leader, and Volunteer / Member flows.
 - Auth sessions now resolve an explicit app context from control-plane access plus church membership data, so actor identity and active product surface are no longer conflated.
 - The backend access layer is now split in code between control-plane and tenant wrappers under `lib/supabase/control-plane.ts` and `lib/supabase/tenant.ts`, with the old single-project local Supabase setup retained only as transitional fallback.
+- Shared Supabase helper boundaries are now explicit as well: browser/SSR helpers require a named surface, and local direct-DB fallback pooling lives only behind the control-plane or tenant wrappers instead of a generic shared pool.
+- `proxy.ts`, `/sign-in`, and session hydration now refresh and resolve auth against explicit surface-aware Supabase clients instead of a generic shared selector, which keeps `/control` and `/app` aligned to ADR 0002 even while shared local env vars remain supported.
 - Tenant launch from `/control` is now registry-driven, with the control plane resolving the tenant runtime target through `tenants` and `tenant_connections` before entering `/app`.
 - Control-plane routing now resolves the tenant runtime church target from `tenant_connections.metadata.runtime_church_id`, which keeps platform tenant IDs separate from tenant-runtime church IDs.
 - Platform admins can now launch an explicit tenant view from the control plane and return to ChurchForge Control without implicit cross-over.
@@ -340,11 +344,14 @@ public/               Static assets
 - Local development can now fall back to direct Postgres reads and writes for app-owned Supabase tables when the local REST schema cache is unavailable.
 - The church app session now hydrates from real `profiles` rows when available, so `/app` and the app shell resolve live church-scoped user data instead of relying only on preview profile templates.
 - The member portal under `/app/member` now reads real profile, ministry-assignment, and upcoming-event data from Supabase instead of using only the generic preview workspace.
+- Tenant membership reads now resolve from the active church-scoped `profiles.id`, which keeps member and ministry data aligned across merged-profile cleanup, local SQL fallback, and live Supabase relation reads.
 - The church-admin side now includes a real `/app/church-admin/people` screen for church-scoped record management and status updates.
 - ChurchAdmin people management now includes bulk updates for membership status, directory visibility, and contact permission across selected records.
 - ChurchAdmin people management now includes household reassignment and duplicate-profile merge tooling, with merged profiles retired from downstream member and pastor views.
 - The church-admin side now includes `/app/church-admin/accounts` for reviewing public portal requests, approving them with generated member numbers, and sending member invites when the tenant service-role key is configured.
 - The church-admin and pastor flows now include `/app/church-admin/events/[id]`, an event-specific attendance and roster workspace with quick check-in, visitor capture, roster confirmation, and seven-day burnout warnings.
+- The church-admin events list now shows live roster counts in both direct SQL fallback mode and the normal Supabase tenant path.
+- Tenant write actions for calendar events, event rosters/check-ins, registration settings, and ministry membership now explicitly validate church ownership on incoming record IDs before writing, instead of relying on implicit downstream constraints alone.
 - Church leadership roles now also have `/app/reports`, `/app/reports/members`, `/app/reports/events`, and `/app/reports/giving`, a first reporting-suite foundation with graphical stewardship dashboards and preview-safe fallback behavior.
 - The churchgoer portal now has a public `/portal` landing page plus `/portal/register`, where prospective members can request portal access and be linked to an existing profile by email when possible.
 - The member experience is now split further into dedicated directory and household routes, and the main member home now includes attendance history, upcoming serving assignments, and interest / contact-preference self-service.

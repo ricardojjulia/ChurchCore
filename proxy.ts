@@ -1,20 +1,69 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getSupabaseEnv, hasSupabaseEnv } from "@/lib/supabase/config";
+import {
+  extractPublicChurchSlugFromHost,
+  publicChurchSlugCookieName,
+} from "@/lib/public-host-routing";
+import {
+  getSupabaseEnvForSurface,
+  getSupabaseRefreshSurfacesForPath,
+  hasSupabaseEnvForSurface,
+  type SupabaseSurface,
+} from "@/lib/supabase/config";
 
-export async function proxy(request: NextRequest) {
-  if (!hasSupabaseEnv()) {
-    return NextResponse.next({
-      request,
+function applyPublicChurchCookie(request: NextRequest, response: NextResponse) {
+  const slug = extractPublicChurchSlugFromHost(request.headers.get("host"));
+
+  if (slug) {
+    response.cookies.set(publicChurchSlugCookieName, slug, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60 * 12,
     });
+  } else {
+    response.cookies.delete(publicChurchSlugCookieName);
   }
 
+  return response;
+}
+
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
     request,
   });
 
-  const { url, publishableKey } = getSupabaseEnv();
+  const surfaces = getSupabaseRefreshSurfacesForPath(request.nextUrl.pathname);
+
+  for (const surface of surfaces) {
+    await refreshSupabaseSurfaceSession({
+      request,
+      surface,
+      updateResponse(nextResponse) {
+        response = nextResponse;
+      },
+    });
+  }
+
+  return applyPublicChurchCookie(request, response);
+}
+
+async function refreshSupabaseSurfaceSession({
+  request,
+  surface,
+  updateResponse,
+}: {
+  request: NextRequest;
+  surface: SupabaseSurface;
+  updateResponse: (response: NextResponse) => void;
+}) {
+  if (!hasSupabaseEnvForSurface(surface)) {
+    return;
+  }
+
+  const { url, publishableKey } = getSupabaseEnvForSurface(surface);
 
   const supabase = createServerClient(url, publishableKey, {
     cookies: {
@@ -24,20 +73,20 @@ export async function proxy(request: NextRequest) {
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
 
-        response = NextResponse.next({
+        const nextResponse = NextResponse.next({
           request,
         });
 
         cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options);
+          nextResponse.cookies.set(name, value, options);
         });
+
+        updateResponse(nextResponse);
       },
     },
   });
 
   await supabase.auth.getUser();
-
-  return response;
 }
 
 export const config = {

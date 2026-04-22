@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
 import {
+  insertConsentLogEntries,
+  type ConsentCommunicationType,
+} from "@/lib/consent-log";
+import { resolveActiveChurchProfileId } from "@/lib/church-profile";
+import {
   createTenantAdminClient,
   createTenantServerClient,
   hasTenantAdminBackendEnv,
@@ -79,6 +84,21 @@ export type MergeChurchAdminDuplicateInput = {
 };
 
 const ALLOWED_CONTACT_METHODS = new Set(["email", "sms", "app", "none"]);
+
+function mapPreferredContactMethodToConsentCommunicationType(
+  value: string | null,
+): ConsentCommunicationType | null {
+  switch (value) {
+    case "email":
+      return "email";
+    case "sms":
+      return "sms";
+    case "app":
+      return "in_app";
+    default:
+      return null;
+  }
+}
 
 function validateInput(input: UpdateProfileInput): string | null {
   const name = input.fullName.trim();
@@ -306,6 +326,24 @@ export async function updateMemberProfileAction(input: UpdateProfileInput) {
   }
 
   if (shouldUseLocalTenantFallback()) {
+    const existingProfileResult = await queryTenantLocalDb<{
+      id: string;
+      directory_visible: boolean | null;
+      contact_allowed: boolean | null;
+      preferred_contact_method: string | null;
+    }>(
+      `
+        select id, directory_visible, contact_allowed, preferred_contact_method
+        from public.profiles
+        where user_id = $1
+          and church_id = $2
+          and merged_at is null
+        limit 1
+      `,
+      [session.userId, session.appContext.church.id],
+    );
+    const existingProfile = existingProfileResult.rows[0] ?? null;
+
     await queryTenantLocalDb(
       `
         update public.profiles
@@ -348,8 +386,55 @@ export async function updateMemberProfileAction(input: UpdateProfileInput) {
       `,
       [emergencyContactName, emergencyContactPhone, session.userId, session.appContext.church.id],
     );
+
+    if (existingProfile) {
+      const consentEntries = [
+        {
+          changed: (existingProfile.directory_visible ?? true) !== input.directoryVisible,
+          consentType: "directory_visibility",
+          consented: input.directoryVisible,
+          communicationType: null,
+        },
+        {
+          changed: (existingProfile.contact_allowed ?? true) !== input.contactAllowed,
+          consentType: "member_contact",
+          consented: input.contactAllowed,
+          communicationType: null,
+        },
+        {
+          changed:
+            (existingProfile.preferred_contact_method ?? null) !==
+            (input.preferredContactMethod ?? null),
+          consentType: "preferred_contact_method",
+          consented: input.preferredContactMethod !== null,
+          communicationType: mapPreferredContactMethodToConsentCommunicationType(
+            input.preferredContactMethod,
+          ),
+        },
+      ]
+        .filter((entry) => entry.changed)
+        .map((entry) => ({
+          churchId: session.appContext.church.id,
+          profileId: existingProfile.id,
+          consentType: entry.consentType,
+          consented: entry.consented,
+          communicationType: entry.communicationType,
+        }));
+
+      await insertConsentLogEntries(consentEntries);
+    }
   } else {
     const supabase = await createTenantServerClient();
+    const { data: existingProfile, error: existingProfileError } = await supabase
+      .from("profiles")
+      .select("id, directory_visible, contact_allowed, preferred_contact_method")
+      .eq("user_id", session.userId)
+      .eq("church_id", session.appContext.church.id)
+      .is("merged_at", null)
+      .maybeSingle();
+
+    if (existingProfileError) throw new Error(existingProfileError.message);
+
     const { data: updatedProfile, error: dbError } = await supabase
       .from("profiles")
       .update({
@@ -382,6 +467,43 @@ export async function updateMemberProfileAction(input: UpdateProfileInput) {
         );
 
       if (sensitiveError) throw new Error(sensitiveError.message);
+    }
+
+    if (updatedProfile && existingProfile) {
+      const consentEntries = [
+        {
+          changed: (existingProfile.directory_visible ?? true) !== input.directoryVisible,
+          consentType: "directory_visibility",
+          consented: input.directoryVisible,
+          communicationType: null,
+        },
+        {
+          changed: (existingProfile.contact_allowed ?? true) !== input.contactAllowed,
+          consentType: "member_contact",
+          consented: input.contactAllowed,
+          communicationType: null,
+        },
+        {
+          changed:
+            (existingProfile.preferred_contact_method ?? null) !==
+            (input.preferredContactMethod ?? null),
+          consentType: "preferred_contact_method",
+          consented: input.preferredContactMethod !== null,
+          communicationType: mapPreferredContactMethodToConsentCommunicationType(
+            input.preferredContactMethod,
+          ),
+        },
+      ]
+        .filter((entry) => entry.changed)
+        .map((entry) => ({
+          churchId: session.appContext.church.id,
+          profileId: updatedProfile.id,
+          consentType: entry.consentType,
+          consented: entry.consented,
+          communicationType: entry.communicationType,
+        }));
+
+      await insertConsentLogEntries(consentEntries);
     }
   }
 
@@ -859,6 +981,7 @@ export type UpdateMinistryInput = {
   ministryType: string | null;
   visionStatement: string | null;
   scripturalAnchor: string[];
+  leaderProfileId: string | null;
 };
 
 export type DeleteMinistryInput = {
@@ -904,6 +1027,11 @@ const ALLOWED_MINISTRY_TYPES = new Set([
   "youth",
   "children",
   "missions",
+  "men",
+  "women",
+  "marriage",
+  "young_adult",
+  "education",
 ]);
 
 const ALLOWED_MEMBER_ROLES = new Set(["member", "leader", "assistant_leader"]);
@@ -932,6 +1060,9 @@ function validateCreateMinistryInput(input: CreateMinistryInput): string | null 
 
 function validateUpdateMinistryInput(input: UpdateMinistryInput): string | null {
   if (!input.ministryId.trim()) return "Ministry is required.";
+  if (input.leaderProfileId !== null && !input.leaderProfileId.trim()) {
+    return "Leader profile is invalid.";
+  }
   return validateCreateMinistryInput(input);
 }
 
@@ -967,6 +1098,125 @@ async function requireMinistryManagerSession(redirectPath: string) {
     throw new Error("Ministry management access is required.");
   }
   return session;
+}
+
+async function assertMinistryBelongsToChurch(churchId: string, ministryId: string) {
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `
+        select id
+        from public.ministries
+        where id = $1
+          and church_id = $2
+        limit 1
+      `,
+      [ministryId, churchId],
+    );
+
+    if (!result.rows[0]) {
+      throw new Error("Ministry not found in this church.");
+    }
+
+    return;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("ministries")
+    .select("id")
+    .eq("id", ministryId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Ministry not found in this church.");
+  }
+}
+
+async function assertProfileBelongsToChurch(churchId: string, profileId: string) {
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `
+        select id
+        from public.profiles
+        where id = $1
+          and church_id = $2
+          and merged_at is null
+        limit 1
+      `,
+      [profileId, churchId],
+    );
+
+    if (!result.rows[0]) {
+      throw new Error("Profile not found in this church.");
+    }
+
+    return;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", profileId)
+    .eq("church_id", churchId)
+    .is("merged_at", null)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Profile not found in this church.");
+  }
+}
+
+async function assertProfilesBelongToChurch(churchId: string, profileIds: string[]) {
+  const uniqueProfileIds = Array.from(new Set(profileIds));
+
+  if (uniqueProfileIds.length === 0) {
+    return;
+  }
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `
+        select id
+        from public.profiles
+        where church_id = $1
+          and merged_at is null
+          and id = any($2::uuid[])
+      `,
+      [churchId, uniqueProfileIds],
+    );
+
+    if (result.rows.length !== uniqueProfileIds.length) {
+      throw new Error("One or more profiles were not found in this church.");
+    }
+
+    return;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("church_id", churchId)
+    .is("merged_at", null)
+    .in("id", uniqueProfileIds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if ((data ?? []).length !== uniqueProfileIds.length) {
+    throw new Error("One or more profiles were not found in this church.");
+  }
 }
 
 export async function createMinistryAction(input: CreateMinistryInput) {
@@ -1021,13 +1271,23 @@ export async function updateMinistryAction(input: UpdateMinistryInput) {
   const name = input.name.trim();
   const visionStatement = input.visionStatement?.trim() || null;
   const scripturalAnchor = input.scripturalAnchor.filter((s) => s.trim());
+  const leaderProfileId = input.leaderProfileId?.trim() || null;
+  const churchId = session.appContext.church.id;
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
     revalidatePath("/app/church-admin");
     return;
   }
 
+  if (input.ministryId) {
+    await assertMinistryBelongsToChurch(churchId, input.ministryId);
+  }
+
   if (shouldUseLocalTenantFallback()) {
+    if (leaderProfileId) {
+      await assertProfileBelongsToChurch(churchId, leaderProfileId);
+    }
+
     await queryTenantLocalDb(
       `
         update public.ministries
@@ -1036,21 +1296,40 @@ export async function updateMinistryAction(input: UpdateMinistryInput) {
           ministry_type      = $2,
           vision_statement   = $3,
           scriptural_anchor  = $4,
+          leader_profile_id  = $5,
           updated_at         = timezone('utc', now())
-        where id        = $5
-          and church_id = $6
+        where id        = $6
+          and church_id = $7
       `,
       [
         name,
         input.ministryType,
         visionStatement,
         scripturalAnchor,
+        leaderProfileId,
         input.ministryId,
-        session.appContext.church.id,
+        churchId,
       ],
     );
+
+    if (leaderProfileId) {
+      await queryTenantLocalDb(
+        `
+          insert into public.profile_ministries (church_id, profile_id, ministry_id, role)
+          values ($1, $2, $3, 'leader')
+          on conflict (profile_id, ministry_id) do update
+            set role = 'leader'
+        `,
+        [churchId, leaderProfileId, input.ministryId],
+      );
+    }
   } else {
     const supabase = await createTenantServerClient();
+
+    if (leaderProfileId) {
+      await assertProfileBelongsToChurch(churchId, leaderProfileId);
+    }
+
     const { error } = await supabase
       .from("ministries")
       .update({
@@ -1058,13 +1337,29 @@ export async function updateMinistryAction(input: UpdateMinistryInput) {
         ministry_type: input.ministryType,
         vision_statement: visionStatement,
         scriptural_anchor: scripturalAnchor,
+        leader_profile_id: leaderProfileId,
       })
       .eq("id", input.ministryId)
-      .eq("church_id", session.appContext.church.id);
+      .eq("church_id", churchId);
     if (error) throw new Error(error.message);
+
+    if (leaderProfileId) {
+      const { error: memberError } = await supabase.from("profile_ministries").upsert(
+        {
+          church_id: churchId,
+          profile_id: leaderProfileId,
+          ministry_id: input.ministryId,
+          role: "leader",
+        },
+        { onConflict: "profile_id,ministry_id" },
+      );
+
+      if (memberError) throw new Error(memberError.message);
+    }
   }
 
   revalidatePath("/app/church-admin");
+  revalidatePath("/app/church-admin/ministry");
   revalidatePath(`/app/church-admin/ministry/${input.ministryId}`);
   revalidatePath("/app/pastor");
 }
@@ -1072,16 +1367,19 @@ export async function updateMinistryAction(input: UpdateMinistryInput) {
 export async function deleteMinistryAction(input: DeleteMinistryInput) {
   if (!input.ministryId.trim()) throw new Error("Ministry is required.");
   const session = await requireMinistryManagerSession("/app/church-admin");
+  const churchId = session.appContext.church.id;
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
     revalidatePath("/app/church-admin");
     return;
   }
 
+  await assertMinistryBelongsToChurch(churchId, input.ministryId);
+
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
       `delete from public.ministries where id = $1 and church_id = $2`,
-      [input.ministryId, session.appContext.church.id],
+      [input.ministryId, churchId],
     );
   } else {
     const supabase = await createTenantServerClient();
@@ -1089,7 +1387,7 @@ export async function deleteMinistryAction(input: DeleteMinistryInput) {
       .from("ministries")
       .delete()
       .eq("id", input.ministryId)
-      .eq("church_id", session.appContext.church.id);
+      .eq("church_id", churchId);
     if (error) throw new Error(error.message);
   }
 
@@ -1102,11 +1400,15 @@ export async function assignMembersToMinistryAction(input: AssignMembersToMinist
   if (validationError) throw new Error(validationError);
 
   const session = await requireMinistryManagerSession("/app/church-admin");
+  const churchId = session.appContext.church.id;
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
     revalidatePath("/app/church-admin");
     return;
   }
+
+  await assertMinistryBelongsToChurch(churchId, input.ministryId);
+  await assertProfilesBelongToChurch(churchId, input.profileIds);
 
   if (shouldUseLocalTenantFallback()) {
     for (const profileId of input.profileIds) {
@@ -1120,13 +1422,13 @@ export async function assignMembersToMinistryAction(input: AssignMembersToMinist
           on conflict (profile_id, ministry_id) do update
             set role = excluded.role
         `,
-        [session.appContext.church.id, profileId, input.ministryId, input.role],
+        [churchId, profileId, input.ministryId, input.role],
       );
     }
   } else {
     const supabase = await createTenantServerClient();
     const records = input.profileIds.map((profileId) => ({
-      church_id: session.appContext.church.id,
+      church_id: churchId,
       profile_id: profileId,
       ministry_id: input.ministryId,
       role: input.role,
@@ -1138,6 +1440,7 @@ export async function assignMembersToMinistryAction(input: AssignMembersToMinist
   }
 
   revalidatePath("/app/church-admin");
+  revalidatePath("/app/church-admin/ministry");
   revalidatePath(`/app/church-admin/ministry/${input.ministryId}`);
   revalidatePath("/app/member/ministries");
   revalidatePath("/app/pastor");
@@ -1148,11 +1451,15 @@ export async function removeMemberFromMinistryAction(input: RemoveMemberFromMini
     throw new Error("Ministry and profile are required.");
   }
   const session = await requireMinistryManagerSession("/app/church-admin");
+  const churchId = session.appContext.church.id;
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
     revalidatePath("/app/church-admin");
     return;
   }
+
+  await assertMinistryBelongsToChurch(churchId, input.ministryId);
+  await assertProfileBelongsToChurch(churchId, input.profileId);
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -1160,7 +1467,7 @@ export async function removeMemberFromMinistryAction(input: RemoveMemberFromMini
         delete from public.profile_ministries
         where ministry_id = $1 and profile_id = $2 and church_id = $3
       `,
-      [input.ministryId, input.profileId, session.appContext.church.id],
+      [input.ministryId, input.profileId, churchId],
     );
   } else {
     const supabase = await createTenantServerClient();
@@ -1169,11 +1476,12 @@ export async function removeMemberFromMinistryAction(input: RemoveMemberFromMini
       .delete()
       .eq("ministry_id", input.ministryId)
       .eq("profile_id", input.profileId)
-      .eq("church_id", session.appContext.church.id);
+      .eq("church_id", churchId);
     if (error) throw new Error(error.message);
   }
 
   revalidatePath("/app/church-admin");
+  revalidatePath("/app/church-admin/ministry");
   revalidatePath(`/app/church-admin/ministry/${input.ministryId}`);
   revalidatePath("/app/member/ministries");
   revalidatePath("/app/pastor");
@@ -1184,6 +1492,7 @@ export async function updateMinistryHealthScoreAction(input: UpdateMinistryHealt
   if (validationError) throw new Error(validationError);
 
   const session = await requireMinistryManagerSession("/app/church-admin");
+  const churchId = session.appContext.church.id;
   const score = Math.round(input.healthScore * 100) / 100;
   const notes = input.notes?.trim() || null;
   const now = new Date().toISOString();
@@ -1193,6 +1502,8 @@ export async function updateMinistryHealthScoreAction(input: UpdateMinistryHealt
     return;
   }
 
+  await assertMinistryBelongsToChurch(churchId, input.ministryId);
+
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
       `
@@ -1200,7 +1511,7 @@ export async function updateMinistryHealthScoreAction(input: UpdateMinistryHealt
         set health_score = $1, last_health_assessment = $2, updated_at = timezone('utc', now())
         where id = $3 and church_id = $4
       `,
-      [score, now, input.ministryId, session.appContext.church.id],
+      [score, now, input.ministryId, churchId],
     );
     await queryTenantLocalDb(
       `
@@ -1208,7 +1519,7 @@ export async function updateMinistryHealthScoreAction(input: UpdateMinistryHealt
           (ministry_id, church_id, health_score, assessment_date, notes)
         values ($1, $2, $3, $4, $5)
       `,
-      [input.ministryId, session.appContext.church.id, score, now, notes],
+      [input.ministryId, churchId, score, now, notes],
     );
   } else {
     const supabase = await createTenantServerClient();
@@ -1216,12 +1527,12 @@ export async function updateMinistryHealthScoreAction(input: UpdateMinistryHealt
       .from("ministries")
       .update({ health_score: score, last_health_assessment: now })
       .eq("id", input.ministryId)
-      .eq("church_id", session.appContext.church.id);
+      .eq("church_id", churchId);
     if (updateError) throw new Error(updateError.message);
 
     const { error: historyError } = await supabase.from("ministry_health_history").insert({
       ministry_id: input.ministryId,
-      church_id: session.appContext.church.id,
+      church_id: churchId,
       health_score: score,
       assessment_date: now,
       notes,
@@ -1231,6 +1542,7 @@ export async function updateMinistryHealthScoreAction(input: UpdateMinistryHealt
 
   revalidatePath("/app/church-admin");
   revalidatePath(`/app/church-admin/ministry/${input.ministryId}`);
+  revalidatePath("/app/church-admin/ministry");
   revalidatePath("/app/pastor");
 }
 
@@ -1239,6 +1551,7 @@ export async function logKingdomImpactAction(input: LogKingdomImpactInput) {
   if (validationError) throw new Error(validationError);
 
   const session = await requireMinistryManagerSession("/app/church-admin");
+  const churchId = session.appContext.church.id;
   const description = input.description?.trim() || null;
   const occurredAt = input.occurredAt
     ? new Date(input.occurredAt).toISOString()
@@ -1249,13 +1562,12 @@ export async function logKingdomImpactAction(input: LogKingdomImpactInput) {
     return;
   }
 
-  if (shouldUseLocalTenantFallback()) {
-    const profileResult = await queryTenantLocalDb<{ id: string }>(
-      `select id from public.profiles where user_id = $1 and church_id = $2 limit 1`,
-      [session.userId, session.appContext.church.id],
-    );
-    const createdBy = profileResult.rows[0]?.id ?? null;
+  if (input.ministryId) {
+    await assertMinistryBelongsToChurch(churchId, input.ministryId);
+  }
+  const createdBy = await resolveActiveChurchProfileId(session);
 
+  if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
       `
         insert into public.kingdom_impacts
@@ -1263,7 +1575,7 @@ export async function logKingdomImpactAction(input: LogKingdomImpactInput) {
         values ($1, $2, $3, $4, $5, $6)
       `,
       [
-        session.appContext.church.id,
+        churchId,
         input.ministryId,
         input.impactType,
         description,
@@ -1273,20 +1585,13 @@ export async function logKingdomImpactAction(input: LogKingdomImpactInput) {
     );
   } else {
     const supabase = await createTenantServerClient();
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("user_id", session.userId)
-      .eq("church_id", session.appContext.church.id)
-      .maybeSingle();
-
     const { error } = await supabase.from("kingdom_impacts").insert({
-      church_id: session.appContext.church.id,
+      church_id: churchId,
       ministry_id: input.ministryId,
       impact_type: input.impactType,
       description,
       occurred_at: occurredAt,
-      created_by: profile?.id ?? null,
+      created_by: createdBy,
     });
     if (error) throw new Error(error.message);
   }
@@ -1305,6 +1610,7 @@ export async function updateMinistryVisionAction(input: UpdateMinistryVisionInpu
   }
 
   const session = await requireMinistryManagerSession("/app/church-admin");
+  const churchId = session.appContext.church.id;
   const visionStatement = input.visionStatement?.trim() || null;
   const scripturalAnchor = input.scripturalAnchor.filter((s) => s.trim());
 
@@ -1313,6 +1619,8 @@ export async function updateMinistryVisionAction(input: UpdateMinistryVisionInpu
     return;
   }
 
+  await assertMinistryBelongsToChurch(churchId, input.ministryId);
+
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
       `
@@ -1320,7 +1628,7 @@ export async function updateMinistryVisionAction(input: UpdateMinistryVisionInpu
         set vision_statement = $1, scriptural_anchor = $2, updated_at = timezone('utc', now())
         where id = $3 and church_id = $4
       `,
-      [visionStatement, scripturalAnchor, input.ministryId, session.appContext.church.id],
+      [visionStatement, scripturalAnchor, input.ministryId, churchId],
     );
   } else {
     const supabase = await createTenantServerClient();
@@ -1328,7 +1636,7 @@ export async function updateMinistryVisionAction(input: UpdateMinistryVisionInpu
       .from("ministries")
       .update({ vision_statement: visionStatement, scriptural_anchor: scripturalAnchor })
       .eq("id", input.ministryId)
-      .eq("church_id", session.appContext.church.id);
+      .eq("church_id", churchId);
     if (error) throw new Error(error.message);
   }
 
@@ -1420,6 +1728,8 @@ export async function suggestVolunteersAction(input: SuggestVolunteersInput) {
     revalidatePath(`/app/church-admin/ministry/${input.ministryId}`);
     return;
   }
+
+  await assertMinistryBelongsToChurch(churchId, input.ministryId);
 
   // ── Fetch ministry details ──
   let ministryName = "";
@@ -1840,6 +2150,8 @@ export async function calculateBurnoutAlertsAction(input: CalculateBurnoutAlerts
     revalidatePath(`/app/church-admin/ministry/${input.ministryId}`);
     return;
   }
+
+  await assertMinistryBelongsToChurch(churchId, input.ministryId);
 
   if (shouldUseLocalTenantFallback()) {
     const membersResult = await queryTenantLocalDb<{

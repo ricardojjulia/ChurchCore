@@ -11,7 +11,12 @@ import {
   sanitizeRedirectTarget,
   sessionCookieName,
 } from "@/lib/auth";
-import { hasSupabaseEnv } from "@/lib/supabase/config";
+import {
+  getPreferredSupabaseSurfaceForRedirect,
+  hasSupabaseEnvForSurface,
+  hasControlPlaneSupabaseEnv,
+  hasTenantSupabaseEnv,
+} from "@/lib/supabase/config";
 import { toFriendlySupabaseErrorMessage } from "@/lib/supabase/postgrest";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -26,7 +31,9 @@ export async function signInAction(formData: FormData) {
       )}`,
     );
 
-  if (hasSupabaseEnv()) {
+  const authSurface = getPreferredSupabaseSurfaceForRedirect(redirectTo);
+
+  if (hasSupabaseEnvForSurface(authSurface)) {
     const intent = String(formData.get("intent") ?? "sign-in");
     const email = String(formData.get("email") ?? "").trim();
     const password = String(formData.get("password") ?? "");
@@ -35,9 +42,13 @@ export async function signInAction(formData: FormData) {
       errorRedirect("Enter both email and password.");
     }
 
-    const supabase = await createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient(authSurface);
 
     if (intent === "sign-up") {
+      if (authSurface === "control-plane") {
+        errorRedirect("Control-plane accounts must be provisioned by ChurchForge staff.");
+      }
+
       const headerStore = await headers();
       const origin =
         headerStore.get("origin") ??
@@ -99,8 +110,13 @@ export async function signInAction(formData: FormData) {
 }
 
 export async function signOutAction() {
-  if (hasSupabaseEnv()) {
-    const supabase = await createSupabaseServerClient();
+  if (hasTenantSupabaseEnv()) {
+    const supabase = await createSupabaseServerClient("tenant");
+    await supabase.auth.signOut();
+  }
+
+  if (hasControlPlaneSupabaseEnv()) {
+    const supabase = await createSupabaseServerClient("control-plane");
     await supabase.auth.signOut();
   }
 

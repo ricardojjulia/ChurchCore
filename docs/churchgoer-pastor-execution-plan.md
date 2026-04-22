@@ -100,7 +100,8 @@ This slice does not attempt to complete:
 Once this phase is stable, the next work should be:
 
 1. pastoral notes and care assignment model
-2. ministry leadership assignment UI
-3. consent capture UX tied to first-login and communications preferences
-4. church-admin people management screens
-5. elder and council-specific confidential workflows
+2. consent capture UX tied to first-login and communications preferences
+3. church-admin people management screens
+4. elder and council-specific confidential workflows
+
+`ministries.leader_profile_id` assignment is now handled in the Ministry Forge settings workflow and no longer belongs on this follow-up list.

@@ -3,6 +3,8 @@ type SupabaseEnv = {
   publishableKey: string;
 };
 
+export type SupabaseSurface = "control-plane" | "tenant";
+
 function getNamedServiceRoleKey(prefix: "CONTROL_PLANE" | "TENANT") {
   return process.env[`${prefix}_SUPABASE_SERVICE_ROLE_KEY`];
 }
@@ -71,23 +73,62 @@ function getNamedDbUrl(prefix: "CONTROL_PLANE" | "TENANT") {
   return dbUrl;
 }
 
-export function hasSupabaseEnv() {
-  return (
-    hasSharedSupabaseEnv() ||
-    hasNamedSupabaseEnv("CONTROL_PLANE") ||
-    hasNamedSupabaseEnv("TENANT")
-  );
+function getSurfacePrefix(surface: SupabaseSurface) {
+  return surface === "control-plane" ? "CONTROL_PLANE" : "TENANT";
 }
 
-export function hasSupabaseDbUrl() {
-  return (
-    Boolean(process.env.SUPABASE_DB_URL) ||
-    hasNamedDbUrl("CONTROL_PLANE") ||
-    hasNamedDbUrl("TENANT")
-  );
+export function hasSupabaseEnvForSurface(surface: SupabaseSurface) {
+  return hasNamedSupabaseEnv(getSurfacePrefix(surface)) || hasSharedSupabaseEnv();
 }
 
-export function getSupabaseDbUrl() {
+export function getSupabaseEnvForSurface(surface: SupabaseSurface) {
+  const prefix = getSurfacePrefix(surface);
+
+  return hasNamedSupabaseEnv(prefix)
+    ? getNamedSupabaseEnv(prefix)
+    : getSharedSupabaseEnv();
+}
+
+export function getSupabaseSurfaceFallbackOrder(
+  preferredSurface: SupabaseSurface,
+) {
+  return preferredSurface === "control-plane"
+    ? (["control-plane", "tenant"] as const)
+    : (["tenant", "control-plane"] as const);
+}
+
+export function getPreferredSupabaseSurfaceForRedirect(
+  target?: string | null,
+): SupabaseSurface {
+  return target?.startsWith("/control") ? "control-plane" : "tenant";
+}
+
+export function getSupabaseRefreshSurfacesForPath(pathname: string) {
+  if (pathname.startsWith("/control")) {
+    return ["control-plane"] as const;
+  }
+
+  if (
+    pathname.startsWith("/app") ||
+    pathname.startsWith("/portal") ||
+    pathname.startsWith("/give") ||
+    pathname.startsWith("/auth/confirm")
+  ) {
+    return ["tenant"] as const;
+  }
+
+  if (
+    pathname.startsWith("/sign-in") ||
+    pathname.startsWith("/workspace") ||
+    pathname.startsWith("/calendar")
+  ) {
+    return ["tenant", "control-plane"] as const;
+  }
+
+  return [] as const;
+}
+
+function getSharedDbUrl() {
   const dbUrl =
     process.env.SUPABASE_DB_URL ??
     process.env.CONTROL_PLANE_DB_URL ??
@@ -102,47 +143,20 @@ export function getSupabaseDbUrl() {
   return dbUrl;
 }
 
-export function shouldUseLocalSupabaseDbFallback() {
-  return Boolean(
-    hasSupabaseDbUrl() &&
-      (
-        process.env.NEXT_PUBLIC_SUPABASE_URL ??
-        process.env.CONTROL_PLANE_SUPABASE_URL ??
-        process.env.TENANT_SUPABASE_URL
-      )?.includes("127.0.0.1:54321"),
-  );
-}
-
-export function getSupabaseEnv() {
-  if (hasNamedSupabaseEnv("CONTROL_PLANE")) {
-    return getNamedSupabaseEnv("CONTROL_PLANE");
-  }
-
-  if (hasNamedSupabaseEnv("TENANT")) {
-    return getNamedSupabaseEnv("TENANT");
-  }
-
-  return getSharedSupabaseEnv();
-}
-
 export function hasControlPlaneSupabaseEnv() {
-  return hasNamedSupabaseEnv("CONTROL_PLANE") || hasSharedSupabaseEnv();
+  return hasSupabaseEnvForSurface("control-plane");
 }
 
 export function getControlPlaneSupabaseEnv() {
-  return hasNamedSupabaseEnv("CONTROL_PLANE")
-    ? getNamedSupabaseEnv("CONTROL_PLANE")
-    : getSharedSupabaseEnv();
+  return getSupabaseEnvForSurface("control-plane");
 }
 
 export function hasTenantSupabaseEnv() {
-  return hasNamedSupabaseEnv("TENANT") || hasSharedSupabaseEnv();
+  return hasSupabaseEnvForSurface("tenant");
 }
 
 export function getTenantSupabaseEnv() {
-  return hasNamedSupabaseEnv("TENANT")
-    ? getNamedSupabaseEnv("TENANT")
-    : getSharedSupabaseEnv();
+  return getSupabaseEnvForSurface("tenant");
 }
 
 export function hasTenantServiceRoleKey() {
@@ -168,7 +182,7 @@ export function hasControlPlaneDbUrl() {
 export function getControlPlaneDbUrl() {
   return hasNamedDbUrl("CONTROL_PLANE")
     ? getNamedDbUrl("CONTROL_PLANE")
-    : getSupabaseDbUrl();
+    : getSharedDbUrl();
 }
 
 export function hasTenantDbUrl() {
@@ -176,7 +190,7 @@ export function hasTenantDbUrl() {
 }
 
 export function getTenantDbUrl() {
-  return hasNamedDbUrl("TENANT") ? getNamedDbUrl("TENANT") : getSupabaseDbUrl();
+  return hasNamedDbUrl("TENANT") ? getNamedDbUrl("TENANT") : getSharedDbUrl();
 }
 
 export function shouldUseLocalControlPlaneDbFallback() {

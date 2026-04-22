@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
+import { Alert, Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
 
 import { getSession } from "@/lib/auth";
+import { getRequestedPublicChurch } from "@/lib/public-portal-data";
 
 export default async function PortalPage() {
-  const session = await getSession();
+  const [session, requestedChurch] = await Promise.all([
+    getSession("/portal"),
+    getRequestedPublicChurch(),
+  ]);
 
   if (session?.appContext.kind === "church") {
     if (session.appContext.roleId === "member") {
@@ -40,11 +44,25 @@ export default async function PortalPage() {
             </Text>
           </div>
 
+          {requestedChurch ? (
+            <Alert color="teal" radius="xl" variant="light">
+              Church detected from this address: <strong>{requestedChurch.name}</strong>.
+            </Alert>
+          ) : null}
+
           <Group>
             <Button component={Link} href="/sign-in?redirectTo=%2Fportal">
               Sign in
             </Button>
-            <Button component={Link} href="/portal/register" variant="default">
+            <Button
+              component={Link}
+              href={
+                requestedChurch
+                  ? `/portal/register?church=${encodeURIComponent(requestedChurch.slug)}`
+                  : "/portal/register"
+              }
+              variant="default"
+            >
               Request access
             </Button>
           </Group>

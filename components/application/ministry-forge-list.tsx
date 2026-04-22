@@ -110,6 +110,11 @@ function MinistryCard({ ministry }: { ministry: MinistryForgeEntry }) {
             </Badge>
           ) : null}
         </Group>
+        {ministry.leaderName ? (
+          <Text size="xs" c="dimmed">
+            Leader: {ministry.leaderName}
+          </Text>
+        ) : null}
       </Stack>
     </Paper>
   );

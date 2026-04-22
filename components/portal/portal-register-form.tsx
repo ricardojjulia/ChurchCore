@@ -20,9 +20,11 @@ import type { PublicPortalChurch } from "@/lib/public-portal-data";
 export function PortalRegisterForm({
   churches,
   initialChurchId,
+  resolvedChurch,
 }: {
   churches: PublicPortalChurch[];
   initialChurchId: string | null;
+  resolvedChurch: PublicPortalChurch | null;
 }) {
   const [churchId, setChurchId] = useState(
     initialChurchId ?? (churches.length === 1 ? churches[0].id : null),
@@ -89,6 +91,13 @@ export function PortalRegisterForm({
           The portal exposes only your own profile, attendance history, and serving assignments.
         </Alert>
 
+        {resolvedChurch ? (
+          <Alert color="teal" radius="xl" variant="light">
+            Church detected from this address: <strong>{resolvedChurch.name}</strong>. Your request
+            will be routed there automatically.
+          </Alert>
+        ) : null}
+
         <Select
           label="Church"
           value={churchId}
@@ -97,7 +106,7 @@ export function PortalRegisterForm({
           placeholder="Select your church"
           searchable
           radius="xl"
-          disabled={!churchOptions.length}
+          disabled={!churchOptions.length || Boolean(resolvedChurch)}
         />
 
         <Stack gap="md">

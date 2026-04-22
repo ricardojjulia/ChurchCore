@@ -11,7 +11,7 @@ import type { ChurchAdminWorkspaceState } from "@/lib/application-state";
 export async function persistChurchAdminWorkspaceStateAction(
   state: ChurchAdminWorkspaceState,
 ) {
-  const session = await getSession();
+  const session = await getSession("/workspace");
 
   if (!session) {
     throw new Error("No active session.");

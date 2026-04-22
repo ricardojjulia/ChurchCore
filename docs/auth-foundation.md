@@ -11,17 +11,20 @@ The current auth implementation establishes ChurchForge on Supabase SSR auth whi
 - A protected sign-in route at `/sign-in`
 - A simplified Mantine-based sign-in presentation with a single focused account form
 - Supabase SSR auth support for email and password flows
-- Root `proxy.ts` session refresh handling
+- Root `proxy.ts` session refresh handling with explicit control-plane versus tenant client selection by route family
 - Preview identities for each core ChurchForge role when Supabase env vars are absent
 - Redirect preservation so protected routes can send users back to the route they requested after sign-in
 - Sign-out handling for the protected shell
 - An explicit app-context model that separates actor identity from the active product surface
-- Session resolution from control-plane access plus church-membership data when Supabase rows exist
+- Session resolution from control-plane access plus church-membership data when Supabase rows exist, with route-hinted fallback order instead of a generic shared-auth client
 - Church-app session profile hydration from live `public.profiles` rows when they exist
 - Cookie-backed app-context selection so explicit tenant view is preserved across navigation
 - Tenant-view entry and exit audit writes through Supabase when the backend is configured
 - A local direct-database fallback for app-owned Supabase tables when the local REST schema cache is unavailable during development
+- Surface-specific Supabase wrappers now own both SSR/browser client creation and local direct-DB fallback boundaries, which removes the last implicit shared helper path from the auth layer
 - A visible header logout action in the protected shell for direct session exit
+- `/sign-in` now prefers control-plane auth for `/control` redirects and tenant auth for church-app or portal redirects
+- Control-plane self-sign-up is intentionally disabled; those accounts must be provisioned through ChurchForge operator workflows
 
 ## Protected Routes
 

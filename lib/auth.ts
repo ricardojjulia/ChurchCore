@@ -10,14 +10,16 @@ import {
 } from "@/lib/portal";
 import { extractRuntimeChurchId } from "@/lib/control-plane-registry";
 import {
-  hasSupabaseEnv,
+  getPreferredSupabaseSurfaceForRedirect,
+  getSupabaseSurfaceFallbackOrder,
+  hasSupabaseEnvForSurface,
+  type SupabaseSurface,
 } from "@/lib/supabase/config";
 import {
   createControlPlaneServerClient,
   queryControlPlaneLocalDb,
   shouldUseLocalControlPlaneFallback,
 } from "@/lib/supabase/control-plane";
-import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   createTenantServerClient,
   queryTenantLocalDb,
@@ -815,18 +817,37 @@ export function isChurchAppContext(context: AppContext): context is ChurchAppCon
   return context.kind === "church";
 }
 
-export async function getSession(): Promise<AuthSession | null> {
-  const storedSelection = await readAppContextSelection();
+async function getSupabaseAuthUser(preferredSurface: SupabaseSurface) {
+  for (const surface of getSupabaseSurfaceFallbackOrder(preferredSurface)) {
+    if (!hasSupabaseEnvForSurface(surface)) {
+      continue;
+    }
 
-  if (hasSupabaseEnv()) {
-    const supabase = await createSupabaseServerClient();
+    const supabase =
+      surface === "control-plane"
+        ? await createControlPlaneServerClient()
+        : await createTenantServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      return null;
+    if (user) {
+      return user;
     }
+  }
+
+  return null;
+}
+
+export async function getSession(
+  redirectHint = "/workspace",
+): Promise<AuthSession | null> {
+  const storedSelection = await readAppContextSelection();
+  const preferredSurface = getPreferredSupabaseSurfaceForRedirect(redirectHint);
+  const authUser = await getSupabaseAuthUser(preferredSurface);
+
+  if (authUser) {
+    const user = authUser;
 
     const fallbackRoleId = mapSupabaseRole(
       user.app_metadata.role ??
@@ -1035,7 +1056,7 @@ export async function getSession(): Promise<AuthSession | null> {
 }
 
 export async function requireSession(redirectTo: string) {
-  const session = await getSession();
+  const session = await getSession(redirectTo);
 
   if (!session) {
     redirect(`/sign-in?redirectTo=${encodeURIComponent(redirectTo)}`);

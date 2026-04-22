@@ -208,12 +208,12 @@ The app detects local Supabase by checking if `NEXT_PUBLIC_SUPABASE_URL` contain
 
 | Variable | Purpose |
 |----------|---------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase API endpoint (shared for control plane + tenant) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Transitional shared Supabase API endpoint for local single-project development |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Anon key for `@supabase/ssr` client |
-| `SUPABASE_SERVICE_ROLE_KEY` | Admin key for server actions (invite user, etc.) |
-| `SUPABASE_DB_URL` | Direct Postgres connection for local fallback queries |
+| `SUPABASE_SERVICE_ROLE_KEY` | Transitional shared admin key for tenant-side server actions in local single-project development |
+| `SUPABASE_DB_URL` | Transitional shared Postgres connection for local fallback queries |
 
-For production, these can be split into `CONTROL_PLANE_SUPABASE_URL` + `TENANT_SUPABASE_URL` etc. to use separate Supabase projects. See `lib/supabase/config.ts` for the full resolution logic.
+For production, these should be split into `CONTROL_PLANE_SUPABASE_URL` + `TENANT_SUPABASE_URL`, `CONTROL_PLANE_DB_URL` + `TENANT_DB_URL`, and matching service-role keys where needed. The current shared local variables are retained only as a transitional fallback. See `lib/supabase/config.ts` for the full resolution logic.
 
 ### Migrations fixed
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { ChurchAppSession } from "@/lib/auth";
+import { resolveActiveChurchProfileId } from "@/lib/church-profile";
 import type { PortalRoleId } from "@/lib/portal";
 import { getPortalRole } from "@/lib/portal";
 import {
@@ -92,6 +93,13 @@ export type MemberServingAssignment = {
   eventTitle: string;
 };
 
+export type MemberNotificationPreferences = {
+  emailOptIn: boolean;
+  smsOptIn: boolean;
+  pushOptIn: boolean;
+  inAppOptIn: boolean;
+};
+
 export type MemberPortalData = {
   profile: MemberPortalProfile | null;
   ministries: MemberPortalMinistry[];
@@ -100,6 +108,8 @@ export type MemberPortalData = {
   upcomingServing: MemberServingAssignment[];
   family: MemberPortalFamily | null;
   directory: MemberDirectoryEntry[];
+  notificationPreferences: MemberNotificationPreferences | null;
+  needsCommunicationPreferencesSetup: boolean;
 };
 
 function buildPreviewMemberPortalData(session: ChurchAppSession): MemberPortalData {
@@ -143,6 +153,8 @@ function buildPreviewMemberPortalData(session: ChurchAppSession): MemberPortalDa
     upcomingServing: [],
     family: null,
     directory: [],
+    notificationPreferences: null,
+    needsCommunicationPreferencesSetup: true,
   };
 }
 
@@ -177,9 +189,13 @@ export async function getMemberPortalData(
     return buildPreviewMemberPortalData(session);
   }
 
+  const churchId = session.appContext.church.id;
+  const activeProfileId = await resolveActiveChurchProfileId(session);
+
   if (shouldUseLocalTenantFallback()) {
     const [profileResult, ministriesResult, eventsResult, directoryResult] = await Promise.all([
-      queryTenantLocalDb<{
+      activeProfileId
+        ? queryTenantLocalDb<{
         id: string;
         full_name: string | null;
         member_number: string | null;
@@ -226,14 +242,36 @@ export async function getMemberPortalData(
             on family.id = profile.family_id
           left join public.profile_sensitive_fields sensitive
             on sensitive.profile_id = profile.id
-          where profile.user_id = $1
+          where profile.id = $1
             and profile.church_id = $2
             and profile.merged_at is null
           limit 1
         `,
-        [session.userId, session.appContext.church.id],
-      ),
-      queryTenantLocalDb<{
+        [activeProfileId, churchId],
+      )
+        : { rows: [] as Array<{
+            id: string;
+            full_name: string | null;
+            member_number: string | null;
+            email: string | null;
+            phone: string | null;
+            address: string | null;
+            display_title: string | null;
+            role: string | null;
+            is_pastoral: boolean | null;
+            membership_status: string | null;
+            joined_date: string | null;
+            directory_visible: boolean | null;
+            contact_allowed: boolean | null;
+            preferred_contact_method: string | null;
+            interests: string[] | null;
+            emergency_contact_name: string | null;
+            emergency_contact_phone: string | null;
+            family_id: string | null;
+            family_name: string | null;
+          }> },
+      activeProfileId
+        ? queryTenantLocalDb<{
         id: string;
         name: string;
         description: string | null;
@@ -241,17 +279,16 @@ export async function getMemberPortalData(
         `
           select ministry.id, ministry.name, ministry.description
           from public.profile_ministries profile_ministry
-          join public.profiles profile
-            on profile.id = profile_ministry.profile_id
           join public.ministries ministry
             on ministry.id = profile_ministry.ministry_id
-          where profile.user_id = $1
-            and profile.church_id = $2
-            and profile.merged_at is null
+          where profile_ministry.profile_id = $1
+            and profile_ministry.church_id = $2
+            and ministry.church_id = $2
           order by ministry.name
         `,
-        [session.userId, session.appContext.church.id],
-      ),
+        [activeProfileId, churchId],
+      )
+        : { rows: [] as Array<{ id: string; name: string; description: string | null }> },
       queryTenantLocalDb<{
         id: string;
         title: string;
@@ -281,7 +318,7 @@ export async function getMemberPortalData(
           order by event.starts_at asc
           limit 6
         `,
-        [session.appContext.church.id],
+        [churchId],
       ),
       queryTenantLocalDb<{
         id: string;
@@ -312,7 +349,7 @@ export async function getMemberPortalData(
           order by profile.full_name
           limit 200
         `,
-        [session.appContext.church.id],
+        [churchId],
       ),
     ]);
 
@@ -330,9 +367,11 @@ export async function getMemberPortalData(
             join public.ministries ministry
               on ministry.id = profile_ministry.ministry_id
             where profile_ministry.profile_id = any($1::uuid[])
+              and profile_ministry.church_id = $2
+              and ministry.church_id = $2
             order by ministry.name
           `,
-          [directoryIds],
+          [directoryIds, churchId],
         )
       : { rows: [] as Array<{ profile_id: string; ministry_name: string }> };
 
@@ -358,7 +397,7 @@ export async function getMemberPortalData(
                 and church_id = $2
               limit 1
             `,
-            [profileRow.family_id, session.appContext.church.id],
+            [profileRow.family_id, churchId],
           )
         : { rows: [] as Array<{ id: string; family_name: string; address: string | null; home_phone: string | null }> };
 
@@ -377,7 +416,7 @@ export async function getMemberPortalData(
                 and merged_at is null
               order by full_name
             `,
-            [profileRow.family_id, session.appContext.church.id],
+            [profileRow.family_id, churchId],
           )
         : { rows: [] as Array<{ id: string; full_name: string; display_title: string | null }> };
 
@@ -405,7 +444,7 @@ export async function getMemberPortalData(
               order by attendance.checked_in_at desc
               limit 8
             `,
-            [profileRow.id, session.appContext.church.id],
+            [profileRow.id, churchId],
           )
         : { rows: [] as Array<{ id: string; checked_in_at: string; status: string; check_in_method: string; event_title: string | null }> };
 
@@ -434,9 +473,34 @@ export async function getMemberPortalData(
               order by event.starts_at asc
               limit 8
             `,
-            [profileRow.id, session.appContext.church.id],
+            [profileRow.id, churchId],
           )
         : { rows: [] as Array<{ id: string; role_title: string; is_confirmed: boolean; starts_at: string; event_title: string }> };
+
+    const notificationPreferencesResult =
+      profileRow
+        ? await queryTenantLocalDb<{
+            email_opt_in: boolean;
+            sms_opt_in: boolean;
+            push_opt_in: boolean;
+            in_app_opt_in: boolean;
+          }>(
+            `
+              select email_opt_in, sms_opt_in, push_opt_in, in_app_opt_in
+              from public.notification_preferences
+              where church_id = $1
+                and profile_id = $2
+              limit 1
+            `,
+            [churchId, profileRow.id],
+          )
+        : { rows: [] as Array<{
+            email_opt_in: boolean;
+            sms_opt_in: boolean;
+            push_opt_in: boolean;
+            in_app_opt_in: boolean;
+          }> };
+    const notificationPreferencesRow = notificationPreferencesResult.rows[0] ?? null;
 
     return {
       profile: profileRow
@@ -517,32 +581,45 @@ export async function getMemberPortalData(
         })),
         directoryMinistryMap,
       ),
+      notificationPreferences: notificationPreferencesRow
+        ? {
+            emailOptIn: notificationPreferencesRow.email_opt_in,
+            smsOptIn: notificationPreferencesRow.sms_opt_in,
+            pushOptIn: notificationPreferencesRow.push_opt_in,
+            inAppOptIn: notificationPreferencesRow.in_app_opt_in,
+          }
+        : null,
+      needsCommunicationPreferencesSetup:
+        !notificationPreferencesRow || profileRow?.preferred_contact_method === null,
     };
   }
 
   const supabase = await createTenantServerClient();
   const [profileResult, ministriesResult, eventsResult, directoryProfilesResult] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select(
-        "id, full_name, member_number, email, phone, address, display_title, role, is_pastoral, membership_status, joined_date, directory_visible, contact_allowed, preferred_contact_method, interests, family_id, profile_sensitive_fields(emergency_contact_name, emergency_contact_phone)",
-      )
-      .eq("user_id", session.userId)
-      .eq("church_id", session.appContext.church.id)
-      .is("merged_at", null)
-      .maybeSingle(),
-    supabase
-      .from("profile_ministries")
-      .select("ministries(id, name, description), profiles!inner(user_id, church_id)")
-      .eq("profiles.user_id", session.userId)
-      .eq("profiles.church_id", session.appContext.church.id)
-      .is("profiles.merged_at", null),
+    activeProfileId
+      ? supabase
+          .from("profiles")
+          .select(
+            "id, full_name, member_number, email, phone, address, display_title, role, is_pastoral, membership_status, joined_date, directory_visible, contact_allowed, preferred_contact_method, interests, family_id, profile_sensitive_fields(emergency_contact_name, emergency_contact_phone)",
+          )
+          .eq("id", activeProfileId)
+          .eq("church_id", churchId)
+          .is("merged_at", null)
+          .maybeSingle()
+      : { data: null },
+    activeProfileId
+      ? supabase
+          .from("profile_ministries")
+          .select("ministries(id, name, description)")
+          .eq("profile_id", activeProfileId)
+          .eq("church_id", churchId)
+      : { data: [] as Array<{ ministries: { id?: string; name?: string; description?: string | null } | { id?: string; name?: string; description?: string | null }[] | null }> },
     supabase
       .from("events")
       .select(
         "id, title, description, starts_at, ends_at, category, visibility, ministries(name)",
       )
-      .eq("church_id", session.appContext.church.id)
+      .eq("church_id", churchId)
       .gte("starts_at", new Date().toISOString())
       .in("visibility", ["public", "members"])
       .order("starts_at", { ascending: true })
@@ -552,7 +629,7 @@ export async function getMemberPortalData(
       .select(
         "id, full_name, display_title, email, phone, membership_status, contact_allowed, family_id",
       )
-      .eq("church_id", session.appContext.church.id)
+      .eq("church_id", churchId)
       .eq("directory_visible", true)
       .is("merged_at", null)
       .order("full_name")
@@ -568,7 +645,7 @@ export async function getMemberPortalData(
           .from("families")
           .select("id, family_name, address, home_phone")
           .eq("id", familyId)
-          .eq("church_id", session.appContext.church.id)
+          .eq("church_id", churchId)
           .maybeSingle()
       : { data: null };
 
@@ -577,7 +654,7 @@ export async function getMemberPortalData(
       ? await supabase
           .from("profiles")
           .select("id, full_name, display_title")
-          .eq("church_id", session.appContext.church.id)
+          .eq("church_id", churchId)
           .eq("family_id", familyId)
           .is("merged_at", null)
           .order("full_name")
@@ -589,14 +666,14 @@ export async function getMemberPortalData(
           .from("attendance")
           .select("id, checked_in_at, status, check_in_method, events(title)")
           .eq("profile_id", profileRow.id)
-          .eq("church_id", session.appContext.church.id)
+          .eq("church_id", churchId)
           .order("checked_in_at", { ascending: false })
           .limit(8),
         supabase
           .from("event_rosters")
           .select("id, role_title, is_confirmed, events!inner(title, starts_at)")
           .eq("profile_id", profileRow.id)
-          .eq("church_id", session.appContext.church.id)
+          .eq("church_id", churchId)
           .gte("events.starts_at", new Date().toISOString())
           .order("created_at", { ascending: true })
           .limit(8),
@@ -605,6 +682,17 @@ export async function getMemberPortalData(
         { data: [] as Array<{ id: string; checked_in_at: string; status: string; check_in_method: string; events: { title?: string | null } | { title?: string | null }[] | null }> },
         { data: [] as Array<{ id: string; role_title: string; is_confirmed: boolean; events: { title?: string | null; starts_at?: string | null } | { title?: string | null; starts_at?: string | null }[] | null }> },
       ];
+
+  const notificationPreferencesResult =
+    profileRow
+      ? await supabase
+          .from("notification_preferences")
+          .select("email_opt_in, sms_opt_in, push_opt_in, in_app_opt_in")
+          .eq("church_id", churchId)
+          .eq("profile_id", profileRow.id)
+          .maybeSingle()
+      : { data: null };
+  const notificationPreferencesRow = notificationPreferencesResult.data;
 
   const directoryProfiles = directoryProfilesResult.data ?? [];
   const directoryIds = directoryProfiles.map((row) => row.id);
@@ -617,12 +705,14 @@ export async function getMemberPortalData(
       ? supabase
           .from("profile_ministries")
           .select("profile_id, ministries(name)")
+          .eq("church_id", churchId)
           .in("profile_id", directoryIds)
       : { data: [] as Array<{ profile_id: string; ministries: { name?: string | null } | null }> },
     familyIds.length
       ? supabase
           .from("families")
           .select("id, family_name")
+          .eq("church_id", churchId)
           .in("id", familyIds)
       : { data: [] as Array<{ id: string; family_name: string }> },
   ]);
@@ -795,5 +885,15 @@ export async function getMemberPortalData(
       })),
       directoryMinistryMap,
     ),
+    notificationPreferences: notificationPreferencesRow
+      ? {
+          emailOptIn: notificationPreferencesRow.email_opt_in,
+          smsOptIn: notificationPreferencesRow.sms_opt_in,
+          pushOptIn: notificationPreferencesRow.push_opt_in,
+          inAppOptIn: notificationPreferencesRow.in_app_opt_in,
+        }
+      : null,
+    needsCommunicationPreferencesSetup:
+      !notificationPreferencesRow || profileRow?.preferred_contact_method === null,
   };
 }

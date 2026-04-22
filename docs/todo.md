@@ -24,5 +24,7 @@ The remaining execution steps for a real backend connection are:
 - Set `NEXT_PUBLIC_APP_URL` as needed for auth confirmation redirects
 - Define tenant registry and routing metadata in the control-plane backend
 - Move church operational schema work into the tenant backend path
-- Replace direct shared-backend assumptions in auth, control-plane data loaders, and tenant data loaders
+- Continue replacing remaining shared-backend assumptions in control-plane data loaders and tenant data loaders now that auth, proxy, and shared helper boundaries are explicit
+- Continue tightening tenant-side query parity where local SQL and Supabase relation reads still differ, especially nested counts and multi-table church-scoped joins
+- Add broader automated action coverage for tenant write-side ownership checks now that calendar, church-admin event, and ministry mutations enforce explicit church-boundary validation
 - Verify tenant-view audit rows are written through an explicit cross-boundary support flow instead of a casual shared-table model

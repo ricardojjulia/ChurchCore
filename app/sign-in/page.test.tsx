@@ -1,20 +1,27 @@
 import { render, screen } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   redirectMock,
   getSessionMock,
+  getRequestedPublicChurchMock,
   sanitizeRedirectTargetMock,
-  hasSupabaseEnvMock,
+  getPreferredSupabaseSurfaceForRedirectMock,
+  hasSupabaseEnvForSurfaceMock,
   toFriendlySupabaseErrorMessageMock,
 } = vi.hoisted(() => ({
   redirectMock: vi.fn((url: string) => {
     throw { url };
   }),
   getSessionMock: vi.fn(),
+  getRequestedPublicChurchMock: vi.fn(),
   sanitizeRedirectTargetMock: vi.fn((value?: string) => value ?? "/app/member"),
-  hasSupabaseEnvMock: vi.fn(),
+  getPreferredSupabaseSurfaceForRedirectMock: vi.fn(
+    (target?: string) =>
+      target?.startsWith("/control") ? "control-plane" : "tenant",
+  ),
+  hasSupabaseEnvForSurfaceMock: vi.fn(),
   toFriendlySupabaseErrorMessageMock: vi.fn((value: string) => value),
 }));
 
@@ -23,7 +30,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
+  default: ({ href, children }: { href: string; children: React.ReactNode }) => (
+    <a href={href}>{children}</a>
+  ),
 }));
 
 vi.mock("@/app/sign-in/actions", () => ({
@@ -33,14 +42,25 @@ vi.mock("@/app/sign-in/actions", () => ({
 
 vi.mock("@/lib/auth", () => ({
   demoProfiles: [
-    { id: "preview-admin", name: "Preview Admin", title: "Church Admin", email: "admin@example.com" },
+    {
+      id: "preview-admin",
+      name: "Preview Admin",
+      title: "Church Admin",
+      email: "admin@example.com",
+    },
   ],
   getSession: getSessionMock,
   sanitizeRedirectTarget: sanitizeRedirectTargetMock,
 }));
 
+vi.mock("@/lib/public-portal-data", () => ({
+  getRequestedPublicChurch: getRequestedPublicChurchMock,
+}));
+
 vi.mock("@/lib/supabase/config", () => ({
-  hasSupabaseEnv: hasSupabaseEnvMock,
+  getPreferredSupabaseSurfaceForRedirect:
+    getPreferredSupabaseSurfaceForRedirectMock,
+  hasSupabaseEnvForSurface: hasSupabaseEnvForSurfaceMock,
 }));
 
 vi.mock("@/lib/supabase/postgrest", () => ({
@@ -57,10 +77,15 @@ describe("sign-in page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getSessionMock.mockResolvedValue(null);
-    hasSupabaseEnvMock.mockReturnValue(false);
+    getRequestedPublicChurchMock.mockResolvedValue(null);
+    getPreferredSupabaseSurfaceForRedirectMock.mockImplementation(
+      (target?: string) =>
+        target?.startsWith("/control") ? "control-plane" : "tenant",
+    );
+    hasSupabaseEnvForSurfaceMock.mockReturnValue(false);
   });
 
-  it("renders preview profile picker when Supabase is not configured", async () => {
+  it("renders preview profile picker when the preferred surface is not configured", async () => {
     const page = await SignInPage({ searchParams: Promise.resolve({}) });
     renderWithMantine(page);
 
@@ -69,12 +94,15 @@ describe("sign-in page", () => {
     expect(screen.getByRole("button", { name: /continue/i })).toBeInTheDocument();
   });
 
-  it("renders account form and alerts when Supabase is configured", async () => {
-    hasSupabaseEnvMock.mockReturnValue(true);
+  it("renders account form and alerts when the preferred surface is configured", async () => {
+    hasSupabaseEnvForSurfaceMock.mockReturnValue(true);
     toFriendlySupabaseErrorMessageMock.mockReturnValue("Friendly error");
 
     const page = await SignInPage({
-      searchParams: Promise.resolve({ error: encodeURIComponent("raw-error"), message: encodeURIComponent("Check your inbox") }),
+      searchParams: Promise.resolve({
+        error: encodeURIComponent("raw-error"),
+        message: encodeURIComponent("Check your inbox"),
+      }),
     });
     renderWithMantine(page);
 
@@ -82,6 +110,23 @@ describe("sign-in page", () => {
     expect(document.querySelector('input[name="password"]')).not.toBeNull();
     expect(screen.getByText("Friendly error")).toBeInTheDocument();
     expect(screen.getByText("Check your inbox")).toBeInTheDocument();
+  });
+
+  it("prefers the control-plane auth surface for control redirects", async () => {
+    hasSupabaseEnvForSurfaceMock.mockReturnValue(true);
+
+    const page = await SignInPage({
+      searchParams: Promise.resolve({ redirectTo: "/control", force: "1" }),
+    });
+    renderWithMantine(page);
+
+    expect(getPreferredSupabaseSurfaceForRedirectMock).toHaveBeenCalledWith(
+      "/control",
+    );
+    expect(hasSupabaseEnvForSurfaceMock).toHaveBeenCalledWith("control-plane");
+    expect(
+      screen.queryByRole("button", { name: /create account/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("redirects active session to sanitized target", async () => {

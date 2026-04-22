@@ -106,6 +106,7 @@ async function resolveActorProfileId(session: ChurchManagerSession) {
         from public.profiles
         where user_id = $1
           and church_id = $2
+          and merged_at is null
         limit 1
       `,
       [session.userId, session.appContext.church.id],
@@ -120,6 +121,7 @@ async function resolveActorProfileId(session: ChurchManagerSession) {
     .select("id")
     .eq("user_id", session.userId)
     .eq("church_id", session.appContext.church.id)
+    .is("merged_at", null)
     .maybeSingle();
 
   if (error) {
@@ -127,6 +129,209 @@ async function resolveActorProfileId(session: ChurchManagerSession) {
   }
 
   return data?.id ?? null;
+}
+
+async function assertEventBelongsToChurch(churchId: string, eventId: string) {
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `
+        select id
+        from public.events
+        where id = $1
+          and church_id = $2
+        limit 1
+      `,
+      [eventId, churchId],
+    );
+
+    if (!result.rows[0]) {
+      throw new Error("Event not found in this church.");
+    }
+
+    return { churchId };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select("id")
+    .eq("id", eventId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Event not found in this church.");
+  }
+
+  return { churchId };
+}
+
+async function assertProfileBelongsToChurch(churchId: string, profileId: string) {
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `
+        select id
+        from public.profiles
+        where id = $1
+          and church_id = $2
+          and merged_at is null
+        limit 1
+      `,
+      [profileId, churchId],
+    );
+
+    if (!result.rows[0]) {
+      throw new Error("Profile not found in this church.");
+    }
+
+    return;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", profileId)
+    .eq("church_id", churchId)
+    .is("merged_at", null)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Profile not found in this church.");
+  }
+}
+
+async function assertRosterBelongsToEvent(
+  churchId: string,
+  eventId: string,
+  rosterId: string,
+) {
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `
+        select id
+        from public.event_rosters
+        where id = $1
+          and event_id = $2
+          and church_id = $3
+        limit 1
+      `,
+      [rosterId, eventId, churchId],
+    );
+
+    if (!result.rows[0]) {
+      throw new Error("Roster assignment not found for this event.");
+    }
+
+    return;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("event_rosters")
+    .select("id")
+    .eq("id", rosterId)
+    .eq("event_id", eventId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Roster assignment not found for this event.");
+  }
+}
+
+async function assertRegistrationBelongsToEvent(
+  churchId: string,
+  eventId: string,
+  registrationId: string,
+) {
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `
+        select id
+        from public.event_registrations
+        where id = $1
+          and event_id = $2
+          and church_id = $3
+        limit 1
+      `,
+      [registrationId, eventId, churchId],
+    );
+
+    if (!result.rows[0]) {
+      throw new Error("Registration not found for this event.");
+    }
+
+    return;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("event_registrations")
+    .select("id")
+    .eq("id", registrationId)
+    .eq("event_id", eventId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Registration not found for this event.");
+  }
+}
+
+async function resolveEventRegistrationChurchId(eventId: string) {
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ church_id: string }>(
+      `
+        select church_id
+        from public.events
+        where id = $1
+        limit 1
+      `,
+      [eventId],
+    );
+
+    const churchId = result.rows[0]?.church_id ?? null;
+
+    if (!churchId) {
+      throw new Error("Event not found.");
+    }
+
+    return churchId;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select("church_id")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data?.church_id) {
+    throw new Error("Event not found.");
+  }
+
+  return data.church_id;
 }
 
 async function generateMemberNumber(session: ChurchManagerSession) {
@@ -216,6 +421,9 @@ export async function addRosterAssignmentAction(
     return { previewMode: true };
   }
 
+  await assertEventBelongsToChurch(session.appContext.church.id, input.eventId);
+  await assertProfileBelongsToChurch(session.appContext.church.id, input.profileId);
+
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
       `
@@ -259,6 +467,13 @@ export async function removeRosterAssignmentAction(
     return { previewMode: true };
   }
 
+  await assertEventBelongsToChurch(session.appContext.church.id, input.eventId);
+  await assertRosterBelongsToEvent(
+    session.appContext.church.id,
+    input.eventId,
+    input.rosterId,
+  );
+
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
       `
@@ -300,6 +515,13 @@ export async function toggleRosterConfirmationAction(
     revalidateEventPaths(input.eventId);
     return { previewMode: true };
   }
+
+  await assertEventBelongsToChurch(session.appContext.church.id, input.eventId);
+  await assertRosterBelongsToEvent(
+    session.appContext.church.id,
+    input.eventId,
+    input.rosterId,
+  );
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -345,6 +567,9 @@ export async function quickCheckInEventMemberAction(
     revalidateEventPaths(input.eventId);
     return { previewMode: true };
   }
+
+  await assertEventBelongsToChurch(session.appContext.church.id, input.eventId);
+  await assertProfileBelongsToChurch(session.appContext.church.id, input.profileId);
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -422,6 +647,8 @@ export async function quickAddVisitorCheckInAction(
     revalidateEventPaths(input.eventId);
     return { previewMode: true };
   }
+
+  await assertEventBelongsToChurch(session.appContext.church.id, input.eventId);
 
   if (shouldUseLocalTenantFallback()) {
     const insertResult = await queryTenantLocalDb<{ id: string }>(
@@ -835,7 +1062,7 @@ export async function createEventAction(
   }
 
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = await resolveActorProfileId(session);
 
   if (shouldUseLocalTenantFallback()) {
     const result = await queryTenantLocalDb<{ id: string }>(
@@ -893,6 +1120,8 @@ export async function upsertRegistrationSettingsAction(
   if (role !== "church-admin" && role !== "pastor") return { ok: false, error: "Unauthorized." };
   const churchId = session.appContext.church.id;
 
+  await assertEventBelongsToChurch(churchId, input.eventId);
+
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
       `insert into public.event_registration_settings
@@ -946,6 +1175,12 @@ export async function registerForEventAction(
 ): Promise<{ ok: boolean; registrationId?: string; isWaitlisted?: boolean; error?: string }> {
   if (!input.registrantName.trim()) return { ok: false, error: "Name is required." };
 
+  const churchId = await resolveEventRegistrationChurchId(input.eventId);
+
+  if (input.churchId && input.churchId !== churchId) {
+    return { ok: false, error: "Event does not belong to the requested church." };
+  }
+
   if (shouldUseLocalTenantFallback()) {
     // Check capacity
     const settingsResult = await queryTenantLocalDb<{
@@ -984,7 +1219,7 @@ export async function registerForEventAction(
        values ($1,$2,$3,$4,$5,$6,$7,$8)
        returning id`,
       [
-        input.eventId, input.churchId, input.registrantName.trim(),
+        input.eventId, churchId, input.registrantName.trim(),
         input.registrantEmail ?? null, input.registrantPhone ?? null,
         isWaitlisted ? "waitlisted" : "confirmed",
         isWaitlisted, input.notes ?? null,
@@ -998,7 +1233,7 @@ export async function registerForEventAction(
   const { data, error } = await supabase
     .from("event_registrations")
     .insert({
-      event_id: input.eventId, church_id: input.churchId,
+      event_id: input.eventId, church_id: churchId,
       registrant_name: input.registrantName.trim(),
       registrant_email: input.registrantEmail ?? null,
       registrant_phone: input.registrantPhone ?? null,
@@ -1020,6 +1255,9 @@ export async function cancelRegistrationAction(
   const role = session.appContext.roleId;
   if (role !== "church-admin" && role !== "pastor") return { ok: false, error: "Unauthorized." };
   const churchId = session.appContext.church.id;
+
+  await assertEventBelongsToChurch(churchId, eventId);
+  await assertRegistrationBelongsToEvent(churchId, eventId, registrationId);
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -1050,6 +1288,9 @@ export async function checkInRegistrantAction(
   const role = session.appContext.roleId;
   if (role !== "church-admin" && role !== "pastor") return { ok: false, error: "Unauthorized." };
   const churchId = session.appContext.church.id;
+
+  await assertEventBelongsToChurch(churchId, eventId);
+  await assertRegistrationBelongsToEvent(churchId, eventId, registrationId);
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(

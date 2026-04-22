@@ -184,6 +184,9 @@ export function MinistryForgeDashboard({
   // Settings drawer state
   const [settingsName] = useState(ministry.name);
   const [settingsType, setSettingsType] = useState<string | null>(ministry.ministryType);
+  const [settingsLeaderProfileId, setSettingsLeaderProfileId] = useState<string | null>(
+    ministry.leaderProfileId,
+  );
 
   function handleAssignSubmit() {
     if (!assignProfileIds.length) return;
@@ -262,6 +265,7 @@ export function MinistryForgeDashboard({
       ministryType: settingsType as MinistryType | null,
       visionStatement: ministry.visionStatement,
       scripturalAnchor: ministry.scripturalAnchor,
+      leaderProfileId: settingsLeaderProfileId,
     };
     startTransition(async () => {
       try {
@@ -282,6 +286,20 @@ export function MinistryForgeDashboard({
   const availablePeople = allPeople
     .filter((p) => !existingProfileIds.has(p.id))
     .map((p) => ({ value: p.id, label: p.fullName }));
+  const leaderOptions = allPeople.map((person) => ({
+    value: person.id,
+    label: person.fullName,
+  }));
+  if (
+    ministry.leaderProfileId &&
+    ministry.leaderName &&
+    !leaderOptions.some((option) => option.value === ministry.leaderProfileId)
+  ) {
+    leaderOptions.unshift({
+      value: ministry.leaderProfileId,
+      label: ministry.leaderName,
+    });
+  }
 
   const navItems = isManager
     ? [
@@ -421,6 +439,14 @@ export function MinistryForgeDashboard({
                         ? MINISTRY_TYPE_OPTIONS.find((o) => o.value === ministry.ministryType)
                             ?.label ?? ministry.ministryType
                         : "—"}
+                    </Text>
+                  </Group>
+                  <Group justify="space-between">
+                    <Text size="sm" c="dimmed">
+                      Designated leader
+                    </Text>
+                    <Text size="sm" fw={600}>
+                      {ministry.leaderName ?? "Not assigned"}
                     </Text>
                   </Group>
                   {ministry.scripturalAnchor.length > 0 ? (
@@ -740,6 +766,17 @@ export function MinistryForgeDashboard({
         radius="lg"
       >
         <Stack gap="md" p="md">
+          <Select
+            label="Designated leader"
+            description="Used for pastor led-ministry visibility and operational ownership."
+            placeholder="Select a ministry leader..."
+            data={leaderOptions}
+            value={settingsLeaderProfileId}
+            onChange={setSettingsLeaderProfileId}
+            searchable
+            clearable
+            radius="md"
+          />
           <Select
             label="Ministry type"
             placeholder="Select type..."

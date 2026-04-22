@@ -29,6 +29,7 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
 import { MemberBottomNav } from "@/components/application/member-bottom-nav";
 import { MemberFamilyEdit } from "@/components/application/member-family-edit";
+import { NotificationPreferencesForm } from "@/components/application/notification-preferences-form";
 import { MemberProfileEdit } from "@/components/application/member-profile-edit";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { MemberPortalData } from "@/lib/member-portal-data";
@@ -111,6 +112,18 @@ export function MemberPortalHome({
           </Alert>
         ) : null}
 
+        {profile && data.needsCommunicationPreferencesSetup ? (
+          <Alert
+            icon={<AlertCircle size={16} />}
+            color="blue"
+            radius="xl"
+            title="Finish your communication preferences"
+          >
+            Set your preferred contact method and confirm which channels your church may use for
+            updates. ChurchForge records these choices in your consent history.
+          </Alert>
+        ) : null}
+
         <Paper withBorder radius="xl" p="xl">
           <Group justify="space-between" align="flex-start" gap="md">
             <Box>
@@ -172,6 +185,21 @@ export function MemberPortalHome({
             </Stack>
           </Group>
         </Paper>
+
+        {profile ? (
+          <NotificationPreferencesForm
+            profileId={profile.id}
+            initial={
+              data.notificationPreferences ?? {
+                emailOptIn: true,
+                smsOptIn: false,
+                pushOptIn: true,
+                inAppOptIn: true,
+              }
+            }
+            isInitialSetup={data.needsCommunicationPreferencesSetup}
+          />
+        ) : null}
 
         <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }} spacing="md">
           <Paper withBorder radius="xl" p="xl">

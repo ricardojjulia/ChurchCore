@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { ChurchAppSession } from "@/lib/auth";
+import { resolveActiveChurchProfileId } from "@/lib/church-profile";
 import {
   createTenantServerClient,
   hasTenantBackendEnv,
@@ -74,6 +75,8 @@ const PREVIEW_MINISTRIES: MinistryForgeEntry[] = [
     healthScore: 8.4,
     lastHealthAssessment: "2026-04-01",
     memberCount: 12,
+    leaderProfileId: "preview-sarah-mitchell",
+    leaderName: "Sarah Mitchell",
   },
   {
     id: "preview-men",
@@ -84,6 +87,8 @@ const PREVIEW_MINISTRIES: MinistryForgeEntry[] = [
     healthScore: 7.1,
     lastHealthAssessment: "2026-03-15",
     memberCount: 24,
+    leaderProfileId: "preview-marcus-reed",
+    leaderName: "Marcus Reed",
   },
   {
     id: "preview-women",
@@ -94,6 +99,8 @@ const PREVIEW_MINISTRIES: MinistryForgeEntry[] = [
     healthScore: 8.9,
     lastHealthAssessment: "2026-04-01",
     memberCount: 31,
+    leaderProfileId: "preview-aubrey-cole",
+    leaderName: "Aubrey Cole",
   },
   {
     id: "preview-marriage",
@@ -104,6 +111,8 @@ const PREVIEW_MINISTRIES: MinistryForgeEntry[] = [
     healthScore: 7.6,
     lastHealthAssessment: "2026-03-20",
     memberCount: 18,
+    leaderProfileId: "preview-nathan-and-elena-brooks",
+    leaderName: "Nathan and Elena Brooks",
   },
   {
     id: "preview-missions",
@@ -114,6 +123,8 @@ const PREVIEW_MINISTRIES: MinistryForgeEntry[] = [
     healthScore: 8.2,
     lastHealthAssessment: "2026-04-05",
     memberCount: 9,
+    leaderProfileId: "preview-priscilla-woods",
+    leaderName: "Priscilla Woods",
   },
   {
     id: "preview-children",
@@ -124,6 +135,8 @@ const PREVIEW_MINISTRIES: MinistryForgeEntry[] = [
     healthScore: 7.8,
     lastHealthAssessment: "2026-03-28",
     memberCount: 15,
+    leaderProfileId: "preview-kendra-johnson",
+    leaderName: "Kendra Johnson",
   },
 ];
 
@@ -149,6 +162,8 @@ function buildPreviewMinistryDetail(ministryId: string): MinistryForgeDetail {
     healthScore: 6.5,
     lastHealthAssessment: "2026-04-01",
     memberCount: 4,
+    leaderProfileId: null,
+    leaderName: null,
   };
 
   return {
@@ -191,6 +206,8 @@ export async function getMinistryForgeList(
       health_score: string;
       last_health_assessment: string | null;
       member_count: string;
+      leader_profile_id: string | null;
+      leader_name: string | null;
     }>(
       `
         select
@@ -201,12 +218,19 @@ export async function getMinistryForgeList(
           m.scriptural_anchor,
           m.health_score,
           m.last_health_assessment,
-          count(pm.profile_id)::text as member_count
+          count(pm.profile_id)::text as member_count,
+          m.leader_profile_id,
+          leader.full_name as leader_name
         from public.ministries m
         left join public.profile_ministries pm
           on pm.ministry_id = m.id
+         and pm.church_id = m.church_id
+        left join public.profiles leader
+          on leader.id = m.leader_profile_id
+         and leader.church_id = m.church_id
+         and leader.merged_at is null
         where m.church_id = $1
-        group by m.id
+        group by m.id, leader.full_name
         order by m.name
       `,
       [churchId],
@@ -222,6 +246,8 @@ export async function getMinistryForgeList(
         healthScore: parseFloat(row.health_score) || 0,
         lastHealthAssessment: row.last_health_assessment,
         memberCount: parseInt(row.member_count, 10) || 0,
+        leaderProfileId: row.leader_profile_id,
+        leaderName: row.leader_name,
       })),
     };
   }
@@ -230,10 +256,28 @@ export async function getMinistryForgeList(
   const { data: ministryRows } = await supabase
     .from("ministries")
     .select(
-      "id, name, ministry_type, vision_statement, scriptural_anchor, health_score, last_health_assessment, profile_ministries(id)",
+      "id, name, ministry_type, vision_statement, scriptural_anchor, health_score, last_health_assessment, leader_profile_id, profile_ministries(id)",
     )
     .eq("church_id", churchId)
     .order("name");
+
+  const leaderProfileIds = Array.from(
+    new Set(
+      (ministryRows ?? [])
+        .map((row) => row.leader_profile_id)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+  const { data: leaderRows } =
+    leaderProfileIds.length > 0
+      ? await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", leaderProfileIds)
+          .eq("church_id", churchId)
+          .is("merged_at", null)
+      : { data: [] as Array<{ id: string; full_name: string }> };
+  const leaderNameMap = new Map((leaderRows ?? []).map((row) => [row.id, row.full_name]));
 
   return {
     ministries: (ministryRows ?? []).map((row) => ({
@@ -245,6 +289,8 @@ export async function getMinistryForgeList(
       healthScore: (row.health_score as unknown as number) ?? 0,
       lastHealthAssessment: row.last_health_assessment ?? null,
       memberCount: Array.isArray(row.profile_ministries) ? row.profile_ministries.length : 0,
+      leaderProfileId: row.leader_profile_id ?? null,
+      leaderName: row.leader_profile_id ? leaderNameMap.get(row.leader_profile_id) ?? null : null,
     })),
   };
 }
@@ -272,12 +318,25 @@ export async function getMinistryForgeDetail(
       scriptural_anchor: string[] | null;
       health_score: string;
       last_health_assessment: string | null;
+      leader_profile_id: string | null;
+      leader_name: string | null;
     }>(
       `
-        select id, name, ministry_type, vision_statement, scriptural_anchor,
-               health_score, last_health_assessment
-        from public.ministries
-        where id = $1 and church_id = $2
+        select
+          ministry.id,
+          ministry.name,
+          ministry.ministry_type,
+          ministry.vision_statement,
+          ministry.scriptural_anchor,
+          ministry.health_score,
+          ministry.last_health_assessment,
+          ministry.leader_profile_id,
+          leader.full_name as leader_name
+        from public.ministries ministry
+        left join public.profiles leader
+          on leader.id = ministry.leader_profile_id
+        where ministry.id = $1
+          and ministry.church_id = $2
         limit 1
       `,
       [ministryId, churchId],
@@ -306,13 +365,17 @@ export async function getMinistryForgeDetail(
             select count(*)::text
             from public.profile_ministries pm2
             where pm2.profile_id = pm.profile_id
+              and pm2.church_id = $2
           ) as ministry_count
         from public.profile_ministries pm
         join public.profiles p on p.id = pm.profile_id
         where pm.ministry_id = $1
+          and pm.church_id = $2
+          and p.church_id = $2
+          and p.merged_at is null
         order by p.full_name
       `,
-      [ministryId],
+      [ministryId, churchId],
     );
 
     // Health history (last 10)
@@ -385,6 +448,8 @@ export async function getMinistryForgeDetail(
       healthScore: parseFloat(ministryRow.health_score) || 0,
       lastHealthAssessment: ministryRow.last_health_assessment,
       memberCount: members.length,
+      leaderProfileId: ministryRow.leader_profile_id,
+      leaderName: ministryRow.leader_name,
     };
 
     return {
@@ -412,7 +477,7 @@ export async function getMinistryForgeDetail(
   const { data: ministryRow } = await supabase
     .from("ministries")
     .select(
-      "id, name, ministry_type, vision_statement, scriptural_anchor, health_score, last_health_assessment",
+      "id, name, ministry_type, vision_statement, scriptural_anchor, health_score, last_health_assessment, leader_profile_id",
     )
     .eq("id", ministryId)
     .eq("church_id", churchId)
@@ -423,8 +488,11 @@ export async function getMinistryForgeDetail(
   const [membersRes, historyRes, impactsRes] = await Promise.all([
     supabase
       .from("profile_ministries")
-      .select("profile_id, role, profiles(full_name, display_title, spiritual_gifts)")
+      .select("profile_id, role, profiles!inner(full_name, display_title, spiritual_gifts, church_id, merged_at)")
       .eq("ministry_id", ministryId)
+      .eq("church_id", churchId)
+      .eq("profiles.church_id", churchId)
+      .is("profiles.merged_at", null)
       .order("profiles(full_name)" as Parameters<typeof supabase.from>[0]),
     supabase
       .from("ministry_health_history")
@@ -445,12 +513,24 @@ export async function getMinistryForgeDetail(
 
   // Count per-profile ministry memberships for burnout check
   const profileIds = (membersRes.data ?? []).map((r) => r.profile_id);
+  const leaderProfileId = ministryRow.leader_profile_id ?? null;
   const { data: countRows } = profileIds.length
     ? await supabase
         .from("profile_ministries")
         .select("profile_id")
         .in("profile_id", profileIds)
+        .eq("church_id", churchId)
     : { data: [] as Array<{ profile_id: string }> };
+  const { data: leaderRows } =
+    leaderProfileId
+      ? await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .eq("id", leaderProfileId)
+          .eq("church_id", churchId)
+          .is("merged_at", null)
+          .maybeSingle()
+      : { data: null as { id: string; full_name: string } | null };
 
   const ministryCounts = (countRows ?? []).reduce(
     (acc, row) => {
@@ -489,6 +569,8 @@ export async function getMinistryForgeDetail(
     healthScore: (ministryRow.health_score as unknown as number) ?? 0,
     lastHealthAssessment: ministryRow.last_health_assessment ?? null,
     memberCount: members.length,
+    leaderProfileId,
+    leaderName: leaderRows?.full_name ?? null,
   };
 
   return {
@@ -526,9 +608,11 @@ export async function getMemberMinistriesData(
   }
 
   const churchId = session.appContext.church.id;
+  const activeProfileId = await resolveActiveChurchProfileId(session);
 
   if (shouldUseLocalTenantFallback()) {
-    const ownResult = await queryTenantLocalDb<{
+    const ownResult = activeProfileId
+      ? await queryTenantLocalDb<{
       id: string;
       name: string;
       ministry_type: string | null;
@@ -547,16 +631,25 @@ export async function getMemberMinistriesData(
             select count(*)::text
             from public.profile_ministries pm2
             where pm2.ministry_id = m.id
+              and pm2.church_id = $2
           ) as member_count
         from public.profile_ministries pm
         join public.ministries m on m.id = pm.ministry_id
-        join public.profiles p on p.id = pm.profile_id
-        where p.user_id = $1
+        where pm.profile_id = $1
+          and pm.church_id = $2
           and m.church_id = $2
         order by m.name
       `,
-      [session.userId, churchId],
-    );
+      [activeProfileId, churchId],
+    )
+      : { rows: [] as Array<{
+          id: string;
+          name: string;
+          ministry_type: string | null;
+          vision_statement: string | null;
+          role: string;
+          member_count: string;
+        }> };
 
     const allResult = await queryTenantLocalDb<{
       id: string;
@@ -586,19 +679,13 @@ export async function getMemberMinistriesData(
 
   const supabase = await createTenantServerClient();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("user_id", session.userId)
-    .eq("church_id", churchId)
-    .maybeSingle();
-
   const [ownRes, allRes] = await Promise.all([
-    profile
+    activeProfileId
       ? supabase
           .from("profile_ministries")
           .select("role, ministries(id, name, ministry_type, vision_statement, profile_ministries(id))")
-          .eq("profile_id", profile.id)
+          .eq("profile_id", activeProfileId)
+          .eq("church_id", churchId)
       : { data: [] as Array<unknown> },
     supabase
       .from("ministries")

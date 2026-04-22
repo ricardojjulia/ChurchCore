@@ -291,10 +291,24 @@ export async function getChurchAdminEventsList(
     .order("starts_at", { ascending: false })
     .limit(100);
 
+  const eventIds = (data ?? []).map((row) => row.id);
+  const { data: rosterRows } = eventIds.length
+    ? await supabase
+        .from("event_rosters")
+        .select("event_id")
+        .eq("church_id", churchId)
+        .in("event_id", eventIds)
+    : { data: [] as Array<{ event_id: string }> };
+
+  const rosterCountByEventId = (rosterRows ?? []).reduce((map, row) => {
+    map.set(row.event_id, (map.get(row.event_id) ?? 0) + 1);
+    return map;
+  }, new Map<string, number>());
+
   return (data ?? []).map((r) => ({
     id: r.id, title: r.title, startsAt: r.starts_at, endsAt: r.ends_at,
     category: r.category, location: r.location,
-    approvalStatus: r.approval_status, rosterCount: 0,
+    approvalStatus: r.approval_status, rosterCount: rosterCountByEventId.get(r.id) ?? 0,
   }));
 }
 

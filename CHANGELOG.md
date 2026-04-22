@@ -17,6 +17,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added server-action integration suites for `app/app/church-admin-actions.ts` and `app/app/ccm-actions.ts`, covering authorization, registration/attendance flows, schema fallback handling, and critical revalidation paths.
 - Added server-action integration suites for `app/app/donations-actions.ts` and `app/app/volunteer-actions.ts`, covering donation lifecycle behaviors, receipt/cancellation flow, volunteer scheduling conflicts, and member response handling.
 - Added route execution tests for `app/sign-in/page.tsx`, `app/app/member/giving/page.tsx`, `app/app/church-admin/volunteers/schedules/page.tsx`, and `app/app/church-admin/children/dashboard/page.tsx` to verify auth redirects, state wiring, and high-value screen rendering.
+- Added designated ministry leader assignment to Ministry Forge settings, including roster sync to `profile_ministries` and pastor led-ministry visibility driven by `ministries.leader_profile_id`.
+- Added host-aware public portal church resolution via middleware cookie + request host parsing, so `/portal` and `/portal/register` can auto-select the church when entered from a tenant hostname.
+- Added append-only consent logging for member privacy/contact preference changes and per-channel communication preference changes.
+- Added surface-aware Supabase auth routing and verification so `/control` prefers control-plane auth while `/app` and `/portal` prefer tenant auth, with explicit fallback order coverage in `lib/supabase/config.test.ts`.
 
 ### Unreleased — Changed
 
@@ -24,6 +28,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - README and local setup docs now point evaluators to the setup/smoke helpers and the post-create GitHub hardening checklist.
 - Reorganized the repo documentation tree by moving setup guides into `docs/setup/` and long-form planning documents into `docs/plans/`, which removes document clutter from the repository root and keeps the root focused on active repo controls.
 - README now documents the new automated test commands and links the application-specific testing schema.
+- Ministry Forge list/detail views now surface the designated leader, and ministry settings accept the full set of current ministry track types.
+- Member portal home now prompts first-time communication preference setup and surfaces the notification preference form directly in the member experience.
+- `/sign-in`, `/auth/confirm`, `proxy.ts`, and session hydration no longer depend on a generic Supabase client selector; control-plane self-sign-up is now blocked so the control surface does not route through tenant confirmation flows.
+- The remaining generic Supabase helper drift is tightened further: shared SSR/browser helpers now require an explicit surface argument, tenant confirmation uses the tenant-specific wrapper directly, and stale shared local-DB pooling helpers have been removed in favor of control-plane and tenant-specific boundaries.
+- Tenant member and ministry loaders now resolve memberships through the active church-scoped profile, exclude merged profiles from active profile hydration, and keep live church-admin event roster counts aligned between local SQL fallback and Supabase-backed reads.
+- Calendar, church-admin event, and ministry write actions now verify that incoming `event_id`, `ministry_id`, `profile_id`, `roster_id`, and registration targets belong to the active church before mutating tenant data, and public event registration now derives church ownership from the event instead of trusting client-supplied church IDs.
 
 ---
 

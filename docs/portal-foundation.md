@@ -36,9 +36,11 @@ These map directly to the church-facing role structure defined in `DEVELOPMENT_P
 - A first real member-portal slice backed by live `profiles`, `profile_ministries`, family context, directory data, and upcoming `events`
 - A public `/portal` landing route with sign-in and request-access entry points
 - A public `/portal/register` route for member portal access requests
+- Host-aware church resolution for `/portal` and `/portal/register` when entered from a tenant hostname
 - Dedicated `/app/member/directory` and `/app/member/family` routes so member detail is split into focused screens instead of one overloaded home page
 - Member-home visibility into personal attendance history and upcoming serving assignments
 - Self-service editing for `preferred_contact_method` and `interests`
+- Communication preference capture inside the member portal with consent-log writes on change
 - A live calendar slice backed by categorized `events`
 - A simplified church-admin operations board with lane-based preview state
 - A dedicated `/app/church-admin/people` route for tenant-backed people management
@@ -57,7 +59,6 @@ These map directly to the church-facing role structure defined in `DEVELOPMENT_P
 - Realtime updates
 - Background jobs
 - Migration of church runtime data access onto a tenant backend separated from the control plane
-- Automated tenant-aware host routing for public portal registration without relying on church selection in the form
 
 Those concerns now need to be implemented on Supabase instead of expanded as backend-agnostic placeholders.
 

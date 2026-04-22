@@ -22,11 +22,13 @@ export interface NotificationPreferencesFormProps {
     pushOptIn: boolean;
     inAppOptIn: boolean;
   };
+  isInitialSetup?: boolean;
 }
 
 export function NotificationPreferencesForm({
   profileId,
   initial,
+  isInitialSetup = false,
 }: NotificationPreferencesFormProps) {
   const [emailOptIn, setEmailOptIn] = useState(initial.emailOptIn);
   const [smsOptIn, setSmsOptIn] = useState(initial.smsOptIn);
@@ -64,10 +66,12 @@ export function NotificationPreferencesForm({
     <Paper withBorder p="lg" radius="md">
       <Stack gap="md">
         <Text fw={600} fz="sm">
-          Notification Preferences
+          {isInitialSetup ? "Communication Consent Setup" : "Notification Preferences"}
         </Text>
         <Text fz="xs" c="dimmed">
-          Choose how you would like to receive communications from your church. You can change these at any time.
+          {isInitialSetup
+            ? "Confirm which channels your church may use to contact you. You can update these choices at any time."
+            : "Choose how you would like to receive communications from your church. You can change these at any time."}
         </Text>
 
         <Stack gap="sm">
@@ -103,6 +107,10 @@ export function NotificationPreferencesForm({
 
         <Divider />
 
+        <Text fz="xs" c="dimmed">
+          Saving these preferences writes an append-only consent record for each communication channel.
+        </Text>
+
         <Group justify="flex-end">
           <Button
             size="xs"
@@ -111,7 +119,7 @@ export function NotificationPreferencesForm({
             loading={isPending}
             onClick={handleSave}
           >
-            Save preferences
+            {isInitialSetup ? "Save consent choices" : "Save preferences"}
           </Button>
         </Group>
       </Stack>

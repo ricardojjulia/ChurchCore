@@ -23,7 +23,11 @@ import {
   getSession,
   sanitizeRedirectTarget,
 } from "@/lib/auth";
-import { hasSupabaseEnv } from "@/lib/supabase/config";
+import { getRequestedPublicChurch } from "@/lib/public-portal-data";
+import {
+  getPreferredSupabaseSurfaceForRedirect,
+  hasSupabaseEnvForSurface,
+} from "@/lib/supabase/config";
 import { toFriendlySupabaseErrorMessage } from "@/lib/supabase/postgrest";
 
 export const metadata: Metadata = {
@@ -44,8 +48,13 @@ type SignInPageProps = {
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const params = await searchParams;
   const redirectTo = sanitizeRedirectTarget(params.redirectTo);
-  const session = await getSession();
-  const supabaseConfigured = hasSupabaseEnv();
+  const preferredSurface = getPreferredSupabaseSurfaceForRedirect(redirectTo);
+  const [session, requestedChurch] = await Promise.all([
+    getSession(redirectTo),
+    getRequestedPublicChurch(),
+  ]);
+  const supabaseConfigured = hasSupabaseEnvForSurface(preferredSurface);
+  const showSelfSignup = preferredSurface === "tenant";
   const forceSignIn = params.force === "1";
   const errorMessage = !params.error
     ? null
@@ -97,6 +106,11 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             {errorMessage ? <Alert color="red">{errorMessage}</Alert> : null}
             {params.message ? (
               <Alert color="teal">{decodeURIComponent(params.message)}</Alert>
+            ) : null}
+            {requestedChurch ? (
+              <Alert color="blue">
+                Signing in for <strong>{requestedChurch.name}</strong>.
+              </Alert>
             ) : null}
             {session && forceSignIn && !session.canAccessControl ? (
               <Alert color="yellow" title="Control access required">
@@ -151,15 +165,17 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
                       >
                         Sign in
                       </Button>
-                      <Button
-                        type="submit"
-                        name="intent"
-                        value="sign-up"
-                        variant="default"
-                        radius="xl"
-                      >
-                        Create account
-                      </Button>
+                      {showSelfSignup ? (
+                        <Button
+                          type="submit"
+                          name="intent"
+                          value="sign-up"
+                          variant="default"
+                          radius="xl"
+                        >
+                          Create account
+                        </Button>
+                      ) : null}
                     </Group>
                   </Stack>
                 </form>

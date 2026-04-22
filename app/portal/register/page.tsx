@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Button, Group, Stack, Text } from "@mantine/core";
 
 import { PortalRegisterForm } from "@/components/portal/portal-register-form";
-import { getPublicPortalChurches } from "@/lib/public-portal-data";
+import { getPublicPortalChurches, getRequestedPublicChurch } from "@/lib/public-portal-data";
 
 export const metadata: Metadata = {
   title: "Portal Registration | ChurchForge",
@@ -15,11 +15,16 @@ export default async function PortalRegisterPage({
 }: {
   searchParams: Promise<{ church?: string }>;
 }) {
-  const churches = await getPublicPortalChurches();
+  const [churches, requestedChurch] = await Promise.all([
+    getPublicPortalChurches(),
+    getRequestedPublicChurch(),
+  ]);
   const { church } = await searchParams;
 
   const initialChurchId =
-    churches.find((entry) => entry.id === church || entry.slug === church)?.id ?? null;
+    requestedChurch?.id ??
+    churches.find((entry) => entry.id === church || entry.slug === church)?.id ??
+    null;
 
   return (
     <main
@@ -41,7 +46,11 @@ export default async function PortalRegisterPage({
             </Button>
           </Group>
 
-          <PortalRegisterForm churches={churches} initialChurchId={initialChurchId} />
+          <PortalRegisterForm
+            churches={churches}
+            initialChurchId={initialChurchId}
+            resolvedChurch={requestedChurch}
+          />
         </Stack>
       </div>
     </main>

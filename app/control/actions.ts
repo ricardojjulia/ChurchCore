@@ -23,7 +23,7 @@ function isChurchRoleId(value: string): value is ChurchRoleId {
 }
 
 export async function launchTenantViewAction(formData: FormData) {
-  const session = await getSession();
+  const session = await getSession("/control");
 
   if (!session || !session.canAccessControl) {
     throw new Error("Control-plane access is required.");
@@ -74,7 +74,7 @@ export async function launchTenantViewAction(formData: FormData) {
 }
 
 export async function returnToControlPlaneAction() {
-  const session = await getSession();
+  const session = await getSession("/control");
 
   if (!session || !session.canAccessControl) {
     throw new Error("Control-plane access is required.");

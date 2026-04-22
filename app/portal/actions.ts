@@ -1,5 +1,6 @@
 "use server";
 
+import { getRequestedPublicChurch } from "@/lib/public-portal-data";
 import {
   createTenantServerClient,
   hasTenantBackendEnv,
@@ -19,7 +20,10 @@ export type SubmitPortalAccountRequestInput = {
 export async function submitPortalAccountRequestAction(
   input: SubmitPortalAccountRequestInput,
 ) {
-  const churchId = input.churchId.trim();
+  const resolvedChurch = !input.churchId.trim()
+    ? await getRequestedPublicChurch()
+    : null;
+  const churchId = input.churchId.trim() || resolvedChurch?.id || "";
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
   const email = input.email.trim().toLowerCase();

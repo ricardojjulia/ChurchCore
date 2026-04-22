@@ -26,6 +26,7 @@ Sprint 2 extends the ChurchAdmin surface further with:
 - A tenant-backed people-management route for churchgoer records and status updates
 - A tenant-backed portal-request approval queue with member-number generation and invite dispatch when service-role env is configured
 - An event-specific workspace for roster assignments, roster confirmations, member check-in, visitor quick-add, and seven-day burnout warnings
+- Designated ministry-leader assignment in Ministry Forge settings, feeding pastor led-ministry visibility from tenant ministry records
 
 ## Why ChurchAdmin First
 

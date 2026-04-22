@@ -51,6 +51,8 @@ export type MinistryForgeEntry = {
   healthScore: number;
   lastHealthAssessment: string | null;
   memberCount: number;
+  leaderProfileId: string | null;
+  leaderName: string | null;
 };
 
 export type MinistryMember = {

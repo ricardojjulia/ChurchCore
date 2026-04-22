@@ -22,6 +22,7 @@ export async function resolveActiveChurchProfileId(
         from public.profiles
         where user_id = $1
           and church_id = $2
+          and merged_at is null
         limit 1
       `,
       [session.userId, session.appContext.church.id],
@@ -36,6 +37,7 @@ export async function resolveActiveChurchProfileId(
     .select("id")
     .eq("user_id", session.userId)
     .eq("church_id", session.appContext.church.id)
+    .is("merged_at", null)
     .maybeSingle();
 
   if (error) {

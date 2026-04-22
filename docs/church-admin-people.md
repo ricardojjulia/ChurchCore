@@ -49,7 +49,7 @@ The existing ChurchAdmin workspace handles operational preview lanes, but it did
 - No CSV import yet
 - No auth-email change flow yet
 - Staff records stay out of the duplicate-merge flow
-- Public portal registration still requires church selection because automatic host-to-tenant routing is not yet implemented on `/portal/register`
+- Public portal registration still supports manual church selection when no tenant hostname is available
 
 ## Why This Slice
 

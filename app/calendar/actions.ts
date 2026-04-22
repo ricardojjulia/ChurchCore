@@ -120,6 +120,92 @@ function parseRsvpStatus(formData: FormData) {
   return status as EventRsvpStatus;
 }
 
+async function assertCalendarEventBelongsToChurch(
+  churchId: string,
+  eventId: string,
+) {
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `
+        select id
+        from public.events
+        where id = $1
+          and church_id = $2
+        limit 1
+      `,
+      [eventId, churchId],
+    );
+
+    if (!result.rows[0]) {
+      throw new Error("Event not found in this church.");
+    }
+
+    return;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select("id")
+    .eq("id", eventId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Event not found in this church.");
+  }
+}
+
+async function assertCalendarMinistryBelongsToChurch(
+  churchId: string,
+  ministryId: string | null,
+) {
+  if (!ministryId) {
+    return null;
+  }
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `
+        select id
+        from public.ministries
+        where id = $1
+          and church_id = $2
+        limit 1
+      `,
+      [ministryId, churchId],
+    );
+
+    if (!result.rows[0]) {
+      throw new Error("Selected ministry was not found in this church.");
+    }
+
+    return ministryId;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("ministries")
+    .select("id")
+    .eq("id", ministryId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Selected ministry was not found in this church.");
+  }
+
+  return ministryId;
+}
+
 async function revalidateCalendarRoutes() {
   revalidatePath("/app/calendar");
   revalidatePath("/app/member");
@@ -128,7 +214,7 @@ async function revalidateCalendarRoutes() {
 export async function persistCalendarBoardStateAction(
   state: CalendarBoardState,
 ) {
-  const session = await getSession();
+  const session = await getSession("/app/calendar");
 
   if (!session) {
     throw new Error("No active session.");
@@ -151,6 +237,11 @@ export async function createCalendarEventAction(formData: FormData) {
 
   const event = parseEventInput(formData);
   const profileId = await resolveActiveChurchProfileId(session);
+  const churchId = session.appContext.church.id;
+  const ministryId = await assertCalendarMinistryBelongsToChurch(
+    churchId,
+    event.ministryId,
+  );
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -172,8 +263,8 @@ export async function createCalendarEventAction(formData: FormData) {
         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending'::public.approval_status)
       `,
       [
-        session.appContext.church.id,
-        event.ministryId,
+        churchId,
+        ministryId,
         profileId,
         event.title,
         event.description,
@@ -192,8 +283,8 @@ export async function createCalendarEventAction(formData: FormData) {
 
   const supabase = await createTenantServerClient();
   const { error } = await supabase.from("events").insert({
-    church_id: session.appContext.church.id,
-    ministry_id: event.ministryId,
+    church_id: churchId,
+    ministry_id: ministryId,
     created_by: profileId,
     title: event.title,
     description: event.description,
@@ -226,6 +317,13 @@ export async function updateCalendarEventAction(formData: FormData) {
 
   const eventId = parseEventId(formData);
   const event = parseEventInput(formData);
+  const churchId = session.appContext.church.id;
+
+  await assertCalendarEventBelongsToChurch(churchId, eventId);
+  const ministryId = await assertCalendarMinistryBelongsToChurch(
+    churchId,
+    event.ministryId,
+  );
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -245,7 +343,7 @@ export async function updateCalendarEventAction(formData: FormData) {
           and church_id = $11
       `,
       [
-        event.ministryId,
+        ministryId,
         event.title,
         event.description,
         event.location,
@@ -255,7 +353,7 @@ export async function updateCalendarEventAction(formData: FormData) {
         event.visibility,
         event.rsvpEnabled,
         eventId,
-        session.appContext.church.id,
+        churchId,
       ],
     );
 
@@ -266,8 +364,8 @@ export async function updateCalendarEventAction(formData: FormData) {
   const supabase = await createTenantServerClient();
   const { error } = await supabase
     .from("events")
-    .update({
-      ministry_id: event.ministryId,
+      .update({
+      ministry_id: ministryId,
       title: event.title,
       description: event.description,
       location: event.location,
@@ -278,7 +376,7 @@ export async function updateCalendarEventAction(formData: FormData) {
       rsvp_enabled: event.rsvpEnabled,
     })
     .eq("id", eventId)
-    .eq("church_id", session.appContext.church.id);
+    .eq("church_id", churchId);
 
   if (error) {
     throw new Error(error.message);
@@ -299,6 +397,9 @@ export async function deleteCalendarEventAction(formData: FormData) {
   }
 
   const eventId = parseEventId(formData);
+  const churchId = session.appContext.church.id;
+
+  await assertCalendarEventBelongsToChurch(churchId, eventId);
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -307,7 +408,7 @@ export async function deleteCalendarEventAction(formData: FormData) {
         where id = $1
           and church_id = $2
       `,
-      [eventId, session.appContext.church.id],
+      [eventId, churchId],
     );
 
     await revalidateCalendarRoutes();
@@ -319,7 +420,7 @@ export async function deleteCalendarEventAction(formData: FormData) {
     .from("events")
     .delete()
     .eq("id", eventId)
-    .eq("church_id", session.appContext.church.id);
+    .eq("church_id", churchId);
 
   if (error) {
     throw new Error(error.message);

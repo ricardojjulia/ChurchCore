@@ -127,7 +127,7 @@ Status values:
 | Domain types and transforms | `lib/*-types.ts`, `lib/utils.ts`, `lib/finance-import.ts` | pure transform correctness and edge cases | Foundation |
 | Routing and control-plane support | `lib/control-plane*.ts`, `lib/portal.ts`, `lib/site.ts` | route derivation, support-banner state, cross-boundary safety | Missing |
 | Stripe and notifications | `lib/stripe/**`, `lib/notifications/**` | stub path, payload generation, environment guards | Missing |
-| Auth and tenant support | `lib/auth.ts`, `lib/supabase/**` | session gate behavior, missing-env branches, tenant/client branching | Missing |
+| Auth and tenant support | `lib/auth.ts`, `lib/supabase/**` | session gate behavior, missing-env branches, tenant/client branching | Foundation |
 
 ### Application Components
 
@@ -159,6 +159,7 @@ Status values:
 - `app/app/donations-actions.test.ts`
 - `app/app/volunteer-actions.test.ts`
 - `app/sign-in/page.test.tsx`
+- `lib/supabase/config.test.ts`
 - `app/app/member/giving/page.test.tsx`
 - `app/app/church-admin/volunteers/schedules/page.test.tsx`
 - `app/app/church-admin/children/dashboard/page.test.tsx`
