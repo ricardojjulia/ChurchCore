@@ -95,7 +95,7 @@ vi.mock("@/lib/auth", () => ({
   clearAppContextSelection: clearAppContextSelectionMock,
   getDemoProfile: getDemoProfileMock,
   sanitizeRedirectTarget: sanitizeRedirectTargetMock,
-  sessionCookieName: "churchforge.session",
+  sessionCookieName: "churchcoreops.session",
 }));
 
 vi.mock("@/lib/supabase/config", () => ({
@@ -153,7 +153,7 @@ describe("sign-in actions", () => {
     });
 
     expect(cookieSetMock).toHaveBeenCalledWith(
-      "churchforge.session",
+      "churchcoreops.session",
       "preview-admin",
       expect.objectContaining({
         httpOnly: true,
@@ -183,7 +183,7 @@ describe("sign-in actions", () => {
       url: "/sign-in",
     });
 
-    expect(cookieDeleteMock).toHaveBeenCalledWith("churchforge.session");
+    expect(cookieDeleteMock).toHaveBeenCalledWith("churchcoreops.session");
     expect(clearAppContextSelectionMock).toHaveBeenCalled();
     expect(revalidatePathMock).toHaveBeenCalledWith("/", "layout");
   });
@@ -206,7 +206,7 @@ describe("sign-in actions", () => {
 
     const formData = new FormData();
     formData.set("intent", "sign-in");
-    formData.set("email", "admin@churchforge.app");
+    formData.set("email", "admin@churchcoreops.app");
     formData.set("password", "secret");
     formData.set("redirectTo", "/control");
 
@@ -223,12 +223,12 @@ describe("sign-in actions", () => {
 
     const formData = new FormData();
     formData.set("intent", "sign-up");
-    formData.set("email", "admin@churchforge.app");
+    formData.set("email", "admin@churchcoreops.app");
     formData.set("password", "secret");
     formData.set("redirectTo", "/control");
 
     await expect(signInAction(formData)).rejects.toMatchObject({
-      url: "/sign-in?error=Control-plane%20accounts%20must%20be%20provisioned%20by%20ChurchForge%20staff.&redirectTo=%2Fcontrol",
+      url: "/sign-in?error=Control-plane%20accounts%20must%20be%20provisioned%20by%20ChurchCore%20Ops%20staff.&redirectTo=%2Fcontrol",
     });
   });
 });

@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/shepherd-ai",
+      "schedule": "0 */6 * * *"
+    }
+  ]
+}

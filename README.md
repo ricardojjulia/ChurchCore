@@ -1,12 +1,12 @@
-# ChurchForge
+# ChurchCore Ops
 
-ChurchForge is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, guardrailed AI ministry tools, and graphical stewardship reporting. This private evaluation snapshot is aligned to `DEVELOPMENT_PLAN.md` v1.8 and is at release `2.11.1`, incorporating the Children's Church Ministry (CCM) module, the Financial Management module, Advanced Ministry Forge, Communications Hub, GDPR/CCPA data rights, and a fully operational local Supabase development environment with safe demo data.
+ChurchCore Ops is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, guardrailed AI ministry tools, and graphical stewardship reporting. This private evaluation snapshot is aligned to `DEVELOPMENT_PLAN.md` v1.8 and is at release `2.12.1`, incorporating the Phase 1 product strategy work, Children's Church Ministry (CCM), Financial Management, Advanced Ministry Forge, Communications Hub, GDPR/CCPA data rights, and a fully operational local Supabase development environment with safe demo data.
 
 ## Stack
 
 - Next.js 16 App Router with TypeScript
 - Tailwind CSS v4
-- Mantine UI as the standard UI framework for ChurchForge surfaces
+- Mantine UI as the standard UI framework for ChurchCore Ops surfaces
 - Lucide React icons
 - GitHub Actions for CI verification
 
@@ -31,15 +31,38 @@ Current plan target:
 - Security and privacy expectations centered on sensitive-data classification, consent, auditing, and disciplined application security checks.
 - Future Ministry Forge work is now explicitly documented around specialized tracks for men, women, children, youth, young adults, marriage, education, missions, and outreach, with deterministic stewardship metrics and tighter safety/confidentiality rules.
 - Future reporting work is now explicitly documented as a multi-surface reporting suite spanning members, events, giving, ministries, communications, and outreach, with graphical dashboards and differentiated stewardship insights.
+- ShepherdAI for ChurchCore Ops is now implemented as an Ops-only, explainable workflow recommendation foundation that generates suggested ministry workflows from deterministic signals (no chatbot interface).
+
+## ShepherdAI Ops Foundation
+
+- Core module location: `lib/shepherd-ai/`
+- Workflow operations module: `lib/ministry-workflows/`
+- New church-admin workflow queue route: `/app/church-admin/workflows`
+- Scheduled evaluation endpoint: `/api/cron/shepherd-ai`
+- Data persistence tables: `ai_signals`, `ai_suggestions`, `workflows`, `workflow_actions`, `workflow_feedback`
+- Product boundary: Ops-only data and logic; no Academy or Care cross-product inference
+
+For recurring evaluation, configure `CRON_SECRET` and deploy `vercel.json` cron schedule.
+The endpoint supports scoped runs with `tenantId` and bounded runs with `maxTenants`.
+Hosted rollout reference: `docs/setup/hosted-shepherdai-rollout.md`.
+
+See `docs/shepherd-ai-ops.md` for architecture and guardrails.
 
 ## Private Evaluation Snapshot
 
-- Current repo version: `2.11.1`
+- Current repo version: `2.12.1`
 - Intended use: private evaluation, invited collaboration, and local demo environments
 - Included demo scope: preview mode without a backend, or local Supabase with seeded Grace Harbor Church data
 - Current repo posture: local credential material is not committed; demo credentials are generated locally by the bootstrap script and saved to the gitignored `.demo-credentials.local`
 - Security posture in repo: lint/build CI plus CodeQL, dependency review, and secret-scanning workflows for GitHub
 - Evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, and `npm run smoke:local`
+
+## Release 2.12.1 Highlights
+
+Release 2.12.1 hardens the ADR 0002 control-plane and tenant split. Backend configuration is now explicit per surface, and direct local Postgres fallback URLs count as configured backends so split local data paths are not skipped before their fallback reads or writes can run.
+
+- **Boundary-aware backend checks:** control-plane and tenant wrappers recognize either Supabase REST envs or direct DB fallback URLs as valid backend configuration.
+- **Current product baseline:** includes the 2.12.0 Phase 1 product strategy implementation: Small Groups, public giving, church-admin events, attendance tracking, Giving GL auto-posting, and first-time visitor workflow scaffolding.
 
 ## Release 2.11.1 Highlights
 
@@ -224,14 +247,14 @@ SUPABASE_DB_URL=postgresql://postgres:<local-db-password>@127.0.0.1:54322/postgr
 ```
 
 > **Important:** Use the `eyJ…` JWT key, not the `sb_publishable_*` key shown in the default `supabase status` output. The JWT key comes from `npx supabase status --output env`.
-> **Optional:** Set `CHURCHFORGE_DEV_PASSWORD` before running `./supabase/scripts/create-dev-users.sh` if you want deterministic demo credentials. Otherwise the script generates a password and writes it to `.demo-credentials.local`.
-> The generated credentials file also includes `CHURCHFORGE_DEMO_ADMIN_EMAIL` and `CHURCHFORGE_DEMO_MEMBER_EMAIL` for smoke-test automation.
+> **Optional:** Set `CHURCHCORE_OPS_DEV_PASSWORD` before running `./supabase/scripts/create-dev-users.sh` if you want deterministic demo credentials. Otherwise the script generates a password and writes it to `.demo-credentials.local`.
+> The generated credentials file also includes `CHURCHCORE_OPS_DEMO_ADMIN_EMAIL` and `CHURCHCORE_OPS_DEMO_MEMBER_EMAIL` for smoke-test automation.
 
 **Dev accounts after seeding:**
 
 | Email                         | Role                          |
 |-------------------------------|-------------------------------|
-| `sarah@churchforge.app`       | Church Admin + Platform Admin |
+| `sarah@churchcoreops.app`       | Church Admin + Platform Admin |
 | `david@graceharbor.church`    | Member                        |
 
 See `docs/setup/local-supabase.md` for the complete local setup guide.
@@ -243,7 +266,7 @@ For voluntary donations (Sprint 7+), also supply:
 - `STRIPE_SECRET_KEY` — Stripe secret key (`sk_live_…` or `sk_test_…`)
 - `STRIPE_WEBHOOK_SECRET` — webhook signing secret (`whsec_…`) for payment confirmation
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` — for Stripe Elements on the frontend
-- When absent, donation actions return stub results so local dev is unaffected. ChurchForge takes **no platform fees** — 100% of every donation goes directly to the church.
+- When absent, donation actions return stub results so local dev is unaffected. ChurchCore Ops takes **no platform fees** — 100% of every donation goes directly to the church.
 
 For Communications Hub (Phase 6), also supply:
 
@@ -262,7 +285,7 @@ Primary routes:
 
 - `/` marketing and product-direction overview
 - `/sign-in` preview sign-in and protected-route entry
-- `/control` platform control plane for ChurchForge staff
+- `/control` platform control plane for ChurchCore Ops staff
 - `/controll` compatibility redirect to `/control`
 - `/app` tenant-facing church application entry
 - `/app/[role]` church role workspace
@@ -339,7 +362,7 @@ public/               Static assets
 - `proxy.ts`, `/sign-in`, and session hydration now refresh and resolve auth against explicit surface-aware Supabase clients instead of a generic shared selector, which keeps `/control` and `/app` aligned to ADR 0002 even while shared local env vars remain supported.
 - Tenant launch from `/control` is now registry-driven, with the control plane resolving the tenant runtime target through `tenants` and `tenant_connections` before entering `/app`.
 - Control-plane routing now resolves the tenant runtime church target from `tenant_connections.metadata.runtime_church_id`, which keeps platform tenant IDs separate from tenant-runtime church IDs.
-- Platform admins can now launch an explicit tenant view from the control plane and return to ChurchForge Control without implicit cross-over.
+- Platform admins can now launch an explicit tenant view from the control plane and return to ChurchCore Ops Control without implicit cross-over.
 - When Supabase is configured, the control plane now reads live church and membership counts plus recent tenant-view audit events from database records instead of relying only on mock tenant lists.
 - Local development can now fall back to direct Postgres reads and writes for app-owned Supabase tables when the local REST schema cache is unavailable.
 - The church app session now hydrates from real `profiles` rows when available, so `/app` and the app shell resolve live church-scoped user data instead of relying only on preview profile templates.
@@ -373,7 +396,7 @@ public/               Static assets
 - The Pastor Council Forge at `/app/council/forge` provides versioned collaborative notes (auto-incrementing version on each save) across five note types: general, sermon outline, series plan, council minutes, and sabbath reflection.
 - The Communications Hub at `/app/communications` enables pastors and church-admins to compose and broadcast email or SMS to congregation members, with per-member consent checking via `notification_preferences`, full `communication_logs` audit trail, and graceful local-dev stubs when SendGrid/Twilio are not configured.
 - The member portal bottom nav now includes a Ministries tab alongside Home, Calendar, Directory, and Family, with all five routes pre-cached by the service worker for offline access.
-- The voluntary donations system at `/app/member/giving` lets members give one-time or recurring gifts with fund designation and anonymous option. ChurchForge takes no platform fee — 100% goes to the church. Receipt emails sent via SendGrid.
+- The voluntary donations system at `/app/member/giving` lets members give one-time or recurring gifts with fund designation and anonymous option. ChurchCore Ops takes no platform fee — 100% goes to the church. Receipt emails sent via SendGrid.
 - Members can download a full JSON export of their personal data or request account deletion with a 30-day grace period from `/app/member/data-rights` (GDPR/CCPA aligned).
 - Pastors and church-admins have a giving reporting dashboard at `/app/giving` with fund breakdown, monthly and all-time totals, and recurring-gift counts. Anonymous donations are never de-anonymised in the UI.
 - Platform operators have a `/control/launch-checklist` with 47 interactive verification items across RLS, donations, AI guardrails, communications, data rights, security, mobile/PWA, and role access.

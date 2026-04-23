@@ -1,10 +1,10 @@
 -- ============================================================
--- ChurchForge local development seed
+-- ChurchCore Ops local development seed
 -- Run automatically by: supabase db reset
 --
 -- Requires auth users to exist first. Create them with:
 --   supabase/scripts/create-dev-users.sh
--- Or via the Supabase Admin API (see church-forge-supabasesetup.md).
+-- Or via the Supabase Admin API (see churchcore-ops-supabasesetup.md).
 --
 -- Auth user IDs are looked up by email so this seed is
 -- idempotent even if users are recreated with new UUIDs.
@@ -52,7 +52,7 @@ begin
   -- ── Auth user lookups ────────────────────────────────────
   select id into v_sarah_auth_id
   from auth.users
-  where email = 'sarah@churchforge.app'
+  where email = 'sarah@churchcoreops.app'
   limit 1;
 
   select id into v_david_auth_id
@@ -82,9 +82,9 @@ begin
   update public.profiles
   set user_id = v_sarah_auth_id, church_id = v_church_id, full_name = 'Sarah Mitchell',
       role = 'church_admin', display_title = 'Church Administrator', membership_status = 'active'
-  where email = 'sarah@churchforge.app';
+  where email = 'sarah@churchcoreops.app';
 
-  select id into v_sarah_id from public.profiles where email = 'sarah@churchforge.app' limit 1;
+  select id into v_sarah_id from public.profiles where email = 'sarah@churchcoreops.app' limit 1;
 
   -- Update or insert david
   update public.profiles
@@ -109,7 +109,7 @@ begin
     role          = excluded.role;
 
   -- Re-read stable IDs for the main accounts after update
-  select id into v_sarah_id from public.profiles where email = 'sarah@churchforge.app' limit 1;
+  select id into v_sarah_id from public.profiles where email = 'sarah@churchcoreops.app' limit 1;
   select id into v_david_id from public.profiles where email = 'david@graceharbor.church' limit 1;
 
   -- ── Platform admin (sarah — control-plane access) ────────

@@ -5,9 +5,9 @@ import { requireControlPlaneSession } from "@/lib/auth";
 import { getControlPlaneDashboardData } from "@/lib/control-plane-data";
 
 export const metadata: Metadata = {
-  title: "Control Plane | ChurchForge",
+  title: "Control Plane | ChurchCore Ops",
   description:
-    "Platform-side tenant, billing, and support operations for ChurchForge staff.",
+    "Platform-side tenant, billing, and support operations for ChurchCore Ops staff.",
 };
 
 export default async function ControlPlanePage() {

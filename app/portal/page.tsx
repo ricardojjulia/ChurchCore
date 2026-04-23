@@ -34,7 +34,7 @@ export default async function PortalPage() {
         <Stack gap="lg">
           <div>
             <Text size="sm" fw={700} c="dimmed" tt="uppercase">
-              ChurchForge Portal
+              ChurchCore Ops Portal
             </Text>
             <Title order={1} mt="sm">
               Secure member access for attendance, profile, and serving updates.

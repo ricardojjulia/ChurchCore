@@ -5,7 +5,7 @@
 
 ## Context
 
-ChurchForge needs a backend and data platform that supports authentication, relational data, real-time collaboration, storage, and future AI workflows without slowing delivery.
+ChurchCore Ops needs a backend and data platform that supports authentication, relational data, real-time collaboration, storage, and future AI workflows without slowing delivery.
 
 The approved options from the development plan are:
 
@@ -22,7 +22,7 @@ The approved options from the development plan are:
 
 ## Decision
 
-ChurchForge will use Supabase as the backend and data platform.
+ChurchCore Ops will use Supabase as the backend and data platform.
 
 The approved stack for backend execution is:
 

@@ -1,7 +1,7 @@
-# ChurchForge Ministry Specification
+# ChurchCore Ops Ministry Specification
 
 **Living Document** - Last Updated: April 15, 2026  
-**Purpose**: This file is the repo-level master ministry specification for ChurchForge. It summarizes the approved Ministry Forge direction and points to the deeper engineering documents that govern implementation detail.
+**Purpose**: This file is the repo-level master ministry specification for ChurchCore Ops. It summarizes the approved Ministry Forge direction and points to the deeper engineering documents that govern implementation detail.
 
 This specification should be read alongside:
 
@@ -12,7 +12,7 @@ This specification should be read alongside:
 
 ## Scope
 
-ChurchForge ministry features are not limited to assignment tracking. The product direction is now explicitly centered on **Kingdom Stewardship** across:
+ChurchCore Ops ministry features are not limited to assignment tracking. The product direction is now explicitly centered on **Kingdom Stewardship** across:
 
 - ministry participation
 - leadership formation
@@ -23,7 +23,7 @@ ChurchForge ministry features are not limited to assignment tracking. The produc
 
 ## Approved Ministry Pathways
 
-ChurchForge should support distinct pathway intelligence for:
+ChurchCore Ops should support distinct pathway intelligence for:
 
 - `worship`
 - `men`
@@ -210,7 +210,7 @@ Operational inputs:
 
 ## Unified History Model
 
-ChurchForge ministry data should support three historical perspectives over the same people model.
+ChurchCore Ops ministry data should support three historical perspectives over the same people model.
 
 ### Member History
 

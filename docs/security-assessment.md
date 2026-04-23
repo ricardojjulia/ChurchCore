@@ -1,4 +1,4 @@
-# ChurchForge — Security & Privacy Assessment
+# ChurchCore Ops — Security & Privacy Assessment
 
 **Date:** 2026-04-13  
 **Scope:** Full database schema (all 10 migrations as of this date)  
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-If the ChurchForge Supabase database were read by an unauthorized party today — through a leaked service key, a misconfigured RLS policy, a SQL injection, or an insider — the exposure includes the real names, home addresses, phone numbers, dates of birth, emergency contacts, pastoral care notes, attendance records, and spiritual data of every person enrolled in every church on the platform.
+If the ChurchCore Ops Supabase database were read by an unauthorized party today — through a leaked service key, a misconfigured RLS policy, a SQL injection, or an insider — the exposure includes the real names, home addresses, phone numbers, dates of birth, emergency contacts, pastoral care notes, attendance records, and spiritual data of every person enrolled in every church on the platform.
 
 No data is encrypted at rest beyond what Supabase provides at the storage layer. No column-level access restrictions exist. Several RLS policies are broader than they need to be. One table (`tenant_connections`) stores database connection strings — including credentials — in plaintext.
 
@@ -95,7 +95,7 @@ The combination of full name, date of birth, home address, and phone number is s
 
 #### H-3 · Emergency contacts — Unconsented third-party PII
 
-`emergency_contact_name` and `emergency_contact_phone` belong to individuals who have no account with ChurchForge, have not accepted any privacy policy, and do not know their data is stored. Under GDPR Article 13/14 and California CPRA, you have disclosure obligations to these third parties.
+`emergency_contact_name` and `emergency_contact_phone` belong to individuals who have no account with ChurchCore Ops, have not accepted any privacy policy, and do not know their data is stored. Under GDPR Article 13/14 and California CPRA, you have disclosure obligations to these third parties.
 
 **Affected:** All profiles with emergency contact data.
 

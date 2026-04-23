@@ -9,6 +9,7 @@ const {
   queryTenantLocalDbMock,
   shouldUseLocalTenantFallbackMock,
   supabaseFromMock,
+  supabaseMaybeSingleMock,
   supabaseUpsertMock,
 } = vi.hoisted(() => {
   const revalidatePath = vi.fn();
@@ -18,9 +19,19 @@ const {
   const queryTenantLocalDb = vi.fn();
   const shouldUseLocalTenantFallback = vi.fn();
 
+  const supabaseMaybeSingle = vi.fn();
+  const supabaseEq = vi.fn(() => ({
+    eq: supabaseEq,
+    maybeSingle: supabaseMaybeSingle,
+  }));
+  const supabaseSelect = vi.fn(() => ({
+    eq: supabaseEq,
+    maybeSingle: supabaseMaybeSingle,
+  }));
   const supabaseUpsert = vi.fn();
-  const supabaseFrom = vi.fn(() => ({
-    upsert: supabaseUpsert,
+  const supabaseFrom = vi.fn((table: string) => ({
+    select: supabaseSelect,
+    upsert: table === "event_registration_settings" ? supabaseUpsert : undefined,
   }));
   const createTenantServerClient = vi.fn(async () => ({
     from: supabaseFrom,
@@ -35,6 +46,7 @@ const {
     queryTenantLocalDbMock: queryTenantLocalDb,
     shouldUseLocalTenantFallbackMock: shouldUseLocalTenantFallback,
     supabaseFromMock: supabaseFrom,
+    supabaseMaybeSingleMock: supabaseMaybeSingle,
     supabaseUpsertMock: supabaseUpsert,
   };
 });
@@ -79,6 +91,7 @@ describe("church-admin actions", () => {
     shouldUseLocalTenantFallbackMock.mockReturnValue(true);
     hasTenantBackendEnvMock.mockReturnValue(true);
     hasTenantAdminBackendEnvMock.mockReturnValue(false);
+    supabaseMaybeSingleMock.mockResolvedValue({ data: { id: "event-1" }, error: null });
     supabaseUpsertMock.mockResolvedValue({ error: null });
   });
 
@@ -101,7 +114,9 @@ describe("church-admin actions", () => {
   });
 
   it("creates an event in local fallback mode", async () => {
-    queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [{ id: "event-1" }] });
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "profile-1" }] })
+      .mockResolvedValueOnce({ rows: [{ id: "event-1" }] });
 
     const result = await createEventAction({
       title: "Sunday Service",
@@ -113,7 +128,8 @@ describe("church-admin actions", () => {
     });
 
     expect(result).toEqual({ ok: true, id: "event-1" });
-    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      2,
       expect.stringContaining("insert into public.events"),
       [
         "church-1",
@@ -157,6 +173,7 @@ describe("church-admin actions", () => {
 
   it("returns full event error when waitlist is disabled", async () => {
     queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ church_id: "church-1" }] })
       .mockResolvedValueOnce({ rows: [{ capacity: 1, waitlist_enabled: false, registration_open: true }] })
       .mockResolvedValueOnce({ rows: [{ cnt: 1 }] });
 
@@ -171,6 +188,7 @@ describe("church-admin actions", () => {
 
   it("creates waitlisted registration when capacity is reached and waitlist is enabled", async () => {
     queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ church_id: "church-1" }] })
       .mockResolvedValueOnce({ rows: [{ capacity: 1, waitlist_enabled: true, registration_open: true }] })
       .mockResolvedValueOnce({ rows: [{ cnt: 1 }] })
       .mockResolvedValueOnce({ rows: [{ id: "reg-1" }] });

@@ -7,26 +7,26 @@ import { Pool, type QueryResultRow } from "pg";
 import {
   getControlPlaneDbUrl,
   getControlPlaneSupabaseEnv,
-  hasControlPlaneSupabaseEnv,
+  hasControlPlaneBackendConfig,
   shouldUseLocalControlPlaneDbFallback,
 } from "@/lib/supabase/config";
 
 declare global {
-  var __churchforgeControlPlanePool: Pool | undefined;
+  var __churchcoreopsControlPlanePool: Pool | undefined;
 }
 
 function getControlPlanePool() {
-  if (!global.__churchforgeControlPlanePool) {
-    global.__churchforgeControlPlanePool = new Pool({
+  if (!global.__churchcoreopsControlPlanePool) {
+    global.__churchcoreopsControlPlanePool = new Pool({
       connectionString: getControlPlaneDbUrl(),
     });
   }
 
-  return global.__churchforgeControlPlanePool;
+  return global.__churchcoreopsControlPlanePool;
 }
 
 export function hasControlPlaneBackendEnv() {
-  return hasControlPlaneSupabaseEnv();
+  return hasControlPlaneBackendConfig();
 }
 
 export function shouldUseLocalControlPlaneFallback() {

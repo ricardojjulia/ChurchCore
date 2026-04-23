@@ -1,4 +1,4 @@
-# ChurchForge — Security Mitigation Plan
+# ChurchCore Ops — Security Mitigation Plan
 
 **Date:** 2026-04-13  
 **Companion:** `docs/security-assessment.md`  

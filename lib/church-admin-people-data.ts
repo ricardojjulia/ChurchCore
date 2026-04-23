@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { ChurchAppSession } from "@/lib/auth";
+import { getMemberShepherdInsights } from "@/lib/shepherd-ai/ops-data";
 import {
   createTenantServerClient,
   hasTenantBackendEnv,
@@ -25,6 +26,14 @@ export type ChurchAdminPersonEntry = {
   familyId: string | null;
   familyName: string | null;
   ministryNames: string[];
+  shepherdInsights: Array<{
+    id: string;
+    workflowCode: string;
+    title: string;
+    summary: string;
+    urgency: string;
+    generatedAt: string;
+  }>;
   duplicateCandidates: ChurchAdminDuplicateCandidate[];
 };
 
@@ -84,15 +93,47 @@ function normalizeRole(role: string | null) {
 }
 
 function buildPeople(
-  entries: Array<Omit<ChurchAdminPersonEntry, "ministryNames" | "duplicateCandidates">>,
+  entries: Array<
+    Omit<ChurchAdminPersonEntry, "ministryNames" | "shepherdInsights" | "duplicateCandidates">
+  >,
   ministryMap: Map<string, string[]>,
+  shepherdMap: Map<
+    string,
+    Array<{
+      id: string;
+      workflowCode: string;
+      title: string;
+      summary: string;
+      urgency: string;
+      generatedAt: string;
+    }>
+  >,
   duplicateMap: Map<string, ChurchAdminDuplicateCandidate[]>,
 ): ChurchAdminPersonEntry[] {
   return entries.map((entry) => ({
     ...entry,
     ministryNames: ministryMap.get(entry.id) ?? [],
+    shepherdInsights: shepherdMap.get(entry.id) ?? [],
     duplicateCandidates: duplicateMap.get(entry.id) ?? [],
   }));
+}
+
+function buildShepherdMap(
+  source: Map<string, Array<{ id: string; workflowCode: string; title: string; summary: string; urgency: string; generatedAt: string }>>,
+) {
+  return new Map(
+    Array.from(source.entries()).map(([memberId, entries]) => [
+      memberId,
+      entries.slice(0, 3).map((entry) => ({
+        id: entry.id,
+        workflowCode: entry.workflowCode,
+        title: entry.title,
+        summary: entry.summary,
+        urgency: entry.urgency,
+        generatedAt: entry.generatedAt,
+      })),
+    ]),
+  );
 }
 
 function normalizeEmail(value: string | null) {
@@ -265,6 +306,13 @@ export async function getChurchAdminPeopleData(
       return map;
     }, new Map<string, string[]>());
 
+    const shepherdMap = buildShepherdMap(
+      await getMemberShepherdInsights(
+        session,
+        peopleRows.map((row) => row.id),
+      ),
+    );
+
     const people = buildPeople(
       peopleRows.map((row) => ({
         id: row.id,
@@ -284,6 +332,7 @@ export async function getChurchAdminPeopleData(
         familyName: row.family_name,
       })),
       ministryMap,
+      shepherdMap,
       duplicateMap,
     );
 
@@ -385,6 +434,13 @@ export async function getChurchAdminPeopleData(
     })),
   );
 
+  const shepherdMap = buildShepherdMap(
+    await getMemberShepherdInsights(
+      session,
+      people.map((row) => row.id),
+    ),
+  );
+
   const normalizedPeople = buildPeople(
     people.map((row) => ({
       id: row.id,
@@ -408,6 +464,7 @@ export async function getChurchAdminPeopleData(
       familyName: row.family_id ? familyMap.get(row.family_id) ?? null : null,
     })),
     ministryMap,
+    shepherdMap,
     duplicateMap,
   );
 

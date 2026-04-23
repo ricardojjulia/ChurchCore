@@ -11,7 +11,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { ChurchForgeHeroIcon } from "@/components/marketing/churchforge-hero-icon";
+import { ChurchCoreOpsHeroIcon } from "@/components/marketing/churchcore-ops-hero-icon";
 
 export default function Home() {
   return (
@@ -42,11 +42,11 @@ export default function Home() {
         <Paper withBorder radius="xl" p={{ base: "xl", md: "56px" }}>
           <Stack gap="lg" align="center" maw={560} style={{ margin: "0 auto" }}>
             <div style={{ marginBottom: "24px" }}>
-              <ChurchForgeHeroIcon />
+              <ChurchCoreOpsHeroIcon />
             </div>
             
             <Title order={1} size={60} style={{ lineHeight: 1, textAlign: "center" }}>
-              Church Forge.
+              ChurchCore Ops.
             </Title>
             <Text c="dimmed" size="lg" ta="center">
               Built for your mission, its mission to help you build.

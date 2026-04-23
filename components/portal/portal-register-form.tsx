@@ -83,7 +83,7 @@ export function PortalRegisterForm({
         <div>
           <Title order={2}>Request portal access</Title>
           <Text size="sm" c="dimmed" mt="sm">
-            Submit your details to request access to the ChurchForge member portal. Your church will review the request before activating an account.
+            Submit your details to request access to the ChurchCore Ops member portal. Your church will review the request before activating an account.
           </Text>
         </div>
 

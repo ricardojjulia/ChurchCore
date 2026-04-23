@@ -1,10 +1,10 @@
 # Auth Foundation
 
-This document describes the first authentication and protected-route layer for ChurchForge.
+This document describes the first authentication and protected-route layer for ChurchCore Ops.
 
 ## Purpose
 
-The current auth implementation establishes ChurchForge on Supabase SSR auth while preserving a local preview fallback for development environments that have not been configured yet.
+The current auth implementation establishes ChurchCore Ops on Supabase SSR auth while preserving a local preview fallback for development environments that have not been configured yet.
 
 ## What Exists Now
 
@@ -12,7 +12,7 @@ The current auth implementation establishes ChurchForge on Supabase SSR auth whi
 - A simplified Mantine-based sign-in presentation with a single focused account form
 - Supabase SSR auth support for email and password flows
 - Root `proxy.ts` session refresh handling with explicit control-plane versus tenant client selection by route family
-- Preview identities for each core ChurchForge role when Supabase env vars are absent
+- Preview identities for each core ChurchCore Ops role when Supabase env vars are absent
 - Redirect preservation so protected routes can send users back to the route they requested after sign-in
 - Sign-out handling for the protected shell
 - An explicit app-context model that separates actor identity from the active product surface
@@ -24,7 +24,7 @@ The current auth implementation establishes ChurchForge on Supabase SSR auth whi
 - Surface-specific Supabase wrappers now own both SSR/browser client creation and local direct-DB fallback boundaries, which removes the last implicit shared helper path from the auth layer
 - A visible header logout action in the protected shell for direct session exit
 - `/sign-in` now prefers control-plane auth for `/control` redirects and tenant auth for church-app or portal redirects
-- Control-plane self-sign-up is intentionally disabled; those accounts must be provisioned through ChurchForge operator workflows
+- Control-plane self-sign-up is intentionally disabled; those accounts must be provisioned through ChurchCore Ops operator workflows
 
 ## Protected Routes
 
@@ -50,8 +50,8 @@ Compatibility redirects still exist on:
 
 ## Context Model
 
-- `ChurchForge Control` is available only to platform admins.
-- `ChurchForge App` resolves from an active church context plus a church-facing role.
+- `ChurchCore Ops Control` is available only to platform admins.
+- `ChurchCore Ops App` resolves from an active church context plus a church-facing role.
 - Platform admins may enter the church app only through an explicit tenant-view action.
 - The bridge back from the church app to the control plane is an explicit return action, not an implicit shared navigation model.
 

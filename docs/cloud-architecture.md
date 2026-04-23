@@ -1,4 +1,4 @@
-# ChurchForge — Cloud Architecture
+# ChurchCore Ops — Cloud Architecture
 
 **Date:** April 17, 2026
 **Status:** Recommended design for production SaaS deployment
@@ -8,7 +8,7 @@
 
 ## Overview
 
-ChurchForge is a multi-tenant SaaS platform. Each church is a fully isolated tenant with its own database. The existing codebase is already designed for this model: `tenant_connections`, `createTenantServerClient()`, and `shouldUseLocalTenantFallback()` all assume per-tenant database connections.
+ChurchCore Ops is a multi-tenant SaaS platform. Each church is a fully isolated tenant with its own database. The existing codebase is already designed for this model: `tenant_connections`, `createTenantServerClient()`, and `shouldUseLocalTenantFallback()` all assume per-tenant database connections.
 
 This document describes the recommended cloud architecture for a production deployment where each church accesses only its own tenant.
 
@@ -44,7 +44,7 @@ This document describes the recommended cloud architecture for a production depl
 
 ## Tenant Isolation Model: Silo (Per-Tenant Database)
 
-Each church gets its own dedicated Supabase project. This is the correct model for ChurchForge given the sensitivity of the data it stores.
+Each church gets its own dedicated Supabase project. This is the correct model for ChurchCore Ops given the sensitivity of the data it stores.
 
 ### Why silo over a shared pool
 
@@ -200,7 +200,7 @@ When you onboard your first paying church, provision a fresh Supabase project fo
 
 ## Platform and Church App Separation
 
-ChurchForge operates as two distinct applications — the business management portal (used by ChurchForge staff) and the church-facing product (used by each church). These should be separated into two Vercel projects within one account.
+ChurchCore Ops operates as two distinct applications — the business management portal (used by ChurchCore Ops staff) and the church-facing product (used by each church). These should be separated into two Vercel projects within one account.
 
 ### Two projects, not two accounts
 
@@ -208,19 +208,19 @@ Two Vercel accounts would double billing ($40/month) and split team management. 
 
 ```text
 One Vercel Pro account ($20/month)
-├── Project 1: platform.churchforge.com
+├── Project 1: platform.churchcoreops.com
 │   └── Tenant management, billing, onboarding, super-admin
-└── Project 2: *.churchforge.com (wildcard)
-    └── graceharbor.churchforge.com
-    └── firstbaptist.churchforge.com
-    └── calvary.churchforge.com
+└── Project 2: *.churchcoreops.com (wildcard)
+    └── graceharbor.churchcoreops.com
+    └── firstbaptist.churchcoreops.com
+    └── calvary.churchcoreops.com
 ```
 
 ### Full separated architecture
 
 ```text
                     ┌─────────────────────────────┐
-                    │   platform.churchforge.com   │
+                    │   platform.churchcoreops.com   │
                     │   Vercel Project 1           │
                     │   (your business portal)     │
                     │                              │
@@ -239,13 +239,13 @@ One Vercel Pro account ($20/month)
                         └───────────────────────┘
 
                     ┌─────────────────────────────┐
-                    │   *.churchforge.com          │
+                    │   *.churchcoreops.com          │
                     │   Vercel Project 2           │
                     │   (the church app)           │
                     │                              │
-                    │ graceharbor.churchforge.com  │
-                    │ firstbaptist.churchforge.com │
-                    │ calvary.churchforge.com       │
+                    │ graceharbor.churchcoreops.com  │
+                    │ firstbaptist.churchcoreops.com │
+                    │ calvary.churchcoreops.com       │
                     └──────────────┬──────────────┘
                                    │ subdomain → tenant lookup
                     ┌──────────────┼──────────────┐
@@ -258,7 +258,7 @@ One Vercel Pro account ($20/month)
 
 ### Wildcard subdomain routing
 
-Vercel Pro supports wildcard domains (`*.churchforge.com`). Next.js middleware reads the subdomain from the incoming hostname, looks up the tenant slug in the platform DB, and resolves the correct church Supabase connection:
+Vercel Pro supports wildcard domains (`*.churchcoreops.com`). Next.js middleware reads the subdomain from the incoming hostname, looks up the tenant slug in the platform DB, and resolves the correct church Supabase connection:
 
 ```typescript
 // middleware.ts — Project 2 (church app)
@@ -276,9 +276,9 @@ The `tenants.slug` column already exists in the schema. `graceharbor`, `firstbap
 ### DNS setup
 
 ```text
-churchforge.com           → marketing site
-platform.churchforge.com  → Vercel Project 1
-*.churchforge.com         → Vercel Project 2 (wildcard CNAME)
+churchcoreops.com           → marketing site
+platform.churchcoreops.com  → Vercel Project 1
+*.churchcoreops.com         → Vercel Project 2 (wildcard CNAME)
 ```
 
 One wildcard DNS record covers every church subdomain at onboarding — no manual DNS entry per church.
@@ -307,7 +307,7 @@ The codebase changes for the split are modest — middleware subdomain resolutio
 
 ## Vercel Traffic Analysis — How Many Churches on $20/Month
 
-Vercel Pro pricing does not scale per tenant or per church. It scales on bandwidth and serverless execution time. ChurchForge's usage pattern — a church management app with Sunday-heavy, low-frequency CRUD traffic — is extremely light on both.
+Vercel Pro pricing does not scale per tenant or per church. It scales on bandwidth and serverless execution time. ChurchCore Ops's usage pattern — a church management app with Sunday-heavy, low-frequency CRUD traffic — is extremely light on both.
 
 ### Vercel Pro included resources
 
@@ -350,7 +350,7 @@ before hitting the execution ceiling
 
 ### Practical answer
 
-**Hundreds to low thousands of churches** can run on a single $20/month Vercel Pro plan before any overage appears. For ChurchForge's traffic pattern, bandwidth is the binding constraint — and even that supports ~10,000 churches on the included 1 TB.
+**Hundreds to low thousands of churches** can run on a single $20/month Vercel Pro plan before any overage appears. For ChurchCore Ops's traffic pattern, bandwidth is the binding constraint — and even that supports ~10,000 churches on the included 1 TB.
 
 ### When to upgrade Vercel
 

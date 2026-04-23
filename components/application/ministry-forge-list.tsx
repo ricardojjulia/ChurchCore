@@ -25,6 +25,7 @@ import {
 
 import { ApplicationShell } from "@/components/application/app-shell";
 import type { ChurchAppSession } from "@/lib/auth";
+import type { ShepherdDashboardWidgetData } from "@/lib/shepherd-ai/ops-data";
 import {
   hasTrackPanel,
   healthBand,
@@ -123,9 +124,11 @@ function MinistryCard({ ministry }: { ministry: MinistryForgeEntry }) {
 export function MinistryForgeListPage({
   session,
   data,
+  workflowWidget,
 }: {
   session: ChurchAppSession;
   data: MinistryForgeListData;
+  workflowWidget: ShepherdDashboardWidgetData;
 }) {
   const isManager = session.appContext.roleId === "church-admin";
 
@@ -134,6 +137,7 @@ export function MinistryForgeListPage({
         { href: "/app/church-admin",        label: "Home",    description: "Admin overview",   icon: Settings },
         { href: "/app/church-admin/people", label: "People",  description: "Manage members",   icon: Users },
         { href: "/app/church-admin/ministry", label: "Ministry Forge", description: "All ministries", icon: FlameKindling },
+        { href: "/app/church-admin/workflows", label: "Workflow Queue", description: "Suggested ministry workflows", icon: Users },
       ]
     : [
         { href: "/app/pastor",              label: "Home",    description: "Pastor overview",  icon: FlameKindling },
@@ -161,6 +165,48 @@ export function MinistryForgeListPage({
       navItems={navItems}
     >
       <Stack gap="xl">
+        <Paper withBorder radius="xl" p="lg">
+          <Group justify="space-between" align="flex-start" mb="sm">
+            <div>
+              <Title order={4}>Suggested Ministry Workflows</Title>
+              <Text size="sm" c="dimmed" mt={4}>
+                Explainable Ops-only suggestions for human review and follow-up.
+              </Text>
+            </div>
+            <Badge color={workflowWidget.highUrgencyCount > 0 ? "red" : "gray"} variant="light">
+              {workflowWidget.highUrgencyCount} high urgency
+            </Badge>
+          </Group>
+
+          <Group gap="md" mb="sm">
+            <Badge variant="outline">Pending {workflowWidget.pendingCount}</Badge>
+            {workflowWidget.byWorkflowCode.map((entry) => (
+              <Badge key={entry.workflowCode} variant="light" color="churchBlue">
+                {entry.workflowCode.replaceAll("_", " ")}: {entry.count}
+              </Badge>
+            ))}
+          </Group>
+
+          {workflowWidget.latestSuggestions.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No current suggestions. Run evaluation from the workflow queue when new Ops activity is available.
+            </Text>
+          ) : (
+            <Stack gap={6}>
+              {workflowWidget.latestSuggestions.map((item) => (
+                <Group key={item.id} justify="space-between" wrap="nowrap">
+                  <Text size="sm" lineClamp={1}>
+                    {item.title}
+                  </Text>
+                  <Badge color={item.urgency === "high" ? "red" : item.urgency === "medium" ? "yellow" : "gray"} variant="dot">
+                    {item.urgency}
+                  </Badge>
+                </Group>
+              ))}
+            </Stack>
+          )}
+        </Paper>
+
         {/* Summary strip */}
         {data.ministries.length > 0 ? (
           <Group gap="md">

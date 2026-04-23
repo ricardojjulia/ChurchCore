@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   BarChart2,
@@ -304,6 +305,54 @@ export function ChurchAdminPeopleWorkspace({
                           {person.ministryNames.join(", ")}
                         </Text>
                       ) : null}
+
+                      <Stack gap={6} mt="md">
+                        <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+                          ShepherdAI Insights
+                        </Text>
+                        {person.shepherdInsights.length === 0 ? (
+                          <Text size="xs" c="dimmed">
+                            No active suggestions.
+                          </Text>
+                        ) : (
+                          person.shepherdInsights.map((insight) => (
+                            <Paper key={insight.id} withBorder radius="md" p="sm">
+                              <Group justify="space-between" align="flex-start" gap="xs">
+                                <div>
+                                  <Text size="sm" fw={600}>
+                                    {insight.title}
+                                  </Text>
+                                  <Text size="xs" c="dimmed" mt={2} lineClamp={2}>
+                                    {insight.summary}
+                                  </Text>
+                                </div>
+                                <Badge
+                                  size="xs"
+                                  color={
+                                    insight.urgency === "high"
+                                      ? "red"
+                                      : insight.urgency === "medium"
+                                        ? "yellow"
+                                        : "gray"
+                                  }
+                                  variant="light"
+                                >
+                                  {insight.urgency}
+                                </Badge>
+                              </Group>
+                            </Paper>
+                          ))
+                        )}
+                        <Text
+                          component={Link}
+                          href="/app/church-admin/workflows"
+                          size="xs"
+                          c="churchBlue"
+                          fw={600}
+                        >
+                          View ministry workflows
+                        </Text>
+                      </Stack>
                     </div>
                   </Group>
 

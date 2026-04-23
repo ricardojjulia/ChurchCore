@@ -1,7 +1,7 @@
 /**
  * Voluntary donations — Stripe integration helpers.
  *
- * All giving is 100% voluntary. ChurchForge takes no platform cut.
+ * All giving is 100% voluntary. ChurchCore Ops takes no platform cut.
  * Every donation goes directly to the church's connected Stripe account.
  *
  * Design:

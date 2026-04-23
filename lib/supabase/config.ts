@@ -179,6 +179,10 @@ export function hasControlPlaneDbUrl() {
   return hasNamedDbUrl("CONTROL_PLANE") || Boolean(process.env.SUPABASE_DB_URL);
 }
 
+export function hasControlPlaneBackendConfig() {
+  return hasControlPlaneSupabaseEnv() || hasControlPlaneDbUrl();
+}
+
 export function getControlPlaneDbUrl() {
   return hasNamedDbUrl("CONTROL_PLANE")
     ? getNamedDbUrl("CONTROL_PLANE")
@@ -187,6 +191,10 @@ export function getControlPlaneDbUrl() {
 
 export function hasTenantDbUrl() {
   return hasNamedDbUrl("TENANT") || Boolean(process.env.SUPABASE_DB_URL);
+}
+
+export function hasTenantBackendConfig() {
+  return hasTenantSupabaseEnv() || hasTenantDbUrl();
 }
 
 export function getTenantDbUrl() {

@@ -26,8 +26,8 @@ import {
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
 
-export const sessionCookieName = "churchforge_session";
-export const appContextCookieName = "churchforge_app_context";
+export const sessionCookieName = "churchcore_ops_session";
+export const appContextCookieName = "churchcore_ops_app_context";
 
 export type ChurchRoleId = Exclude<PortalRoleId, "super-admin">;
 
@@ -116,7 +116,7 @@ export const demoProfiles: DemoProfile[] = [
   {
     id: "sarah-platform",
     name: "Sarah Bennett",
-    email: "sarah@churchforge.app",
+    email: "sarah@churchcoreops.app",
     title: "Platform SuperAdmin",
     roleId: "super-admin",
     defaultPath: "/control",
@@ -1071,7 +1071,7 @@ export async function requireControlPlaneSession(redirectTo: string) {
   if (!session.canAccessControl) {
     redirect(
       `/sign-in?redirectTo=${encodeURIComponent(redirectTo)}&force=1&message=${encodeURIComponent(
-        "Sign in with a control-plane account to open ChurchForge Control.",
+        "Sign in with a control-plane account to open ChurchCore Ops Control.",
       )}`,
     );
   }

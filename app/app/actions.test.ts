@@ -39,6 +39,10 @@ vi.mock("@/lib/auth", () => ({
   requireChurchSession: requireChurchSessionMock,
 }));
 
+vi.mock("@/lib/church-profile", () => ({
+  resolveActiveChurchProfileId: vi.fn(async () => "admin-1"),
+}));
+
 vi.mock("@/lib/supabase/tenant", () => ({
   createTenantAdminClient: createTenantAdminClientMock,
   createTenantServerClient: createTenantServerClientMock,
@@ -66,6 +70,7 @@ describe("app actions", () => {
 
   it("updates ministry leader assignment in local fallback mode", async () => {
     queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "ministry-1" }] })
       .mockResolvedValueOnce({ rows: [{ id: "profile-2" }] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
@@ -81,11 +86,16 @@ describe("app actions", () => {
 
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
       1,
+      expect.stringContaining("from public.ministries"),
+      ["ministry-1", "church-1"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      2,
       expect.stringContaining("from public.profiles"),
       ["profile-2", "church-1"],
     );
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
-      2,
+      3,
       expect.stringContaining("update public.ministries"),
       [
         "Women's Ministry",
@@ -98,7 +108,7 @@ describe("app actions", () => {
       ],
     );
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
-      3,
+      4,
       expect.stringContaining("insert into public.profile_ministries"),
       ["church-1", "profile-2", "ministry-1"],
     );
@@ -107,7 +117,9 @@ describe("app actions", () => {
   });
 
   it("rejects leader assignments outside the church scope", async () => {
-    queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [] });
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "ministry-1" }] })
+      .mockResolvedValueOnce({ rows: [] });
 
     await expect(
       updateMinistryAction({
@@ -118,9 +130,9 @@ describe("app actions", () => {
         scripturalAnchor: [],
         leaderProfileId: "missing-profile",
       }),
-    ).rejects.toThrow("Selected leader was not found in this church.");
+    ).rejects.toThrow("Profile not found in this church.");
 
-    expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(1);
+    expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(2);
     expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 });

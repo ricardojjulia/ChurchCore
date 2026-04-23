@@ -60,7 +60,7 @@ export function DataRightsPanel({
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `churchforge-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `churchcore-ops-data-export-${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         URL.revokeObjectURL(url);
         notifications.show({
@@ -120,7 +120,7 @@ export function DataRightsPanel({
         </Group>
 
         <Text fz="xs" c="dimmed" mb="md">
-          Download a copy of all personal information ChurchForge holds about you — profile, ministry assignments, consent logs, notification preferences, and giving history. No passwords or payment card data are included.
+          Download a copy of all personal information ChurchCore Ops holds about you — profile, ministry assignments, consent logs, notification preferences, and giving history. No passwords or payment card data are included.
         </Text>
 
         {exportRequested ? (
@@ -176,7 +176,7 @@ export function DataRightsPanel({
             Under GDPR and CCPA you have the right to access, correct, and request deletion of your personal data.
           </Text>
           <Text fz="xs" c="dimmed">
-            Your giving records are held by your local church and governed by their privacy policy. ChurchForge never shares your personal or financial information with third parties without your consent.
+            Your giving records are held by your local church and governed by their privacy policy. ChurchCore Ops never shares your personal or financial information with third parties without your consent.
           </Text>
           <Text fz="xs" c="dimmed">
             For questions about how your data is used, contact your church administrator directly.
@@ -234,7 +234,7 @@ export function DataRightsPanel({
 
       <Divider />
       <Text fz="xs" c="dimmed" ta="center">
-        ChurchForge is committed to your privacy. All data handling is governed by your church&rsquo;s privacy policy and applicable law.
+        ChurchCore Ops is committed to your privacy. All data handling is governed by your church&rsquo;s privacy policy and applicable law.
       </Text>
     </Stack>
   );

@@ -1,6 +1,6 @@
 # Churchgoer And Pastor Execution Plan
 
-This document defines the next implementation slice for ChurchForge people data and role-facing screens. It is aligned to:
+This document defines the next implementation slice for ChurchCore Ops people data and role-facing screens. It is aligned to:
 
 - `DEVELOPMENT_PLAN.md`
 - `docs/plans/churchgoer-data.md`
@@ -12,7 +12,7 @@ The current repo has the beginnings of a member portal and church-scoped profile
 
 ## Why This Slice Now
 
-ChurchForge cannot deliver credible ministry intelligence, pastor workflows, or leadership collaboration while member and pastor records remain shallow. The people layer is the dependency beneath:
+ChurchCore Ops cannot deliver credible ministry intelligence, pastor workflows, or leadership collaboration while member and pastor records remain shallow. The people layer is the dependency beneath:
 
 - Directory and family experiences
 - Ministry assignment and visibility

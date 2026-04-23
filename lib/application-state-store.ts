@@ -19,7 +19,7 @@ function scopedCookieName(scope: string, session: AuthSession) {
       ? session.appContext.church.id.replace(/[^a-zA-Z0-9_-]/g, "_")
       : "platform";
 
-  return `churchforge_${scope}_${safeUserId}_${safeChurchId}`;
+  return `churchcore_ops_${scope}_${safeUserId}_${safeChurchId}`;
 }
 
 async function readJsonCookie<T>(name: string): Promise<T | null> {

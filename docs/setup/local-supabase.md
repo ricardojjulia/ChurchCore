@@ -1,6 +1,6 @@
-# ChurchForge — Local Supabase Setup
+# ChurchCore Ops — Local Supabase Setup
 
-This document covers how to start, seed, and reset the local Supabase instance for ChurchForge development.
+This document covers how to start, seed, and reset the local Supabase instance for ChurchCore Ops development.
 
 ---
 
@@ -75,7 +75,7 @@ npx supabase db reset
 ```
 
 > `db reset` wipes `auth.users`. You must run `create-dev-users.sh` after every reset.
-> When `CHURCHFORGE_DEV_PASSWORD` is not set, the script generates a local password and writes it to the gitignored `.demo-credentials.local`.
+> When `CHURCHCORE_OPS_DEV_PASSWORD` is not set, the script generates a local password and writes it to the gitignored `.demo-credentials.local`.
 
 ---
 
@@ -83,18 +83,18 @@ npx supabase db reset
 
 | Email | Role |
 |-------|------|
-| `sarah@churchforge.app` | Church Admin + Platform Admin |
+| `sarah@churchcoreops.app` | Church Admin + Platform Admin |
 | `david@graceharbor.church` | Member |
 
 The password is either:
 
-- the value of `CHURCHFORGE_DEV_PASSWORD`, if you set it before running the script
+- the value of `CHURCHCORE_OPS_DEV_PASSWORD`, if you set it before running the script
 - or a generated password printed by the script and saved to `.demo-credentials.local`
 
 The generated file also includes:
 
-- `CHURCHFORGE_DEMO_ADMIN_EMAIL`
-- `CHURCHFORGE_DEMO_MEMBER_EMAIL`
+- `CHURCHCORE_OPS_DEMO_ADMIN_EMAIL`
+- `CHURCHCORE_OPS_DEMO_MEMBER_EMAIL`
 
 Sarah can access:
 - `/app` — Church admin workspace
@@ -128,7 +128,7 @@ The seed creates **Grace Harbor Church** with the following:
 
 | Name | Email | Role |
 |------|-------|------|
-| Sarah Mitchell | sarah@churchforge.app | church_admin |
+| Sarah Mitchell | sarah@churchcoreops.app | church_admin |
 | David Chen | david@graceharbor.church | member_volunteer |
 | James Ortega | james@graceharbor.church | member_volunteer |
 | Aisha Thompson | aisha@graceharbor.church | member_volunteer |

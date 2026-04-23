@@ -142,7 +142,7 @@ export function ApplicationShell({
               <Sparkles size={16} />
             </ThemeIcon>
             <Box>
-              <Text fw={700} size="sm">ChurchForge</Text>
+              <Text fw={700} size="sm">ChurchCore Ops</Text>
               <Text c="dimmed" size="xs">{sectionLabel}</Text>
             </Box>
           </Group>

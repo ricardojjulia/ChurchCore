@@ -120,7 +120,7 @@ export function MemberPortalHome({
             title="Finish your communication preferences"
           >
             Set your preferred contact method and confirm which channels your church may use for
-            updates. ChurchForge records these choices in your consent history.
+            updates. ChurchCore Ops records these choices in your consent history.
           </Alert>
         ) : null}
 

@@ -68,8 +68,8 @@ case "${MODE}" in
     check_http_ok "/plan"
     ;;
   local)
-    : "${CHURCHFORGE_DEMO_ADMIN_EMAIL:?Run ./supabase/scripts/create-dev-users.sh first.}"
-    : "${CHURCHFORGE_DEV_PASSWORD:?Run ./supabase/scripts/create-dev-users.sh first.}"
+    : "${CHURCHCORE_OPS_DEMO_ADMIN_EMAIL:?Run ./supabase/scripts/create-dev-users.sh first.}"
+    : "${CHURCHCORE_OPS_DEV_PASSWORD:?Run ./supabase/scripts/create-dev-users.sh first.}"
 
     curl -sS -c "${COOKIE_JAR}" "${APP_URL}/sign-in" > "${HTML_FILE}"
     ACTION_ID="$(
@@ -92,8 +92,8 @@ PY
       -X POST "${APP_URL}/sign-in" \
       -F "${ACTION_ID}=" \
       -F "redirectTo=/control" \
-      -F "email=${CHURCHFORGE_DEMO_ADMIN_EMAIL}" \
-      -F "password=${CHURCHFORGE_DEV_PASSWORD}" \
+      -F "email=${CHURCHCORE_OPS_DEMO_ADMIN_EMAIL}" \
+      -F "password=${CHURCHCORE_OPS_DEV_PASSWORD}" \
       -F "intent=sign-in" > "${LOGIN_HEADERS}"
 
     if ! grep -q " 303 " "${LOGIN_HEADERS}"; then
@@ -110,9 +110,9 @@ value = '{"kind":"church","churchId":"11111111-0000-0000-0000-000000000001","rol
 print(urllib.parse.quote(value, safe=''))
 PY
     )"
-    printf '#HttpOnly_localhost\tFALSE\t/\tFALSE\t0\tchurchforge_app_context\t%s\n' "${APP_CONTEXT}" >> "${COOKIE_JAR}"
+    printf '#HttpOnly_localhost\tFALSE\t/\tFALSE\t0\tchurchcore_ops_app_context\t%s\n' "${APP_CONTEXT}" >> "${COOKIE_JAR}"
 
-    require_contains "/control" "ChurchForge"
+    require_contains "/control" "ChurchCore Ops"
     require_contains "/app/church-admin/children/dashboard" "Children"
     require_contains "/app/church-admin/children/services" "Service"
     require_contains "/app/calendar" "Calendar"

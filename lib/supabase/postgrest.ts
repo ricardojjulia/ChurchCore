@@ -27,5 +27,9 @@ export function toFriendlySupabaseErrorMessage(message: string) {
     return "Local Supabase is not ready yet. Wait a few seconds and try again.";
   }
 
+  if (normalized.includes("csrf token mismatch")) {
+    return "Your sign-in session token was stale. Please try signing in again.";
+  }
+
   return message;
 }

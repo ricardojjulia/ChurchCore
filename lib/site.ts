@@ -1,5 +1,5 @@
 export const siteConfig = {
-  name: "ChurchForge",
+  name: "ChurchCore Ops",
   description:
     "A secure multi-tenant church operations platform for role-based portals, ministry workflows, events, volunteers, and guardrailed AI assistance.",
 };

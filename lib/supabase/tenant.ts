@@ -9,27 +9,28 @@ import {
   getTenantDbUrl,
   getTenantSupabaseEnv,
   getTenantServiceRoleKey,
+  hasTenantBackendConfig,
   hasTenantSupabaseEnv,
   hasTenantServiceRoleKey,
   shouldUseLocalTenantDbFallback,
 } from "@/lib/supabase/config";
 
 declare global {
-  var __churchforgeTenantPool: Pool | undefined;
+  var __churchcoreopsTenantPool: Pool | undefined;
 }
 
 function getTenantPool() {
-  if (!global.__churchforgeTenantPool) {
-    global.__churchforgeTenantPool = new Pool({
+  if (!global.__churchcoreopsTenantPool) {
+    global.__churchcoreopsTenantPool = new Pool({
       connectionString: getTenantDbUrl(),
     });
   }
 
-  return global.__churchforgeTenantPool;
+  return global.__churchcoreopsTenantPool;
 }
 
 export function hasTenantBackendEnv() {
-  return hasTenantSupabaseEnv();
+  return hasTenantBackendConfig();
 }
 
 export function hasTenantAdminBackendEnv() {

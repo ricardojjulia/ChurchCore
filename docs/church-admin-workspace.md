@@ -1,6 +1,6 @@
 # ChurchAdmin Workspace
 
-This document describes the first role-specific deep workspace in ChurchForge.
+This document describes the first role-specific deep workspace in ChurchCore Ops.
 
 ## Purpose
 
@@ -51,4 +51,4 @@ That bridge matters operationally. A church-admin can now:
 - approve the request and issue a church-safe member identity
 - manage the same member again later in event attendance and roster workflows
 
-This is the first point where ChurchForge starts to feel like one connected tenant app instead of several isolated role demos.
+This is the first point where ChurchCore Ops starts to feel like one connected tenant app instead of several isolated role demos.

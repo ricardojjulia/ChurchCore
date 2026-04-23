@@ -268,7 +268,7 @@ export function GivingDashboard({
 
       {/* Privacy note */}
       <Text fz="xs" c="dimmed" ta="center" mt="xl">
-        Anonymous donations are shown without donor identity. All giving is voluntary and 100% church-controlled — ChurchForge takes no platform fees.
+        Anonymous donations are shown without donor identity. All giving is voluntary and 100% church-controlled — ChurchCore Ops takes no platform fees.
       </Text>
     </ApplicationShell>
   );

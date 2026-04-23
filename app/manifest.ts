@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "ChurchForge",
-    short_name: "ChurchForge",
+    name: "ChurchCore Ops",
+    short_name: "ChurchCore Ops",
     description:
       "Your church portal — events, ministries, directory, and profile in one place.",
     start_url: "/portal",

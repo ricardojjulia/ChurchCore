@@ -6,8 +6,8 @@ import { requireControlPlaneSession } from "@/lib/auth";
 import { Building2, CheckSquare, LifeBuoy, Wallet } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Launch Checklist | ChurchForge Control",
-  description: "Pre-launch readiness checklist for ChurchForge platform operators.",
+  title: "Launch Checklist | ChurchCore Ops Control",
+  description: "Pre-launch readiness checklist for ChurchCore Ops platform operators.",
 };
 
 export default async function LaunchChecklistPage() {
@@ -34,9 +34,9 @@ export default async function LaunchChecklistPage() {
       calendarHref="/app/calendar"
       sectionLabel="Control"
       title="Launch Checklist"
-      description="ChurchForge Platform"
+      description="ChurchCore Ops Platform"
       sidebarTitle="Control"
-      sidebarDescription="Platform operator tools for ChurchForge staff."
+      sidebarDescription="Platform operator tools for ChurchCore Ops staff."
       navLabel="Control Plane"
       navItems={navItems}
     >

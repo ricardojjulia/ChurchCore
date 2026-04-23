@@ -6,7 +6,7 @@ import { PortalRegisterForm } from "@/components/portal/portal-register-form";
 import { getPublicPortalChurches, getRequestedPublicChurch } from "@/lib/public-portal-data";
 
 export const metadata: Metadata = {
-  title: "Portal Registration | ChurchForge",
+  title: "Portal Registration | ChurchCore Ops",
   description: "Request member portal access for your church.",
 };
 
@@ -39,7 +39,7 @@ export default async function PortalRegisterPage({
         <Stack gap="lg">
           <Group justify="space-between">
             <Text size="sm" fw={700} c="dimmed" tt="uppercase">
-              ChurchForge Portal
+              ChurchCore Ops Portal
             </Text>
             <Button component={Link} href="/portal" variant="subtle">
               Back

@@ -13,7 +13,7 @@
 --   prefer vault_secret_name over db_url when both are set.
 --
 -- Migration path (requires Vault enabled on project):
---   select vault.create_secret(db_url, 'tenant_db_' || tenant_id::text, 'ChurchForge tenant DB URL')
+--   select vault.create_secret(db_url, 'tenant_db_' || tenant_id::text, 'ChurchCore Ops tenant DB URL')
 --   update tenant_connections set vault_secret_name = 'tenant_db_' || tenant_id::text where ...;
 --   update tenant_connections set db_url = null where vault_secret_name is not null;
 --

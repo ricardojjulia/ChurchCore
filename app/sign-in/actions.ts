@@ -20,6 +20,24 @@ import {
 import { toFriendlySupabaseErrorMessage } from "@/lib/supabase/postgrest";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 
+function isCsrfMismatchError(message: string | null | undefined) {
+  return message?.toLowerCase().includes("csrf token mismatch") === true;
+}
+
+async function clearStaleSupabaseAuthCookies() {
+  const cookieStore = await cookies();
+  const allCookies = cookieStore.getAll();
+
+  for (const cookie of allCookies) {
+    if (
+      cookie.name.startsWith("sb-") &&
+      (cookie.name.includes("auth-token") || cookie.name.includes("code-verifier"))
+    ) {
+      cookieStore.delete(cookie.name);
+    }
+  }
+}
+
 export async function signInAction(formData: FormData) {
   const redirectTo = sanitizeRedirectTarget(
     String(formData.get("redirectTo") ?? "/workspace"),
@@ -46,7 +64,7 @@ export async function signInAction(formData: FormData) {
 
     if (intent === "sign-up") {
       if (authSurface === "control-plane") {
-        errorRedirect("Control-plane accounts must be provisioned by ChurchForge staff.");
+        errorRedirect("Control-plane accounts must be provisioned by ChurchCore Ops staff.");
       }
 
       const headerStore = await headers();
@@ -77,10 +95,23 @@ export async function signInAction(formData: FormData) {
       );
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
+    let { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+
+    // Stale PKCE/session cookies can trigger CSRF mismatch on self-hosted
+    // or proxied environments. Clear stale auth cookies and retry once.
+    if (isCsrfMismatchError(error?.message)) {
+      await clearStaleSupabaseAuthCookies();
+
+      const retryClient = await createSupabaseServerClient(authSurface);
+      const retry = await retryClient.auth.signInWithPassword({
+        email,
+        password,
+      });
+      error = retry.error;
+    }
 
     if (error) {
       errorRedirect(toFriendlySupabaseErrorMessage(error.message));

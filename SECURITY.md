@@ -1,6 +1,6 @@
 # Security Policy
 
-ChurchForge handles sensitive church workflows, including child-safety operations, finance, member data, and role-restricted administrative actions. Treat security reports seriously and keep disclosure private.
+ChurchCore Ops handles sensitive church workflows, including child-safety operations, finance, member data, and role-restricted administrative actions. Treat security reports seriously and keep disclosure private.
 
 ## Reporting a Vulnerability
 

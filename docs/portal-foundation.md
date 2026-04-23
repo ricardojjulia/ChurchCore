@@ -1,6 +1,6 @@
 # Portal Foundation
 
-This document describes the first application-facing slice added on top of the ChurchForge marketing shell.
+This document describes the first application-facing slice added on top of the ChurchCore Ops marketing shell.
 
 ## Purpose
 

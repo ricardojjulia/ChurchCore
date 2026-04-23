@@ -1,6 +1,6 @@
 # Sprint 2: Attendance, Roster, and Member Identity Flow
 
-This document captures the ChurchForge Sprint 2 implementation that connects three related concerns into one tenant-safe workflow:
+This document captures the ChurchCore Ops Sprint 2 implementation that connects three related concerns into one tenant-safe workflow:
 
 - attendance and event check-in
 - serving rosters and burnout visibility

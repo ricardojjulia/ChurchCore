@@ -6,7 +6,7 @@ const ORBIT_POINTS = [
   { x: "105.45", y: "42.45", begin: "1.6s" },
 ] as const;
 
-export function ChurchForgeHeroIcon() {
+export function ChurchCoreOpsHeroIcon() {
   return (
     <svg
       width={180}

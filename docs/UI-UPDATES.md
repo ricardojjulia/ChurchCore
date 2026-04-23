@@ -1,10 +1,10 @@
 # UI Updates
 
-This document records active UI direction changes for ChurchForge.
+This document records active UI direction changes for ChurchCore Ops.
 
 ## 2026-04-11: Blue-Neutral Minimal System
 
-ChurchForge is moving to a minimalist, high-contrast, adaptive UI system built for operational clarity rather than trend-driven decoration.
+ChurchCore Ops is moving to a minimalist, high-contrast, adaptive UI system built for operational clarity rather than trend-driven decoration.
 
 ### Approved Direction
 
@@ -16,7 +16,7 @@ ChurchForge is moving to a minimalist, high-contrast, adaptive UI system built f
 
 ### Color Strategy
 
-ChurchForge now follows a practical version of the `60-30-10` rule:
+ChurchCore Ops now follows a practical version of the `60-30-10` rule:
 
 - `60%` neutral backgrounds and surfaces
 - `30%` slate structure, text hierarchy, and framing

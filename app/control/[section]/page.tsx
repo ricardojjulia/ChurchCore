@@ -23,8 +23,8 @@ export async function generateMetadata({
 
   return {
     title: activeSection
-      ? `${activeSection.label} | ChurchForge Control`
-      : "Control Plane | ChurchForge",
+      ? `${activeSection.label} | ChurchCore Ops Control`
+      : "Control Plane | ChurchCore Ops",
   };
 }
 

@@ -31,9 +31,9 @@ import {
 import { toFriendlySupabaseErrorMessage } from "@/lib/supabase/postgrest";
 
 export const metadata: Metadata = {
-  title: "Sign In | ChurchForge",
+  title: "Sign In | ChurchCore Ops",
   description:
-    "Sign in to ChurchForge through the approved Supabase SSR auth foundation.",
+    "Sign in to ChurchCore Ops through the approved Supabase SSR auth foundation.",
 };
 
 type SignInPageProps = {
@@ -82,7 +82,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         <Group justify="space-between" mb={32}>
           <Box>
             <Badge color="gray" variant="light" mb="sm">
-              ChurchForge
+              ChurchCore Ops
             </Badge>
             <Title order={1}>Sign in</Title>
             <Text c="dimmed" mt="sm">
@@ -115,7 +115,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             {session && forceSignIn && !session.canAccessControl ? (
               <Alert color="yellow" title="Control access required">
                 You are signed in as {session.profile.email}. Use a control-plane account to continue to
-                ChurchForge Control.
+                ChurchCore Ops Control.
               </Alert>
             ) : null}
 

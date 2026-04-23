@@ -1,11 +1,11 @@
-// ChurchForge Service Worker
+// ChurchCore Ops Service Worker
 // Provides offline support for the member portal.
 // Sprint 3 — PWA offline caching.
 
 const CACHE_VERSION = "v1";
-const STATIC_CACHE = `churchforge-static-${CACHE_VERSION}`;
-const PAGES_CACHE = `churchforge-pages-${CACHE_VERSION}`;
-const FONTS_CACHE = `churchforge-fonts-${CACHE_VERSION}`;
+const STATIC_CACHE = `churchcore-ops-static-${CACHE_VERSION}`;
+const PAGES_CACHE = `churchcore-ops-pages-${CACHE_VERSION}`;
+const FONTS_CACHE = `churchcore-ops-fonts-${CACHE_VERSION}`;
 
 // Pages cached on first visit and served offline if the network fails.
 const PORTAL_ROUTES = ["/portal", "/app/member", "/app/member/directory", "/app/member/family", "/app/member/ministries"];
@@ -30,7 +30,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key.startsWith("churchforge-") && !keepCaches.has(key))
+            .filter((key) => key.startsWith("churchcore-ops-") && !keepCaches.has(key))
             .map((key) => caches.delete(key)),
         ),
       )

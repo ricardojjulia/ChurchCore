@@ -1,4 +1,4 @@
-export const publicChurchSlugCookieName = "churchforge_public_church_slug";
+export const publicChurchSlugCookieName = "churchcore_ops_public_church_slug";
 
 const RESERVED_SLUGS = new Set([
   "www",

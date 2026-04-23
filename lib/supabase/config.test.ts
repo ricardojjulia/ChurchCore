@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  hasControlPlaneBackendConfig,
   getPreferredSupabaseSurfaceForRedirect,
   getControlPlaneDbUrl,
   getSupabaseRefreshSurfacesForPath,
   getSupabaseSurfaceFallbackOrder,
   getSupabaseEnvForSurface,
   getTenantDbUrl,
+  hasTenantBackendConfig,
   hasSupabaseEnvForSurface,
   shouldUseLocalControlPlaneDbFallback,
   shouldUseLocalTenantDbFallback,
@@ -92,6 +94,23 @@ describe("supabase config surface routing", () => {
 
     expect(getControlPlaneDbUrl()).toBe("postgres://control");
     expect(getTenantDbUrl()).toBe("postgres://tenant");
+  });
+
+  it("treats direct db fallback urls as configured backends", () => {
+    delete process.env.CONTROL_PLANE_SUPABASE_URL;
+    delete process.env.CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY;
+    delete process.env.TENANT_SUPABASE_URL;
+    delete process.env.TENANT_SUPABASE_PUBLISHABLE_KEY;
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+    process.env.CONTROL_PLANE_DB_URL = "postgres://control";
+    process.env.TENANT_DB_URL = "postgres://tenant";
+
+    expect(hasControlPlaneBackendConfig()).toBe(true);
+    expect(hasTenantBackendConfig()).toBe(true);
+    expect(shouldUseLocalControlPlaneDbFallback()).toBe(true);
+    expect(shouldUseLocalTenantDbFallback()).toBe(true);
   });
 
   it("falls back to the shared db url when split urls are absent", () => {
