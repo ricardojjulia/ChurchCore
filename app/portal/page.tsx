@@ -20,16 +20,7 @@ export default async function PortalPage() {
   }
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        padding: "2rem 1rem",
-        background:
-          "linear-gradient(180deg, rgba(37,99,235,0.06) 0%, rgba(255,255,255,1) 60%)",
-      }}
-    >
+    <main className="portal-page-bg min-h-screen grid place-items-center px-4 py-8">
       <Paper withBorder radius="xl" p={{ base: "lg", sm: "xl" }} maw={720} w="100%">
         <Stack gap="lg">
           <div>

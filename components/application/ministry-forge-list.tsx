@@ -74,7 +74,7 @@ function MinistryCard({ ministry }: { ministry: MinistryForgeEntry }) {
     >
       <Stack gap="sm">
         <Group justify="space-between" align="flex-start" wrap="nowrap">
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="min-w-0 flex-1">
             <Text fw={700} size="md" truncate>
               {ministry.name}
             </Text>

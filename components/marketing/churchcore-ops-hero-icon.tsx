@@ -12,8 +12,7 @@ export function ChurchCoreOpsHeroIcon() {
       width={180}
       height={180}
       viewBox="0 0 180 180"
-      className="mx-auto"
-      style={{ filter: "drop-shadow(0 4px 12px rgba(37, 99, 235, 0.15))" }}
+      className="mx-auto hero-icon-shadow"
       aria-hidden="true"
     >
       <circle

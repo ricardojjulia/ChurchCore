@@ -8,6 +8,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Unreleased — Added
 
+- Added `supabase/control-plane/` as the dedicated Supabase project directory for control-plane concerns (tenant registry, billing metadata, platform staff identity, tenant-view audit trail). Includes `config.toml` with separate ports (API 54331, DB 54332) to allow both projects to run locally without conflict, a clean schema migration (`20260424000000_control_plane_schema.sql`) with no cross-database FK constraints, and a local development seed.
+- Updated `DEVELOPMENT_PLAN.md` to reflect ADR 0002 scaffolding status and document the remaining provisioning steps before the shared-backend fallback can be removed.
+
 - Added local evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, and `npm run smoke:local`, backed by `supabase/scripts/setup-local.sh` and `supabase/scripts/smoke-demo.sh`.
 - Added `.github/CODEOWNERS` with the current repository owner to make review ownership explicit from the first push.
 - Added a Vitest-based test harness with `npm run test`, `npm run test:watch`, and `npm run test:coverage`.

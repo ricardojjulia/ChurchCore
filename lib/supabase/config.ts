@@ -78,15 +78,25 @@ function getSurfacePrefix(surface: SupabaseSurface) {
 }
 
 export function hasSupabaseEnvForSurface(surface: SupabaseSurface) {
-  return hasNamedSupabaseEnv(getSurfacePrefix(surface)) || hasSharedSupabaseEnv();
+  const prefix = getSurfacePrefix(surface);
+  if (surface === "control-plane") {
+    return hasNamedSupabaseEnv(prefix);
+  }
+  return hasNamedSupabaseEnv(prefix) || hasSharedSupabaseEnv();
 }
 
 export function getSupabaseEnvForSurface(surface: SupabaseSurface) {
   const prefix = getSurfacePrefix(surface);
-
-  return hasNamedSupabaseEnv(prefix)
-    ? getNamedSupabaseEnv(prefix)
-    : getSharedSupabaseEnv();
+  if (hasNamedSupabaseEnv(prefix)) {
+    return getNamedSupabaseEnv(prefix);
+  }
+  if (surface === "tenant") {
+    return getSharedSupabaseEnv();
+  }
+  throw new Error(
+    "CONTROL_PLANE_SUPABASE_URL and CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY are required. " +
+      "The shared NEXT_PUBLIC_SUPABASE_* fallback is no longer used for the control-plane surface.",
+  );
 }
 
 export function getSupabaseSurfaceFallbackOrder(

@@ -52,6 +52,20 @@ html {
     var(--background);
 }
 
+.portal-page-bg {
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.06) 0%, rgba(255, 255, 255, 1) 60%);
+}
+
+.portal-register-bg {
+  background:
+    radial-gradient(circle at top, rgba(37, 99, 235, 0.10), transparent 40%),
+    #f6f7f9;
+}
+
+.hero-icon-shadow {
+  filter: drop-shadow(0 4px 12px rgba(37, 99, 235, 0.15));
+}
+
 body {
   min-height: 100vh;
   background:

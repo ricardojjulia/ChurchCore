@@ -213,7 +213,18 @@ The app detects local Supabase by checking if `NEXT_PUBLIC_SUPABASE_URL` contain
 | `SUPABASE_SERVICE_ROLE_KEY` | Transitional shared admin key for tenant-side server actions in local single-project development |
 | `SUPABASE_DB_URL` | Transitional shared Postgres connection for local fallback queries |
 
-For production, these should be split into `CONTROL_PLANE_SUPABASE_URL` + `TENANT_SUPABASE_URL`, `CONTROL_PLANE_DB_URL` + `TENANT_DB_URL`, and matching service-role keys where needed. The current shared local variables are retained only as a transitional fallback. See `lib/supabase/config.ts` for the full resolution logic.
+**Hosted split (active as of April 24, 2026)**:
+
+The control-plane project (`iopydttovnyjgikprvol`) is provisioned and the following variables activate it over the shared fallback:
+
+| Variable | Purpose |
+|----------|---------|
+| `CONTROL_PLANE_SUPABASE_URL` | Control-plane Supabase API endpoint (`https://iopydttovnyjgikprvol.supabase.co`) |
+| `CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY` | Control-plane anon/publishable key |
+| `CONTROL_PLANE_SUPABASE_SERVICE_ROLE_KEY` | Control-plane service-role key for server-side admin operations |
+| `TENANT_SUPABASE_URL` | Tenant runtime project URL (uses shared key as fallback when not set) |
+
+Set all of these in Vercel → Project Settings → Environment Variables for both Production and Preview. See `lib/supabase/config.ts` for the full resolution logic.
 
 ### Migrations fixed
 

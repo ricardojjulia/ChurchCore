@@ -27,15 +27,8 @@ export default async function PortalRegisterPage({
     null;
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        padding: "2rem 1rem",
-        background:
-          "radial-gradient(circle at top, rgba(37,99,235,0.10), transparent 40%), #f6f7f9",
-      }}
-    >
-      <div style={{ maxWidth: 760, margin: "0 auto" }}>
+    <main className="portal-register-bg min-h-screen px-4 py-8">
+      <div className="max-w-[760px] mx-auto">
         <Stack gap="lg">
           <Group justify="space-between">
             <Text size="sm" fw={700} c="dimmed" tt="uppercase">

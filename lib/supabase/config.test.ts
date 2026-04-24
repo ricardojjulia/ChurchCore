@@ -74,18 +74,26 @@ describe("supabase config surface routing", () => {
     });
   });
 
-  it("falls back to the shared env when split envs are absent", () => {
+  it("falls back to the shared env for tenant when split envs are absent", () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://shared.example.com";
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "shared-key";
 
-    expect(getSupabaseEnvForSurface("control-plane")).toEqual({
-      url: "https://shared.example.com",
-      publishableKey: "shared-key",
-    });
     expect(getSupabaseEnvForSurface("tenant")).toEqual({
       url: "https://shared.example.com",
       publishableKey: "shared-key",
     });
+  });
+
+  it("throws for control-plane when named env vars are absent", () => {
+    delete process.env.CONTROL_PLANE_SUPABASE_URL;
+    delete process.env.CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY;
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://shared.example.com";
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "shared-key";
+
+    expect(hasSupabaseEnvForSurface("control-plane")).toBe(false);
+    expect(() => getSupabaseEnvForSurface("control-plane")).toThrow(
+      "CONTROL_PLANE_SUPABASE_URL",
+    );
   });
 
   it("resolves split db urls per surface", () => {

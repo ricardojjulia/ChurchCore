@@ -41,7 +41,7 @@ export default function Home() {
 
         <Paper withBorder radius="xl" p={{ base: "xl", md: "56px" }}>
           <Stack gap="lg" align="center" maw={560} style={{ margin: "0 auto" }}>
-            <div style={{ marginBottom: "24px" }}>
+            <div className="mb-6">
               <ChurchCoreOpsHeroIcon />
             </div>
             
