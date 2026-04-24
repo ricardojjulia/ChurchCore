@@ -37,7 +37,7 @@ describe("ShepherdAiOpsService integration", () => {
     const service = new ShepherdAiOpsService(repository as never);
     const result = await service.evaluateTenantOps("tenant-1");
 
-    expect(repository.listEntityMetrics).toHaveBeenCalledWith("tenant-1");
+    expect(repository.listEntityMetrics).toHaveBeenCalledWith("tenant-1", undefined);
     expect(repository.persistSignals).toHaveBeenCalled();
     expect(repository.persistSuggestions).toHaveBeenCalled();
     expect(result.generatedSuggestions).toBeGreaterThan(0);
