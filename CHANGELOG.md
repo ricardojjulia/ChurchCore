@@ -53,6 +53,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 - Fixed ShepherdAI scheduled evaluation in hosted cron context by using tenant admin client reads/writes when no user session is present, preventing zero-entity evaluations under RLS.
 - Fixed local direct-DB fallback detection for control-plane and tenant loaders that previously checked only Supabase REST configuration before returning preview or empty data.
+- Replaced vulnerable `xlsx` dependency with `read-excel-file` for finance import parsing to remove unresolved high-severity advisories on SheetJS.
 
 ---
 

@@ -148,32 +148,36 @@ export type ExcelParseResult = {
 };
 
 /**
- * Parse an Excel file (ArrayBuffer) using the xlsx library.
+ * Parse an Excel file (ArrayBuffer) using the read-excel-file browser parser.
  * Returns the first sheet's data as header-keyed rows.
  */
 export async function parseXlsx(buffer: ArrayBuffer, sheetIndex = 0): Promise<ExcelParseResult> {
   try {
-    const XLSX = await import("xlsx");
-    const workbook = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true });
-    const sheetNames = workbook.SheetNames;
-    const sheetName = sheetNames[sheetIndex] ?? sheetNames[0];
-    if (!sheetName) return { headers: [], rows: [], sheetNames: [], errors: ["No sheets found"] };
+    const readExcelFile = (await import("read-excel-file/browser")).default;
+    const sheets = await readExcelFile(buffer);
+    const sheetNames = sheets.map((sheet) => sheet.sheet);
+    const activeSheet = sheets[sheetIndex] ?? sheets[0];
+    if (!activeSheet) return { headers: [], rows: [], sheetNames: [], errors: ["No sheets found"] };
 
-    const sheet = workbook.Sheets[sheetName];
-    const jsonRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-      defval: "",
-      raw: false,
+    const headerCells = activeSheet.data[0] ?? [];
+    const headers = headerCells.map((cell, idx) => {
+      const headerText = cell == null ? "" : String(cell).trim();
+      return headerText || `Column ${idx + 1}`;
     });
 
-    const headers = jsonRows.length > 0 ? Object.keys(jsonRows[0]) : [];
-    const rows = jsonRows.map((r) => {
-      const mapped: Record<string, string> = {};
-      for (const key of headers) {
-        const val = r[key];
-        mapped[key] = val == null ? "" : String(val);
-      }
-      return mapped;
-    });
+    const rows: Record<string, string>[] = activeSheet.data.slice(1)
+      .map((row) => {
+        const mapped: Record<string, string> = {};
+        let hasData = false;
+        headers.forEach((header, idx) => {
+          const rawValue = row[idx];
+          const textValue = rawValue == null ? "" : String(rawValue).trim();
+          mapped[header] = textValue;
+          if (textValue !== "") hasData = true;
+        });
+        return hasData ? mapped : null;
+      })
+      .filter((row): row is Record<string, string> => row !== null);
 
     return { headers, rows, sheetNames, errors: [] };
   } catch (err) {
