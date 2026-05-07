@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import {
   BellRing,
@@ -25,6 +26,7 @@ import type {
   ChurchAdminWorkspaceState,
   WeekendItemState,
 } from "@/lib/application-state";
+import type { ChurchAdminOperationsData } from "@/lib/church-admin-operations-data";
 
 const sectionMeta = {
   care: {
@@ -72,8 +74,10 @@ function nextChecklistStatus(
 
 export function ChurchAdminWorkspaceDetails({
   initialState,
+  operationsData,
 }: {
   initialState: ChurchAdminWorkspaceState;
+  operationsData?: ChurchAdminOperationsData | null;
 }) {
   const [activeSection, setActiveSection] = useState<SectionKey>("care");
   const [drawer, setDrawer] = useState<DrawerState>(null);
@@ -83,6 +87,8 @@ export function ChurchAdminWorkspaceDetails({
 
   const { careItems, weekendItems, communicationsItems, givingItems } =
     workspaceState;
+  const liveWeekendItems =
+    operationsData?.source === "live" ? operationsData.weekendItems : null;
 
   function persistState(nextState: ChurchAdminWorkspaceState) {
     setWorkspaceState(nextState);
@@ -345,7 +351,60 @@ export function ChurchAdminWorkspaceDetails({
                 ))
               : null}
 
-            {activeSection === "weekend"
+            {activeSection === "weekend" && liveWeekendItems
+              ? liveWeekendItems.length > 0
+                ? liveWeekendItems.map((item) => (
+                    <Paper key={item.id} radius="xl" p="md" bg="gray.0">
+                      <Group justify="space-between" align="flex-start" gap="md">
+                        <div>
+                          <Text fw={600}>{item.title}</Text>
+                          <Text c="dimmed" size="sm" mt="xs">
+                            {item.detail}
+                          </Text>
+                          <Group gap="xs" mt="sm">
+                            {item.badges.map((badge) => (
+                              <Badge key={badge} variant="outline">
+                                {badge}
+                              </Badge>
+                            ))}
+                          </Group>
+                        </div>
+                        <Group gap="xs">
+                          <Badge
+                            color={
+                              item.status === "done"
+                                ? "teal"
+                                : item.status === "in-progress"
+                                  ? "blue"
+                                  : "yellow"
+                            }
+                            variant="light"
+                          >
+                            {item.status}
+                          </Badge>
+                          <Button
+                            component={Link}
+                            href={item.href}
+                            radius="xl"
+                            variant="subtle"
+                          >
+                            Open event
+                          </Button>
+                        </Group>
+                      </Group>
+                    </Paper>
+                  ))
+                : (
+                    <Paper radius="xl" p="md" bg="gray.0">
+                      <Text fw={600}>No event actions need attention.</Text>
+                      <Text c="dimmed" size="sm" mt="xs">
+                        Upcoming events have approval, roster, and registration checks in good shape.
+                      </Text>
+                    </Paper>
+                  )
+              : null}
+
+            {activeSection === "weekend" && !liveWeekendItems
               ? weekendItems.map((item) => (
                   <Paper key={item.id} radius="xl" p="md" bg="gray.0">
                     <Group justify="space-between" align="flex-start" gap="md">

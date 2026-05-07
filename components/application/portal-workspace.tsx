@@ -31,6 +31,7 @@ import { ChurchAdminWorkspaceDetails } from "@/components/application/church-adm
 import type { AuthSession } from "@/lib/auth";
 import type { ChurchAdminWorkspaceState } from "@/lib/application-state";
 import type { ChurchAdminDashboardSummary } from "@/lib/church-admin-dashboard-data";
+import type { ChurchAdminOperationsData } from "@/lib/church-admin-operations-data";
 import { type PortalRole, type PortalRoleId } from "@/lib/portal";
 
 const roleIcons: Record<PortalRoleId, React.ComponentType<{ size?: number; className?: string }>> = {
@@ -46,11 +47,13 @@ export function PortalWorkspace({
   session,
   churchAdminState,
   churchAdminSummary,
+  churchAdminOperations,
 }: {
   role: PortalRole;
   session: AuthSession;
   churchAdminState?: ChurchAdminWorkspaceState | null;
   churchAdminSummary?: ChurchAdminDashboardSummary | null;
+  churchAdminOperations?: ChurchAdminOperationsData | null;
 }) {
   const churchContext = session.appContext.kind === "church" ? session.appContext : null;
   const ActiveIcon = roleIcons[role.id];
@@ -224,7 +227,10 @@ export function PortalWorkspace({
       </SimpleGrid>
 
       {role.id === "church-admin" && churchAdminState ? (
-        <ChurchAdminWorkspaceDetails initialState={churchAdminState} />
+        <ChurchAdminWorkspaceDetails
+          initialState={churchAdminState}
+          operationsData={churchAdminOperations}
+        />
       ) : null}
     </ApplicationShell>
   );
