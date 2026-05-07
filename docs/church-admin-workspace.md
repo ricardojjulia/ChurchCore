@@ -10,6 +10,7 @@ The ChurchAdmin people-management route at `/app/church-admin/people` now extend
 
 Sprint 2 extends the ChurchAdmin surface further with:
 
+- `/app/church-admin/settings` for tenant church setup profile management
 - `/app/church-admin/accounts` for public portal-request review and approval
 - `/app/church-admin/events/[id]` for attendance and roster management on a single event
 
@@ -23,6 +24,7 @@ Sprint 2 extends the ChurchAdmin surface further with:
 - Giving and reconciliation cards with local review and reconciled states
 - A slide-over detail drawer for the active ChurchAdmin work item
 - Preview persistence so workflow changes survive refresh and navigation
+- A tenant-backed church settings route for name, legal name, timezone, contact, address, website, and public summary metadata
 - A tenant-backed people-management route for churchgoer records and status updates
 - A tenant-backed portal-request approval queue with member-number generation and invite dispatch when service-role env is configured
 - An event-specific workspace for roster assignments, roster confirmations, member check-in, visitor quick-add, and seven-day burnout warnings
@@ -34,13 +36,14 @@ Church administration sits at the intersection of member care, scheduling, givin
 
 ## Current Constraint
 
-The operations lanes under `/app/church-admin` are still preview-backed. The `/app/church-admin/people`, `/app/church-admin/accounts`, and `/app/church-admin/events/[id]` routes now use real tenant data, but CSV import, automated host-based tenant routing, and richer communications workflows still need to be added.
+The operations lanes under `/app/church-admin` are still preview-backed. The `/app/church-admin/settings`, `/app/church-admin/people`, `/app/church-admin/accounts`, and `/app/church-admin/events/[id]` routes now use real tenant data, but CSV import, automated host-based tenant routing, and richer communications workflows still need to be added.
 
 ## Sprint 2 Notes
 
 Sprint 2 makes ChurchAdmin the bridge between three previously disconnected product areas:
 
 - church people records
+- church setup profile data
 - weekend / event execution
 - member portal identity approval
 

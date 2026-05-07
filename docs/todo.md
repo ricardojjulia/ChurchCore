@@ -1,31 +1,27 @@
 # TODO
 
-## Sprint 1 Next Steps
+## Sprint 2 Next Steps
 
-The v1.5 development plan now makes Sprint 1 the active priority. The immediate execution order is:
+ADR 0002 is complete. The control-plane Supabase project now owns platform registry concerns, the tenant project owns church runtime data, and shared database fallbacks have been removed from the active config path.
 
-- Implement ADR 0002 and stop deepening the shared control-plane-plus-tenant backend model
-- Define the control-plane schema separately from the tenant schema
-- Continue hardening the separate backend configuration for control-plane and tenant connections
-- Continue tenant-side Sprint 1 work for `profiles`, `ministries`, `profile_ministries`, and categorized `events`
-- Add ministry assignment flows on top of live tenant-side `ministries` and `profile_ministries`
-- Add RLS verification for cross-church read and write isolation inside the tenant data plane
+The next execution focus is Sprint 2 — Admin Dashboard and Church Setup:
 
-## Supabase Hookup
+- Continue church settings/profile management after the first tenant-backed settings surface.
+- Continue church-admin directory polish for people, households, invites, and account approval flows.
+- Continue role management hardening after the first per-person role edit flow, including broader review of edge cases around last-admin protection and ministry-leader scope.
+- Expand admin dashboard summaries with real tenant data for members, ministries, events, and giving.
+- Add focused tests for admin write actions that touch church settings, profile status, role changes, and invitation flows.
+- Keep README, CHANGELOG, and relevant `/docs` files updated with each meaningful feature change.
 
-ADR 0001 is approved for Supabase as a backend option, and ADR 0002 now requires control-plane and tenant data separation.
+## Supabase Follow-up
 
-The remaining execution steps for a real backend connection are:
+ADR 0001 remains approved for Supabase, and ADR 0002 now requires separate configured backends for control-plane and tenant surfaces.
 
-- Create or select the control-plane backend and database
-- Create or select the tenant backend and database model
-- Copy `.env.example` to `.env.local`
-- Keep the current single-backend env vars only as a transitional local-development path until the split config lands
-- Set `NEXT_PUBLIC_APP_URL` as needed for auth confirmation redirects
-- Define tenant registry and routing metadata in the control-plane backend
-- Move church operational schema work into the tenant backend path
-- Keep direct Postgres fallback checks aligned with split control-plane and tenant backend configuration so local SQL paths exercise the same surface boundaries as Supabase REST paths
-- Continue replacing remaining shared-backend assumptions in control-plane data loaders and tenant data loaders now that auth, proxy, and shared helper boundaries are explicit
-- Continue tightening tenant-side query parity where local SQL and Supabase relation reads still differ, especially nested counts and multi-table church-scoped joins
-- Add broader automated action coverage for tenant write-side ownership checks now that calendar, church-admin event, and ministry mutations enforce explicit church-boundary validation
-- Verify tenant-view audit rows are written through an explicit cross-boundary support flow instead of a casual shared-table model
+Operational follow-up:
+
+- Keep `.env.local` and hosted environments configured with explicit `CONTROL_PLANE_*` and `TENANT_*` values.
+- Keep control-plane registry data in the control-plane project only.
+- Keep church operational schema work in the tenant project only.
+- Continue tightening tenant-side query parity where local SQL and Supabase relation reads still differ, especially nested counts and multi-table church-scoped joins.
+- Add broader automated action coverage for tenant write-side ownership checks as new admin flows land.
+- Verify tenant-view audit rows continue to be written through explicit cross-boundary support flows.

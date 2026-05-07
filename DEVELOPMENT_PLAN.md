@@ -257,21 +257,16 @@ Track delivery through GitHub Issues and Projects, `CHANGELOG.md`, and Releases.
 4. New contributors must read this first.
 5. Treat it as the project constitution and keep it visible during active work.
 
-**ADR 0002 Status** (updated April 24, 2026):
+**ADR 0002 Status** (completed April 25, 2026): ✅ DONE
 
-The control-plane / tenant separation scaffolding is in place:
+The control-plane / tenant split is fully live:
 
 - `lib/supabase/control-plane.ts` and `lib/supabase/tenant.ts` are separate, named clients.
 - All data loaders use the correct surface client — no cross-boundary bleed.
-- `supabase/control-plane/` contains the dedicated Supabase project config, schema migration, and seed data for the control-plane project.
-- Env var split is wired: `CONTROL_PLANE_SUPABASE_*` activates the separate project; shared `NEXT_PUBLIC_SUPABASE_*` remains the transitional fallback.
+- `supabase/control-plane/` contains the dedicated Supabase project (ref: `iopydttovnyjgikprvol`) config, schema, and seed data.
+- All four control-plane env vars (`CONTROL_PLANE_SUPABASE_URL`, `CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY`, `CONTROL_PLANE_SUPABASE_SERVICE_ROLE_KEY`, `CONTROL_PLANE_DB_URL`) are set in `.env.local` and in Vercel (Production + Preview).
+- Tenant registry rows (`tenants`, `tenant_connections`) exist only in the control-plane project.
+- The shared-project fallback has been removed from `lib/supabase/config.ts`.
+- Migration `20260425010000_drop_control_plane_tables_from_tenant.sql` has been applied to the tenant project to drop the vestigial registry tables.
 
-**Remaining ADR 0002 work**:
-
-1. Provision a dedicated Supabase project for the control plane.
-2. Run `supabase/control-plane/migrations/` against that project.
-3. Set `CONTROL_PLANE_SUPABASE_URL`, `CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY`, `CONTROL_PLANE_SUPABASE_SERVICE_ROLE_KEY`, and `CONTROL_PLANE_DB_URL` in Vercel (Production + Preview).
-4. Migrate existing tenant-registry rows (`tenants`, `tenant_connections`) from the shared project to the new control-plane project.
-5. Remove the shared-project fallback once the split is live.
-
-**Next Sprint**: Sprint 2 — Admin Dashboard and Church Setup — begins after ADR 0002 provisioning is complete.
+**Next Sprint**: Sprint 2 — Admin Dashboard and Church Setup — is now unblocked.

@@ -25,7 +25,7 @@ Current plan target:
 - Ministry Forge supports designated ministry leaders, and that leader assignment now feeds pastor-facing led-ministry visibility.
 - Public portal entry can resolve a church from the request hostname, and member communication preferences now write append-only consent records.
 - Core product scope spanning member directory, ministries, pastoral profiles, giving, reporting, communications, and leadership collaboration.
-- Sprint 1 is now explicitly focused on foundation, member portal data, ministries, pastoral titles, and a categorized calendar.
+- Sprint 2 is now unblocked and focused on Admin Dashboard and Church Setup work.
 - A working calendar hub remains core, now with explicit event categories defined in the development plan.
 - An AI ministry tools suite that stays assistive only, requires consent, and never replaces prayer, Scripture study, or pastoral judgment.
 - Security and privacy expectations centered on sensitive-data classification, consent, auditing, and disciplined application security checks.
@@ -59,9 +59,10 @@ See `docs/shepherd-ai-ops.md` for architecture and guardrails.
 
 ## Release 2.12.1 Highlights
 
-Release 2.12.1 hardens the ADR 0002 control-plane and tenant split. Backend configuration is now explicit per surface, and direct local Postgres fallback URLs count as configured backends so split local data paths are not skipped before their fallback reads or writes can run.
+Release 2.12.1 hardens the ADR 0002 control-plane and tenant split. Backend configuration is now explicit per surface, and the completed split removes the shared local database fallback path from the active configuration.
 
 - **Boundary-aware backend checks:** control-plane and tenant wrappers recognize either Supabase REST envs or direct DB fallback URLs as valid backend configuration.
+- **Completed split posture:** control-plane registry tables live in the control-plane project only, and tenant runtime migrations remove the vestigial registry tables from the tenant project.
 - **Current product baseline:** includes the 2.12.0 Phase 1 product strategy implementation: Small Groups, public giving, church-admin events, attendance tracking, Giving GL auto-posting, and first-time visitor workflow scaffolding.
 
 ## Release 2.11.1 Highlights
@@ -276,8 +277,8 @@ For Communications Hub (Phase 6), also supply:
 
 Architectural note:
 
-- ADR 0002 now makes separate control-plane and tenant databases the target architecture.
-- The current single-project local Supabase setup is transitional and must not be treated as the final model.
+- ADR 0002 now makes separate control-plane and tenant databases the target architecture and the active configuration path.
+- Control-plane registry data belongs in the control-plane project; church runtime data belongs in the tenant project.
 
 For the current local Supabase development endpoints, setup steps, and local security notes, see `docs/setup/local-supabase.md`.
 
@@ -292,7 +293,8 @@ Primary routes:
 - `/app/calendar` tenant-facing working calendar hub backed by Supabase event reads when configured
 - `/portal` public member-portal landing page with sign-in and request-access entry points
 - `/portal/register` public member portal request form
-- `/app/church-admin/people` church-admin people-management — search, filter, edit, bulk update, add person (offline record), invite user (Supabase auth email), deactivate
+- `/app/church-admin/settings` church-admin setup profile — tenant church name, legal name, timezone, website, contact, mailing address, and public summary
+- `/app/church-admin/people` church-admin people-management — search, filter, edit, role management, bulk update, add person (offline record), invite user (Supabase auth email), deactivate
 - `/app/church-admin/accounts` church-admin account-request approval queue
 - `/app/church-admin/events/[id]` event-specific attendance and roster workspace with quick check-in, burnout warnings, and visitor add flow
 - `/app/church-admin/ministry` Ministry Forge index — grid of all ministries with health-band indicators, type badges, and member counts

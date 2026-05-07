@@ -9,7 +9,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ### Unreleased — Added
 
 - Added `supabase/control-plane/` as the dedicated Supabase project directory for control-plane concerns (tenant registry, billing metadata, platform staff identity, tenant-view audit trail). Includes `config.toml` with separate ports (API 54331, DB 54332) to allow both projects to run locally without conflict, a clean schema migration (`20260424000000_control_plane_schema.sql`) with no cross-database FK constraints, and a local development seed.
-- Updated `DEVELOPMENT_PLAN.md` to reflect ADR 0002 scaffolding status and document the remaining provisioning steps before the shared-backend fallback can be removed.
+- Added `supabase/migrations/20260425010000_drop_control_plane_tables_from_tenant.sql` to remove vestigial control-plane registry tables from the tenant runtime project now that ADR 0002 is complete.
+- Added `docs/plans/ui-stack-migration.md` as a deferred Mantine-to-Tailwind/shadcn/Base UI migration plan.
+- Added the first Sprint 2 church setup surface at `/app/church-admin/settings`, backed by tenant-scoped church profile fields and a church-admin-only update action.
+- Added `supabase/migrations/20260506000000_church_settings_profile.sql` for church legal name, website, contact, mailing address, and public summary metadata.
+- Added ChurchAdmin role management in the people edit drawer, including profile role sync, auth membership sync for linked users, self-demotion protection, and audited `church_memberships` writes.
+- Added `supabase/migrations/20260506010000_audit_church_membership_role_changes.sql` to capture role membership changes in `audit_log`.
 
 - Added local evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, and `npm run smoke:local`, backed by `supabase/scripts/setup-local.sh` and `supabase/scripts/smoke-demo.sh`.
 - Added `.github/CODEOWNERS` with the current repository owner to make review ownership explicit from the first push.
@@ -48,11 +53,17 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Calendar, church-admin event, and ministry write actions now verify that incoming `event_id`, `ministry_id`, `profile_id`, `roster_id`, and registration targets belong to the active church before mutating tenant data, and public event registration now derives church ownership from the event instead of trusting client-supplied church IDs.
 - Control-plane and tenant backend availability checks now treat direct Postgres fallback URLs as configured backends, so local split-database paths are not bypassed before their fallback reads or writes can run.
 - Church-admin ministry navigation now includes the dedicated workflow queue and surfaces Ops-only suggested ministry workflows without introducing any chatbot UI pattern.
+- `DEVELOPMENT_PLAN.md` now records ADR 0002 as complete and marks Sprint 2 — Admin Dashboard and Church Setup — as unblocked.
+- `docs/todo.md` now points at Sprint 2 execution and operational split-backend follow-up instead of completed ADR provisioning work.
+- Control-plane and tenant direct database fallback helpers now require their explicit surface-specific DB URLs; the previous shared `SUPABASE_DB_URL` fallback path has been removed.
+- Church-admin navigation now includes a Settings entry for the new church setup profile.
+- Church-admin person updates now manage application roles alongside membership status and contact/profile fields.
 
 ### Unreleased — Fixed
 
 - Fixed ShepherdAI scheduled evaluation in hosted cron context by using tenant admin client reads/writes when no user session is present, preventing zero-entity evaluations under RLS.
 - Fixed local direct-DB fallback detection for control-plane and tenant loaders that previously checked only Supabase REST configuration before returning preview or empty data.
+- Fixed the giving dashboard analytics tab placement so the conditional `Tabs.Panel` remains inside the Mantine `Tabs` root.
 - Replaced vulnerable `xlsx` dependency with `read-excel-file` for finance import parsing to remove unresolved high-severity advisories on SheetJS.
 - Added direct `postcss@^8.5.10` dependency and documented temporary risk acceptance for the transitive Next.js-postcss advisory pending an upstream Next.js patch.
 - Fixed ShepherdAI ops integration test expectation to match the updated repository method signature that forwards optional evaluation options.

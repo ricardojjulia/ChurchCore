@@ -58,6 +58,7 @@ export type UpdateChurchAdminPersonInput = {
   phone: string | null;
   address: string | null;
   displayTitle: string | null;
+  role: ChurchAdminManagedRole;
   membershipStatus: string;
   preferredContactMethod: string | null;
   emergencyContactName: string | null;
@@ -84,6 +85,31 @@ export type MergeChurchAdminDuplicateInput = {
 };
 
 const ALLOWED_CONTACT_METHODS = new Set(["email", "sms", "app", "none"]);
+const ALLOWED_CHURCH_ADMIN_MANAGED_ROLES = new Set([
+  "church_admin",
+  "pastor",
+  "ministry_leader",
+  "member",
+] as const);
+
+type ChurchAdminManagedRole =
+  | "church_admin"
+  | "pastor"
+  | "ministry_leader"
+  | "member";
+
+function mapManagedRoleToProfileRole(role: ChurchAdminManagedRole) {
+  switch (role) {
+    case "church_admin":
+      return "church_admin";
+    case "pastor":
+      return "pastor_elder";
+    case "ministry_leader":
+      return "ministry_leader";
+    case "member":
+      return "member_volunteer";
+  }
+}
 
 function mapPreferredContactMethodToConsentCommunicationType(
   value: string | null,
@@ -158,6 +184,9 @@ function validateChurchAdminPersonInput(
   if (!input.profileId.trim()) return "Profile is required.";
   if (!input.fullName.trim()) return "Full name is required.";
   if (input.fullName.trim().length > 200) return "Full name is too long.";
+  if (!ALLOWED_CHURCH_ADMIN_MANAGED_ROLES.has(input.role)) {
+    return "Invalid role.";
+  }
   if (
     input.preferredContactMethod !== null &&
     !ALLOWED_CONTACT_METHODS.has(input.preferredContactMethod)
@@ -265,6 +294,57 @@ async function requireChurchAdminSession(redirectPath: string) {
   }
 
   return session;
+}
+
+async function assertCanChangeChurchAdminPersonRole(
+  session: Awaited<ReturnType<typeof requireChurchSession>>,
+  targetProfileId: string,
+  nextRole: ChurchAdminManagedRole,
+) {
+  if (nextRole === "church_admin") {
+    return;
+  }
+
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    return;
+  }
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `
+        select id
+        from public.profiles
+        where id = $1
+          and user_id = $2
+          and church_id = $3
+          and merged_at is null
+        limit 1
+      `,
+      [targetProfileId, session.userId, session.appContext.church.id],
+    );
+
+    if (result.rows[0]) {
+      throw new Error("You cannot remove your own church-admin access.");
+    }
+
+    return;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", targetProfileId)
+    .eq("user_id", session.userId)
+    .eq("church_id", session.appContext.church.id)
+    .is("merged_at", null)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+
+  if (data) {
+    throw new Error("You cannot remove your own church-admin access.");
+  }
 }
 
 async function requireChurchAdminProfileContext(redirectPath: string) {
@@ -686,6 +766,9 @@ export async function updateChurchAdminPersonAction(
   const displayTitle = input.displayTitle?.trim() || null;
   const emergencyContactName = input.emergencyContactName?.trim() || null;
   const emergencyContactPhone = input.emergencyContactPhone?.trim() || null;
+  const profileRole = mapManagedRoleToProfileRole(input.role);
+
+  await assertCanChangeChurchAdminPersonRole(session, input.profileId, input.role);
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
     revalidatePath("/app/church-admin");
@@ -702,19 +785,23 @@ export async function updateChurchAdminPersonAction(
           phone                    = $2,
           address                  = $3,
           display_title            = $4,
-          membership_status        = $5,
-          preferred_contact_method = $6,
-          directory_visible        = $7,
-          contact_allowed          = $8,
+          role                     = $5,
+          is_pastoral              = $6,
+          membership_status        = $7,
+          preferred_contact_method = $8,
+          directory_visible        = $9,
+          contact_allowed          = $10,
           updated_at               = timezone('utc', now())
-        where id        = $9
-          and church_id = $10
+        where id        = $11
+          and church_id = $12
       `,
       [
         fullName,
         phone,
         address,
         displayTitle,
+        profileRole,
+        input.role === "pastor",
         input.membershipStatus,
         input.preferredContactMethod,
         input.directoryVisible,
@@ -723,6 +810,44 @@ export async function updateChurchAdminPersonAction(
         session.appContext.church.id,
       ],
     );
+
+    const profileResult = await queryTenantLocalDb<{ user_id: string | null }>(
+      `
+        select user_id
+        from public.profiles
+        where id = $1
+          and church_id = $2
+          and merged_at is null
+        limit 1
+      `,
+      [input.profileId, session.appContext.church.id],
+    );
+    const userId = profileResult.rows[0]?.user_id ?? null;
+
+    if (userId) {
+      await queryTenantLocalDb(
+        `
+          update public.church_memberships
+          set is_active = false,
+              updated_at = timezone('utc', now())
+          where church_id = $1
+            and user_id = $2
+            and role <> $3::public.app_role
+        `,
+        [session.appContext.church.id, userId, input.role],
+      );
+      await queryTenantLocalDb(
+        `
+          insert into public.church_memberships (church_id, user_id, role, is_active)
+          values ($1, $2, $3::public.app_role, true)
+          on conflict (church_id, user_id, role) do update
+            set is_active = true,
+                updated_at = timezone('utc', now())
+        `,
+        [session.appContext.church.id, userId, input.role],
+      );
+    }
+
     await queryTenantLocalDb(
       `
         insert into public.profile_sensitive_fields (profile_id, church_id, emergency_contact_name, emergency_contact_phone)
@@ -743,6 +868,8 @@ export async function updateChurchAdminPersonAction(
         phone,
         address,
         display_title: displayTitle,
+        role: profileRole,
+        is_pastoral: input.role === "pastor",
         membership_status: input.membershipStatus,
         preferred_contact_method: input.preferredContactMethod,
         directory_visible: input.directoryVisible,
@@ -752,6 +879,46 @@ export async function updateChurchAdminPersonAction(
       .eq("church_id", session.appContext.church.id);
 
     if (error) throw new Error(error.message);
+
+    const { data: profileRow, error: profileLookupError } = await supabase
+      .from("profiles")
+      .select("user_id")
+      .eq("id", input.profileId)
+      .eq("church_id", session.appContext.church.id)
+      .is("merged_at", null)
+      .maybeSingle();
+
+    if (profileLookupError) throw new Error(profileLookupError.message);
+
+    const userId =
+      profileRow && "user_id" in profileRow && profileRow.user_id
+        ? String(profileRow.user_id)
+        : null;
+
+    if (userId) {
+      const { error: deactivateError } = await supabase
+        .from("church_memberships")
+        .update({ is_active: false })
+        .eq("church_id", session.appContext.church.id)
+        .eq("user_id", userId)
+        .neq("role", input.role);
+
+      if (deactivateError) throw new Error(deactivateError.message);
+
+      const { error: membershipError } = await supabase
+        .from("church_memberships")
+        .upsert(
+          {
+            church_id: session.appContext.church.id,
+            user_id: userId,
+            role: input.role,
+            is_active: true,
+          },
+          { onConflict: "church_id,user_id,role" },
+        );
+
+      if (membershipError) throw new Error(membershipError.message);
+    }
 
     const { error: sensitiveError } = await supabase
       .from("profile_sensitive_fields")

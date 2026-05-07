@@ -39,6 +39,7 @@ export function ChurchAdminPersonEdit({
   const [phone, setPhone] = useState(person.phone ?? "");
   const [address, setAddress] = useState(person.address ?? "");
   const [displayTitle, setDisplayTitle] = useState(person.displayTitle ?? "");
+  const [role, setRole] = useState(person.role);
   const [membershipStatus, setMembershipStatus] = useState(person.membershipStatus);
   const [preferredContactMethod, setPreferredContactMethod] = useState<string | null>(
     person.preferredContactMethod ?? null,
@@ -77,6 +78,7 @@ export function ChurchAdminPersonEdit({
     setPhone(person.phone ?? "");
     setAddress(person.address ?? "");
     setDisplayTitle(person.displayTitle ?? "");
+    setRole(person.role);
     setMembershipStatus(person.membershipStatus);
     setPreferredContactMethod(person.preferredContactMethod ?? null);
     setEmergencyContactName(person.emergencyContactName ?? "");
@@ -97,6 +99,7 @@ export function ChurchAdminPersonEdit({
           phone: phone || null,
           address: address || null,
           displayTitle: displayTitle || null,
+          role: role as "church_admin" | "pastor" | "ministry_leader" | "member",
           membershipStatus,
           preferredContactMethod,
           emergencyContactName: emergencyContactName || null,
@@ -155,6 +158,18 @@ export function ChurchAdminPersonEdit({
             label="Display title"
             value={displayTitle}
             onChange={(event) => setDisplayTitle(event.currentTarget.value)}
+            radius="md"
+          />
+          <Select
+            label="Application role"
+            value={role}
+            onChange={(value) => setRole(value ?? "member")}
+            data={[
+              { value: "member", label: "Member / volunteer" },
+              { value: "ministry_leader", label: "Ministry leader" },
+              { value: "pastor", label: "Pastor / elder" },
+              { value: "church_admin", label: "Church admin" },
+            ]}
             radius="md"
           />
           <Select

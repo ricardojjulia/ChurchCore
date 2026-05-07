@@ -7,6 +7,7 @@ import {
   HeartHandshake,
   Landmark,
   MessageSquare,
+  Settings,
   ShieldCheck,
   Sparkles,
   Users,
@@ -62,6 +63,13 @@ export function PortalWorkspace({
 
   if (role.id === "church-admin") {
     navItems.push(
+      {
+        href: "/app/church-admin/settings",
+        label: "Settings",
+        description: "Church setup",
+        icon: Settings,
+        active: false,
+      },
       {
         href: "/app/church-admin/people",
         label: "People",

@@ -57,6 +57,65 @@ type AccountRequestDecisionInput = {
   requestId: string;
 };
 
+export type UpdateChurchSettingsInput = {
+  name: string;
+  legalName?: string | null;
+  timezone: string;
+  websiteUrl?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  mailingAddress?: string | null;
+  publicSummary?: string | null;
+};
+
+type UpdateChurchSettingsResult = {
+  ok: boolean;
+  previewMode?: boolean;
+  error?: string;
+};
+
+function normalizeOptionalText(value: string | null | undefined) {
+  const trimmed = value?.trim() ?? "";
+  return trimmed ? trimmed : null;
+}
+
+function normalizeChurchSettingsInput(input: UpdateChurchSettingsInput) {
+  const name = input.name.trim();
+  const timezone = input.timezone.trim();
+  const publicSummary = normalizeOptionalText(input.publicSummary);
+
+  if (!name) {
+    throw new Error("Church name is required.");
+  }
+
+  if (name.length > 160) {
+    throw new Error("Church name must be 160 characters or fewer.");
+  }
+
+  if (!timezone) {
+    throw new Error("Timezone is required.");
+  }
+
+  if (timezone.length > 80) {
+    throw new Error("Timezone must be 80 characters or fewer.");
+  }
+
+  if (publicSummary && publicSummary.length > 500) {
+    throw new Error("Public summary must be 500 characters or fewer.");
+  }
+
+  return {
+    name,
+    legal_name: normalizeOptionalText(input.legalName),
+    timezone,
+    website_url: normalizeOptionalText(input.websiteUrl),
+    contact_email: normalizeOptionalText(input.contactEmail),
+    contact_phone: normalizeOptionalText(input.contactPhone),
+    mailing_address: normalizeOptionalText(input.mailingAddress),
+    public_summary: publicSummary,
+  };
+}
+
 function validateRoleTitle(value: string) {
   const roleTitle = value.trim();
 
@@ -206,6 +265,69 @@ async function assertProfileBelongsToChurch(churchId: string, profileId: string)
 
   if (!data) {
     throw new Error("Profile not found in this church.");
+  }
+}
+
+export async function updateChurchSettingsAction(
+  input: UpdateChurchSettingsInput,
+): Promise<UpdateChurchSettingsResult> {
+  try {
+    const session = await requireChurchAdminOnlySession("/app/church-admin/settings");
+    const payload = normalizeChurchSettingsInput(input);
+
+    if (!hasTenantBackendEnv() || session.source !== "supabase") {
+      return { ok: true, previewMode: true };
+    }
+
+    if (shouldUseLocalTenantFallback()) {
+      await queryTenantLocalDb(
+        `
+          update public.churches
+          set name = $2,
+              legal_name = $3,
+              timezone = $4,
+              website_url = $5,
+              contact_email = $6,
+              contact_phone = $7,
+              mailing_address = $8,
+              public_summary = $9,
+              updated_at = timezone('utc', now())
+          where id = $1
+        `,
+        [
+          session.appContext.church.id,
+          payload.name,
+          payload.legal_name,
+          payload.timezone,
+          payload.website_url,
+          payload.contact_email,
+          payload.contact_phone,
+          payload.mailing_address,
+          payload.public_summary,
+        ],
+      );
+    } else {
+      const supabase = await createTenantServerClient();
+      const { error } = await supabase
+        .from("churches")
+        .update(payload)
+        .eq("id", session.appContext.church.id);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+    }
+
+    revalidatePath("/app/church-admin");
+    revalidatePath("/app/church-admin/settings");
+    revalidatePath("/app");
+
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Unable to update church settings.",
+    };
   }
 }
 

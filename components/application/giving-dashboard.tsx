@@ -257,14 +257,14 @@ export function GivingDashboard({
             </Stack>
           )}
         </Tabs.Panel>
-      </Tabs>
 
-      {/* Analytics tab */}
-      {analytics && (
-        <Tabs.Panel value="analytics" pt="lg">
-          <GivingAnalyticsPanel analytics={analytics} />
-        </Tabs.Panel>
-      )}
+        {/* Analytics tab */}
+        {analytics && (
+          <Tabs.Panel value="analytics" pt="lg">
+            <GivingAnalyticsPanel analytics={analytics} />
+          </Tabs.Panel>
+        )}
+      </Tabs>
 
       {/* Privacy note */}
       <Text fz="xs" c="dimmed" ta="center" mt="xl">

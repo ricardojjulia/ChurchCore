@@ -10,6 +10,7 @@ import {
   MailCheck,
   MessageSquare,
   Search,
+  Settings,
   ShieldCheck,
   Sparkles,
   UsersRound,
@@ -121,6 +122,12 @@ export function ChurchAdminPeopleWorkspace({
           label: "Home",
           description: "Operations",
           icon: HeartHandshake,
+        },
+        {
+          href: "/app/church-admin/settings",
+          label: "Settings",
+          description: "Church setup",
+          icon: Settings,
         },
         {
           href: "/app/church-admin/people",

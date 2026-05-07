@@ -43,6 +43,7 @@ The existing ChurchAdmin workspace handles operational preview lanes, but it did
 - Confidential pastoral workflows remain on the pastor side
 - Portal-request review now happens on `/app/church-admin/accounts`, but the linked member records still resolve from the same tenant `profiles` table documented here
 - Event attendance and rosters now resolve from `/app/church-admin/events/[id]`, and both workflows depend on the same church-scoped people records managed here
+- Church-admins can update a person application role from the edit drawer. The action updates `profiles.role`, syncs `church_memberships` for linked auth users, blocks self-demotion away from church-admin to avoid tenant lockout, and writes membership changes through the audited table path.
 
 ## Current Constraints
 

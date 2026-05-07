@@ -10,6 +10,7 @@ const {
   shouldUseLocalTenantFallbackMock,
   supabaseFromMock,
   supabaseMaybeSingleMock,
+  supabaseUpdateEqMock,
   supabaseUpsertMock,
 } = vi.hoisted(() => {
   const revalidatePath = vi.fn();
@@ -28,9 +29,14 @@ const {
     eq: supabaseEq,
     maybeSingle: supabaseMaybeSingle,
   }));
+  const supabaseUpdateEq = vi.fn();
+  const supabaseUpdate = vi.fn(() => ({
+    eq: supabaseUpdateEq,
+  }));
   const supabaseUpsert = vi.fn();
   const supabaseFrom = vi.fn((table: string) => ({
     select: supabaseSelect,
+    update: table === "churches" ? supabaseUpdate : undefined,
     upsert: table === "event_registration_settings" ? supabaseUpsert : undefined,
   }));
   const createTenantServerClient = vi.fn(async () => ({
@@ -47,6 +53,7 @@ const {
     shouldUseLocalTenantFallbackMock: shouldUseLocalTenantFallback,
     supabaseFromMock: supabaseFrom,
     supabaseMaybeSingleMock: supabaseMaybeSingle,
+    supabaseUpdateEqMock: supabaseUpdateEq,
     supabaseUpsertMock: supabaseUpsert,
   };
 });
@@ -76,6 +83,7 @@ import {
   addRosterAssignmentAction,
   createEventAction,
   registerForEventAction,
+  updateChurchSettingsAction,
   upsertRegistrationSettingsAction,
 } from "@/app/app/church-admin-actions";
 
@@ -92,6 +100,7 @@ describe("church-admin actions", () => {
     hasTenantBackendEnvMock.mockReturnValue(true);
     hasTenantAdminBackendEnvMock.mockReturnValue(false);
     supabaseMaybeSingleMock.mockResolvedValue({ data: { id: "event-1" }, error: null });
+    supabaseUpdateEqMock.mockResolvedValue({ error: null });
     supabaseUpsertMock.mockResolvedValue({ error: null });
   });
 
@@ -214,6 +223,53 @@ describe("church-admin actions", () => {
     });
 
     expect(result).toEqual({ previewMode: true });
+    expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+  });
+
+  it("updates church settings in local fallback mode", async () => {
+    const result = await updateChurchSettingsAction({
+      name: "Grace Harbor Church",
+      legalName: "Grace Harbor Church Inc.",
+      timezone: "America/Detroit",
+      websiteUrl: "https://graceharbor.church",
+      contactEmail: "office@graceharbor.church",
+      contactPhone: "555-0100",
+      mailingAddress: "100 Harbor Way",
+      publicSummary: "A local church serving its neighborhood.",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("update public.churches"),
+      [
+        "church-1",
+        "Grace Harbor Church",
+        "Grace Harbor Church Inc.",
+        "America/Detroit",
+        "https://graceharbor.church",
+        "office@graceharbor.church",
+        "555-0100",
+        "100 Harbor Way",
+        "A local church serving its neighborhood.",
+      ],
+    );
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/settings");
+  });
+
+  it("rejects church settings updates outside church-admin", async () => {
+    requireChurchSessionMock.mockResolvedValueOnce({
+      appContext: { roleId: "pastor", church: { id: "church-1" } },
+      profile: { id: "profile-1" },
+      source: "supabase",
+      userId: "user-1",
+    });
+
+    const result = await updateChurchSettingsAction({
+      name: "Grace Harbor Church",
+      timezone: "America/Detroit",
+    });
+
+    expect(result).toEqual({ ok: false, error: "Church-admin access is required." });
     expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
   });
 });
