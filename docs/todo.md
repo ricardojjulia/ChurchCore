@@ -9,7 +9,7 @@ The next execution focus is Sprint 2 — Admin Dashboard and Church Setup:
 - Continue church settings/profile management after the first tenant-backed settings surface.
 - Continue church-admin directory polish for people, households, invites, and account approval flows.
 - Continue role management hardening after the first per-person role edit flow, including broader review of edge cases around last-admin protection and ministry-leader scope.
-- Expand admin dashboard summaries with real tenant data for members, ministries, events, and giving.
+- Continue expanding admin dashboard summaries after the first live cards for people, ministries, events, and giving.
 - Add focused tests for admin write actions that touch church settings, profile status, role changes, and invitation flows.
 - Keep README, CHANGELOG, and relevant `/docs` files updated with each meaningful feature change.
 

@@ -25,10 +25,12 @@ import {
 } from "@mantine/core";
 
 import { ApplicationShell } from "@/components/application/app-shell";
+import { ChurchAdminDashboardSummaryCards } from "@/components/application/church-admin-dashboard-summary";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
 import { ChurchAdminWorkspaceDetails } from "@/components/application/church-admin-workspace-details";
 import type { AuthSession } from "@/lib/auth";
 import type { ChurchAdminWorkspaceState } from "@/lib/application-state";
+import type { ChurchAdminDashboardSummary } from "@/lib/church-admin-dashboard-data";
 import { type PortalRole, type PortalRoleId } from "@/lib/portal";
 
 const roleIcons: Record<PortalRoleId, React.ComponentType<{ size?: number; className?: string }>> = {
@@ -43,10 +45,12 @@ export function PortalWorkspace({
   role,
   session,
   churchAdminState,
+  churchAdminSummary,
 }: {
   role: PortalRole;
   session: AuthSession;
   churchAdminState?: ChurchAdminWorkspaceState | null;
+  churchAdminSummary?: ChurchAdminDashboardSummary | null;
 }) {
   const churchContext = session.appContext.kind === "church" ? session.appContext : null;
   const ActiveIcon = roleIcons[role.id];
@@ -171,6 +175,10 @@ export function PortalWorkspace({
       navItems={navItems}
     >
       <ChurchAppContextBanner session={session} />
+
+      {role.id === "church-admin" && churchAdminSummary ? (
+        <ChurchAdminDashboardSummaryCards summary={churchAdminSummary} />
+      ) : null}
 
       <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="lg">
         <Paper withBorder p="xl">

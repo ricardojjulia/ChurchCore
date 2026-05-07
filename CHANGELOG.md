@@ -15,6 +15,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added `supabase/migrations/20260506000000_church_settings_profile.sql` for church legal name, website, contact, mailing address, and public summary metadata.
 - Added ChurchAdmin role management in the people edit drawer, including profile role sync, auth membership sync for linked users, self-demotion protection, and audited `church_memberships` writes.
 - Added `supabase/migrations/20260506010000_audit_church_membership_role_changes.sql` to capture role membership changes in `audit_log`.
+- Added live tenant summary cards to the ChurchAdmin home dashboard for people, ministries, events, and giving, with preview fallback when no backend is configured.
 
 - Added local evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, and `npm run smoke:local`, backed by `supabase/scripts/setup-local.sh` and `supabase/scripts/smoke-demo.sh`.
 - Added `.github/CODEOWNERS` with the current repository owner to make review ownership explicit from the first push.
@@ -58,6 +59,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Control-plane and tenant direct database fallback helpers now require their explicit surface-specific DB URLs; the previous shared `SUPABASE_DB_URL` fallback path has been removed.
 - Church-admin navigation now includes a Settings entry for the new church setup profile.
 - Church-admin person updates now manage application roles alongside membership status and contact/profile fields.
+- ChurchAdmin home now reads aggregate tenant data instead of relying only on static preview spotlight cards.
 
 ### Unreleased — Fixed
 

@@ -17,6 +17,7 @@ Sprint 2 extends the ChurchAdmin surface further with:
 ## What It Includes
 
 - A Mantine-based operations view within the shared app shell
+- Live aggregate dashboard cards for people, ministries, upcoming events, and recent giving
 - Segmented operational lanes for care, weekend, communications, and giving
 - Care and follow-up queue visibility with assignment and contact mutation flows
 - Weekend readiness tasks with local status advancement
@@ -36,7 +37,7 @@ Church administration sits at the intersection of member care, scheduling, givin
 
 ## Current Constraint
 
-The operations lanes under `/app/church-admin` are still preview-backed. The `/app/church-admin/settings`, `/app/church-admin/people`, `/app/church-admin/accounts`, and `/app/church-admin/events/[id]` routes now use real tenant data, but CSV import, automated host-based tenant routing, and richer communications workflows still need to be added.
+The operations lanes under `/app/church-admin` are still preview-backed, but the home dashboard now includes live aggregate tenant summaries. The `/app/church-admin/settings`, `/app/church-admin/people`, `/app/church-admin/accounts`, and `/app/church-admin/events/[id]` routes use real tenant data, but CSV import, automated host-based tenant routing, and richer communications workflows still need to be added.
 
 ## Sprint 2 Notes
 

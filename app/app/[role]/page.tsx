@@ -6,6 +6,7 @@ import { PastorPortalHome } from "@/components/application/pastor-portal-home";
 import { PortalWorkspace } from "@/components/application/portal-workspace";
 import { getChurchAdminWorkspaceState } from "@/lib/application-state-store";
 import { requireChurchSession } from "@/lib/auth";
+import { getChurchAdminDashboardSummary } from "@/lib/church-admin-dashboard-data";
 import { getMemberPortalData } from "@/lib/member-portal-data";
 import { getPastorPortalData } from "@/lib/pastor-portal-data";
 import { churchPortalRoles, getPortalRole } from "@/lib/portal";
@@ -60,6 +61,10 @@ export default async function ChurchAppRolePage({
     portalRole.id === "church-admin"
       ? await getChurchAdminWorkspaceState(session)
       : null;
+  const churchAdminSummary =
+    portalRole.id === "church-admin"
+      ? await getChurchAdminDashboardSummary(session)
+      : null;
   const memberPortalData =
     portalRole.id === "member" ? await getMemberPortalData(session) : null;
   const pastorPortalData =
@@ -78,6 +83,7 @@ export default async function ChurchAppRolePage({
       role={portalRole}
       session={session}
       churchAdminState={churchAdminState}
+      churchAdminSummary={churchAdminSummary}
     />
   );
 }
