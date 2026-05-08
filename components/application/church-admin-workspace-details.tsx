@@ -87,6 +87,8 @@ export function ChurchAdminWorkspaceDetails({
 
   const { careItems, weekendItems, communicationsItems, givingItems } =
     workspaceState;
+  const liveCareItems =
+    operationsData?.source === "live" ? operationsData.careItems : null;
   const liveWeekendItems =
     operationsData?.source === "live" ? operationsData.weekendItems : null;
   const liveCommunicationItems =
@@ -315,7 +317,60 @@ export function ChurchAdminWorkspaceDetails({
           </Group>
 
           <Stack gap="sm">
-            {activeSection === "care"
+            {activeSection === "care" && liveCareItems
+              ? liveCareItems.length > 0
+                ? liveCareItems.map((item) => (
+                    <Paper key={item.id} radius="xl" p="md" bg="gray.0">
+                      <Group justify="space-between" align="flex-start" gap="md">
+                        <div>
+                          <Text fw={600}>{item.title}</Text>
+                          <Text c="dimmed" size="sm" mt="xs">
+                            {item.detail}
+                          </Text>
+                          <Group gap="xs" mt="sm">
+                            {item.badges.map((badge) => (
+                              <Badge key={badge} variant="outline">
+                                {badge}
+                              </Badge>
+                            ))}
+                          </Group>
+                        </div>
+                        <Group gap="xs">
+                          <Badge
+                            color={
+                              item.status === "done"
+                                ? "teal"
+                                : item.status === "in-progress"
+                                  ? "blue"
+                                  : "yellow"
+                            }
+                            variant="light"
+                          >
+                            {item.status}
+                          </Badge>
+                          <Button
+                            component={Link}
+                            href={item.href}
+                            radius="xl"
+                            variant="subtle"
+                          >
+                            Open person
+                          </Button>
+                        </Group>
+                      </Group>
+                    </Paper>
+                  ))
+                : (
+                    <Paper radius="xl" p="md" bg="gray.0">
+                      <Text fw={600}>No care actions need attention.</Text>
+                      <Text c="dimmed" size="sm" mt="xs">
+                        Open assignments are assigned, contacted, and not near their due window.
+                      </Text>
+                    </Paper>
+                  )
+              : null}
+
+            {activeSection === "care" && !liveCareItems
               ? careItems.map((item) => (
                   <Paper key={item.id} radius="xl" p="md" bg="gray.0">
                     <Group justify="space-between" align="flex-start" gap="md">

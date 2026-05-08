@@ -56,6 +56,7 @@ describe("getChurchAdminOperationsData", () => {
 
     expect(data).toEqual({
       source: "preview",
+      careItems: [],
       weekendItems: [],
       communicationItems: [],
       givingItems: [],
@@ -65,6 +66,7 @@ describe("getChurchAdminOperationsData", () => {
 
   it("builds weekend operations from actionable upcoming events", async () => {
     queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
         rows: [
           {
@@ -139,6 +141,7 @@ describe("getChurchAdminOperationsData", () => {
 
   it("builds communication operations from logs and consent/contact gaps", async () => {
     queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
         rows: [
@@ -216,6 +219,7 @@ describe("getChurchAdminOperationsData", () => {
     queryTenantLocalDbMock
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
         rows: [
           {
@@ -269,5 +273,76 @@ describe("getChurchAdminOperationsData", () => {
         }),
       ]),
     );
+  });
+
+  it("builds care operations from open assignments", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "assignment-1",
+            profile_id: "profile-1",
+            profile_name: "Ada Lovelace",
+            assigned_to_name: null,
+            summary: "Hospital follow-up and meal train coordination.",
+            status: "open",
+            priority: "urgent",
+            due_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+            last_contact_at: null,
+            created_at: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(),
+          },
+          {
+            id: "assignment-2",
+            profile_id: "profile-2",
+            profile_name: "Grace Hopper",
+            assigned_to_name: "Pastor Miriam",
+            summary: "Routine check-in after prayer request.",
+            status: "open",
+            priority: "routine",
+            due_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+            last_contact_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            missing_email_count: 0,
+            missing_phone_count: 0,
+            contact_private_count: 0,
+            email_opt_out_count: 0,
+            sms_opt_out_count: 0,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            pending_count: 0,
+            failed_count: 0,
+            unsent_receipts_count: 0,
+            unposted_gl_count: 0,
+            unmapped_fund_count: 0,
+            giving_page_count: 1,
+            live_giving_page_count: 1,
+          },
+        ],
+      });
+
+    const data = await getChurchAdminOperationsData(session);
+
+    expect(data.source).toBe("live");
+    expect(data.careItems).toEqual([
+      expect.objectContaining({
+        id: "care-assignment-assignment-1",
+        title: "Ada Lovelace",
+        status: "blocked",
+        href: "/app/church-admin/people?profile=profile-1",
+        badges: expect.arrayContaining(["urgent", "open", "unassigned", "overdue", "no contact"]),
+      }),
+    ]);
   });
 });

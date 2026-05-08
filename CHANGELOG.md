@@ -63,6 +63,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Church-admin navigation now includes a Settings entry for the new church setup profile.
 - Church-admin person updates now manage application roles alongside membership status and contact/profile fields.
 - ChurchAdmin home now reads aggregate tenant data instead of relying only on static preview spotlight cards.
+- The ChurchAdmin Care lane now links live pastoral care assignment work to people records while preserving preview behavior when live tenant data is unavailable.
 - The ChurchAdmin Weekend lane now links actionable event items directly to `/app/church-admin/events/[id]` and keeps preview checklist behavior when live tenant data is unavailable.
 - The ChurchAdmin Communications lane now links live communication work to `/app/communications` or people records while preserving preview behavior when live tenant data is unavailable.
 - The ChurchAdmin Giving lane now links live giving work to giving and finance routes while preserving preview behavior when live tenant data is unavailable.

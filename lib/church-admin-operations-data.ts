@@ -18,6 +18,15 @@ export type ChurchAdminWeekendOperationItem = {
   badges: string[];
 };
 
+export type ChurchAdminCareOperationItem = {
+  id: string;
+  title: string;
+  detail: string;
+  status: "blocked" | "in-progress" | "done";
+  href: string;
+  badges: string[];
+};
+
 export type ChurchAdminCommunicationOperationItem = {
   id: string;
   title: string;
@@ -38,9 +47,23 @@ export type ChurchAdminGivingOperationItem = {
 
 export type ChurchAdminOperationsData = {
   source: "preview" | "live";
+  careItems: ChurchAdminCareOperationItem[];
   weekendItems: ChurchAdminWeekendOperationItem[];
   communicationItems: ChurchAdminCommunicationOperationItem[];
   givingItems: ChurchAdminGivingOperationItem[];
+};
+
+type CareOperationRow = {
+  id: string;
+  profile_id: string;
+  profile_name: string;
+  assigned_to_name: string | null;
+  summary: string;
+  status: string;
+  priority: string;
+  due_at: string | null;
+  last_contact_at: string | null;
+  created_at: string;
 };
 
 type EventOperationRow = {
@@ -151,6 +174,61 @@ function buildWeekendItems(rows: EventOperationRow[]): ChurchAdminWeekendOperati
           } · ${registrationDetail}`,
           status,
           href: `/app/church-admin/events/${row.id}`,
+          badges,
+        },
+      ];
+    })
+    .slice(0, 8);
+}
+
+function buildCareItems(rows: CareOperationRow[]): ChurchAdminCareOperationItem[] {
+  const now = Date.now();
+  const twoDays = 2 * 24 * 60 * 60 * 1000;
+
+  return rows
+    .flatMap((row) => {
+      if (row.status === "closed") {
+        return [];
+      }
+
+      const dueAt = row.due_at ? new Date(row.due_at).getTime() : null;
+      const createdAt = new Date(row.created_at).getTime();
+      const isOverdue = dueAt !== null && dueAt < now;
+      const dueSoon = dueAt !== null && dueAt - now <= twoDays && dueAt >= now;
+      const isAging = now - createdAt >= twoDays && !row.last_contact_at;
+      const unassigned = !row.assigned_to_name;
+      const urgent = row.priority === "urgent";
+      const highPriority = row.priority === "high" || urgent;
+
+      if (!isOverdue && !dueSoon && !isAging && !unassigned && !highPriority) {
+        return [];
+      }
+
+      const badges = [
+        row.priority,
+        row.status.replace("_", " "),
+        unassigned ? "unassigned" : row.assigned_to_name,
+        isOverdue ? "overdue" : dueSoon ? "due soon" : null,
+        isAging ? "no contact" : null,
+      ].filter((badge): badge is string => Boolean(badge));
+
+      const status: ChurchAdminCareOperationItem["status"] =
+        urgent || isOverdue || unassigned ? "blocked" : "in-progress";
+
+      const dueDetail = row.due_at
+        ? `${isOverdue ? "Due" : "Due"} ${formatShortDate(row.due_at)}`
+        : "No due date";
+      const ownerDetail = row.assigned_to_name
+        ? `Assigned to ${row.assigned_to_name}`
+        : "Unassigned";
+
+      return [
+        {
+          id: `care-assignment-${row.id}`,
+          title: row.profile_name,
+          detail: `${row.summary} · ${ownerDetail} · ${dueDetail}`,
+          status,
+          href: `/app/church-admin/people?profile=${row.profile_id}`,
           badges,
         },
       ];
@@ -281,6 +359,7 @@ function buildGivingItems(row: GivingOperationRow | null): ChurchAdminGivingOper
 function buildPreviewOperationsData(): ChurchAdminOperationsData {
   return {
     source: "preview",
+    careItems: [],
     weekendItems: [],
     communicationItems: [],
     givingItems: [],
@@ -297,7 +376,41 @@ export async function getChurchAdminOperationsData(
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {
-    const [eventResult, logResult, gapResult, givingResult] = await Promise.all([
+    const [careResult, eventResult, logResult, gapResult, givingResult] = await Promise.all([
+      queryTenantLocalDb<CareOperationRow>(
+        `
+          select
+            assignment.id,
+            assignment.profile_id,
+            coalesce(subject.full_name, 'Unknown person') as profile_name,
+            assignee.full_name as assigned_to_name,
+            assignment.summary,
+            assignment.status,
+            assignment.priority,
+            assignment.due_at,
+            assignment.last_contact_at,
+            assignment.created_at
+          from public.care_assignments assignment
+          join public.profiles subject
+            on subject.id = assignment.profile_id
+           and subject.church_id = assignment.church_id
+          left join public.profiles assignee
+            on assignee.id = assignment.assigned_to
+           and assignee.church_id = assignment.church_id
+          where assignment.church_id = $1
+            and assignment.status <> 'closed'
+          order by
+            case assignment.priority
+              when 'urgent' then 1
+              when 'high' then 2
+              else 3
+            end,
+            assignment.due_at asc nulls last,
+            assignment.created_at asc
+          limit 30
+        `,
+        [churchId],
+      ),
       queryTenantLocalDb<EventOperationRow>(
       `
         select
@@ -440,6 +553,7 @@ export async function getChurchAdminOperationsData(
 
     return {
       source: "live",
+      careItems: buildCareItems(careResult.rows),
       weekendItems: buildWeekendItems(eventResult.rows),
       communicationItems: buildCommunicationItems(
         logResult.rows,
@@ -459,6 +573,7 @@ export async function getChurchAdminOperationsData(
     glPostsResult,
     fundMappingsResult,
     givingPagesResult,
+    careAssignmentsResult,
   ] = await Promise.all([
     supabase
       .from("events")
@@ -503,6 +618,16 @@ export async function getChurchAdminOperationsData(
       .from("public_giving_pages")
       .select("id, is_live")
       .eq("church_id", churchId),
+    supabase
+      .from("care_assignments")
+      .select(
+        "id, profile_id, summary, status, priority, due_at, last_contact_at, created_at, subject:profiles!care_assignments_profile_id_fkey(full_name), assignee:profiles!care_assignments_assigned_to_fkey(full_name)",
+      )
+      .eq("church_id", churchId)
+      .neq("status", "closed")
+      .order("due_at", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true })
+      .limit(30),
   ]);
 
   for (const result of [
@@ -514,6 +639,7 @@ export async function getChurchAdminOperationsData(
     glPostsResult,
     fundMappingsResult,
     givingPagesResult,
+    careAssignmentsResult,
   ]) {
     if (result.error) {
       throw new Error(result.error.message);
@@ -643,9 +769,27 @@ export async function getChurchAdminOperationsData(
     giving_page_count: (givingPagesResult.data ?? []).length,
     live_giving_page_count: (givingPagesResult.data ?? []).filter((page) => page.is_live).length,
   };
+  const careRows: CareOperationRow[] = (careAssignmentsResult.data ?? []).map((assignment) => {
+    const subject = Array.isArray(assignment.subject) ? assignment.subject[0] : assignment.subject;
+    const assignee = Array.isArray(assignment.assignee) ? assignment.assignee[0] : assignment.assignee;
+
+    return {
+      id: assignment.id,
+      profile_id: assignment.profile_id,
+      profile_name: subject?.full_name ?? "Unknown person",
+      assigned_to_name: assignee?.full_name ?? null,
+      summary: assignment.summary,
+      status: assignment.status,
+      priority: assignment.priority,
+      due_at: assignment.due_at,
+      last_contact_at: assignment.last_contact_at,
+      created_at: assignment.created_at,
+    };
+  });
 
   return {
     source: "live",
+    careItems: buildCareItems(careRows),
     weekendItems: buildWeekendItems(rows),
     communicationItems: buildCommunicationItems(
       (logsResult.data ?? []) as CommunicationLogOperationRow[],
