@@ -12,9 +12,10 @@ The existing ChurchAdmin workspace handles operational preview lanes, but it did
 
 ## What It Includes
 
-- Search across names, families, email, phone, and ministries
-- Filters for membership status and church role
-- Summary counts for total people, visitors, families, and incomplete profiles
+- Search across names, families, email, phone, ministries, member numbers, and account status
+- Filters for membership status, church role, and account state
+- Summary counts for total people, visitors, families, incomplete profiles, and pending account requests
+- Per-person account badges for member number, account status, and pending portal request state
 - Bulk actions for membership status and privacy visibility across selected records
 - Household reassignment for existing profiles
 - Duplicate detection based on shared email or phone
@@ -41,7 +42,7 @@ The existing ChurchAdmin workspace handles operational preview lanes, but it did
 - Duplicate merge updates downstream people records such as ministries, attendance, care assignments, and event RSVPs
 - This route does not expose pastoral notes or pastoral care records
 - Confidential pastoral workflows remain on the pastor side
-- Portal-request review now happens on `/app/church-admin/accounts`, but the linked member records still resolve from the same tenant `profiles` table documented here
+- Portal-request review now happens on `/app/church-admin/accounts`; pending requests are also surfaced on the people screen by linked profile or matching email so admins can move between identity review and profile stewardship
 - Event attendance and rosters now resolve from `/app/church-admin/events/[id]`, and both workflows depend on the same church-scoped people records managed here
 - Church-admins can update a person application role from the edit drawer. The action updates `profiles.role`, syncs `church_memberships` for linked auth users, blocks self-demotion away from church-admin to avoid tenant lockout, and writes membership changes through the audited table path.
 

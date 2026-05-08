@@ -18,6 +18,10 @@ export type ChurchAdminPersonEntry = {
   displayTitle: string | null;
   role: string;
   membershipStatus: string;
+  memberNumber: string | null;
+  accountStatus: string | null;
+  pendingAccountRequestId: string | null;
+  pendingAccountRequestCreatedAt: string | null;
   directoryVisible: boolean;
   contactAllowed: boolean;
   preferredContactMethod: string | null;
@@ -56,6 +60,7 @@ export type ChurchAdminPeopleSummary = {
   visitorCount: number;
   familyCount: number;
   incompleteProfiles: number;
+  pendingAccountRequests: number;
 };
 
 export type ChurchAdminPeopleData = {
@@ -71,6 +76,7 @@ function buildPreviewChurchAdminPeopleData(): ChurchAdminPeopleData {
       visitorCount: 0,
       familyCount: 0,
       incompleteProfiles: 0,
+      pendingAccountRequests: 0,
     },
     people: [],
     families: [],
@@ -116,6 +122,41 @@ function buildPeople(
     shepherdInsights: shepherdMap.get(entry.id) ?? [],
     duplicateCandidates: duplicateMap.get(entry.id) ?? [],
   }));
+}
+
+function applyPendingAccountRequests(
+  entries: Array<
+    Omit<ChurchAdminPersonEntry, "ministryNames" | "shepherdInsights" | "duplicateCandidates">
+  >,
+  requests: Array<{
+    id: string;
+    profile_id: string | null;
+    email: string;
+    created_at: string;
+  }>,
+) {
+  const requestByProfileId = new Map(
+    requests
+      .filter((request) => request.profile_id)
+      .map((request) => [request.profile_id as string, request]),
+  );
+  const requestByEmail = new Map(
+    requests
+      .map((request) => [normalizeEmail(request.email), request] as const)
+      .filter((entry): entry is [string, (typeof requests)[number]] => Boolean(entry[0])),
+  );
+
+  return entries.map((entry) => {
+    const request =
+      requestByProfileId.get(entry.id) ??
+      (entry.email ? requestByEmail.get(normalizeEmail(entry.email) ?? "") : null);
+
+    return {
+      ...entry,
+      pendingAccountRequestId: request?.id ?? null,
+      pendingAccountRequestCreatedAt: request?.created_at ?? null,
+    };
+  });
 }
 
 function buildShepherdMap(
@@ -227,6 +268,8 @@ export async function getChurchAdminPeopleData(
       display_title: string | null;
       role: string | null;
       membership_status: string | null;
+      member_number: string | null;
+      account_status: string | null;
       directory_visible: boolean | null;
       contact_allowed: boolean | null;
       preferred_contact_method: string | null;
@@ -245,6 +288,8 @@ export async function getChurchAdminPeopleData(
           profile.display_title,
           profile.role,
           profile.membership_status,
+          profile.member_number,
+          profile.account_status,
           profile.directory_visible,
           profile.contact_allowed,
           profile.preferred_contact_method,
@@ -274,6 +319,21 @@ export async function getChurchAdminPeopleData(
         from public.families
         where church_id = $1
         order by family_name
+      `,
+      [session.appContext.church.id],
+    );
+    const accountRequestsResult = await queryTenantLocalDb<{
+      id: string;
+      profile_id: string | null;
+      email: string;
+      created_at: string;
+    }>(
+      `
+        select id, profile_id, email, created_at
+        from public.account_requests
+        where church_id = $1
+          and status = 'pending'
+        order by created_at asc
       `,
       [session.appContext.church.id],
     );
@@ -313,7 +373,8 @@ export async function getChurchAdminPeopleData(
       ),
     );
 
-    const people = buildPeople(
+    const pendingAccountRequests = accountRequestsResult.rows;
+    const peopleEntries = applyPendingAccountRequests(
       peopleRows.map((row) => ({
         id: row.id,
         fullName: row.full_name,
@@ -323,6 +384,10 @@ export async function getChurchAdminPeopleData(
         displayTitle: row.display_title,
         role: normalizeRole(row.role),
         membershipStatus: row.membership_status ?? "active",
+        memberNumber: row.member_number,
+        accountStatus: row.account_status,
+        pendingAccountRequestId: null,
+        pendingAccountRequestCreatedAt: null,
         directoryVisible: row.directory_visible !== false,
         contactAllowed: row.contact_allowed !== false,
         preferredContactMethod: row.preferred_contact_method,
@@ -331,6 +396,11 @@ export async function getChurchAdminPeopleData(
         familyId: row.family_id,
         familyName: row.family_name,
       })),
+      pendingAccountRequests,
+    );
+
+    const people = buildPeople(
+      peopleEntries,
       ministryMap,
       shepherdMap,
       duplicateMap,
@@ -350,6 +420,7 @@ export async function getChurchAdminPeopleData(
         incompleteProfiles: people.filter(
           (person) => !person.phone || !person.emergencyContactName,
         ).length,
+        pendingAccountRequests: pendingAccountRequests.length,
       },
       people,
       families: familiesResult.rows.map((row) => ({
@@ -364,7 +435,7 @@ export async function getChurchAdminPeopleData(
     supabase
       .from("profiles")
       .select(
-        "id, full_name, email, phone, address, display_title, role, membership_status, directory_visible, contact_allowed, preferred_contact_method, family_id, profile_sensitive_fields(emergency_contact_name, emergency_contact_phone)",
+        "id, full_name, email, phone, address, display_title, role, membership_status, member_number, account_status, directory_visible, contact_allowed, preferred_contact_method, family_id, profile_sensitive_fields(emergency_contact_name, emergency_contact_phone)",
       )
       .eq("church_id", session.appContext.church.id)
       .is("merged_at", null)
@@ -440,8 +511,15 @@ export async function getChurchAdminPeopleData(
       people.map((row) => row.id),
     ),
   );
+  const { data: accountRequestRows } = await supabase
+    .from("account_requests")
+    .select("id, profile_id, email, created_at")
+    .eq("church_id", session.appContext.church.id)
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
 
-  const normalizedPeople = buildPeople(
+  const pendingAccountRequests = accountRequestRows ?? [];
+  const peopleEntries = applyPendingAccountRequests(
     people.map((row) => ({
       id: row.id,
       fullName: row.full_name,
@@ -451,6 +529,12 @@ export async function getChurchAdminPeopleData(
       displayTitle: row.display_title,
       role: normalizeRole(row.role),
       membershipStatus: row.membership_status ?? "active",
+      memberNumber:
+        "member_number" in row ? ((row as { member_number?: string | null }).member_number ?? null) : null,
+      accountStatus:
+        "account_status" in row ? ((row as { account_status?: string | null }).account_status ?? null) : null,
+      pendingAccountRequestId: null,
+      pendingAccountRequestCreatedAt: null,
       directoryVisible: row.directory_visible !== false,
       contactAllowed: row.contact_allowed !== false,
       preferredContactMethod: row.preferred_contact_method ?? null,
@@ -463,6 +547,11 @@ export async function getChurchAdminPeopleData(
       familyId: row.family_id ?? null,
       familyName: row.family_id ? familyMap.get(row.family_id) ?? null : null,
     })),
+    pendingAccountRequests,
+  );
+
+  const normalizedPeople = buildPeople(
+    peopleEntries,
     ministryMap,
     shepherdMap,
     duplicateMap,
@@ -477,6 +566,7 @@ export async function getChurchAdminPeopleData(
       incompleteProfiles: normalizedPeople.filter(
         (person) => !person.phone || !person.emergencyContactName,
       ).length,
+      pendingAccountRequests: pendingAccountRequests.length,
     },
     people: normalizedPeople,
     families:

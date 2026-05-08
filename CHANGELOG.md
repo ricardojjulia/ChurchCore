@@ -68,6 +68,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - The ChurchAdmin Communications lane now links live communication work to `/app/communications` or people records while preserving preview behavior when live tenant data is unavailable.
 - The ChurchAdmin Giving lane now links live giving work to giving and finance routes while preserving preview behavior when live tenant data is unavailable.
 - Added focused admin write-action coverage for church settings validation, profile bulk status updates, role-change protection, and portal account request approval/rejection.
+- ChurchAdmin people management now surfaces member numbers, account status, pending portal request counts, account-state filtering, and a direct path back to the account approval queue.
 
 ### Unreleased — Fixed
 

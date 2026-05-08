@@ -49,6 +49,7 @@ export function ChurchAdminPeopleWorkspace({
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [role, setRole] = useState("all");
+  const [accountFilter, setAccountFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const visiblePeople = useMemo(() => {
@@ -63,6 +64,21 @@ export function ChurchAdminPeopleWorkspace({
         return false;
       }
 
+      if (accountFilter === "pending-request" && !person.pendingAccountRequestId) {
+        return false;
+      }
+
+      if (accountFilter === "active-account" && person.accountStatus !== "active") {
+        return false;
+      }
+
+      if (
+        accountFilter === "needs-account" &&
+        (person.accountStatus === "active" || person.pendingAccountRequestId)
+      ) {
+        return false;
+      }
+
       if (!normalized) {
         return true;
       }
@@ -74,6 +90,9 @@ export function ChurchAdminPeopleWorkspace({
         person.displayTitle,
         person.familyName,
         person.membershipStatus,
+        person.memberNumber,
+        person.accountStatus,
+        person.pendingAccountRequestId ? "pending account request" : null,
         ...person.ministryNames,
       ]
         .filter(Boolean)
@@ -82,7 +101,7 @@ export function ChurchAdminPeopleWorkspace({
 
       return haystack.includes(normalized);
     });
-  }, [data.people, query, role, status]);
+  }, [accountFilter, data.people, query, role, status]);
 
   const allVisibleSelected =
     visiblePeople.length > 0 &&
@@ -176,7 +195,7 @@ export function ChurchAdminPeopleWorkspace({
     >
       <ChurchAppContextBanner session={session} />
 
-      <SimpleGrid cols={{ base: 1, sm: 2, xl: 4 }} spacing="md">
+      <SimpleGrid cols={{ base: 1, sm: 2, xl: 5 }} spacing="md">
         <Paper withBorder radius="xl" p="lg">
           <Text size="xs" tt="uppercase" fw={700} c="dimmed">
             People
@@ -207,6 +226,14 @@ export function ChurchAdminPeopleWorkspace({
           </Text>
           <Title order={3} mt="xs">
             {data.summary.incompleteProfiles}
+          </Title>
+        </Paper>
+        <Paper withBorder radius="xl" p="lg">
+          <Text size="xs" tt="uppercase" fw={700} c="dimmed">
+            Pending accounts
+          </Text>
+          <Title order={3} mt="xs">
+            {data.summary.pendingAccountRequests}
           </Title>
         </Paper>
       </SimpleGrid>
@@ -259,6 +286,17 @@ export function ChurchAdminPeopleWorkspace({
             ]}
             radius="xl"
           />
+          <Select
+            value={accountFilter}
+            onChange={(value) => setAccountFilter(value ?? "all")}
+            data={[
+              { value: "all", label: "All accounts" },
+              { value: "pending-request", label: "Pending request" },
+              { value: "active-account", label: "Active account" },
+              { value: "needs-account", label: "Needs account" },
+            ]}
+            radius="xl"
+          />
         </Group>
 
         <Group justify="space-between" align="center" mb="lg">
@@ -307,6 +345,29 @@ export function ChurchAdminPeopleWorkspace({
                       <Text size="sm" c="dimmed" mt={4}>
                         {person.phone || "No phone on file"}
                       </Text>
+                      <Group gap="xs" mt={8}>
+                        {person.memberNumber ? (
+                          <Badge color="gray" variant="outline">
+                            {person.memberNumber}
+                          </Badge>
+                        ) : null}
+                        <Badge
+                          color={person.accountStatus === "active" ? "teal" : "gray"}
+                          variant="light"
+                        >
+                          {person.accountStatus ?? "no account"}
+                        </Badge>
+                        {person.pendingAccountRequestId ? (
+                          <Badge
+                            component={Link}
+                            href="/app/church-admin/accounts"
+                            color="yellow"
+                            variant="light"
+                          >
+                            pending request
+                          </Badge>
+                        ) : null}
+                      </Group>
                       {person.ministryNames.length ? (
                         <Text size="sm" c="dimmed" mt={4}>
                           {person.ministryNames.join(", ")}
