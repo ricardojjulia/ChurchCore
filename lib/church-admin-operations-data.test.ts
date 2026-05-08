@@ -54,7 +54,12 @@ describe("getChurchAdminOperationsData", () => {
 
     const data = await getChurchAdminOperationsData(session);
 
-    expect(data).toEqual({ source: "preview", weekendItems: [], communicationItems: [] });
+    expect(data).toEqual({
+      source: "preview",
+      weekendItems: [],
+      communicationItems: [],
+      givingItems: [],
+    });
     expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
   });
 
@@ -97,6 +102,19 @@ describe("getChurchAdminOperationsData", () => {
             contact_private_count: 0,
             email_opt_out_count: 0,
             sms_opt_out_count: 0,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            pending_count: 0,
+            failed_count: 0,
+            unsent_receipts_count: 0,
+            unposted_gl_count: 0,
+            unmapped_fund_count: 0,
+            giving_page_count: 1,
+            live_giving_page_count: 1,
           },
         ],
       });
@@ -152,6 +170,19 @@ describe("getChurchAdminOperationsData", () => {
             sms_opt_out_count: 5,
           },
         ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            pending_count: 0,
+            failed_count: 0,
+            unsent_receipts_count: 0,
+            unposted_gl_count: 0,
+            unmapped_fund_count: 0,
+            giving_page_count: 1,
+            live_giving_page_count: 1,
+          },
+        ],
       });
 
     const data = await getChurchAdminOperationsData(session);
@@ -179,5 +210,64 @@ describe("getChurchAdminOperationsData", () => {
       ]),
     );
     expect(data.communicationItems.some((item) => item.id === "communication-log-log-2")).toBe(false);
+  });
+
+  it("builds giving operations from payment, receipt, GL, and giving page signals", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            missing_email_count: 0,
+            missing_phone_count: 0,
+            contact_private_count: 0,
+            email_opt_out_count: 0,
+            sms_opt_out_count: 0,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            pending_count: 2,
+            failed_count: 1,
+            unsent_receipts_count: 3,
+            unposted_gl_count: 4,
+            unmapped_fund_count: 1,
+            giving_page_count: 1,
+            live_giving_page_count: 0,
+          },
+        ],
+      });
+
+    const data = await getChurchAdminOperationsData(session);
+
+    expect(data.source).toBe("live");
+    expect(data.givingItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "giving-payment-exceptions",
+          status: "blocked",
+          href: "/app/church-admin/giving",
+          badges: ["payments", "donations"],
+        }),
+        expect.objectContaining({
+          id: "giving-unsent-receipts",
+          status: "in-progress",
+          href: "/app/church-admin/giving",
+        }),
+        expect.objectContaining({
+          id: "giving-gl-reconciliation",
+          status: "blocked",
+          href: "/app/church-admin/finance/journals",
+        }),
+        expect.objectContaining({
+          id: "giving-page-configuration",
+          status: "blocked",
+          href: "/app/church-admin/giving",
+        }),
+      ]),
+    );
   });
 });

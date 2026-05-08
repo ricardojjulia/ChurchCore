@@ -18,6 +18,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added live tenant summary cards to the ChurchAdmin home dashboard for people, ministries, events, and giving, with preview fallback when no backend is configured.
 - Added a live event-derived Weekend operations lane on the ChurchAdmin home dashboard, surfacing upcoming events that need approval, roster, waitlist, capacity, or near-term attention.
 - Added a live Communications operations lane on the ChurchAdmin home dashboard, surfacing queued/scheduled sends, failed/bounced logs, and aggregate consent/contact gaps.
+- Added a live Giving operations lane on the ChurchAdmin home dashboard, surfacing payment exceptions, unsent receipts, GL reconciliation gaps, fund mapping gaps, and public giving page setup.
 
 - Added local evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, and `npm run smoke:local`, backed by `supabase/scripts/setup-local.sh` and `supabase/scripts/smoke-demo.sh`.
 - Added `.github/CODEOWNERS` with the current repository owner to make review ownership explicit from the first push.
@@ -64,6 +65,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - ChurchAdmin home now reads aggregate tenant data instead of relying only on static preview spotlight cards.
 - The ChurchAdmin Weekend lane now links actionable event items directly to `/app/church-admin/events/[id]` and keeps preview checklist behavior when live tenant data is unavailable.
 - The ChurchAdmin Communications lane now links live communication work to `/app/communications` or people records while preserving preview behavior when live tenant data is unavailable.
+- The ChurchAdmin Giving lane now links live giving work to giving and finance routes while preserving preview behavior when live tenant data is unavailable.
 
 ### Unreleased — Fixed
 

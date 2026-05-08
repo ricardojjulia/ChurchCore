@@ -10,7 +10,7 @@ The next execution focus is Sprint 2 — Admin Dashboard and Church Setup:
 - Continue church-admin directory polish for people, households, invites, and account approval flows.
 - Continue role management hardening after the first per-person role edit flow, including broader review of edge cases around last-admin protection and ministry-leader scope.
 - Continue expanding admin dashboard summaries after the first live cards for people, ministries, events, and giving.
-- Continue replacing preview-backed ChurchAdmin operations lanes after the live Weekend and Communications lanes.
+- Continue replacing preview-backed ChurchAdmin operations lanes after the live Weekend, Communications, and Giving lanes.
 - Add focused tests for admin write actions that touch church settings, profile status, role changes, and invitation flows.
 - Keep README, CHANGELOG, and relevant `/docs` files updated with each meaningful feature change.
 

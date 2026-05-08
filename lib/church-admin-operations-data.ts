@@ -27,10 +27,20 @@ export type ChurchAdminCommunicationOperationItem = {
   badges: string[];
 };
 
+export type ChurchAdminGivingOperationItem = {
+  id: string;
+  title: string;
+  detail: string;
+  status: "blocked" | "in-progress" | "done";
+  href: string;
+  badges: string[];
+};
+
 export type ChurchAdminOperationsData = {
   source: "preview" | "live";
   weekendItems: ChurchAdminWeekendOperationItem[];
   communicationItems: ChurchAdminCommunicationOperationItem[];
+  givingItems: ChurchAdminGivingOperationItem[];
 };
 
 type EventOperationRow = {
@@ -61,6 +71,16 @@ type CommunicationGapOperationRow = {
   contact_private_count: number;
   email_opt_out_count: number;
   sms_opt_out_count: number;
+};
+
+type GivingOperationRow = {
+  pending_count: number;
+  failed_count: number;
+  unsent_receipts_count: number;
+  unposted_gl_count: number;
+  unmapped_fund_count: number;
+  giving_page_count: number;
+  live_giving_page_count: number;
 };
 
 function formatEventDate(value: string) {
@@ -201,11 +221,69 @@ function buildCommunicationItems(
   return [...logItems, ...gapItems].slice(0, 8);
 }
 
+function buildGivingItems(row: GivingOperationRow | null): ChurchAdminGivingOperationItem[] {
+  if (!row) {
+    return [];
+  }
+
+  const items: ChurchAdminGivingOperationItem[] = [];
+
+  if (row.failed_count > 0 || row.pending_count > 0) {
+    items.push({
+      id: "giving-payment-exceptions",
+      title: "Donation payment exceptions need review",
+      detail: `${row.failed_count} failed · ${row.pending_count} pending`,
+      status: row.failed_count > 0 ? "blocked" : "in-progress",
+      href: "/app/church-admin/giving",
+      badges: ["payments", "donations"],
+    });
+  }
+
+  if (row.unsent_receipts_count > 0) {
+    items.push({
+      id: "giving-unsent-receipts",
+      title: "Donation receipts need follow-up",
+      detail: `${row.unsent_receipts_count} succeeded gifts have no receipt timestamp`,
+      status: "in-progress",
+      href: "/app/church-admin/giving",
+      badges: ["receipts", "donor care"],
+    });
+  }
+
+  if (row.unposted_gl_count > 0 || row.unmapped_fund_count > 0) {
+    items.push({
+      id: "giving-gl-reconciliation",
+      title: "Giving GL reconciliation needs attention",
+      detail: `${row.unposted_gl_count} gifts not posted · ${row.unmapped_fund_count} funds unmapped`,
+      status: row.unmapped_fund_count > 0 ? "blocked" : "in-progress",
+      href: "/app/church-admin/finance/journals",
+      badges: ["GL", "finance"],
+    });
+  }
+
+  if (row.giving_page_count === 0 || row.live_giving_page_count === 0) {
+    items.push({
+      id: "giving-page-configuration",
+      title: "Public giving page is not live",
+      detail:
+        row.giving_page_count === 0
+          ? "No public giving page has been configured."
+          : "A giving page exists but is not live.",
+      status: "blocked",
+      href: "/app/church-admin/giving",
+      badges: ["public giving", "setup"],
+    });
+  }
+
+  return items.slice(0, 8);
+}
+
 function buildPreviewOperationsData(): ChurchAdminOperationsData {
   return {
     source: "preview",
     weekendItems: [],
     communicationItems: [],
+    givingItems: [],
   };
 }
 
@@ -219,7 +297,7 @@ export async function getChurchAdminOperationsData(
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {
-    const [eventResult, logResult, gapResult] = await Promise.all([
+    const [eventResult, logResult, gapResult, givingResult] = await Promise.all([
       queryTenantLocalDb<EventOperationRow>(
       `
         select
@@ -304,6 +382,60 @@ export async function getChurchAdminOperationsData(
         `,
         [churchId],
       ),
+      queryTenantLocalDb<GivingOperationRow>(
+        `
+          with recent_donations as (
+            select *
+            from public.donations
+            where church_id = $1
+              and created_at >= timezone('utc', now()) - interval '30 days'
+          ),
+          succeeded_donations as (
+            select *
+            from recent_donations
+            where status = 'succeeded'
+          ),
+          giving_pages as (
+            select
+              count(*)::int as giving_page_count,
+              count(*) filter (where is_live)::int as live_giving_page_count
+            from public.public_giving_pages
+            where church_id = $1
+          )
+          select
+            count(*) filter (where status = 'pending')::int as pending_count,
+            count(*) filter (where status = 'failed')::int as failed_count,
+            count(*) filter (
+              where status = 'succeeded'
+                and receipt_sent_at is null
+            )::int as unsent_receipts_count,
+            count(*) filter (
+              where status = 'succeeded'
+                and not exists (
+                  select 1
+                  from public.donation_gl_posts post
+                  where post.donation_id = recent_donations.id
+                    and post.church_id = recent_donations.church_id
+                    and post.status = 'posted'
+                )
+            )::int as unposted_gl_count,
+            (
+              select count(distinct coalesce(donation.fund_designation, 'General'))::int
+              from succeeded_donations donation
+              where not exists (
+                select 1
+                from public.giving_fund_accounts mapping
+                where mapping.church_id = donation.church_id
+                  and mapping.fund_designation = coalesce(donation.fund_designation, 'General')
+                  and mapping.is_active
+              )
+            ) as unmapped_fund_count,
+            giving_pages.giving_page_count,
+            giving_pages.live_giving_page_count
+          from recent_donations, giving_pages
+        `,
+        [churchId],
+      ),
     ]);
 
     return {
@@ -313,6 +445,7 @@ export async function getChurchAdminOperationsData(
         logResult.rows,
         gapResult.rows[0] ?? null,
       ),
+      givingItems: buildGivingItems(givingResult.rows[0] ?? null),
     };
   }
 
@@ -322,6 +455,10 @@ export async function getChurchAdminOperationsData(
     logsResult,
     profilesResult,
     preferencesResult,
+    donationsResult,
+    glPostsResult,
+    fundMappingsResult,
+    givingPagesResult,
   ] = await Promise.all([
     supabase
       .from("events")
@@ -346,9 +483,38 @@ export async function getChurchAdminOperationsData(
       .from("notification_preferences")
       .select("profile_id, email_opt_in, sms_opt_in")
       .eq("church_id", churchId),
+    supabase
+      .from("donations")
+      .select("id, status, receipt_sent_at, fund_designation, created_at")
+      .eq("church_id", churchId)
+      .gte(
+        "created_at",
+        new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+      ),
+    supabase
+      .from("donation_gl_posts")
+      .select("donation_id, status")
+      .eq("church_id", churchId),
+    supabase
+      .from("giving_fund_accounts")
+      .select("fund_designation, is_active")
+      .eq("church_id", churchId),
+    supabase
+      .from("public_giving_pages")
+      .select("id, is_live")
+      .eq("church_id", churchId),
   ]);
 
-  for (const result of [eventsResult, logsResult, profilesResult, preferencesResult]) {
+  for (const result of [
+    eventsResult,
+    logsResult,
+    profilesResult,
+    preferencesResult,
+    donationsResult,
+    glPostsResult,
+    fundMappingsResult,
+    givingPagesResult,
+  ]) {
     if (result.error) {
       throw new Error(result.error.message);
     }
@@ -452,6 +618,31 @@ export async function getChurchAdminOperationsData(
       (profile) => preferencesByProfileId.get(profile.id)?.sms_opt_in !== true,
     ).length,
   };
+  const postedDonationIds = new Set(
+    (glPostsResult.data ?? [])
+      .filter((post) => post.status === "posted")
+      .map((post) => post.donation_id),
+  );
+  const activeFundMappings = new Set(
+    (fundMappingsResult.data ?? [])
+      .filter((mapping) => mapping.is_active)
+      .map((mapping) => mapping.fund_designation),
+  );
+  const donations = donationsResult.data ?? [];
+  const succeededDonations = donations.filter((donation) => donation.status === "succeeded");
+  const givingRows: GivingOperationRow = {
+    pending_count: donations.filter((donation) => donation.status === "pending").length,
+    failed_count: donations.filter((donation) => donation.status === "failed").length,
+    unsent_receipts_count: succeededDonations.filter((donation) => !donation.receipt_sent_at).length,
+    unposted_gl_count: succeededDonations.filter((donation) => !postedDonationIds.has(donation.id)).length,
+    unmapped_fund_count: new Set(
+      succeededDonations
+        .map((donation) => donation.fund_designation ?? "General")
+        .filter((fund) => !activeFundMappings.has(fund)),
+    ).size,
+    giving_page_count: (givingPagesResult.data ?? []).length,
+    live_giving_page_count: (givingPagesResult.data ?? []).filter((page) => page.is_live).length,
+  };
 
   return {
     source: "live",
@@ -460,5 +651,6 @@ export async function getChurchAdminOperationsData(
       (logsResult.data ?? []) as CommunicationLogOperationRow[],
       communicationGaps,
     ),
+    givingItems: buildGivingItems(givingRows),
   };
 }
