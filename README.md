@@ -162,7 +162,7 @@ New table groups by ministry kind:
 
 Every new track panel component renders `AI_ASSISTIVE_DISCLAIMER` in its footer, consistent with the project-wide canonical disclaimer.
 
-**Seed data:** `supabase/seed.sql` extended to 10 ministries with demo data for all 10 panel types — 5 children's rooms, 4 youth milestones, 4 career mentorship pairs, 7 education courses with enrollments, 5 outreach zones and 5 events, and 8 anonymous marriage pulse entries.
+**Seed data:** `supabase/seed.sql` extended to 10 ministries with demo data for all 10 panel types — 22 profiles, 8 households, 5 children's rooms, 4 youth milestones, 4 career mentorship pairs, 7 education courses with enrollments, 5 outreach zones, 5 events with registrations, care assignments, giving records, communication logs, and 8 anonymous marriage pulse entries.
 
 **Security guardrails:**
 
@@ -180,7 +180,7 @@ Every new track panel component renders `AI_ASSISTIVE_DISCLAIMER` in its footer,
 
 ## Release 2.8.0 Highlights
 
-- **Local Supabase fully operational.** Running `npm run setup:local` gives you a complete local environment with Grace Harbor Church, 8 profiles, 10 ministries, full Ministry Forge track data, and seeded CCM data. See `docs/setup/local-supabase.md` for the complete guide.
+- **Local Supabase fully operational.** Running `npm run setup:local` gives you a complete local environment with Grace Harbor Church, 22 profiles, 10 ministries, full Ministry Forge track data, operations data, giving data, events, and seeded CCM data. See `docs/setup/local-supabase.md` for the complete guide.
 - **Ministry Forge Phase 4 — five specialized track panels.** Worship, men's, women's, marriage, and missions ministry types now each have a dedicated tab in the Ministry Forge dashboard, surfacing type-specific management data (song library, rehearsal schedule, mentorship pairs, discipleship groups, life-stage circles, support pairings, mentor couples, enrichment cohorts, mission partners, and trip roster with impact metrics).
 - **Ministry Forge index page.** `/app/church-admin/ministry` now exists as a proper grid index showing all ministries with health-band indicators, type badges, member counts, and track-panel callouts. The previous nav link (which targeted a non-existent route) is fixed.
 - **Three schema bugs fixed.** `platform_admins.user_id` and `church_memberships.user_id` FKs now correctly reference `auth.users(id)` instead of `profiles(id)`. The `audit_mentorship_pairs` trigger column name typo is corrected. All three fixes are applied as non-destructive migrations.

@@ -38,6 +38,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added ministry workflow management service under `lib/ministry-workflows/` with create, assign, defer, dismiss, complete, feedback, and action-log support.
 - Added church-admin workflow queue route `/app/church-admin/workflows` with filtering, suggestion promotion, assignment, defer, dismiss, complete, and feedback capture.
 - Added Ministry Forge dashboard widget for Suggested Ministry Workflows and member-level ShepherdAI insights in church-admin people cards.
+- Expanded the local Supabase seed to 22 profiles, 8 households, 5 events, account requests, care assignments, communication logs, giving records, and finance mappings so ChurchAdmin operations and Ministry Forge screens load populated demo data after reset.
 - Added ShepherdAI unit and integration tests for signal normalization, scoring, recommendation guardrails, scheduled evaluation flow, workflow promotion, and queue data retrieval.
 - Added architecture and guardrails documentation in `docs/shepherd-ai-ops.md`.
 - Added recurring ShepherdAI scheduler wiring with `lib/shepherd-ai/scheduler.ts`, secure cron route `GET /api/cron/shepherd-ai`, and `vercel.json` cron schedule support.

@@ -126,16 +126,39 @@ The seed creates **Grace Harbor Church** with the following:
 
 ### Profiles
 
-| Name | Email | Role |
-|------|-------|------|
-| Sarah Mitchell | sarah@churchcoreops.app | church_admin |
-| David Chen | david@graceharbor.church | member_volunteer |
-| James Ortega | james@graceharbor.church | member_volunteer |
-| Aisha Thompson | aisha@graceharbor.church | member_volunteer |
-| Robert James | robert@graceharbor.church | member_volunteer |
-| Marcus Williams | marcus@graceharbor.church | member_volunteer |
-| Linda Nguyen | linda@graceharbor.church | member_volunteer |
-| Grace Adeyemi | grace@graceharbor.church | member_volunteer |
+The seed creates 22 demo profiles across members, visitors, inactive members, transferred members, volunteers, ministry leaders, and account-request cases. Sarah Mitchell and David Chen are backed by local Supabase Auth users; the remaining profiles are directory and operations data for ministry workflows.
+
+| Name | Email | Role | Status |
+|------|-------|------|--------|
+| Sarah Mitchell | sarah@churchcoreops.app | church_admin | active |
+| David Chen | david@graceharbor.church | member_volunteer | active |
+| James Ortega | james@graceharbor.church | member_volunteer | active |
+| Aisha Thompson | aisha@graceharbor.church | member_volunteer | active |
+| Robert James | robert@graceharbor.church | ministry_leader | active |
+| Marcus Williams | marcus@graceharbor.church | member_volunteer | active |
+| Linda Nguyen | linda@graceharbor.church | ministry_leader | active |
+| Grace Adeyemi | grace@graceharbor.church | member_volunteer | active |
+| Elena Martinez | elena@graceharbor.church | member_volunteer | active |
+| Carlos Martinez | carlos@graceharbor.church | member_volunteer | active |
+| Maya Martinez | maya@graceharbor.church | member_volunteer | active |
+| Noah Brooks | noah@graceharbor.church | member_volunteer | visitor |
+| Olivia Reed | olivia@graceharbor.church | member_volunteer | active |
+| Ethan Reed | ethan@graceharbor.church | member_volunteer | active |
+| Chloe Brooks | chloe@graceharbor.church | member_volunteer | visitor |
+| Samuel Price | samuel@graceharbor.church | member_volunteer | active |
+| Priya Patel | priya@graceharbor.church | member_volunteer | active |
+| Ben Patel | ben@graceharbor.church | member_volunteer | active |
+| Rachel Kim | rachel@graceharbor.church | member_volunteer | inactive |
+| Thomas Walker | thomas@graceharbor.church | member_volunteer | transferred |
+| Nadia Hassan | nadia@graceharbor.church | member_volunteer | baptized |
+| Peter Stone | peter@graceharbor.church | member_volunteer | visitor |
+
+### Operations data
+
+- 8 households with member numbers, emergency contacts, contact preferences, and directory visibility states
+- 5 events with registration settings, rosters, confirmed attendees, and waitlist data
+- 4 account requests, 4 care assignments, notification preferences, and communication logs
+- Finance accounts, giving fund mappings, a live public giving page, and 6 demo donations
 
 ### Track data
 
