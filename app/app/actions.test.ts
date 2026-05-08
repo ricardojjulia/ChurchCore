@@ -54,6 +54,7 @@ vi.mock("@/lib/supabase/tenant", () => ({
 
 import {
   updateChurchAdminPersonAction,
+  updateChurchAdminPeopleBulkAction,
   updateMinistryAction,
 } from "@/app/app/actions";
 
@@ -220,6 +221,38 @@ describe("app actions", () => {
     ).rejects.toThrow("You cannot remove your own church-admin access.");
 
     expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(1);
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("bulk-updates profile status and visibility inside the church scope", async () => {
+    queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [] });
+
+    await updateChurchAdminPeopleBulkAction({
+      profileIds: ["profile-2", "profile-3"],
+      membershipStatus: "inactive",
+      directoryVisible: false,
+      contactAllowed: false,
+    });
+
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("update public.profiles"),
+      ["inactive", false, false, ["profile-2", "profile-3"], "church-1"],
+    );
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/people");
+  });
+
+  it("rejects empty church-admin bulk profile updates", async () => {
+    await expect(
+      updateChurchAdminPeopleBulkAction({
+        profileIds: [],
+        membershipStatus: null,
+        directoryVisible: null,
+        contactAllowed: null,
+      }),
+    ).rejects.toThrow("At least one person must be selected.");
+
+    expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
     expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 });

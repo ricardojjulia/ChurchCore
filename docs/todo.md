@@ -11,7 +11,7 @@ The next execution focus is Sprint 2 — Admin Dashboard and Church Setup:
 - Continue role management hardening after the first per-person role edit flow, including broader review of edge cases around last-admin protection and ministry-leader scope.
 - Continue expanding admin dashboard summaries after the first live cards for people, ministries, events, and giving.
 - Continue hardening ChurchAdmin operations now that the Care, Weekend, Communications, and Giving lanes read live tenant data with preview fallback.
-- Add focused tests for admin write actions that touch church settings, profile status, role changes, and invitation flows.
+- Continue broadening admin write-action tests after the first focused coverage for church settings, profile status, role changes, and account approval flows.
 - Keep README, CHANGELOG, and relevant `/docs` files updated with each meaningful feature change.
 
 ## Supabase Follow-up

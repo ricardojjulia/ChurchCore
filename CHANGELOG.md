@@ -67,6 +67,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - The ChurchAdmin Weekend lane now links actionable event items directly to `/app/church-admin/events/[id]` and keeps preview checklist behavior when live tenant data is unavailable.
 - The ChurchAdmin Communications lane now links live communication work to `/app/communications` or people records while preserving preview behavior when live tenant data is unavailable.
 - The ChurchAdmin Giving lane now links live giving work to giving and finance routes while preserving preview behavior when live tenant data is unavailable.
+- Added focused admin write-action coverage for church settings validation, profile bulk status updates, role-change protection, and portal account request approval/rejection.
 
 ### Unreleased — Fixed
 

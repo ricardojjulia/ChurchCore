@@ -81,7 +81,9 @@ vi.mock("@/lib/supabase/tenant", () => ({
 
 import {
   addRosterAssignmentAction,
+  approveAccountRequestAction,
   createEventAction,
+  rejectAccountRequestAction,
   registerForEventAction,
   updateChurchSettingsAction,
   upsertRegistrationSettingsAction,
@@ -271,5 +273,76 @@ describe("church-admin actions", () => {
 
     expect(result).toEqual({ ok: false, error: "Church-admin access is required." });
     expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+  });
+
+  it("validates church settings payload before writing", async () => {
+    const result = await updateChurchSettingsAction({
+      name: "   ",
+      timezone: "America/Detroit",
+    });
+
+    expect(result).toEqual({ ok: false, error: "Church name is required." });
+    expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+  });
+
+  it("approves a new portal account request in local fallback mode", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "admin-profile-1" }] })
+      .mockResolvedValueOnce({ rows: [{ member_number: "GH-0007" }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "request-1",
+            profile_id: null,
+            email: "new.member@example.com",
+            phone: "555-0190",
+            first_name: "New",
+            last_name: "Member",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ id: "profile-7" }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const result = await approveAccountRequestAction({ requestId: "request-1" });
+
+    expect(result).toEqual({ previewMode: true, invited: false });
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("from public.profiles"),
+      ["user-1", "church-1"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      2,
+      "select public.generate_member_number() as member_number",
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining("from public.account_requests"),
+      ["request-1", "church-1"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining("insert into public.profiles"),
+      ["church-1", "New Member", "new.member@example.com", "555-0190", "GH-0007"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      5,
+      expect.stringContaining("update public.account_requests"),
+      ["profile-7", "admin-profile-1", expect.any(String), "request-1"],
+    );
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/accounts");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/people");
+  });
+
+  it("rejects a portal account request inside the active church only", async () => {
+    const result = await rejectAccountRequestAction({ requestId: "request-1" });
+
+    expect(result).toEqual({ previewMode: false });
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("delete from public.account_requests"),
+      ["request-1", "church-1"],
+    );
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/accounts");
   });
 });
