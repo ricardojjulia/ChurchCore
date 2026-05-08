@@ -110,8 +110,12 @@ describe("getChurchAdminPeopleData", () => {
     const data = await getChurchAdminPeopleData(session);
 
     expect(data.summary.pendingAccountRequests).toBe(1);
+    expect(data.summary.familyCount).toBe(1);
+    expect(data.summary.unassignedHouseholdCount).toBe(1);
     expect(data.people[0]).toMatchObject({
       id: "profile-1",
+      familyId: "family-1",
+      familyName: "Lovelace household",
       memberNumber: null,
       accountStatus: "pending",
       pendingAccountRequestId: "request-1",
@@ -119,6 +123,8 @@ describe("getChurchAdminPeopleData", () => {
     });
     expect(data.people[1]).toMatchObject({
       id: "profile-2",
+      familyId: null,
+      familyName: null,
       memberNumber: "GH-0002",
       accountStatus: "active",
       pendingAccountRequestId: null,

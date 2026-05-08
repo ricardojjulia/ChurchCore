@@ -295,7 +295,7 @@ Primary routes:
 - `/portal` public member-portal landing page with sign-in and request-access entry points
 - `/portal/register` public member portal request form
 - `/app/church-admin/settings` church-admin setup profile — tenant church name, legal name, timezone, website, contact, mailing address, and public summary
-- `/app/church-admin/people` church-admin people-management — search, filter, account/request visibility, edit, role management, bulk update, add person (offline record), invite user (Supabase auth email), deactivate
+- `/app/church-admin/people` church-admin people-management — search, filter, household/account/request visibility, edit, role management, bulk update, add person (offline record), invite user (Supabase auth email), deactivate
 - `/app/church-admin/accounts` church-admin account-request approval queue
 - `/app/church-admin/events/[id]` event-specific attendance and roster workspace with quick check-in, burnout warnings, and visitor add flow
 - `/app/church-admin/ministry` Ministry Forge index — grid of all ministries with health-band indicators, type badges, and member counts

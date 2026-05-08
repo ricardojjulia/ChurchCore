@@ -59,6 +59,7 @@ export type ChurchAdminPeopleSummary = {
   totalPeople: number;
   visitorCount: number;
   familyCount: number;
+  unassignedHouseholdCount: number;
   incompleteProfiles: number;
   pendingAccountRequests: number;
 };
@@ -75,6 +76,7 @@ function buildPreviewChurchAdminPeopleData(): ChurchAdminPeopleData {
       totalPeople: 0,
       visitorCount: 0,
       familyCount: 0,
+      unassignedHouseholdCount: 0,
       incompleteProfiles: 0,
       pendingAccountRequests: 0,
     },
@@ -417,6 +419,7 @@ export async function getChurchAdminPeopleData(
         totalPeople: people.length,
         visitorCount: people.filter((person) => person.membershipStatus === "visitor").length,
         familyCount: familyIds.size,
+        unassignedHouseholdCount: people.filter((person) => !person.familyId).length,
         incompleteProfiles: people.filter(
           (person) => !person.phone || !person.emergencyContactName,
         ).length,
@@ -563,6 +566,7 @@ export async function getChurchAdminPeopleData(
       visitorCount: normalizedPeople.filter((person) => person.membershipStatus === "visitor")
         .length,
       familyCount: familyIds.length,
+      unassignedHouseholdCount: normalizedPeople.filter((person) => !person.familyId).length,
       incompleteProfiles: normalizedPeople.filter(
         (person) => !person.phone || !person.emergencyContactName,
       ).length,

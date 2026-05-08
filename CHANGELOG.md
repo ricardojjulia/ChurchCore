@@ -69,6 +69,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - The ChurchAdmin Giving lane now links live giving work to giving and finance routes while preserving preview behavior when live tenant data is unavailable.
 - Added focused admin write-action coverage for church settings validation, profile bulk status updates, role-change protection, and portal account request approval/rejection.
 - ChurchAdmin people management now surfaces member numbers, account status, pending portal request counts, account-state filtering, and a direct path back to the account approval queue.
+- ChurchAdmin people management now surfaces unassigned-household counts, household-state filtering, and per-person household badges that link naturally into the existing relationship reassignment flow.
 
 ### Unreleased — Fixed
 

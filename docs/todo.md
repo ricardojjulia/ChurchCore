@@ -7,7 +7,7 @@ ADR 0002 is complete. The control-plane Supabase project now owns platform regis
 The next execution focus is Sprint 2 — Admin Dashboard and Church Setup:
 
 - Continue church settings/profile management after the first tenant-backed settings surface.
-- Continue church-admin directory polish after adding account/request visibility to people management, especially household workflows and invite edge cases.
+- Continue church-admin directory polish after adding account/request and household visibility to people management, especially invite edge cases and deeper household workflows.
 - Continue role management hardening after the first per-person role edit flow, including broader review of edge cases around last-admin protection and ministry-leader scope.
 - Continue expanding admin dashboard summaries after the first live cards for people, ministries, events, and giving.
 - Continue hardening ChurchAdmin operations now that the Care, Weekend, Communications, and Giving lanes read live tenant data with preview fallback.

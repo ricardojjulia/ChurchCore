@@ -12,9 +12,10 @@ The existing ChurchAdmin workspace handles operational preview lanes, but it did
 
 ## What It Includes
 
-- Search across names, families, email, phone, ministries, member numbers, and account status
-- Filters for membership status, church role, and account state
-- Summary counts for total people, visitors, families, incomplete profiles, and pending account requests
+- Search across names, families, email, phone, ministries, member numbers, household state, and account status
+- Filters for membership status, church role, household state, and account state
+- Summary counts for total people, visitors, families, unassigned households, incomplete profiles, and pending account requests
+- Per-person household badges for assigned or unassigned household state
 - Per-person account badges for member number, account status, and pending portal request state
 - Bulk actions for membership status and privacy visibility across selected records
 - Household reassignment for existing profiles

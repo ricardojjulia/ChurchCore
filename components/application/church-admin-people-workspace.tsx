@@ -50,6 +50,7 @@ export function ChurchAdminPeopleWorkspace({
   const [status, setStatus] = useState("all");
   const [role, setRole] = useState("all");
   const [accountFilter, setAccountFilter] = useState("all");
+  const [householdFilter, setHouseholdFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const visiblePeople = useMemo(() => {
@@ -79,6 +80,14 @@ export function ChurchAdminPeopleWorkspace({
         return false;
       }
 
+      if (householdFilter === "assigned" && !person.familyId) {
+        return false;
+      }
+
+      if (householdFilter === "unassigned" && person.familyId) {
+        return false;
+      }
+
       if (!normalized) {
         return true;
       }
@@ -89,6 +98,7 @@ export function ChurchAdminPeopleWorkspace({
         person.phone,
         person.displayTitle,
         person.familyName,
+        person.familyId ? "household assigned" : "no household",
         person.membershipStatus,
         person.memberNumber,
         person.accountStatus,
@@ -101,7 +111,7 @@ export function ChurchAdminPeopleWorkspace({
 
       return haystack.includes(normalized);
     });
-  }, [accountFilter, data.people, query, role, status]);
+  }, [accountFilter, data.people, householdFilter, query, role, status]);
 
   const allVisibleSelected =
     visiblePeople.length > 0 &&
@@ -195,7 +205,7 @@ export function ChurchAdminPeopleWorkspace({
     >
       <ChurchAppContextBanner session={session} />
 
-      <SimpleGrid cols={{ base: 1, sm: 2, xl: 5 }} spacing="md">
+      <SimpleGrid cols={{ base: 1, sm: 2, xl: 6 }} spacing="md">
         <Paper withBorder radius="xl" p="lg">
           <Text size="xs" tt="uppercase" fw={700} c="dimmed">
             People
@@ -218,6 +228,14 @@ export function ChurchAdminPeopleWorkspace({
           </Text>
           <Title order={3} mt="xs">
             {data.summary.familyCount}
+          </Title>
+        </Paper>
+        <Paper withBorder radius="xl" p="lg">
+          <Text size="xs" tt="uppercase" fw={700} c="dimmed">
+            No household
+          </Text>
+          <Title order={3} mt="xs">
+            {data.summary.unassignedHouseholdCount}
           </Title>
         </Paper>
         <Paper withBorder radius="xl" p="lg">
@@ -297,6 +315,16 @@ export function ChurchAdminPeopleWorkspace({
             ]}
             radius="xl"
           />
+          <Select
+            value={householdFilter}
+            onChange={(value) => setHouseholdFilter(value ?? "all")}
+            data={[
+              { value: "all", label: "All households" },
+              { value: "assigned", label: "Has household" },
+              { value: "unassigned", label: "No household" },
+            ]}
+            radius="xl"
+          />
         </Group>
 
         <Group justify="space-between" align="center" mb="lg">
@@ -346,6 +374,12 @@ export function ChurchAdminPeopleWorkspace({
                         {person.phone || "No phone on file"}
                       </Text>
                       <Group gap="xs" mt={8}>
+                        <Badge
+                          color={person.familyId ? "teal" : "yellow"}
+                          variant="light"
+                        >
+                          {person.familyName ?? "no household"}
+                        </Badge>
                         {person.memberNumber ? (
                           <Badge color="gray" variant="outline">
                             {person.memberNumber}
