@@ -70,6 +70,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added focused admin write-action coverage for church settings validation, profile bulk status updates, role-change protection, and portal account request approval/rejection.
 - ChurchAdmin people management now surfaces member numbers, account status, pending portal request counts, account-state filtering, and a direct path back to the account approval queue.
 - ChurchAdmin people management now surfaces unassigned-household counts, household-state filtering, and per-person household badges that link naturally into the existing relationship reassignment flow.
+- Fixed remaining stale Ministry Forge links and added a compatibility redirect from `/app/church-admin/ministry/overview` to `/app/church-admin/ministry`.
 
 ### Unreleased — Fixed
 
