@@ -18,9 +18,19 @@ export type ChurchAdminWeekendOperationItem = {
   badges: string[];
 };
 
+export type ChurchAdminCommunicationOperationItem = {
+  id: string;
+  title: string;
+  detail: string;
+  status: "blocked" | "in-progress" | "done";
+  href: string;
+  badges: string[];
+};
+
 export type ChurchAdminOperationsData = {
   source: "preview" | "live";
   weekendItems: ChurchAdminWeekendOperationItem[];
+  communicationItems: ChurchAdminCommunicationOperationItem[];
 };
 
 type EventOperationRow = {
@@ -36,12 +46,37 @@ type EventOperationRow = {
   registration_open: boolean | null;
 };
 
+type CommunicationLogOperationRow = {
+  id: string;
+  channel: string;
+  subject: string | null;
+  status: string;
+  scheduled_for: string | null;
+  created_at: string;
+};
+
+type CommunicationGapOperationRow = {
+  missing_email_count: number;
+  missing_phone_count: number;
+  contact_private_count: number;
+  email_opt_out_count: number;
+  sms_opt_out_count: number;
+};
+
 function formatEventDate(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatShortDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
   }).format(new Date(value));
 }
 
@@ -103,10 +138,74 @@ function buildWeekendItems(rows: EventOperationRow[]): ChurchAdminWeekendOperati
     .slice(0, 8);
 }
 
+function buildCommunicationItems(
+  logs: CommunicationLogOperationRow[],
+  gaps: CommunicationGapOperationRow | null,
+): ChurchAdminCommunicationOperationItem[] {
+  const logItems = logs.flatMap((log) => {
+    const isFailure = log.status === "failed" || log.status === "bounced";
+    const isQueued = log.status === "queued";
+    const isScheduled = Boolean(log.scheduled_for);
+
+    if (!isFailure && !isQueued && !isScheduled) {
+      return [];
+    }
+
+    const channel = log.channel.toUpperCase();
+    const subject = log.subject ?? "Untitled message";
+    const scheduledDetail = log.scheduled_for
+      ? `Scheduled for ${formatShortDate(log.scheduled_for)}`
+      : `Created ${formatShortDate(log.created_at)}`;
+
+    return [
+      {
+        id: `communication-log-${log.id}`,
+        title: `${channel}: ${subject}`,
+        detail: scheduledDetail,
+        status: isFailure ? "blocked" : "in-progress",
+        href: "/app/communications",
+        badges: [log.status, log.channel],
+      } satisfies ChurchAdminCommunicationOperationItem,
+    ];
+  });
+
+  const gapItems: ChurchAdminCommunicationOperationItem[] = [];
+
+  if (gaps) {
+    const missingContact = gaps.missing_email_count + gaps.missing_phone_count;
+    const optOuts = gaps.email_opt_out_count + gaps.sms_opt_out_count;
+
+    if (missingContact > 0 || gaps.contact_private_count > 0) {
+      gapItems.push({
+        id: "communication-contact-gaps",
+        title: "Contact gaps need review",
+        detail: `${missingContact} missing email/phone fields · ${gaps.contact_private_count} private contacts`,
+        status: "blocked",
+        href: "/app/church-admin/people",
+        badges: ["contact data", "people"],
+      });
+    }
+
+    if (optOuts > 0) {
+      gapItems.push({
+        id: "communication-consent-gaps",
+        title: "Communication consent limits reach",
+        detail: `${gaps.email_opt_out_count} email opt-outs · ${gaps.sms_opt_out_count} SMS opt-outs`,
+        status: "in-progress",
+        href: "/app/communications",
+        badges: ["consent", "preferences"],
+      });
+    }
+  }
+
+  return [...logItems, ...gapItems].slice(0, 8);
+}
+
 function buildPreviewOperationsData(): ChurchAdminOperationsData {
   return {
     source: "preview",
     weekendItems: [],
+    communicationItems: [],
   };
 }
 
@@ -120,7 +219,8 @@ export async function getChurchAdminOperationsData(
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {
-    const result = await queryTenantLocalDb<EventOperationRow>(
+    const [eventResult, logResult, gapResult] = await Promise.all([
+      queryTenantLocalDb<EventOperationRow>(
       `
         select
           event.id,
@@ -161,53 +261,126 @@ export async function getChurchAdminOperationsData(
         limit 30
       `,
       [churchId],
-    );
+      ),
+      queryTenantLocalDb<CommunicationLogOperationRow>(
+        `
+          select id, channel, subject, status, scheduled_for, created_at
+          from public.communication_logs
+          where church_id = $1
+            and (
+              status in ('queued', 'failed', 'bounced')
+              or scheduled_for is not null
+            )
+          order by coalesce(scheduled_for, created_at) asc
+          limit 20
+        `,
+        [churchId],
+      ),
+      queryTenantLocalDb<CommunicationGapOperationRow>(
+        `
+          select
+            count(*) filter (
+              where coalesce(profile.email, '') = ''
+            )::int as missing_email_count,
+            count(*) filter (
+              where coalesce(profile.phone, '') = ''
+            )::int as missing_phone_count,
+            count(*) filter (
+              where coalesce(profile.contact_allowed, true) = false
+            )::int as contact_private_count,
+            count(*) filter (
+              where coalesce(preferences.email_opt_in, true) = false
+            )::int as email_opt_out_count,
+            count(*) filter (
+              where coalesce(preferences.sms_opt_in, false) = false
+            )::int as sms_opt_out_count
+          from public.profiles profile
+          left join public.notification_preferences preferences
+            on preferences.profile_id = profile.id
+           and preferences.church_id = profile.church_id
+          where profile.church_id = $1
+            and profile.merged_at is null
+            and coalesce(profile.membership_status, 'active') <> 'inactive'
+        `,
+        [churchId],
+      ),
+    ]);
 
     return {
       source: "live",
-      weekendItems: buildWeekendItems(result.rows),
+      weekendItems: buildWeekendItems(eventResult.rows),
+      communicationItems: buildCommunicationItems(
+        logResult.rows,
+        gapResult.rows[0] ?? null,
+      ),
     };
   }
 
   const supabase = await createTenantServerClient();
-  const { data: events, error: eventsError } = await supabase
-    .from("events")
-    .select("id, title, starts_at, location, approval_status")
-    .eq("church_id", churchId)
-    .gte("starts_at", new Date().toISOString())
-    .order("starts_at", { ascending: true })
-    .limit(30);
+  const [
+    eventsResult,
+    logsResult,
+    profilesResult,
+    preferencesResult,
+  ] = await Promise.all([
+    supabase
+      .from("events")
+      .select("id, title, starts_at, location, approval_status")
+      .eq("church_id", churchId)
+      .gte("starts_at", new Date().toISOString())
+      .order("starts_at", { ascending: true })
+      .limit(30),
+    supabase
+      .from("communication_logs")
+      .select("id, channel, subject, status, scheduled_for, created_at")
+      .eq("church_id", churchId)
+      .or("status.in.(queued,failed,bounced),scheduled_for.not.is.null")
+      .order("created_at", { ascending: false })
+      .limit(20),
+    supabase
+      .from("profiles")
+      .select("id, email, phone, contact_allowed, membership_status")
+      .eq("church_id", churchId)
+      .is("merged_at", null),
+    supabase
+      .from("notification_preferences")
+      .select("profile_id, email_opt_in, sms_opt_in")
+      .eq("church_id", churchId),
+  ]);
 
-  if (eventsError) {
-    throw new Error(eventsError.message);
+  for (const result of [eventsResult, logsResult, profilesResult, preferencesResult]) {
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
   }
 
+  const events = eventsResult.data ?? [];
   const eventIds = (events ?? []).map((event) => event.id);
 
-  if (eventIds.length === 0) {
-    return {
-      source: "live",
-      weekendItems: [],
-    };
-  }
-
-  const [rostersResult, registrationsResult, settingsResult] = await Promise.all([
-    supabase
-      .from("event_rosters")
-      .select("event_id")
-      .eq("church_id", churchId)
-      .in("event_id", eventIds),
-    supabase
-      .from("event_registrations")
-      .select("event_id, status, is_waitlisted")
-      .eq("church_id", churchId)
-      .in("event_id", eventIds),
-    supabase
-      .from("event_registration_settings")
-      .select("event_id, capacity, registration_open")
-      .eq("church_id", churchId)
-      .in("event_id", eventIds),
-  ]);
+  const [rostersResult, registrationsResult, settingsResult] =
+    eventIds.length > 0
+      ? await Promise.all([
+          supabase
+            .from("event_rosters")
+            .select("event_id")
+            .eq("church_id", churchId)
+            .in("event_id", eventIds),
+          supabase
+            .from("event_registrations")
+            .select("event_id, status, is_waitlisted")
+            .eq("church_id", churchId)
+            .in("event_id", eventIds),
+          supabase
+            .from("event_registration_settings")
+            .select("event_id, capacity, registration_open")
+            .eq("church_id", churchId)
+            .in("event_id", eventIds),
+        ])
+      : [
+          { data: [] as Array<{ event_id: string }>, error: null },
+          { data: [] as Array<{ event_id: string; status: string; is_waitlisted: boolean }>, error: null },
+          { data: [] as Array<{ event_id: string; capacity: number | null; registration_open: boolean | null }>, error: null },
+        ];
 
   for (const result of [rostersResult, registrationsResult, settingsResult]) {
     if (result.error) {
@@ -240,7 +413,7 @@ export async function getChurchAdminOperationsData(
     (settingsResult.data ?? []).map((settings) => [settings.event_id, settings]),
   );
 
-  const rows: EventOperationRow[] = (events ?? []).map((event) => {
+  const rows: EventOperationRow[] = events.map((event) => {
     const settings = settingsByEventId.get(event.id);
 
     return {
@@ -257,8 +430,35 @@ export async function getChurchAdminOperationsData(
     };
   });
 
+  const preferencesByProfileId = new Map(
+    (preferencesResult.data ?? []).map((preference) => [
+      preference.profile_id,
+      preference,
+    ]),
+  );
+  const activeProfiles = (profilesResult.data ?? []).filter(
+    (profile) => profile.membership_status !== "inactive",
+  );
+  const communicationGaps: CommunicationGapOperationRow = {
+    missing_email_count: activeProfiles.filter((profile) => !profile.email).length,
+    missing_phone_count: activeProfiles.filter((profile) => !profile.phone).length,
+    contact_private_count: activeProfiles.filter(
+      (profile) => profile.contact_allowed === false,
+    ).length,
+    email_opt_out_count: activeProfiles.filter(
+      (profile) => preferencesByProfileId.get(profile.id)?.email_opt_in === false,
+    ).length,
+    sms_opt_out_count: activeProfiles.filter(
+      (profile) => preferencesByProfileId.get(profile.id)?.sms_opt_in !== true,
+    ).length,
+  };
+
   return {
     source: "live",
     weekendItems: buildWeekendItems(rows),
+    communicationItems: buildCommunicationItems(
+      (logsResult.data ?? []) as CommunicationLogOperationRow[],
+      communicationGaps,
+    ),
   };
 }

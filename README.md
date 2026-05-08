@@ -290,7 +290,7 @@ Primary routes:
 - `/controll` compatibility redirect to `/control`
 - `/app` tenant-facing church application entry
 - `/app/[role]` church role workspace
-- `/app/church-admin` church-admin home — live tenant summary cards for people, ministries, events, and giving plus an operations board with a live event-derived Weekend lane
+- `/app/church-admin` church-admin home — live tenant summary cards for people, ministries, events, and giving plus operations lanes for live weekend and communications work
 - `/app/calendar` tenant-facing working calendar hub backed by Supabase event reads when configured
 - `/portal` public member-portal landing page with sign-in and request-access entry points
 - `/portal/register` public member portal request form

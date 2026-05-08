@@ -54,39 +54,52 @@ describe("getChurchAdminOperationsData", () => {
 
     const data = await getChurchAdminOperationsData(session);
 
-    expect(data).toEqual({ source: "preview", weekendItems: [] });
+    expect(data).toEqual({ source: "preview", weekendItems: [], communicationItems: [] });
     expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
   });
 
   it("builds weekend operations from actionable upcoming events", async () => {
-    queryTenantLocalDbMock.mockResolvedValueOnce({
-      rows: [
-        {
-          id: "event-1",
-          title: "Sunday Service",
-          starts_at: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-          location: "Sanctuary",
-          approval_status: "pending",
-          roster_count: 0,
-          registration_count: 20,
-          waitlist_count: 0,
-          capacity: 100,
-          registration_open: true,
-        },
-        {
-          id: "event-2",
-          title: "Later Training",
-          starts_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          location: null,
-          approval_status: "approved",
-          roster_count: 3,
-          registration_count: 8,
-          waitlist_count: 0,
-          capacity: 40,
-          registration_open: true,
-        },
-      ],
-    });
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "event-1",
+            title: "Sunday Service",
+            starts_at: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+            location: "Sanctuary",
+            approval_status: "pending",
+            roster_count: 0,
+            registration_count: 20,
+            waitlist_count: 0,
+            capacity: 100,
+            registration_open: true,
+          },
+          {
+            id: "event-2",
+            title: "Later Training",
+            starts_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            location: null,
+            approval_status: "approved",
+            roster_count: 3,
+            registration_count: 8,
+            waitlist_count: 0,
+            capacity: 40,
+            registration_open: true,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            missing_email_count: 0,
+            missing_phone_count: 0,
+            contact_private_count: 0,
+            email_opt_out_count: 0,
+            sms_opt_out_count: 0,
+          },
+        ],
+      });
 
     const data = await getChurchAdminOperationsData(session);
 
@@ -104,5 +117,67 @@ describe("getChurchAdminOperationsData", () => {
       expect.stringContaining("from public.events event"),
       ["church-1"],
     );
+  });
+
+  it("builds communication operations from logs and consent/contact gaps", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "log-1",
+            channel: "email",
+            subject: "Weekend Update",
+            status: "failed",
+            scheduled_for: null,
+            created_at: "2026-05-08T12:00:00.000Z",
+          },
+          {
+            id: "log-2",
+            channel: "sms",
+            subject: null,
+            status: "sent",
+            scheduled_for: null,
+            created_at: "2026-05-08T11:00:00.000Z",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            missing_email_count: 2,
+            missing_phone_count: 3,
+            contact_private_count: 1,
+            email_opt_out_count: 4,
+            sms_opt_out_count: 5,
+          },
+        ],
+      });
+
+    const data = await getChurchAdminOperationsData(session);
+
+    expect(data.source).toBe("live");
+    expect(data.communicationItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "communication-log-log-1",
+          title: "EMAIL: Weekend Update",
+          status: "blocked",
+          href: "/app/communications",
+          badges: ["failed", "email"],
+        }),
+        expect.objectContaining({
+          id: "communication-contact-gaps",
+          status: "blocked",
+          href: "/app/church-admin/people",
+        }),
+        expect.objectContaining({
+          id: "communication-consent-gaps",
+          status: "in-progress",
+          href: "/app/communications",
+        }),
+      ]),
+    );
+    expect(data.communicationItems.some((item) => item.id === "communication-log-log-2")).toBe(false);
   });
 });
