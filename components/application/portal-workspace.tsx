@@ -1,16 +1,21 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import {
+  BarChart3,
   BrainCircuit,
   Calendar,
+  ClipboardCheck,
   DollarSign,
   HeartHandshake,
   Landmark,
   MessageSquare,
+  PhoneCall,
   Settings,
   ShieldCheck,
   Sparkles,
   Users,
+  UserPlus,
   UsersRound,
 } from "lucide-react";
 import {
@@ -37,6 +42,7 @@ import { type PortalRole, type PortalRoleId } from "@/lib/portal";
 const roleIcons: Record<PortalRoleId, React.ComponentType<{ size?: number; className?: string }>> = {
   "super-admin": ShieldCheck,
   "church-admin": HeartHandshake,
+  secretary: PhoneCall,
   pastor: BrainCircuit,
   "ministry-leader": UsersRound,
   member: Sparkles,
@@ -55,16 +61,19 @@ export function PortalWorkspace({
   churchAdminSummary?: ChurchAdminDashboardSummary | null;
   churchAdminOperations?: ChurchAdminOperationsData | null;
 }) {
+  const pathname = usePathname();
   const churchContext = session.appContext.kind === "church" ? session.appContext : null;
   const ActiveIcon = roleIcons[role.id];
   const workspaceHref = session.homePath;
+  const isActiveHref = (href: string) =>
+    pathname === href || (href !== session.homePath && pathname.startsWith(`${href}/`));
   const navItems = [
     {
       href: session.homePath,
       label: "Home",
       description: churchContext ? churchContext.church.name : role.audience,
       icon: roleIcons[role.id],
-      active: true,
+      active: isActiveHref(session.homePath),
     },
   ];
 
@@ -75,91 +84,145 @@ export function PortalWorkspace({
         label: "Settings",
         description: "Church setup",
         icon: Settings,
-        active: false,
+        active: isActiveHref("/app/church-admin/settings"),
+      },
+      {
+        href: "/app/daily-desk",
+        label: "Daily Desk",
+        description: "Calls and follow-up",
+        icon: PhoneCall,
+        active: isActiveHref("/app/daily-desk"),
+      },
+      {
+        href: "/app/church-admin/readiness",
+        label: "Readiness",
+        description: "Weekly launch path",
+        icon: ClipboardCheck,
+        active: isActiveHref("/app/church-admin/readiness"),
       },
       {
         href: "/app/church-admin/people",
         label: "People",
         description: "Records and statuses",
         icon: UsersRound,
-        active: false,
+        active: isActiveHref("/app/church-admin/people"),
+      },
+      {
+        href: "/app/church-admin/accounts",
+        label: "Account Requests",
+        description: "Portal approvals",
+        icon: UserPlus,
+        active: isActiveHref("/app/church-admin/accounts"),
       },
       {
         href: "/app/communications",
         label: "Communications",
         description: "Broadcast and messaging",
         icon: MessageSquare,
-        active: false,
+        active: isActiveHref("/app/communications"),
       },
       {
         href: "/app/giving",
-        label: "Giving",
+        label: "Donations",
         description: "Donations dashboard",
         icon: DollarSign,
-        active: false,
+        active: isActiveHref("/app/giving"),
       },
       {
         href: "/app/church-admin/ministry",
         label: "Ministry Forge",
         description: "Health, vision, and impact",
         icon: Sparkles,
-        active: false,
+        active: isActiveHref("/app/church-admin/ministry"),
+      },
+      {
+        href: "/app/church-admin/workflows",
+        label: "Suggested Workflows",
+        description: "Review ministry actions",
+        icon: ClipboardCheck,
+        active: isActiveHref("/app/church-admin/workflows"),
       },
       {
         href: "/app/church-admin/finance",
         label: "Finance",
         description: "Accounts, budgets & journals",
         icon: Landmark,
-        active: false,
+        active: isActiveHref("/app/church-admin/finance"),
+      },
+      {
+        href: "/app/reports",
+        label: "Reports",
+        description: "Dashboards and trends",
+        icon: BarChart3,
+        active: isActiveHref("/app/reports"),
       },
       {
         href: "/app/church-admin/children",
         label: "Children's Ministry",
         description: "Check-in, safety & roster",
         icon: ShieldCheck,
-        active: false,
+        active: isActiveHref("/app/church-admin/children"),
       },
       {
         href: "/app/church-admin/groups",
         label: "Small Groups",
         description: "Group directory & attendance",
         icon: Users,
-        active: false,
+        active: isActiveHref("/app/church-admin/groups"),
       },
       {
         href: "/app/church-admin/events",
         label: "Events",
         description: "Event roster & check-in",
         icon: Calendar,
-        active: false,
+        active: isActiveHref("/app/church-admin/events"),
       },
       {
         href: "/app/church-admin/attendance",
         label: "Attendance",
         description: "Service headcounts & trends",
         icon: Calendar,
-        active: false,
+        active: isActiveHref("/app/church-admin/attendance"),
       },
       {
         href: "/app/church-admin/volunteers",
         label: "Volunteers",
         description: "Scheduling, hours & directory",
         icon: Users,
-        active: false,
+        active: isActiveHref("/app/church-admin/volunteers"),
       },
       {
         href: "/app/church-admin/visitors",
         label: "Visitors",
         description: "First-visit follow-up pipeline",
         icon: UsersRound,
-        active: false,
+        active: isActiveHref("/app/church-admin/visitors"),
       },
       {
         href: "/app/church-admin/giving",
-        label: "Giving Admin",
+        label: "Giving Ops",
         description: "Analytics & fund GL mappings",
         icon: DollarSign,
-        active: false,
+        active: isActiveHref("/app/church-admin/giving"),
+      },
+    );
+  }
+
+  if (role.id === "secretary") {
+    navItems.push(
+      {
+        href: "/app/daily-desk",
+        label: "Daily Desk",
+        description: "Calls and follow-up",
+        icon: PhoneCall,
+        active: isActiveHref("/app/daily-desk"),
+      },
+      {
+        href: "/app/calendar",
+        label: "Calendar",
+        description: "Events and schedule",
+        icon: Calendar,
+        active: isActiveHref("/app/calendar"),
       },
     );
   }

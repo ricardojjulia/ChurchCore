@@ -514,24 +514,32 @@ export async function getChurchAdminOperationsData(
               count(*) filter (where is_live)::int as live_giving_page_count
             from public.public_giving_pages
             where church_id = $1
+          ),
+          donation_counts as (
+            select
+              count(*) filter (where status = 'pending')::int as pending_count,
+              count(*) filter (where status = 'failed')::int as failed_count,
+              count(*) filter (
+                where status = 'succeeded'
+                  and receipt_sent_at is null
+              )::int as unsent_receipts_count,
+              count(*) filter (
+                where status = 'succeeded'
+                  and not exists (
+                    select 1
+                    from public.donation_gl_posts post
+                    where post.donation_id = recent_donations.id
+                      and post.church_id = recent_donations.church_id
+                      and post.status = 'posted'
+                  )
+              )::int as unposted_gl_count
+            from recent_donations
           )
           select
-            count(*) filter (where status = 'pending')::int as pending_count,
-            count(*) filter (where status = 'failed')::int as failed_count,
-            count(*) filter (
-              where status = 'succeeded'
-                and receipt_sent_at is null
-            )::int as unsent_receipts_count,
-            count(*) filter (
-              where status = 'succeeded'
-                and not exists (
-                  select 1
-                  from public.donation_gl_posts post
-                  where post.donation_id = recent_donations.id
-                    and post.church_id = recent_donations.church_id
-                    and post.status = 'posted'
-                )
-            )::int as unposted_gl_count,
+            donation_counts.pending_count,
+            donation_counts.failed_count,
+            donation_counts.unsent_receipts_count,
+            donation_counts.unposted_gl_count,
             (
               select count(distinct coalesce(donation.fund_designation, 'General'))::int
               from succeeded_donations donation
@@ -545,7 +553,7 @@ export async function getChurchAdminOperationsData(
             ) as unmapped_fund_count,
             giving_pages.giving_page_count,
             giving_pages.live_giving_page_count
-          from recent_donations, giving_pages
+          from donation_counts, giving_pages
         `,
         [churchId],
       ),

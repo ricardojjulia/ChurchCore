@@ -121,11 +121,11 @@ describe("supabase config surface routing", () => {
     expect(shouldUseLocalTenantDbFallback()).toBe(true);
   });
 
-  it("falls back to the shared db url when split urls are absent", () => {
+  it("requires split db urls instead of using the old shared db fallback", () => {
     process.env.SUPABASE_DB_URL = "postgres://shared";
 
-    expect(getControlPlaneDbUrl()).toBe("postgres://shared");
-    expect(getTenantDbUrl()).toBe("postgres://shared");
+    expect(() => getControlPlaneDbUrl()).toThrow("CONTROL_PLANE_DB_URL");
+    expect(() => getTenantDbUrl()).toThrow("TENANT_DB_URL");
   });
 
   it("keeps local db fallback decisions surface-specific", () => {

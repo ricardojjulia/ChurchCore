@@ -99,7 +99,7 @@ export function ChurchAdminPersonEdit({
           phone: phone || null,
           address: address || null,
           displayTitle: displayTitle || null,
-          role: role as "church_admin" | "pastor" | "ministry_leader" | "member",
+          role: role as "church_admin" | "secretary" | "pastor" | "ministry_leader" | "member",
           membershipStatus,
           preferredContactMethod,
           emergencyContactName: emergencyContactName || null,
@@ -168,6 +168,7 @@ export function ChurchAdminPersonEdit({
               { value: "member", label: "Member / volunteer" },
               { value: "ministry_leader", label: "Ministry leader" },
               { value: "pastor", label: "Pastor / elder" },
+              { value: "secretary", label: "Secretary / office admin" },
               { value: "church_admin", label: "Church admin" },
             ]}
             radius="md"

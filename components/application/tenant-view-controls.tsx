@@ -13,6 +13,7 @@ import type { ChurchRoleId, TenantViewTarget } from "@/lib/auth";
 
 const roleOptions = [
   { value: "church-admin", label: "ChurchAdmin" },
+  { value: "secretary", label: "Secretary / Office Admin" },
   { value: "pastor", label: "Pastor / Elder" },
   { value: "ministry-leader", label: "Ministry Leader" },
   { value: "member", label: "Volunteer / Member" },

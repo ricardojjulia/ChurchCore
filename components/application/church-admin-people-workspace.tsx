@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   BarChart2,
@@ -46,11 +47,21 @@ export function ChurchAdminPeopleWorkspace({
   session: ChurchAppSession;
   data: ChurchAdminPeopleData;
 }) {
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("all");
-  const [role, setRole] = useState("all");
-  const [accountFilter, setAccountFilter] = useState("all");
-  const [householdFilter, setHouseholdFilter] = useState("all");
+  const searchParams = useSearchParams();
+  const initialView = searchParams.get("view");
+  const initialQuery = searchParams.get("q") ?? "";
+  const initialStatus = searchParams.get("status") ?? "all";
+  const initialAccount =
+    searchParams.get("account") ??
+    (initialView === "pending-accounts" ? "pending-request" : "all");
+  const initialHousehold =
+    searchParams.get("household") ??
+    (initialView === "unassigned-households" ? "unassigned" : "all");
+  const [query, setQuery] = useState(initialQuery);
+  const [status, setStatus] = useState(initialStatus);
+  const [role, setRole] = useState(searchParams.get("role") ?? "all");
+  const [accountFilter, setAccountFilter] = useState(initialAccount);
+  const [householdFilter, setHouseholdFilter] = useState(initialHousehold);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const visiblePeople = useMemo(() => {
@@ -88,6 +99,16 @@ export function ChurchAdminPeopleWorkspace({
         return false;
       }
 
+      if (
+        initialView === "incomplete-profiles" &&
+        person.fullName &&
+        person.email &&
+        person.phone &&
+        person.address
+      ) {
+        return false;
+      }
+
       if (!normalized) {
         return true;
       }
@@ -111,11 +132,26 @@ export function ChurchAdminPeopleWorkspace({
 
       return haystack.includes(normalized);
     });
-  }, [accountFilter, data.people, householdFilter, query, role, status]);
+  }, [accountFilter, data.people, householdFilter, initialView, query, role, status]);
 
   const allVisibleSelected =
     visiblePeople.length > 0 &&
     visiblePeople.every((person) => selectedIds.includes(person.id));
+  const activeFilterLabels = [
+    query ? `Search: ${query}` : null,
+    status !== "all" ? `Status: ${status}` : null,
+    role !== "all" ? `Role: ${role}` : null,
+    accountFilter !== "all" ? `Account: ${accountFilter.replace("-", " ")}` : null,
+    householdFilter !== "all" ? `Household: ${householdFilter}` : null,
+  ].filter((label): label is string => Boolean(label));
+  const readinessContext =
+    initialView === "incomplete-profiles"
+      ? "Readiness view: incomplete profiles and contact records."
+      : initialView === "unassigned-households"
+        ? "Readiness view: people without household assignments."
+        : initialView === "pending-accounts"
+          ? "Readiness view: profiles tied to pending portal account requests."
+          : null;
 
   function toggleSelected(id: string, checked: boolean) {
     setSelectedIds((current) =>
@@ -271,6 +307,24 @@ export function ChurchAdminPeopleWorkspace({
           </div>
         </Group>
 
+        {readinessContext ? (
+          <Paper withBorder radius="lg" p="md" mb="md" bg="#f8fbff">
+            <Group justify="space-between" gap="md">
+              <div>
+                <Text fw={700} size="sm">
+                  {readinessContext}
+                </Text>
+                <Text size="sm" c="dimmed" mt={4}>
+                  Showing {visiblePeople.length} matching record{visiblePeople.length === 1 ? "" : "s"}.
+                </Text>
+              </div>
+              <Text component={Link} href="/app/church-admin/readiness" size="sm" fw={700} c="churchBlue">
+                Back to readiness
+              </Text>
+            </Group>
+          </Paper>
+        ) : null}
+
         <Group align="flex-end" gap="md" grow mb="lg">
           <TextInput
             value={query}
@@ -298,6 +352,7 @@ export function ChurchAdminPeopleWorkspace({
             data={[
               { value: "all", label: "All roles" },
               { value: "church_admin", label: "Church admin" },
+              { value: "secretary", label: "Secretary / office admin" },
               { value: "pastor", label: "Pastor" },
               { value: "ministry_leader", label: "Ministry leader" },
               { value: "member", label: "Member" },
@@ -326,6 +381,19 @@ export function ChurchAdminPeopleWorkspace({
             radius="xl"
           />
         </Group>
+
+        {activeFilterLabels.length ? (
+          <Group gap="xs" mb="lg">
+            {activeFilterLabels.map((label) => (
+              <Badge key={label} color="gray" variant="light">
+                {label}
+              </Badge>
+            ))}
+            <Badge component={Link} href="/app/church-admin/people" color="churchBlue" variant="outline">
+              Clear filters
+            </Badge>
+          </Group>
+        ) : null}
 
         <Group justify="space-between" align="center" mb="lg">
           <Group gap="sm">
@@ -478,9 +546,12 @@ export function ChurchAdminPeopleWorkspace({
               </Paper>
             ))
           ) : (
-            <Text size="sm" c="dimmed">
-              No people match the current search and filters.
-            </Text>
+            <Paper withBorder radius="lg" p="lg" bg="#f8fbff">
+              <Text fw={700}>No people match this view.</Text>
+              <Text size="sm" c="dimmed" mt={4}>
+                Clear filters or add a person record to continue setup.
+              </Text>
+            </Paper>
           )}
         </Stack>
       </Paper>

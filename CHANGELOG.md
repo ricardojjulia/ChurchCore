@@ -8,6 +8,15 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Unreleased — Added
 
+- Added `docs/application-guide.md` as the end-to-end application walkthrough covering first entry, tenant roles, ChurchAdmin operations, member workflows, public portal behavior, control-plane boundaries, security posture, and current Sprint 2 gaps.
+- Added `docs/mvp-readiness-audit.md` to capture the current product, UI, information architecture, verification, and MVP-readiness assessment.
+- Added `/app/church-admin/readiness` as the ChurchAdmin weekly MVP readiness path, aggregating setup, account request, people, weekend, children's ministry, volunteer, giving/finance, and suggested workflow signals with direct workflow links.
+- Added `/app/daily-desk` as the daily operator workspace for church admins and pastors, backed by `daily_work_items` tenant data for calls, notes, visits, calendar items, follow-ups, checkups, assignments, priority, and status updates.
+- Added Secretary / Office Admin as a dedicated tenant role with a `/app/secretary` portal, Daily Desk access, calendar navigation, seed/demo credentials, tenant-view audit support, and RLS scoped to daily office work rather than full church-admin privileges.
+- Added the first English/Spanish UI translation foundation with a cookie-backed language selector in the application shell and translated shared shell labels plus the Daily Desk workspace.
+- Added account-onboarding happy-path documentation from public portal request through admin approval, auth invitation, membership linkage, and member portal hydration.
+- Added query-aware readiness views for Children's Ministry safety checks, Giving/Finance exceptions, and draft finance journals.
+- Added readiness resolution actions for Children's Ministry safety gaps, Giving/Finance exceptions, and draft finance journals.
 - Added `supabase/control-plane/` as the dedicated Supabase project directory for control-plane concerns (tenant registry, billing metadata, platform staff identity, tenant-view audit trail). Includes `config.toml` with separate ports (API 54331, DB 54332) to allow both projects to run locally without conflict, a clean schema migration (`20260424000000_control_plane_schema.sql`) with no cross-database FK constraints, and a local development seed.
 - Added `supabase/migrations/20260425010000_drop_control_plane_tables_from_tenant.sql` to remove vestigial control-plane registry tables from the tenant runtime project now that ADR 0002 is complete.
 - Added `docs/plans/ui-stack-migration.md` as a deferred Mantine-to-Tailwind/shadcn/Base UI migration plan.
@@ -46,7 +55,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ### Unreleased — Changed
 
 - Rebranded the product to ChurchCore Ops across the application shell, public metadata, documentation, demo domains, and local automation naming.
-- `create-dev-users.sh` now writes shell-compatible demo credential metadata into `.demo-credentials.local`, including admin/member email variables for local automation.
+- `create-dev-users.sh` now writes shell-compatible demo credential metadata into `.demo-credentials.local`, including admin, secretary, and member email variables for local automation.
 - README and local setup docs now point evaluators to the setup/smoke helpers and the post-create GitHub hardening checklist.
 - Reorganized the repo documentation tree by moving setup guides into `docs/setup/` and long-form planning documents into `docs/plans/`, which removes document clutter from the repository root and keeps the root focused on active repo controls.
 - README now documents the new automated test commands and links the application-specific testing schema.
@@ -62,6 +71,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - `docs/todo.md` now points at Sprint 2 execution and operational split-backend follow-up instead of completed ADR provisioning work.
 - Control-plane and tenant direct database fallback helpers now require their explicit surface-specific DB URLs; the previous shared `SUPABASE_DB_URL` fallback path has been removed.
 - Church-admin navigation now includes a Settings entry for the new church setup profile.
+- Church-admin navigation now surfaces account requests, suggested workflows, and reports directly, differentiates Donations from Giving Ops, and highlights the current route instead of leaving Home active.
+- Church-admin navigation now includes the weekly Readiness path.
+- Church-admin, secretary, and pastor navigation now include the Daily Desk daily work surface.
+- Weekly Readiness links now deep-link into filtered People, Events, Volunteers, and Suggested Workflows views where supported.
+- Weekly Readiness now opens context-specific Children's Ministry, Giving/Finance, and draft-journal views instead of generic target pages.
+- Giving readiness can post mapped gifts to GL from the exception view, Children's Ministry readiness links directly to service/volunteer/incident/safety workflows, and draft journals expose an explicit post/void resolution path.
+- Local account-request approval now creates the tenant auth invitation when admin auth is configured, links the approved profile to the invited user, and records the active member role.
 - Church-admin person updates now manage application roles alongside membership status and contact/profile fields.
 - ChurchAdmin home now reads aggregate tenant data instead of relying only on static preview spotlight cards.
 - The ChurchAdmin Care lane now links live pastoral care assignment work to people records while preserving preview behavior when live tenant data is unavailable.
@@ -75,6 +91,16 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Unreleased — Fixed
 
+- Fixed public portal route rendering by avoiding server-to-client function props in Mantine buttons on `/portal` and `/portal/register`.
+- Fixed the split-backend configuration test to require explicit control-plane and tenant DB URLs instead of the retired shared `SUPABASE_DB_URL` fallback.
+- Hardened local smoke checks so failed sign-in redirects and protected-route redirects back to `/sign-in` fail clearly.
+- Aligned local smoke and setup docs with the tenant demo users created by `npm run setup:local`; control-plane local provisioning is now called out as a separate workflow.
+- Expanded local smoke coverage to include the Daily Desk and ChurchAdmin readiness routes.
+- Expanded local smoke coverage to submit a portal account request and verify it appears in the ChurchAdmin approval queue.
+- Expanded local smoke coverage to include the query-aware Children's Ministry, Giving/Finance, and draft-journal readiness views.
+- Expanded local smoke coverage to assert readiness resolution controls render, not just the filtered pages.
+- Fixed tenant local session hydration so an unavailable control-plane database no longer takes down the tenant app.
+- Fixed the local ChurchAdmin giving operations query so donation aggregates and public giving page status can load without a SQL group-by error.
 - Fixed ShepherdAI scheduled evaluation in hosted cron context by using tenant admin client reads/writes when no user session is present, preventing zero-entity evaluations under RLS.
 - Fixed local direct-DB fallback detection for control-plane and tenant loaders that previously checked only Supabase REST configuration before returning preview or empty data.
 - Fixed the giving dashboard analytics tab placement so the conditional `Tabs.Panel` remains inside the Mantine `Tabs` root.

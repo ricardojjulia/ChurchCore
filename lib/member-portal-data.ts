@@ -162,6 +162,9 @@ function mapProfileRole(role: string | null): PortalRoleId {
   switch (role) {
     case "church_admin":
       return "church-admin";
+    case "secretary":
+    case "office_admin":
+      return "secretary";
     case "pastor":
     case "pastor_elder":
       return "pastor";

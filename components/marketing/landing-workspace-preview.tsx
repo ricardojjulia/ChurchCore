@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import {
   BrainCircuit,
   HeartHandshake,
+  PhoneCall,
   ShieldCheck,
   Sparkles,
   UsersRound,
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
 const roleIcons: Record<PortalRoleId, React.ComponentType<{ className?: string }>> = {
   "super-admin": ShieldCheck,
   "church-admin": HeartHandshake,
+  secretary: PhoneCall,
   pastor: BrainCircuit,
   "ministry-leader": UsersRound,
   member: Sparkles,
@@ -24,6 +26,7 @@ const roleIcons: Record<PortalRoleId, React.ComponentType<{ className?: string }
 const roleTint = {
   "super-admin": "from-[#1c334d] to-[#2e738f]",
   "church-admin": "from-[#18565d] to-[#d5a94c]",
+  secretary: "from-[#265b50] to-[#c7a253]",
   pastor: "from-[#46314b] to-[#b58a57]",
   "ministry-leader": "from-[#234145] to-[#79b89f]",
   member: "from-[#5b4525] to-[#dfb56a]",

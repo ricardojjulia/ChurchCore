@@ -128,6 +128,7 @@ export function ChurchAdminAddPerson() {
               { value: "member", label: "Member / Volunteer" },
               { value: "ministry_leader", label: "Ministry leader" },
               { value: "pastor", label: "Pastor / Elder" },
+              { value: "secretary", label: "Secretary / Office Admin" },
               { value: "church_admin", label: "Church admin" },
             ]}
             radius="md"

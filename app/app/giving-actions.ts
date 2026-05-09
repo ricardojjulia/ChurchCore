@@ -122,7 +122,7 @@ export async function postDonationToGlAction(
     const journalResult = await queryTenantLocalDb<{ id: string }>(
       `insert into public.finance_journals
          (church_id, journal_date, description, journal_type, status, reference, created_by)
-       values ($1, $2::date, $3, 'giving', 'posted', $4, $5)
+       values ($1, $2::date, $3, 'general', 'posted', $4, $5)
        returning id`,
       [
         churchId,
@@ -138,15 +138,16 @@ export async function postDonationToGlAction(
     // Debit asset, credit income
     await queryTenantLocalDb(
       `insert into public.finance_journal_lines
-         (journal_id, account_id, description, debit_cents, credit_cents)
+         (journal_id, church_id, account_id, side, amount_cents, memo, sort_order)
        values
-         ($1, $2, $3, $4, 0),
-         ($1, $5, $3, 0, $4)`,
+         ($1, $2, $3, 'debit', $4, $5, 0),
+         ($1, $2, $6, 'credit', $4, $5, 1)`,
       [
         journalId,
+        churchId,
         mapping.asset_account_id,
-        `Donation ${donationId.slice(-8)}`,
         donation.amount_cents,
+        `Donation ${donationId.slice(-8)}`,
         mapping.income_account_id,
       ],
     );
@@ -201,7 +202,7 @@ export async function postDonationToGlAction(
       church_id: churchId,
       journal_date: donation.created_at.slice(0, 10),
       description: `Online giving — ${donation.fund_designation ?? "General Fund"}`,
-      journal_type: "giving",
+      journal_type: "general",
       status: "posted",
       reference: donationId,
       created_by: profileId,
@@ -212,10 +213,24 @@ export async function postDonationToGlAction(
   if (journalError || !journal) return { ok: false, error: journalError?.message ?? "Failed to create journal." };
 
   await supabase.from("finance_journal_lines").insert([
-    { journal_id: journal.id, account_id: mapping.asset_account_id,
-      description: `Donation ${donationId.slice(-8)}`, debit_cents: donation.amount_cents, credit_cents: 0 },
-    { journal_id: journal.id, account_id: mapping.income_account_id,
-      description: `Donation ${donationId.slice(-8)}`, debit_cents: 0, credit_cents: donation.amount_cents },
+    {
+      journal_id: journal.id,
+      church_id: churchId,
+      account_id: mapping.asset_account_id,
+      side: "debit",
+      amount_cents: donation.amount_cents,
+      memo: `Donation ${donationId.slice(-8)}`,
+      sort_order: 0,
+    },
+    {
+      journal_id: journal.id,
+      church_id: churchId,
+      account_id: mapping.income_account_id,
+      side: "credit",
+      amount_cents: donation.amount_cents,
+      memo: `Donation ${donationId.slice(-8)}`,
+      sort_order: 1,
+    },
   ]);
 
   await supabase.from("donation_gl_posts").insert({

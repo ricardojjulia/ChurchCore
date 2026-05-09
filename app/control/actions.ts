@@ -16,6 +16,7 @@ import { logTenantViewAuditEvent } from "@/lib/tenant-view-audit";
 function isChurchRoleId(value: string): value is ChurchRoleId {
   return (
     value === "church-admin" ||
+    value === "secretary" ||
     value === "pastor" ||
     value === "ministry-leader" ||
     value === "member"

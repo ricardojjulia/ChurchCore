@@ -29,10 +29,16 @@ const TYPE_COLORS: Record<FinanceJournal["journalType"], string> = {
 export function FinanceJournalWorkspace({
   session,
   journals,
+  readinessView = false,
 }: {
   session: ChurchAppSession;
   journals: FinanceJournal[];
+  readinessView?: boolean;
 }) {
+  const visibleJournals = readinessView
+    ? journals.filter((journal) => journal.status === "draft")
+    : journals;
+
   return (
     <ApplicationShell
       session={session}
@@ -57,9 +63,33 @@ export function FinanceJournalWorkspace({
           </Button>
         </Group>
 
+        {readinessView ? (
+          <Paper withBorder radius="lg" p="md" bg="#f8fbff">
+            <Group justify="space-between" gap="md">
+              <div>
+                <Text fw={700} size="sm">
+                  Readiness view: draft journal entries.
+                </Text>
+                <Text size="sm" c="dimmed" mt={4}>
+                  {visibleJournals.length
+                    ? `${visibleJournals.length} draft journal${visibleJournals.length === 1 ? "" : "s"} should be opened, posted, or voided before finance is ready.`
+                    : "No draft journals are waiting for review."}
+                </Text>
+              </div>
+              <Text component={Link} href="/app/church-admin/readiness" size="sm" fw={700} c="churchBlue">
+                Back to readiness
+              </Text>
+            </Group>
+          </Paper>
+        ) : null}
+
         <Paper withBorder p="md" radius="md">
-          {journals.length === 0 ? (
-            <Text c="dimmed" ta="center" py="xl">No journal entries yet. Create your first entry to get started.</Text>
+          {visibleJournals.length === 0 ? (
+            <Text c="dimmed" ta="center" py="xl">
+              {readinessView
+                ? "No draft journal entries need readiness review."
+                : "No journal entries yet. Create your first entry to get started."}
+            </Text>
           ) : (
             <Table striped highlightOnHover>
               <Table.Thead>
@@ -69,10 +99,11 @@ export function FinanceJournalWorkspace({
                   <Table.Th>Reference</Table.Th>
                   <Table.Th>Type</Table.Th>
                   <Table.Th>Status</Table.Th>
+                  {readinessView ? <Table.Th>Resolve</Table.Th> : null}
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {journals.map((j) => (
+                {visibleJournals.map((j) => (
                   <Table.Tr key={j.id}>
                     <Table.Td>{formatDate(j.journalDate)}</Table.Td>
                     <Table.Td>
@@ -81,6 +112,13 @@ export function FinanceJournalWorkspace({
                     <Table.Td><Text size="sm" c="dimmed">{j.reference ?? "—"}</Text></Table.Td>
                     <Table.Td><Badge color={TYPE_COLORS[j.journalType]} variant="light" size="sm">{j.journalType}</Badge></Table.Td>
                     <Table.Td><Badge color={STATUS_COLORS[j.status]} size="sm">{j.status}</Badge></Table.Td>
+                    {readinessView ? (
+                      <Table.Td>
+                        <Button component={Link} href={`/app/church-admin/finance/journals/${j.id}`} size="xs" variant="light">
+                          Open to post/void
+                        </Button>
+                      </Table.Td>
+                    ) : null}
                   </Table.Tr>
                 ))}
               </Table.Tbody>

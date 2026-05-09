@@ -57,6 +57,18 @@ See `docs/shepherd-ai-ops.md` for architecture and guardrails.
 - Security posture in repo: lint/build CI plus CodeQL, dependency review, and secret-scanning workflows for GitHub
 - Evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, and `npm run smoke:local`
 
+## Application Guide
+
+Start with `docs/application-guide.md` for the end-to-end product walkthrough: what ChurchCore Ops does, how each portal works, the main operator flows, the control-plane boundary, and what is still in progress.
+
+For product readiness review, see `docs/mvp-readiness-audit.md`. It captures the current MVP verdict, navigation fit, UI fit, verification gaps, and the remaining readiness queue.
+
+The in-app Daily Desk route is `/app/daily-desk`; it is the shared daily workspace for calls, notes, visits, calendar items, checkups, and operational signals. It is available to ChurchAdmin, Secretary / Office Admin, and Pastor roles, with the secretary home at `/app/secretary`. The ChurchAdmin readiness route is `/app/church-admin/readiness`; it is the guided weekly path for deciding whether a tenant is operationally ready.
+
+Spanish UI support has started with a cookie-backed language selector in the application shell. The shared shell and Daily Desk now support English and Spanish; remaining modules should move to the same dictionary pattern as they are made translation-ready.
+
+The member account onboarding path starts at `/portal/register` and continues through `/app/church-admin/accounts`, where approval links or creates the member profile, records active member access, and sends the tenant auth invitation when admin auth is configured.
+
 ## Release 2.12.1 Highlights
 
 Release 2.12.1 hardens the ADR 0002 control-plane and tenant split. Backend configuration is now explicit per surface, and the completed split removes the shared local database fallback path from the active configuration.
@@ -358,7 +370,7 @@ public/               Static assets
 - The landing page is now a minimal entry surface instead of a feature-heavy marketing preview.
 - The sign-in route is intentionally minimal and now chooses the control-plane or tenant Supabase auth surface from the requested redirect target, with preview auth retained only as a local fallback.
 - The control-plane routes provide a protected platform-operator surface for tenant lifecycle, billing, support, and provisioning.
-- The church-app routes provide protected role-based portals for ChurchAdmin, Pastor / Elder, MinistryAdmin / Leader, and Volunteer / Member flows.
+- The church-app routes provide protected role-based portals for ChurchAdmin, Secretary / Office Admin, Pastor / Elder, MinistryAdmin / Leader, and Volunteer / Member flows.
 - Auth sessions now resolve an explicit app context from control-plane access plus church membership data, so actor identity and active product surface are no longer conflated.
 - The backend access layer is now split in code between control-plane and tenant wrappers under `lib/supabase/control-plane.ts` and `lib/supabase/tenant.ts`, with the old single-project local Supabase setup retained only as transitional fallback.
 - Shared Supabase helper boundaries are now explicit as well: browser/SSR helpers require a named surface, and local direct-DB fallback pooling lives only behind the control-plane or tenant wrappers instead of a generic shared pool.

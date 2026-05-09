@@ -25,8 +25,14 @@ import {
 } from "lucide-react";
 
 import type { FinanceAccount } from "@/lib/finance-types";
-import type { FundMapping, GivingAnalyticsData } from "@/lib/donations-data";
+import type {
+  DonationEntry,
+  FundMapping,
+  GivingAnalyticsData,
+  GivingReadinessData,
+} from "@/lib/donations-data";
 import {
+  postDonationToGlAction,
   upsertFundMappingAction,
   upsertGivingPageAction,
 } from "@/app/app/giving-actions";
@@ -44,6 +50,236 @@ function shortMonth(yearMonth: string): string {
   const [year, mon] = yearMonth.split("-");
   const d = new Date(Number(year), Number(mon) - 1, 1);
   return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+}
+
+function formatDonationDate(value: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function DonationExceptionTable({
+  donations,
+  emptyLabel,
+  action,
+  postingId,
+  onPostToGl,
+}: {
+  donations: DonationEntry[];
+  emptyLabel: string;
+  action?: "post-to-gl" | "review-failed" | "queue-receipt";
+  postingId?: string | null;
+  onPostToGl?: (donationId: string) => void;
+}) {
+  if (!donations.length) {
+    return <Text size="sm" c="dimmed">{emptyLabel}</Text>;
+  }
+
+  return (
+    <Paper withBorder radius="md">
+      <Table>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Donor</Table.Th>
+            <Table.Th>Fund</Table.Th>
+            <Table.Th>Amount</Table.Th>
+            <Table.Th>Date</Table.Th>
+            <Table.Th>Status</Table.Th>
+            {action ? <Table.Th>Action</Table.Th> : null}
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {donations.map((donation) => (
+            <Table.Tr key={donation.id}>
+              <Table.Td>
+                <Text fw={600} size="sm">
+                  {donation.isAnonymous ? "Anonymous" : donation.donorName ?? donation.donorEmail ?? "Unknown"}
+                </Text>
+                {donation.donorEmail && !donation.isAnonymous ? (
+                  <Text size="xs" c="dimmed">{donation.donorEmail}</Text>
+                ) : null}
+              </Table.Td>
+              <Table.Td>{donation.fundDesignation ?? "General"}</Table.Td>
+              <Table.Td>{formatCents(donation.amountCents)}</Table.Td>
+              <Table.Td>{formatDonationDate(donation.createdAt)}</Table.Td>
+              <Table.Td>
+                <Badge color={donation.status === "failed" ? "red" : "yellow"} variant="light">
+                  {donation.status}
+                </Badge>
+              </Table.Td>
+              {action ? (
+                <Table.Td>
+                  {action === "post-to-gl" ? (
+                    <Button
+                      size="xs"
+                      variant="light"
+                      onClick={() => onPostToGl?.(donation.id)}
+                      loading={postingId === donation.id}
+                    >
+                      Post to GL
+                    </Button>
+                  ) : action === "review-failed" ? (
+                    <Button component="a" href="/app/giving" size="xs" variant="default">
+                      Review gift
+                    </Button>
+                  ) : (
+                    <Button component="a" href="/app/communications" size="xs" variant="default">
+                      Queue receipt
+                    </Button>
+                  )}
+                </Table.Td>
+              ) : null}
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Paper>
+  );
+}
+
+export function GivingReadinessPanel({
+  readiness,
+}: {
+  readiness: GivingReadinessData;
+}) {
+  const [postingId, setPostingId] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const issueCount =
+    readiness.failedDonations.length +
+    readiness.unpostedDonations.length +
+    readiness.unsentReceipts.length +
+    readiness.draftJournalCount +
+    (readiness.liveGivingPageCount === 0 ? 1 : 0);
+
+  function handlePostToGl(donationId: string) {
+    setMessage(null);
+    setPostingId(donationId);
+    startTransition(async () => {
+      const result = await postDonationToGlAction(donationId);
+      if (result.ok) {
+        setMessage({
+          type: "success",
+          text: result.journalId
+            ? "Donation posted to the general ledger."
+            : "Donation posted to the general ledger.",
+        });
+      } else {
+        setMessage({
+          type: "error",
+          text: result.error ?? "Donation could not be posted to the general ledger.",
+        });
+      }
+      setPostingId(null);
+    });
+  }
+
+  return (
+    <Stack gap="lg">
+      <Paper withBorder radius="lg" p="md" bg="#f8fbff">
+        <Group justify="space-between" gap="md" align="flex-start">
+          <div>
+            <Text fw={700} size="sm">
+              Readiness view: giving and finance exceptions.
+            </Text>
+            <Text size="sm" c="dimmed" mt={4}>
+              {issueCount > 0
+                ? `${issueCount} item${issueCount === 1 ? "" : "s"} need review across payments, receipts, GL posting, journals, and the public giving page.`
+                : "Giving payments, receipts, GL posting, draft journals, and public giving page setup are clear."}
+            </Text>
+          </div>
+          <Group gap="md">
+            <Text component="a" href="/app/church-admin/finance/journals?view=drafts" size="sm" fw={700} c="churchBlue">
+              Draft journals
+            </Text>
+            <Text component="a" href="/app/church-admin/readiness" size="sm" fw={700} c="churchBlue">
+              Back to readiness
+            </Text>
+          </Group>
+        </Group>
+      </Paper>
+
+      <Group grow align="stretch">
+        <Paper withBorder p="md" radius="md">
+          <Text fz="xs" c="dimmed">Failed gifts</Text>
+          <Text fz="xl" fw={700}>{readiness.failedDonations.length}</Text>
+        </Paper>
+        <Paper withBorder p="md" radius="md">
+          <Text fz="xs" c="dimmed">Unposted gifts</Text>
+          <Text fz="xl" fw={700}>{readiness.unpostedDonations.length}</Text>
+        </Paper>
+        <Paper withBorder p="md" radius="md">
+          <Text fz="xs" c="dimmed">Unsent receipts</Text>
+          <Text fz="xl" fw={700}>{readiness.unsentReceipts.length}</Text>
+        </Paper>
+        <Paper withBorder p="md" radius="md">
+          <Text fz="xs" c="dimmed">Draft journals</Text>
+          <Text fz="xl" fw={700}>{readiness.draftJournalCount}</Text>
+        </Paper>
+        <Paper withBorder p="md" radius="md">
+          <Text fz="xs" c="dimmed">Live giving pages</Text>
+          <Text fz="xl" fw={700}>{readiness.liveGivingPageCount}</Text>
+        </Paper>
+      </Group>
+
+      {readiness.liveGivingPageCount === 0 ? (
+        <Alert color="orange" icon={<AlertTriangle size={18} />} title="Public giving page is not live">
+          Open the Giving Page tab and publish at least one giving page before calling the week ready.
+        </Alert>
+      ) : null}
+
+      {message ? (
+        <Alert
+          color={message.type === "success" ? "green" : "red"}
+          withCloseButton
+          onClose={() => setMessage(null)}
+        >
+          {message.text}
+        </Alert>
+      ) : null}
+
+      <Stack gap="sm">
+        <Group justify="space-between" align="center">
+          <Title order={4} size="h5">Failed gifts</Title>
+          <Text size="sm" c="dimmed">Resolve by reviewing donor/payment status.</Text>
+        </Group>
+        <DonationExceptionTable
+          donations={readiness.failedDonations}
+          emptyLabel="No failed gifts need review."
+          action="review-failed"
+        />
+      </Stack>
+
+      <Stack gap="sm">
+        <Group justify="space-between" align="center">
+          <Title order={4} size="h5">GL posting gaps</Title>
+          <Text size="sm" c="dimmed">Resolve by posting mapped gifts to the general ledger.</Text>
+        </Group>
+        <DonationExceptionTable
+          donations={readiness.unpostedDonations}
+          emptyLabel="No succeeded gifts are waiting for GL posting."
+          action="post-to-gl"
+          postingId={isPending ? postingId : null}
+          onPostToGl={handlePostToGl}
+        />
+      </Stack>
+
+      <Stack gap="sm">
+        <Group justify="space-between" align="center">
+          <Title order={4} size="h5">Receipt gaps</Title>
+          <Text size="sm" c="dimmed">Resolve by queueing donor receipt follow-up.</Text>
+        </Group>
+        <DonationExceptionTable
+          donations={readiness.unsentReceipts}
+          emptyLabel="No succeeded gifts are missing receipts."
+          action="queue-receipt"
+        />
+      </Stack>
+    </Stack>
+  );
 }
 
 // ── Analytics panel ──────────────────────────────────────────

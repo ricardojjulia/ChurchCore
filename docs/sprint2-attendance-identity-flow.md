@@ -230,6 +230,7 @@ This is collision-checked against existing profile rows before returning.
 - `app/app/actions.ts`
   - member profile updates now persist `interests`
   - invite flow now uses the tenant service-role client when available
+  - account-request approval links local and hosted approvals to invited auth users when tenant admin auth is configured
   - invite flow also upserts `church_memberships` and aligns invited users to church profiles
 
 ## Security Notes

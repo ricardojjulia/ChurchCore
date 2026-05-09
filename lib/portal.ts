@@ -1,6 +1,7 @@
 export type PortalRoleId =
   | "super-admin"
   | "church-admin"
+  | "secretary"
   | "pastor"
   | "ministry-leader"
   | "member";
@@ -243,6 +244,100 @@ export const portalRoles: PortalRole[] = [
       {
         title: "Publish weekend checklist",
         detail: "Share the final operations plan with ministry leaders and volunteers.",
+      },
+    ],
+  },
+  {
+    id: "secretary",
+    label: "Secretary / Office Admin",
+    audience: "Church office and daily operations",
+    summary: "Calls, notes, visit scheduling, calendar items, and daily follow-up.",
+    headline: "Keep daily church office work in one accountable lane.",
+    description:
+      "The Secretary / Office Admin portal focuses on the front-desk rhythm: calls, checkups, notes, visit scheduling, assignments, and the operational signals that need attention today.",
+    metrics: [
+      {
+        label: "Open office items",
+        value: "18",
+        detail: "Calls, notes, visits, and follow-ups still need same-week action.",
+      },
+      {
+        label: "Due today",
+        value: "6",
+        detail: "Three callbacks and two visit reminders are time-sensitive.",
+      },
+      {
+        label: "Upcoming events",
+        value: "9",
+        detail: "Calendar context is visible without granting full admin settings access.",
+      },
+    ],
+    timeline: [
+      {
+        time: "9:00 AM",
+        title: "Open office inbox",
+        detail: "Triage voicemail, walk-in notes, and new follow-up requests.",
+        status: "today",
+      },
+      {
+        time: "11:30 AM",
+        title: "Schedule visit reminders",
+        detail: "Put pending pastoral and member visits onto the shared calendar.",
+        status: "soon",
+      },
+      {
+        time: "3:00 PM",
+        title: "Check unresolved requests",
+        detail: "Escalate anything marked urgent or waiting on staff response.",
+        status: "watch",
+      },
+    ],
+    watchlist: [
+      {
+        title: "Urgent callbacks",
+        detail: "Two member calls are marked high priority and need ownership today.",
+        level: "critical",
+      },
+      {
+        title: "Visit scheduling queue",
+        detail: "Several visit requests are waiting on calendar placement.",
+        level: "warning",
+      },
+      {
+        title: "Office notes current",
+        detail: "Completed items are being closed with an accountable status trail.",
+        level: "healthy",
+      },
+    ],
+    aiQueue: [
+      {
+        title: "Summarize office inbox",
+        detail: "Group open calls and notes by urgency and owner.",
+        guardrail: "Sensitive pastoral context stays human-reviewed and is never auto-sent.",
+      },
+      {
+        title: "Draft neutral follow-up language",
+        detail: "Prepare callback language for routine scheduling and checkups.",
+        guardrail: "Staff approve every message before it reaches a person.",
+      },
+      {
+        title: "Flag aging requests",
+        detail: "Identify items that have waited too long without an update.",
+        guardrail: "AI highlights workflow risk only; staff decide the response.",
+      },
+    ],
+    actionBoard: [
+      {
+        title: "Triage today's office queue",
+        detail: "Create or update Daily Desk items for calls, notes, visits, and checkups.",
+      },
+      {
+        title: "Confirm calendar items",
+        detail: "Put approved visits and meetings on the shared calendar.",
+      },
+      {
+        title: "Escalate urgent requests",
+        detail: "Move time-sensitive items to the right pastor or church admin.",
       },
     ],
   },

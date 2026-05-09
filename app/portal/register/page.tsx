@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Button, Group, Stack, Text } from "@mantine/core";
 
 import { PortalRegisterForm } from "@/components/portal/portal-register-form";
@@ -34,7 +33,7 @@ export default async function PortalRegisterPage({
             <Text size="sm" fw={700} c="dimmed" tt="uppercase">
               ChurchCore Ops Portal
             </Text>
-            <Button component={Link} href="/portal" variant="subtle">
+            <Button component="a" href="/portal" variant="subtle">
               Back
             </Button>
           </Group>

@@ -87,6 +87,7 @@ export type MergeChurchAdminDuplicateInput = {
 const ALLOWED_CONTACT_METHODS = new Set(["email", "sms", "app", "none"]);
 const ALLOWED_CHURCH_ADMIN_MANAGED_ROLES = new Set([
   "church_admin",
+  "secretary",
   "pastor",
   "ministry_leader",
   "member",
@@ -94,6 +95,7 @@ const ALLOWED_CHURCH_ADMIN_MANAGED_ROLES = new Set([
 
 type ChurchAdminManagedRole =
   | "church_admin"
+  | "secretary"
   | "pastor"
   | "ministry_leader"
   | "member";
@@ -102,6 +104,8 @@ function mapManagedRoleToProfileRole(role: ChurchAdminManagedRole) {
   switch (role) {
     case "church_admin":
       return "church_admin";
+    case "secretary":
+      return "secretary";
     case "pastor":
       return "pastor_elder";
     case "ministry_leader":
@@ -2604,7 +2608,7 @@ function validateAddChurchgoerInput(input: AddChurchgoerInput): string | null {
   if (name.length > 200) return "Full name is too long.";
   const validStatuses = new Set(["active", "visitor", "inactive", "baptized", "transferred"]);
   if (!validStatuses.has(input.membershipStatus)) return "Invalid membership status.";
-  const validRoles = new Set(["church_admin", "pastor", "ministry_leader", "member"]);
+  const validRoles = new Set(["church_admin", "secretary", "pastor", "ministry_leader", "member"]);
   if (!validRoles.has(input.role)) return "Invalid role.";
   return null;
 }
@@ -2619,6 +2623,7 @@ export async function addChurchgoerAction(input: AddChurchgoerInput) {
   const fullName = input.fullName.trim();
   const email = input.email?.trim().toLowerCase() || null;
   const phone = input.phone?.trim() || null;
+  const profileRole = mapManagedRoleToProfileRole(input.role as ChurchAdminManagedRole);
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
     revalidatePath("/app/church-admin/people");
@@ -2629,18 +2634,19 @@ export async function addChurchgoerAction(input: AddChurchgoerInput) {
     await queryTenantLocalDb(
       `
         insert into public.profiles
-          (full_name, email, church_id, membership_status, directory_visible, contact_allowed,
+          (full_name, email, church_id, role, membership_status, directory_visible, contact_allowed,
            phone, updated_at, created_at)
-        values ($1, $2, $3, $4, false, false, $5, timezone('utc', now()), timezone('utc', now()))
+        values ($1, $2, $3, $4, $5, false, false, $6, timezone('utc', now()), timezone('utc', now()))
         on conflict (email) where email is not null
         do update set
           church_id         = excluded.church_id,
           full_name         = excluded.full_name,
+          role              = excluded.role,
           membership_status = excluded.membership_status,
           phone             = excluded.phone,
           updated_at        = timezone('utc', now())
       `,
-      [fullName, email, churchId, input.membershipStatus, phone],
+      [fullName, email, churchId, profileRole, input.membershipStatus, phone],
     );
   } else {
     const supabase = await createTenantServerClient();
@@ -2648,6 +2654,7 @@ export async function addChurchgoerAction(input: AddChurchgoerInput) {
       full_name: fullName,
       email,
       church_id: churchId,
+      role: profileRole,
       membership_status: input.membershipStatus,
       phone,
       directory_visible: false,
@@ -2671,7 +2678,7 @@ export type InviteUserInput = {
 function validateInviteUserInput(input: InviteUserInput): string | null {
   if (!input.email.trim()) return "Email is required.";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim())) return "Enter a valid email address.";
-  const validRoles = new Set(["church-admin", "pastor", "ministry-leader", "member"]);
+  const validRoles = new Set(["church-admin", "secretary", "pastor", "ministry-leader", "member"]);
   if (!validRoles.has(input.role)) return "Invalid role.";
   return null;
 }
@@ -2697,6 +2704,8 @@ export async function inviteUserAction(input: InviteUserInput) {
   const profileRole =
     input.role === "church-admin"
       ? "church_admin"
+      : input.role === "secretary"
+        ? "secretary"
       : input.role === "ministry-leader"
         ? "ministry_leader"
         : input.role === "pastor"
