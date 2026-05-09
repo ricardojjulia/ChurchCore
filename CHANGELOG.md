@@ -76,6 +76,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Unreleased — Fixed
 
+- Fixed public portal route rendering by avoiding server-to-client function props in Mantine buttons on `/portal` and `/portal/register`.
 - Fixed ShepherdAI scheduled evaluation in hosted cron context by using tenant admin client reads/writes when no user session is present, preventing zero-entity evaluations under RLS.
 - Fixed local direct-DB fallback detection for control-plane and tenant loaders that previously checked only Supabase REST configuration before returning preview or empty data.
 - Fixed the giving dashboard analytics tab placement so the conditional `Tabs.Panel` remains inside the Mantine `Tabs` root.

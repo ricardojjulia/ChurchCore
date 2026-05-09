@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Alert, Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
 
@@ -42,11 +41,11 @@ export default async function PortalPage() {
           ) : null}
 
           <Group>
-            <Button component={Link} href="/sign-in?redirectTo=%2Fportal">
+            <Button component="a" href="/sign-in?redirectTo=%2Fportal">
               Sign in
             </Button>
             <Button
-              component={Link}
+              component="a"
               href={
                 requestedChurch
                   ? `/portal/register?church=${encodeURIComponent(requestedChurch.slug)}`
