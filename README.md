@@ -57,6 +57,10 @@ See `docs/shepherd-ai-ops.md` for architecture and guardrails.
 - Security posture in repo: lint/build CI plus CodeQL, dependency review, and secret-scanning workflows for GitHub
 - Evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, and `npm run smoke:local`
 
+## Application Guide
+
+Start with `docs/application-guide.md` for the end-to-end product walkthrough: what ChurchCore Ops does, how each portal works, the main operator flows, the control-plane boundary, and what is still in progress.
+
 ## Release 2.12.1 Highlights
 
 Release 2.12.1 hardens the ADR 0002 control-plane and tenant split. Backend configuration is now explicit per surface, and the completed split removes the shared local database fallback path from the active configuration.
