@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import { useDisclosure } from "@mantine/hooks";
 import {
   AppShell,
@@ -18,6 +20,7 @@ import {
   NavLink,
   Paper,
   ScrollArea,
+  Select,
   Stack,
   Text,
   ThemeIcon,
@@ -30,8 +33,11 @@ import {
   Sparkles,
 } from "lucide-react";
 
+import { setLocaleAction } from "@/app/language-actions";
+import { useI18n } from "@/components/i18n-provider";
 import { signOutAction } from "@/app/sign-in/actions";
 import type { AuthSession } from "@/lib/auth";
+import { localeLabels, supportedLocales, type Locale } from "@/lib/i18n";
 
 type ShellNavItem = {
   href: string;
@@ -76,6 +82,21 @@ export function ApplicationShell({
   children: React.ReactNode;
 }) {
   const [opened, { toggle, close }] = useDisclosure(false);
+  const router = useRouter();
+  const [isLocalePending, startLocaleTransition] = useTransition();
+  const { locale, t } = useI18n();
+  const languageOptions = supportedLocales.map((option) => ({
+    value: option,
+    label: localeLabels[option],
+  }));
+
+  function handleLocaleChange(value: string | null) {
+    if (!value) return;
+    startLocaleTransition(async () => {
+      await setLocaleAction(value);
+      router.refresh();
+    });
+  }
 
   return (
     <AppShell
@@ -169,7 +190,7 @@ export function ApplicationShell({
                 <Group gap={6} px="xs" mb={4}>
                   <LayoutGrid size={13} />
                   <Text size="xs" fw={700} tt="uppercase" c="dimmed">
-                    {navLabel ?? "Navigation"}
+                    {navLabel ?? t("common", "navigation")}
                   </Text>
                 </Group>
 
@@ -197,15 +218,15 @@ export function ApplicationShell({
             <Group gap={6} px="xs" mb={4}>
               <LayoutGrid size={13} />
               <Text size="xs" fw={700} tt="uppercase" c="dimmed">
-                App
+                {t("common", "app")}
               </Text>
             </Group>
 
             <NavLink
               component={Link}
               href={workspaceHref}
-              label="Workspace"
-              description="Your role home"
+              label={t("common", "workspace")}
+              description={t("common", "yourRoleHome")}
               leftSection={<ShieldCheck size={16} />}
               variant="light"
               color="churchBlue"
@@ -217,8 +238,8 @@ export function ApplicationShell({
               <NavLink
                 component={Link}
                 href={calendarHref}
-                label="Calendar"
-                description="Church events"
+                label={t("common", "calendar")}
+                description={t("common", "churchEvents")}
                 leftSection={<CalendarRange size={16} />}
                 variant="light"
                 color="churchBlue"
@@ -249,6 +270,17 @@ export function ApplicationShell({
             </Group>
           </Paper>
 
+          <Select
+            aria-label={t("common", "language")}
+            data={languageOptions}
+            value={locale}
+            onChange={(value) => handleLocaleChange(value as Locale | null)}
+            disabled={isLocalePending}
+            size="xs"
+            radius="xl"
+            mb="sm"
+          />
+
           <form action={signOutAction}>
             <Button
               type="submit"
@@ -259,7 +291,7 @@ export function ApplicationShell({
               size="sm"
               leftSection={<LogOut size={15} />}
             >
-              Log out
+              {t("common", "logOut")}
             </Button>
           </form>
         </AppShellSection>

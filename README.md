@@ -65,6 +65,8 @@ For product readiness review, see `docs/mvp-readiness-audit.md`. It captures the
 
 The in-app Daily Desk route is `/app/daily-desk`; it is the shared daily workspace for calls, notes, visits, calendar items, checkups, and operational signals. It is available to ChurchAdmin, Secretary / Office Admin, and Pastor roles, with the secretary home at `/app/secretary`. The ChurchAdmin readiness route is `/app/church-admin/readiness`; it is the guided weekly path for deciding whether a tenant is operationally ready.
 
+Spanish UI support has started with a cookie-backed language selector in the application shell. The shared shell and Daily Desk now support English and Spanish; remaining modules should move to the same dictionary pattern as they are made translation-ready.
+
 The member account onboarding path starts at `/portal/register` and continues through `/app/church-admin/accounts`, where approval links or creates the member profile, records active member access, and sends the tenant auth invitation when admin auth is configured.
 
 ## Release 2.12.1 Highlights

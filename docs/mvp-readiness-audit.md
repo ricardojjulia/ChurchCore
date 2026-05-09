@@ -118,6 +118,7 @@ The local smoke path validates the tenant demo app that `npm run setup:local` pr
 These should be closed before calling the product MVP-ready:
 
 - **Reliable local demo:** `npm run setup:local`, `npm run dev`, and `npm run smoke:local` must pass on a clean machine. The local smoke now includes the Daily Desk and ChurchAdmin readiness routes.
+- **Spanish UI path:** the shared application shell and Daily Desk now have the first English/Spanish dictionary coverage. Remaining MVP modules still need translation extraction and review before claiming full Spanish readiness.
 - **Control-plane local demo:** either provision local control-plane staff users during setup or move control-plane checks into a separate explicit smoke command.
 - **Account onboarding path:** public registration, account approval, user invite, membership linkage, first sign-in, and profile hydration now have a documented happy path. Local smoke submits a portal request and verifies it appears in the admin approval queue; keep expanding this into a browser-level approve-and-sign-in smoke as test tooling grows.
 - **Daily operator path:** `/app/daily-desk` now gives church admins and pastors one daily surface for calls, notes, visits, calendar-related items, checkups, near-term events, and live operational signals.

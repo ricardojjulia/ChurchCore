@@ -37,37 +37,46 @@ import {
 } from "@/app/app/daily-desk-actions";
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
+import { useI18n } from "@/components/i18n-provider";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { DailyDeskData, DailyDeskWorkItem } from "@/lib/daily-desk-data";
 
-const itemTypeOptions = [
-  { value: "call", label: "Call" },
-  { value: "note", label: "Note" },
-  { value: "visit", label: "Visit" },
-  { value: "calendar_item", label: "Calendar item" },
-  { value: "follow_up", label: "Follow-up" },
-  { value: "checkup", label: "Checkup" },
-];
-
-const priorityOptions = [
-  { value: "normal", label: "Normal" },
-  { value: "high", label: "High" },
-  { value: "urgent", label: "Urgent" },
-  { value: "low", label: "Low" },
-];
-
-const typeMeta: Record<string, { label: string; icon: React.ComponentType<{ size?: number }> }> = {
-  call: { label: "Call", icon: PhoneCall },
-  note: { label: "Note", icon: NotebookPen },
-  visit: { label: "Visit", icon: UserRoundCheck },
-  calendar_item: { label: "Calendar", icon: CalendarClock },
-  follow_up: { label: "Follow-up", icon: ClipboardList },
-  checkup: { label: "Checkup", icon: CheckCircle2 },
+const typeIcons: Record<string, React.ComponentType<{ size?: number }>> = {
+  call: PhoneCall,
+  note: NotebookPen,
+  visit: UserRoundCheck,
+  calendar_item: CalendarClock,
+  follow_up: ClipboardList,
+  checkup: CheckCircle2,
 };
 
-function formatDateTime(value: string | null) {
+const itemTypeTranslationKeys: Record<string, string> = {
+  call: "call",
+  note: "note",
+  visit: "visit",
+  calendar_item: "calendarItem",
+  follow_up: "followUp",
+  checkup: "checkup",
+};
+
+const priorityTranslationKeys: Record<string, string> = {
+  normal: "normal",
+  high: "high",
+  urgent: "urgent",
+  low: "low",
+};
+
+const statusTranslationKeys: Record<string, string> = {
+  open: "open",
+  scheduled: "scheduled",
+  waiting: "waiting",
+  done: "done",
+  cancelled: "cancelled",
+};
+
+function formatDateTime(value: string | null, locale: string) {
   if (!value) return null;
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat(locale === "es" ? "es-US" : "en-US", {
     month: "short",
     day: "numeric",
     hour: "numeric",
@@ -92,14 +101,20 @@ function WorkItemCard({
   item,
   onStatus,
   busy,
+  locale,
+  t,
 }: {
   item: DailyDeskWorkItem;
   onStatus: (itemId: string, status: "waiting" | "done" | "cancelled") => void;
   busy: boolean;
+  locale: string;
+  t: (key: string, values?: Record<string, string | number>) => string;
 }) {
-  const meta = typeMeta[item.itemType] ?? typeMeta.note;
-  const Icon = meta.icon;
-  const when = formatDateTime(item.dueAt) ?? formatDateTime(item.scheduledAt);
+  const Icon = typeIcons[item.itemType] ?? typeIcons.note;
+  const typeLabel = t(itemTypeTranslationKeys[item.itemType] ?? "note");
+  const priorityLabel = t(priorityTranslationKeys[item.priority] ?? "normal");
+  const statusLabel = t(statusTranslationKeys[item.status] ?? "open");
+  const when = formatDateTime(item.dueAt, locale) ?? formatDateTime(item.scheduledAt, locale);
 
   return (
     <Paper withBorder radius="lg" p="md">
@@ -113,13 +128,13 @@ function WorkItemCard({
               <Text fw={700}>{item.title}</Text>
               <Group gap={6} mt={6}>
                 <Badge color="gray" variant="light">
-                  {meta.label}
+                  {typeLabel}
                 </Badge>
                 <Badge color={priorityColor(item.priority)} variant="light">
-                  {item.priority}
+                  {priorityLabel}
                 </Badge>
                 <Badge color="gray" variant="outline">
-                  {item.status}
+                  {statusLabel}
                 </Badge>
               </Group>
             </div>
@@ -138,7 +153,7 @@ function WorkItemCard({
           ) : null}
           {item.assignedToName ? (
             <Text size="sm" c="dimmed">
-              Assigned to {item.assignedToName}
+              {t("assignedToPrefix", { name: item.assignedToName })}
             </Text>
           ) : null}
         </Group>
@@ -168,7 +183,7 @@ function WorkItemCard({
               disabled={busy}
               onClick={() => onStatus(item.id, "done")}
             >
-              Done
+              {t("done")}
             </Button>
             <Button
               size="xs"
@@ -177,7 +192,7 @@ function WorkItemCard({
               disabled={busy}
               onClick={() => onStatus(item.id, "waiting")}
             >
-              Waiting
+              {t("waiting")}
             </Button>
             <Button
               size="xs"
@@ -187,7 +202,7 @@ function WorkItemCard({
               disabled={busy}
               onClick={() => onStatus(item.id, "cancelled")}
             >
-              Cancel
+              {t("cancel")}
             </Button>
           </Group>
         ) : null}
@@ -204,6 +219,9 @@ export function DailyDeskWorkspace({
   data: DailyDeskData;
 }) {
   const router = useRouter();
+  const { locale, t: translate } = useI18n();
+  const t = (key: string, values?: Record<string, string | number>) =>
+    translate("dailyDesk", key, values);
   const [itemType, setItemType] = useState<CreateDailyWorkItemInput["itemType"]>("call");
   const [priority, setPriority] = useState<CreateDailyWorkItemInput["priority"]>("normal");
   const [direction, setDirection] = useState<"incoming" | "outgoing">("incoming");
@@ -215,27 +233,41 @@ export function DailyDeskWorkspace({
     () => data.people.map((person) => ({ value: person.id, label: person.fullName })),
     [data.people],
   );
+  const itemTypeOptions = [
+    { value: "call", label: t("call") },
+    { value: "note", label: t("note") },
+    { value: "visit", label: t("visit") },
+    { value: "calendar_item", label: t("calendarItem") },
+    { value: "follow_up", label: t("followUp") },
+    { value: "checkup", label: t("checkup") },
+  ];
+  const priorityOptions = [
+    { value: "normal", label: t("normal") },
+    { value: "high", label: t("high") },
+    { value: "urgent", label: t("urgent") },
+    { value: "low", label: t("low") },
+  ];
   const isPastor = session.appContext.roleId === "pastor";
   const isSecretary = session.appContext.roleId === "secretary";
   const homeHref = isPastor ? "/app/pastor" : isSecretary ? "/app/secretary" : "/app/church-admin";
   const navItems = [
     {
       href: homeHref,
-      label: "Home",
+      label: t("home"),
       description: session.appContext.church.name,
       icon: isPastor ? UserRoundCheck : isSecretary ? PhoneCall : ClipboardList,
     },
     {
       href: "/app/daily-desk",
-      label: "Daily Desk",
-      description: "Calls and follow-up",
+      label: t("dailyDesk"),
+      description: t("callsAndFollowUp"),
       icon: PhoneCall,
       active: true,
     },
     {
       href: "/app/calendar",
-      label: "Calendar",
-      description: "Events and schedule",
+      label: t("calendar"),
+      description: t("eventsAndSchedule"),
       icon: CalendarClock,
     },
   ];
@@ -243,8 +275,8 @@ export function DailyDeskWorkspace({
   if (!isSecretary) {
     navItems.splice(2, 0, {
       href: "/app/church-admin/readiness",
-      label: "Readiness",
-      description: "Weekly launch path",
+      label: t("readiness"),
+      description: t("weeklyLaunchPath"),
       icon: ClipboardList,
     });
   }
@@ -271,10 +303,10 @@ export function DailyDeskWorkspace({
       event.currentTarget.reset();
       setRelatedProfileId(null);
       setAssignedToProfileId(null);
-      setMessage("Daily work item saved.");
+      setMessage(t("saved"));
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not save the work item.");
+      setMessage(error instanceof Error ? error.message : t("couldNotSave"));
     } finally {
       setBusy(false);
     }
@@ -287,7 +319,7 @@ export function DailyDeskWorkspace({
       await updateDailyWorkItemStatusAction({ itemId, status });
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not update the item.");
+      setMessage(error instanceof Error ? error.message : t("couldNotUpdate"));
     } finally {
       setBusy(false);
     }
@@ -296,14 +328,14 @@ export function DailyDeskWorkspace({
   return (
     <ApplicationShell
       session={session}
-      workspaceHref={session.appContext.roleId === "pastor" ? "/app/pastor" : "/app/church-admin"}
+      workspaceHref={homeHref}
       calendarHref="/app/calendar"
-      sectionLabel="Daily Desk"
-      title="Daily Desk"
+      sectionLabel={t("dailyDesk")}
+      title={t("dailyDesk")}
       description={session.appContext.church.name}
-      sidebarTitle="Daily operations"
-      sidebarDescription="Calls, notes, visits, checks, and next actions."
-      navLabel="Daily work"
+      sidebarTitle={t("dailyOperations")}
+      sidebarDescription={t("deskDescription")}
+      navLabel={t("dailyWork")}
       navItems={navItems}
     >
       <ChurchAppContextBanner session={session} />
@@ -318,10 +350,10 @@ export function DailyDeskWorkspace({
               </ThemeIcon>
               <div>
                 <Title order={2} size="h3">
-                  Capture work
+                  {t("captureWork")}
                 </Title>
                 <Text size="sm" c="dimmed">
-                  Log the next call, note, visit, calendar item, or checkup.
+                  {t("captureDescription")}
                 </Text>
               </div>
             </Group>
@@ -330,61 +362,61 @@ export function DailyDeskWorkspace({
               <Stack gap="sm">
                 <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
                   <Select
-                    label="Type"
+                    label={t("type")}
                     data={itemTypeOptions}
                     value={itemType}
                     onChange={(value) => setItemType((value ?? "call") as CreateDailyWorkItemInput["itemType"])}
                   />
                   <Select
-                    label="Priority"
+                    label={t("priority")}
                     data={priorityOptions}
                     value={priority}
                     onChange={(value) => setPriority((value ?? "normal") as CreateDailyWorkItemInput["priority"])}
                   />
                 </SimpleGrid>
-                <TextInput name="title" label="Title" placeholder="Return call to visitor" required />
-                <Textarea name="body" label="Notes" placeholder="What happened or what needs to happen next?" rows={3} />
+                <TextInput name="title" label={t("title")} placeholder={t("titlePlaceholder")} required />
+                <Textarea name="body" label={t("notes")} placeholder={t("notesPlaceholder")} rows={3} />
                 {itemType === "call" ? (
                   <Select
-                    label="Direction"
+                    label={t("direction")}
                     data={[
-                      { value: "incoming", label: "Incoming" },
-                      { value: "outgoing", label: "Outgoing" },
+                      { value: "incoming", label: t("incoming") },
+                      { value: "outgoing", label: t("outgoing") },
                     ]}
                     value={direction}
                     onChange={(value) => setDirection((value ?? "incoming") as "incoming" | "outgoing")}
                   />
                 ) : null}
                 <Select
-                  label="Person"
+                  label={t("person")}
                   data={peopleOptions}
                   value={relatedProfileId}
                   onChange={setRelatedProfileId}
                   searchable
                   clearable
-                  placeholder="Connect to a profile"
+                  placeholder={t("connectToProfile")}
                 />
                 <Select
-                  label="Assigned to"
+                  label={t("assignedTo")}
                   data={peopleOptions}
                   value={assignedToProfileId}
                   onChange={setAssignedToProfileId}
                   searchable
                   clearable
-                  placeholder="Office, pastor, or leader"
+                  placeholder={t("officePastorLeader")}
                 />
                 <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-                  <TextInput name="scheduledAt" type="datetime-local" label="Scheduled" />
-                  <TextInput name="dueAt" type="datetime-local" label="Due" />
+                  <TextInput name="scheduledAt" type="datetime-local" label={t("scheduled")} />
+                  <TextInput name="dueAt" type="datetime-local" label={t("due")} />
                 </SimpleGrid>
-                <TextInput name="location" label="Location" placeholder="Office, hospital, home, phone" />
+                <TextInput name="location" label={t("location")} placeholder={t("locationPlaceholder")} />
                 {message ? (
-                  <Text size="sm" c={message.includes("Could not") || message.includes("required") ? "red" : "teal"}>
+                  <Text size="sm" c={message === t("saved") ? "teal" : "red"}>
                     {message}
                   </Text>
                 ) : null}
                 <Button type="submit" radius="xl" leftSection={<Plus size={16} />} loading={busy}>
-                  Add to desk
+                  {t("addToDesk")}
                 </Button>
               </Stack>
             </form>
@@ -398,34 +430,34 @@ export function DailyDeskWorkspace({
             <Group justify="space-between" align="flex-start">
               <div>
                 <Badge color={data.source === "live" ? "teal" : "gray"} variant="light" mb="sm">
-                  {data.source === "live" ? "Live tenant data" : "Preview"}
+                  {data.source === "live" ? t("liveTenantData") : t("preview")}
                 </Badge>
-                <Title order={1}>Today&apos;s work</Title>
+                <Title order={1}>{t("todayWork")}</Title>
                 <Text c="dimmed" mt="xs">
-                  A single working surface for the church office and pastoral follow-up.
+                  {t("singleSurface")}
                 </Text>
               </div>
               <Button component="a" href="/app/calendar" radius="xl" variant="default">
-                Calendar
+                {t("calendar")}
               </Button>
             </Group>
 
             <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
               <Paper withBorder radius="lg" p="md">
                 <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-                  Due Today
+                  {t("dueToday")}
                 </Text>
                 <Title order={2}>{data.today.length}</Title>
               </Paper>
               <Paper withBorder radius="lg" p="md">
                 <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-                  Inbox
+                  {t("inbox")}
                 </Text>
                 <Title order={2}>{data.inbox.length}</Title>
               </Paper>
               <Paper withBorder radius="lg" p="md">
                 <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-                  Done Today
+                  {t("doneToday")}
                 </Text>
                 <Title order={2}>{data.completedToday.length}</Title>
               </Paper>
@@ -434,30 +466,30 @@ export function DailyDeskWorkspace({
             <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
               <Stack gap="sm">
                 <Title order={3} size="h4">
-                  Due today
+                  {t("dueTodayHeading")}
                 </Title>
                 {data.today.length ? (
                   data.today.map((item) => (
-                    <WorkItemCard key={item.id} item={item} onStatus={handleStatus} busy={busy} />
+                    <WorkItemCard key={item.id} item={item} onStatus={handleStatus} busy={busy} locale={locale} t={t} />
                   ))
                 ) : (
                   <Text size="sm" c="dimmed">
-                    No daily work is scheduled or due today.
+                    {t("noToday")}
                   </Text>
                 )}
               </Stack>
 
               <Stack gap="sm">
                 <Title order={3} size="h4">
-                  Inbox
+                  {t("inbox")}
                 </Title>
                 {data.inbox.length ? (
                   data.inbox.map((item) => (
-                    <WorkItemCard key={item.id} item={item} onStatus={handleStatus} busy={busy} />
+                    <WorkItemCard key={item.id} item={item} onStatus={handleStatus} busy={busy} locale={locale} t={t} />
                   ))
                 ) : (
                   <Text size="sm" c="dimmed">
-                    No unscheduled work is waiting in the inbox.
+                    {t("noInbox")}
                   </Text>
                 )}
               </Stack>
@@ -474,7 +506,7 @@ export function DailyDeskWorkspace({
               <AlertTriangle size={18} />
             </ThemeIcon>
             <Title order={3} size="h4">
-              Watchlist
+              {t("watchlist")}
             </Title>
           </Group>
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
@@ -502,7 +534,7 @@ export function DailyDeskWorkspace({
               <CalendarClock size={18} />
             </ThemeIcon>
             <Title order={3} size="h4">
-              Next 48 hours
+              {t("next48Hours")}
             </Title>
           </Group>
           <Stack gap="sm">
@@ -513,7 +545,7 @@ export function DailyDeskWorkspace({
                     <div>
                       <Text fw={700}>{event.title}</Text>
                       <Text size="sm" c="dimmed" mt={4}>
-                        {formatDateTime(event.startsAt)}
+                        {formatDateTime(event.startsAt, locale)}
                       </Text>
                     </div>
                     {event.location ? (
@@ -526,7 +558,7 @@ export function DailyDeskWorkspace({
               ))
             ) : (
               <Text size="sm" c="dimmed">
-                No events are scheduled in the next 48 hours.
+                {t("noEventsNext48")}
               </Text>
             )}
           </Stack>

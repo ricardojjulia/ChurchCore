@@ -54,6 +54,8 @@ After sign-in, the app hydrates the user's session, role, and church context. A 
 
 The tenant app is the church's operating workspace. It is role-aware, so each user sees the workflows that match their responsibility.
 
+The application shell now includes an English / Spanish language selector. The shared shell and Daily Desk are the first translated surfaces; church-entered content such as member names, notes, event titles, fund names, and pastoral or office records remains in the language entered by the church.
+
 Primary tenant roles:
 
 | Role | Purpose |

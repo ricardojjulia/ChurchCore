@@ -96,6 +96,15 @@ clear_app_context_cookie() {
   mv "${next_cookie_jar}" "${COOKIE_JAR}"
 }
 
+set_locale_cookie() {
+  local value="$1"
+  local next_cookie_jar
+  next_cookie_jar="$(mktemp)"
+  grep -v $'\tchurchcore_ops_locale\t' "${COOKIE_JAR}" > "${next_cookie_jar}" || true
+  mv "${next_cookie_jar}" "${COOKIE_JAR}"
+  printf 'localhost\tFALSE\t/\tFALSE\t0\tchurchcore_ops_locale\t%s\n' "${value}" >> "${COOKIE_JAR}"
+}
+
 load_env_file "${ROOT_DIR}/.env"
 load_env_file "${ROOT_DIR}/.env.local"
 load_env_file "${ROOT_DIR}/.demo-credentials.local"
@@ -195,6 +204,8 @@ PY
 
     require_contains "/app/secretary" "Office Admin"
     require_contains "/app/daily-desk" "Daily Desk"
+    set_locale_cookie "es"
+    require_contains "/app/daily-desk" "Escritorio diario"
     ;;
   *)
     echo "Usage: $0 [preview|local]"

@@ -13,6 +13,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added `/app/church-admin/readiness` as the ChurchAdmin weekly MVP readiness path, aggregating setup, account request, people, weekend, children's ministry, volunteer, giving/finance, and suggested workflow signals with direct workflow links.
 - Added `/app/daily-desk` as the daily operator workspace for church admins and pastors, backed by `daily_work_items` tenant data for calls, notes, visits, calendar items, follow-ups, checkups, assignments, priority, and status updates.
 - Added Secretary / Office Admin as a dedicated tenant role with a `/app/secretary` portal, Daily Desk access, calendar navigation, seed/demo credentials, tenant-view audit support, and RLS scoped to daily office work rather than full church-admin privileges.
+- Added the first English/Spanish UI translation foundation with a cookie-backed language selector in the application shell and translated shared shell labels plus the Daily Desk workspace.
 - Added account-onboarding happy-path documentation from public portal request through admin approval, auth invitation, membership linkage, and member portal hydration.
 - Added query-aware readiness views for Children's Ministry safety checks, Giving/Finance exceptions, and draft finance journals.
 - Added readiness resolution actions for Children's Ministry safety gaps, Giving/Finance exceptions, and draft finance journals.
