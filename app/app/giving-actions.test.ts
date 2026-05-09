@@ -163,7 +163,7 @@ describe("giving actions", () => {
     expect(result).toEqual({ ok: true, journalId: "journal-1" });
     expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
       expect.stringContaining("insert into public.finance_journal_lines"),
-      ["journal-1", "asset-1", "Donation nation-1", 2500, "income-1"],
+      ["journal-1", "church-1", "asset-1", 2500, "Donation nation-1", "income-1"],
     );
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/giving");
   });

@@ -154,7 +154,7 @@ Paths: `/app/giving`, `/app/church-admin/giving`
 
 Admins can review donation activity, giving analytics, fund mappings, receipt gaps, and GL posting status. Public giving is available through `/give/[churchSlug]` when a giving page is configured and live.
 
-The readiness link `/app/church-admin/giving?view=exceptions` opens a focused exception view for failed gifts, unposted gifts, unsent receipts, draft journal count, and public giving page status.
+The readiness link `/app/church-admin/giving?view=exceptions` opens a focused exception view for failed gifts, unposted gifts, unsent receipts, draft journal count, and public giving page status. Mapped unposted gifts can be posted to the general ledger from the readiness view; failed gifts and receipt gaps link to the next review workflow.
 
 ### Finance
 
@@ -171,7 +171,7 @@ The finance module provides internal church bookkeeping:
 
 Donation GL auto-posting connects giving records to balanced journal entries when fund mappings exist.
 
-The readiness link `/app/church-admin/finance/journals?view=drafts` filters journal entries to drafts so admins can post or void them before calling the week ready.
+The readiness link `/app/church-admin/finance/journals?view=drafts` filters journal entries to drafts and highlights the action to open each draft for posting or voiding before calling the week ready.
 
 ### Ministry Forge
 
@@ -198,7 +198,7 @@ The Children's Church Ministry module handles:
 
 The module is designed around child safety, custody restrictions, pickup verification, emergency workflows, and restricted access to sensitive child data.
 
-The readiness link `/app/church-admin/children/dashboard?view=readiness` opens a focused safety view for active service state, room ratios, two-adult coverage, open incidents, and background-check coverage.
+The readiness link `/app/church-admin/children/dashboard?view=readiness` opens a focused safety view for active service state, room ratios, two-adult coverage, open incidents, and background-check coverage. It links directly to volunteer assignment, service management, room setup, incident review, and safety settings so each readiness issue has a clear resolution path.
 
 ### Events And Attendance
 

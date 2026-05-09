@@ -72,7 +72,7 @@ export function FinanceJournalWorkspace({
                 </Text>
                 <Text size="sm" c="dimmed" mt={4}>
                   {visibleJournals.length
-                    ? `${visibleJournals.length} draft journal${visibleJournals.length === 1 ? "" : "s"} should be posted or voided before finance is ready.`
+                    ? `${visibleJournals.length} draft journal${visibleJournals.length === 1 ? "" : "s"} should be opened, posted, or voided before finance is ready.`
                     : "No draft journals are waiting for review."}
                 </Text>
               </div>
@@ -99,6 +99,7 @@ export function FinanceJournalWorkspace({
                   <Table.Th>Reference</Table.Th>
                   <Table.Th>Type</Table.Th>
                   <Table.Th>Status</Table.Th>
+                  {readinessView ? <Table.Th>Resolve</Table.Th> : null}
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -111,6 +112,13 @@ export function FinanceJournalWorkspace({
                     <Table.Td><Text size="sm" c="dimmed">{j.reference ?? "—"}</Text></Table.Td>
                     <Table.Td><Badge color={TYPE_COLORS[j.journalType]} variant="light" size="sm">{j.journalType}</Badge></Table.Td>
                     <Table.Td><Badge color={STATUS_COLORS[j.status]} size="sm">{j.status}</Badge></Table.Td>
+                    {readinessView ? (
+                      <Table.Td>
+                        <Button component={Link} href={`/app/church-admin/finance/journals/${j.id}`} size="xs" variant="light">
+                          Open to post/void
+                        </Button>
+                      </Table.Td>
+                    ) : null}
                   </Table.Tr>
                 ))}
               </Table.Tbody>

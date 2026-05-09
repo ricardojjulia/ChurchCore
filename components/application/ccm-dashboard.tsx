@@ -132,6 +132,12 @@ export function CcmDashboardView({
                 <Text component={Link} href="/app/church-admin/children/services" size="sm" fw={700} c="churchBlue">
                   Services
                 </Text>
+                <Text component={Link} href="/app/church-admin/children/volunteers" size="sm" fw={700} c="churchBlue">
+                  Volunteers
+                </Text>
+                <Text component={Link} href="/app/church-admin/children/incidents" size="sm" fw={700} c="churchBlue">
+                  Incidents
+                </Text>
                 <Text component={Link} href="/app/church-admin/readiness" size="sm" fw={700} c="churchBlue">
                   Back to readiness
                 </Text>
@@ -149,6 +155,14 @@ export function CcmDashboardView({
           >
             One or more rooms are over the target child-to-leader ratio. Dispatch a volunteer
             immediately.
+            <Group mt="sm">
+              <Button component={Link} href="/app/church-admin/children/volunteers" size="xs" variant="light" color="red">
+                Assign volunteers
+              </Button>
+              <Button component={Link} href="/app/church-admin/children/rooms" size="xs" variant="default">
+                Review rooms
+              </Button>
+            </Group>
           </Alert>
         )}
         {!anyRatioAlert && anyRatioWarning && (
@@ -159,6 +173,14 @@ export function CcmDashboardView({
           >
             One or more rooms are approaching the ratio limit. Consider deploying a volunteer
             proactively.
+            <Group mt="sm">
+              <Button component={Link} href="/app/church-admin/children/volunteers" size="xs" variant="light" color="orange">
+                Assign volunteers
+              </Button>
+              <Button component={Link} href="/app/church-admin/children/rooms" size="xs" variant="default">
+                Review rooms
+              </Button>
+            </Group>
           </Alert>
         )}
         {twoAdultViolations.length > 0 && (
@@ -170,6 +192,14 @@ export function CcmDashboardView({
             {twoAdultViolations.map((r) => r.room.name).join(", ")}{" "}
             {twoAdultViolations.length === 1 ? "does" : "do"} not have two confirmed adult
             volunteers. This violates safe-church policy.
+            <Group mt="sm">
+              <Button component={Link} href="/app/church-admin/children/volunteers" size="xs" variant="light" color="red">
+                Confirm volunteers
+              </Button>
+              <Button component={Link} href="/app/church-admin/children/services" size="xs" variant="default">
+                Open services
+              </Button>
+            </Group>
           </Alert>
         )}
         {readinessView && expiredChecks.length > 0 ? (
@@ -180,6 +210,14 @@ export function CcmDashboardView({
           >
             {expiredChecks.map((r) => r.room.name).join(", ")}{" "}
             {expiredChecks.length === 1 ? "has" : "have"} missing or expired volunteer background-check coverage.
+            <Group mt="sm">
+              <Button component={Link} href="/app/church-admin/children/volunteers" size="xs" variant="light" color="orange">
+                Review volunteers
+              </Button>
+              <Button component={Link} href="/app/church-admin/children/settings" size="xs" variant="default">
+                Safety settings
+              </Button>
+            </Group>
           </Alert>
         ) : null}
 
@@ -225,6 +263,11 @@ export function CcmDashboardView({
                 <Paper withBorder p="md" radius="lg" ta="center" style={{ minWidth: 110, borderColor: "#e67700" }}>
                   <Text size="xs" tt="uppercase" fw={700} c="orange">Open Incidents</Text>
                   <Title order={3} mt={4} c="orange">{dashboard.openIncidents.length}</Title>
+                  {readinessView ? (
+                    <Button component={Link} href="/app/church-admin/children/incidents" size="xs" variant="light" color="orange" mt="xs">
+                      Review
+                    </Button>
+                  ) : null}
                 </Paper>
               )}
             </Group>

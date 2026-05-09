@@ -32,6 +32,7 @@ import type {
   GivingReadinessData,
 } from "@/lib/donations-data";
 import {
+  postDonationToGlAction,
   upsertFundMappingAction,
   upsertGivingPageAction,
 } from "@/app/app/giving-actions";
@@ -63,9 +64,15 @@ function formatDonationDate(value: string): string {
 function DonationExceptionTable({
   donations,
   emptyLabel,
+  action,
+  postingId,
+  onPostToGl,
 }: {
   donations: DonationEntry[];
   emptyLabel: string;
+  action?: "post-to-gl" | "review-failed" | "queue-receipt";
+  postingId?: string | null;
+  onPostToGl?: (donationId: string) => void;
 }) {
   if (!donations.length) {
     return <Text size="sm" c="dimmed">{emptyLabel}</Text>;
@@ -81,6 +88,7 @@ function DonationExceptionTable({
             <Table.Th>Amount</Table.Th>
             <Table.Th>Date</Table.Th>
             <Table.Th>Status</Table.Th>
+            {action ? <Table.Th>Action</Table.Th> : null}
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -102,6 +110,28 @@ function DonationExceptionTable({
                   {donation.status}
                 </Badge>
               </Table.Td>
+              {action ? (
+                <Table.Td>
+                  {action === "post-to-gl" ? (
+                    <Button
+                      size="xs"
+                      variant="light"
+                      onClick={() => onPostToGl?.(donation.id)}
+                      loading={postingId === donation.id}
+                    >
+                      Post to GL
+                    </Button>
+                  ) : action === "review-failed" ? (
+                    <Button component="a" href="/app/giving" size="xs" variant="default">
+                      Review gift
+                    </Button>
+                  ) : (
+                    <Button component="a" href="/app/communications" size="xs" variant="default">
+                      Queue receipt
+                    </Button>
+                  )}
+                </Table.Td>
+              ) : null}
             </Table.Tr>
           ))}
         </Table.Tbody>
@@ -115,12 +145,37 @@ export function GivingReadinessPanel({
 }: {
   readiness: GivingReadinessData;
 }) {
+  const [postingId, setPostingId] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [isPending, startTransition] = useTransition();
   const issueCount =
     readiness.failedDonations.length +
     readiness.unpostedDonations.length +
     readiness.unsentReceipts.length +
     readiness.draftJournalCount +
     (readiness.liveGivingPageCount === 0 ? 1 : 0);
+
+  function handlePostToGl(donationId: string) {
+    setMessage(null);
+    setPostingId(donationId);
+    startTransition(async () => {
+      const result = await postDonationToGlAction(donationId);
+      if (result.ok) {
+        setMessage({
+          type: "success",
+          text: result.journalId
+            ? "Donation posted to the general ledger."
+            : "Donation posted to the general ledger.",
+        });
+      } else {
+        setMessage({
+          type: "error",
+          text: result.error ?? "Donation could not be posted to the general ledger.",
+        });
+      }
+      setPostingId(null);
+    });
+  }
 
   return (
     <Stack gap="lg">
@@ -176,27 +231,51 @@ export function GivingReadinessPanel({
         </Alert>
       ) : null}
 
+      {message ? (
+        <Alert
+          color={message.type === "success" ? "green" : "red"}
+          withCloseButton
+          onClose={() => setMessage(null)}
+        >
+          {message.text}
+        </Alert>
+      ) : null}
+
       <Stack gap="sm">
-        <Title order={4} size="h5">Failed gifts</Title>
+        <Group justify="space-between" align="center">
+          <Title order={4} size="h5">Failed gifts</Title>
+          <Text size="sm" c="dimmed">Resolve by reviewing donor/payment status.</Text>
+        </Group>
         <DonationExceptionTable
           donations={readiness.failedDonations}
           emptyLabel="No failed gifts need review."
+          action="review-failed"
         />
       </Stack>
 
       <Stack gap="sm">
-        <Title order={4} size="h5">GL posting gaps</Title>
+        <Group justify="space-between" align="center">
+          <Title order={4} size="h5">GL posting gaps</Title>
+          <Text size="sm" c="dimmed">Resolve by posting mapped gifts to the general ledger.</Text>
+        </Group>
         <DonationExceptionTable
           donations={readiness.unpostedDonations}
           emptyLabel="No succeeded gifts are waiting for GL posting."
+          action="post-to-gl"
+          postingId={isPending ? postingId : null}
+          onPostToGl={handlePostToGl}
         />
       </Stack>
 
       <Stack gap="sm">
-        <Title order={4} size="h5">Receipt gaps</Title>
+        <Group justify="space-between" align="center">
+          <Title order={4} size="h5">Receipt gaps</Title>
+          <Text size="sm" c="dimmed">Resolve by queueing donor receipt follow-up.</Text>
+        </Group>
         <DonationExceptionTable
           donations={readiness.unsentReceipts}
           emptyLabel="No succeeded gifts are missing receipts."
+          action="queue-receipt"
         />
       </Stack>
     </Stack>
