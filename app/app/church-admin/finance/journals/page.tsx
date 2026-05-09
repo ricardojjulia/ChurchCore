@@ -4,10 +4,21 @@ import { FinanceJournalWorkspace } from "@/components/application/finance-journa
 import { requireChurchSession } from "@/lib/auth";
 import { getFinanceJournals } from "@/lib/finance-data";
 
-export default async function FinanceJournalsPage() {
+export default async function FinanceJournalsPage({
+  searchParams = Promise.resolve({}),
+}: {
+  searchParams?: Promise<{ view?: string }>;
+} = {}) {
   const session = await requireChurchSession("/app/church-admin");
   if (session.appContext.roleId !== "church-admin") redirect(session.homePath);
+  const { view } = await searchParams;
 
   const journals = await getFinanceJournals(session);
-  return <FinanceJournalWorkspace session={session} journals={journals} />;
+  return (
+    <FinanceJournalWorkspace
+      session={session}
+      journals={journals}
+      readinessView={view === "drafts"}
+    />
+  );
 }

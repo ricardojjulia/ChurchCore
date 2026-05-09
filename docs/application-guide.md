@@ -90,6 +90,8 @@ Path: `/app/church-admin/readiness`
 
 The readiness workspace is the MVP operating path. It checks whether a church admin can run the week across church setup, portal account requests, people and households, weekend events, children's ministry, volunteer schedule, giving and finance, and suggested ministry workflows. Each item links directly to the workflow that resolves it, and supported routes open in a filtered readiness view.
 
+Supported readiness targets now include filtered or context-specific views for people records, events without roster coverage, children's ministry safety checks, volunteer scheduling, giving/finance exceptions, draft finance journals, and suggested workflows.
+
 ### Daily Desk
 
 Path: `/app/daily-desk`
@@ -152,6 +154,8 @@ Paths: `/app/giving`, `/app/church-admin/giving`
 
 Admins can review donation activity, giving analytics, fund mappings, receipt gaps, and GL posting status. Public giving is available through `/give/[churchSlug]` when a giving page is configured and live.
 
+The readiness link `/app/church-admin/giving?view=exceptions` opens a focused exception view for failed gifts, unposted gifts, unsent receipts, draft journal count, and public giving page status.
+
 ### Finance
 
 Path: `/app/church-admin/finance`
@@ -166,6 +170,8 @@ The finance module provides internal church bookkeeping:
 - income statement, balance sheet, and budget variance reports
 
 Donation GL auto-posting connects giving records to balanced journal entries when fund mappings exist.
+
+The readiness link `/app/church-admin/finance/journals?view=drafts` filters journal entries to drafts so admins can post or void them before calling the week ready.
 
 ### Ministry Forge
 
@@ -191,6 +197,8 @@ The Children's Church Ministry module handles:
 - safety settings
 
 The module is designed around child safety, custody restrictions, pickup verification, emergency workflows, and restricted access to sensitive child data.
+
+The readiness link `/app/church-admin/children/dashboard?view=readiness` opens a focused safety view for active service state, room ratios, two-adult coverage, open incidents, and background-check coverage.
 
 ### Events And Attendance
 

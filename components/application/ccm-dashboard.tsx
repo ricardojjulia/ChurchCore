@@ -33,9 +33,16 @@ interface Props {
   dashboard: CcmDashboardData | null;
   services: CcmService[];
   activeServiceId: string | null;
+  readinessView?: boolean;
 }
 
-export function CcmDashboardView({ session, dashboard, services, activeServiceId }: Props) {
+export function CcmDashboardView({
+  session,
+  dashboard,
+  services,
+  activeServiceId,
+  readinessView = false,
+}: Props) {
   const serviceOptions = services.map((s) => ({
     value: s.id,
     label: `${s.serviceName} — ${s.serviceDate} (${s.status})`,
@@ -44,6 +51,14 @@ export function CcmDashboardView({ session, dashboard, services, activeServiceId
   const anyRatioAlert = dashboard?.roomStatuses.some((r) => r.ratioStatus === "alert");
   const anyRatioWarning = dashboard?.roomStatuses.some((r) => r.ratioStatus === "warning");
   const twoAdultViolations = dashboard?.roomStatuses.filter((r) => !r.twoAdultRuleMet) ?? [];
+  const expiredChecks = dashboard?.roomStatuses.filter((r) => r.hasExpiredBackgroundChecks) ?? [];
+  const readinessIssueCount =
+    (dashboard ? 0 : 1) +
+    (anyRatioAlert ? 1 : 0) +
+    (anyRatioWarning ? 1 : 0) +
+    twoAdultViolations.length +
+    expiredChecks.length +
+    (dashboard?.openIncidents.length ?? 0);
 
   return (
     <ApplicationShell
@@ -100,6 +115,31 @@ export function CcmDashboardView({ session, dashboard, services, activeServiceId
           </Group>
         </Group>
 
+        {readinessView ? (
+          <Paper withBorder radius="lg" p="md" bg="#f8fbff">
+            <Group justify="space-between" gap="md" align="flex-start">
+              <div>
+                <Text fw={700} size="sm">
+                  Readiness view: children&apos;s ministry safety checks.
+                </Text>
+                <Text size="sm" c="dimmed" mt={4}>
+                  {readinessIssueCount > 0
+                    ? `${readinessIssueCount} item${readinessIssueCount === 1 ? "" : "s"} need review before check-in is ready.`
+                    : "Open service, room ratios, two-adult coverage, incidents, and background checks are clear."}
+                </Text>
+              </div>
+              <Group gap="md">
+                <Text component={Link} href="/app/church-admin/children/services" size="sm" fw={700} c="churchBlue">
+                  Services
+                </Text>
+                <Text component={Link} href="/app/church-admin/readiness" size="sm" fw={700} c="churchBlue">
+                  Back to readiness
+                </Text>
+              </Group>
+            </Group>
+          </Paper>
+        ) : null}
+
         {/* Safety alert banners */}
         {anyRatioAlert && (
           <Alert
@@ -132,6 +172,16 @@ export function CcmDashboardView({ session, dashboard, services, activeServiceId
             volunteers. This violates safe-church policy.
           </Alert>
         )}
+        {readinessView && expiredChecks.length > 0 ? (
+          <Alert
+            color="orange"
+            icon={<AlertTriangle size={18} />}
+            title="Background Check Review"
+          >
+            {expiredChecks.map((r) => r.room.name).join(", ")}{" "}
+            {expiredChecks.length === 1 ? "has" : "have"} missing or expired volunteer background-check coverage.
+          </Alert>
+        ) : null}
 
         {!dashboard ? (
           <Paper withBorder p="xl" ta="center" radius="xl">

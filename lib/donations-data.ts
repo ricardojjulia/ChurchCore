@@ -269,6 +269,14 @@ export type GivingAnalyticsData = {
   avgGiftCents: number;
 };
 
+export type GivingReadinessData = {
+  failedDonations: DonationEntry[];
+  unpostedDonations: DonationEntry[];
+  unsentReceipts: DonationEntry[];
+  draftJournalCount: number;
+  liveGivingPageCount: number;
+};
+
 const EMPTY_ANALYTICS: GivingAnalyticsData = {
   monthlyTrend: [],
   retentionRate: 0,
@@ -276,6 +284,14 @@ const EMPTY_ANALYTICS: GivingAnalyticsData = {
   lapsedDonors: 0,
   newDonorsThisMonth: 0,
   avgGiftCents: 0,
+};
+
+const EMPTY_READINESS: GivingReadinessData = {
+  failedDonations: [],
+  unpostedDonations: [],
+  unsentReceipts: [],
+  draftJournalCount: 0,
+  liveGivingPageCount: 0,
 };
 
 export async function getGivingAnalyticsData(
@@ -456,6 +472,124 @@ export async function getGivingAnalyticsData(
     lapsedDonors: lapsedCount,
     newDonorsThisMonth: thisMonthRow?.newDonorCount ?? 0,
     avgGiftCents,
+  };
+}
+
+export async function getGivingReadinessData(
+  session: ChurchAppSession,
+): Promise<GivingReadinessData> {
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    return EMPTY_READINESS;
+  }
+
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const [donationsResult, glPostsResult, journalsResult, givingPagesResult] = await Promise.all([
+      queryTenantLocalDb<{
+        id: string;
+        amount_cents: number;
+        currency: string;
+        fund_designation: string | null;
+        is_recurring: boolean;
+        is_anonymous: boolean;
+        status: string;
+        stripe_subscription_id: string | null;
+        note: string | null;
+        receipt_sent_at: string | null;
+        created_at: string;
+        donor_name: string | null;
+        donor_email: string | null;
+      }>(
+        `select id, amount_cents, currency, fund_designation, is_recurring,
+                is_anonymous, status, stripe_subscription_id, note,
+                receipt_sent_at, created_at, donor_name, donor_email
+         from public.donations
+         where church_id = $1
+           and (
+             status = 'failed'
+             or (status = 'succeeded' and receipt_sent_at is null)
+           )
+         order by created_at desc
+         limit 50`,
+        [churchId],
+      ),
+      queryTenantLocalDb<{ donation_id: string }>(
+        `select donation_id
+         from public.donation_gl_posts
+         where church_id = $1 and status = 'posted'`,
+        [churchId],
+      ),
+      queryTenantLocalDb<{ count: number }>(
+        `select count(*)::int from public.finance_journals where church_id = $1 and status = 'draft'`,
+        [churchId],
+      ),
+      queryTenantLocalDb<{ count: number }>(
+        `select count(*)::int from public.public_giving_pages where church_id = $1 and is_live`,
+        [churchId],
+      ),
+    ]);
+
+    const donations = donationsResult.rows.map(mapDonationRow);
+    const postedDonationIds = new Set(glPostsResult.rows.map((row) => row.donation_id));
+
+    return {
+      failedDonations: donations.filter((donation) => donation.status === "failed"),
+      unpostedDonations: donations.filter(
+        (donation) =>
+          donation.status === "succeeded" &&
+          !postedDonationIds.has(donation.id),
+      ),
+      unsentReceipts: donations.filter(
+        (donation) => donation.status === "succeeded" && !donation.receiptSentAt,
+      ),
+      draftJournalCount: journalsResult.rows[0]?.count ?? 0,
+      liveGivingPageCount: givingPagesResult.rows[0]?.count ?? 0,
+    };
+  }
+
+  const supabase = await createTenantServerClient();
+  const [donationsResult, glPostsResult, journalsResult, givingPagesResult] = await Promise.all([
+    supabase
+      .from("donations")
+      .select("*")
+      .eq("church_id", churchId)
+      .or("status.eq.failed,and(status.eq.succeeded,receipt_sent_at.is.null)")
+      .order("created_at", { ascending: false })
+      .limit(50),
+    supabase
+      .from("donation_gl_posts")
+      .select("donation_id")
+      .eq("church_id", churchId)
+      .eq("status", "posted"),
+    supabase
+      .from("finance_journals")
+      .select("id")
+      .eq("church_id", churchId)
+      .eq("status", "draft"),
+    supabase
+      .from("public_giving_pages")
+      .select("id")
+      .eq("church_id", churchId)
+      .eq("is_live", true),
+  ]);
+
+  const donations =
+    donationsResult.data?.map((row) => mapDonationRow(row as Parameters<typeof mapDonationRow>[0])) ?? [];
+  const postedDonationIds = new Set((glPostsResult.data ?? []).map((row) => row.donation_id));
+
+  return {
+    failedDonations: donations.filter((donation) => donation.status === "failed"),
+    unpostedDonations: donations.filter(
+      (donation) =>
+        donation.status === "succeeded" &&
+        !postedDonationIds.has(donation.id),
+    ),
+    unsentReceipts: donations.filter(
+      (donation) => donation.status === "succeeded" && !donation.receiptSentAt,
+    ),
+    draftJournalCount: journalsResult.data?.length ?? 0,
+    liveGivingPageCount: givingPagesResult.data?.length ?? 0,
   };
 }
 
