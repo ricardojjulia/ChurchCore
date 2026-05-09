@@ -368,41 +368,93 @@ function normalizeMembershipRowsFromLocalDb(
 }
 
 async function loadSupabaseAppDataFromLocalDb(userId: string) {
-  const [platformAdminResult, membershipsResult, tenantResult, profileResult] =
-    await Promise.all([
-      queryControlPlaneLocalDb<{ user_id: string }>(
-        `
-          select user_id
-          from public.platform_admins
-          where user_id = $1
-          limit 1
-        `,
-        [userId],
-      ),
-      queryTenantLocalDb<{
-        church_id: string;
-        role: string;
-        church_name: string;
-        church_slug: string;
-        church_timezone: string;
-      }>(
-        `
-          select
-            membership.church_id,
-            membership.role::text as role,
-            church.name as church_name,
-            church.slug::text as church_slug,
-            church.timezone as church_timezone
-          from public.church_memberships membership
-          join public.churches church
-            on church.id = membership.church_id
-          where membership.user_id = $1
-            and membership.is_active = true
-          order by church.name
-        `,
-        [userId],
-      ),
-      queryControlPlaneLocalDb<{
+  const [membershipsResult, profileResult] = await Promise.all([
+    queryTenantLocalDb<{
+      church_id: string;
+      role: string;
+      church_name: string;
+      church_slug: string;
+      church_timezone: string;
+    }>(
+      `
+        select
+          membership.church_id,
+          membership.role::text as role,
+          church.name as church_name,
+          church.slug::text as church_slug,
+          church.timezone as church_timezone
+        from public.church_memberships membership
+        join public.churches church
+          on church.id = membership.church_id
+        where membership.user_id = $1
+          and membership.is_active = true
+        order by church.name
+      `,
+      [userId],
+    ),
+    queryTenantLocalDb<{
+      id: string;
+      user_id: string;
+      church_id: string | null;
+      full_name: string | null;
+      email: string | null;
+      role: string | null;
+      display_title: string | null;
+      is_pastoral: boolean | null;
+      church_name: string | null;
+      church_slug: string | null;
+      church_timezone: string | null;
+    }>(
+      `
+        select
+          profile.id,
+          profile.user_id,
+          profile.church_id,
+          profile.full_name,
+          profile.email,
+          profile.role,
+          profile.display_title,
+          profile.is_pastoral,
+          church.name as church_name,
+          church.slug::text as church_slug,
+          church.timezone as church_timezone
+        from public.profiles profile
+        left join public.churches church
+          on church.id = profile.church_id
+        where profile.user_id = $1
+        limit 1
+      `,
+      [userId],
+    ),
+  ]);
+
+  let platformAdminRows: Array<{ user_id: string }> = [];
+  try {
+    const platformAdminResult = await queryControlPlaneLocalDb<{ user_id: string }>(
+      `
+        select user_id
+        from public.platform_admins
+        where user_id = $1
+        limit 1
+      `,
+      [userId],
+    );
+    platformAdminRows = platformAdminResult.rows;
+  } catch {
+    platformAdminRows = [];
+  }
+
+  let tenantRows: Array<{
+    tenant_id: string;
+    name: string;
+    slug: string;
+    timezone: string;
+    connection_status: string | null;
+    metadata: Record<string, unknown> | null;
+  }> = [];
+  if (platformAdminRows.length > 0) {
+    try {
+      const tenantResult = await queryControlPlaneLocalDb<{
         tenant_id: string;
         name: string;
         slug: string;
@@ -423,45 +475,15 @@ async function loadSupabaseAppDataFromLocalDb(userId: string) {
             on connection.tenant_id = tenant.id
           order by tenant.name
         `,
-      ),
-      queryTenantLocalDb<{
-        id: string;
-        user_id: string;
-        church_id: string | null;
-        full_name: string | null;
-        email: string | null;
-        role: string | null;
-        display_title: string | null;
-        is_pastoral: boolean | null;
-        church_name: string | null;
-        church_slug: string | null;
-        church_timezone: string | null;
-      }>(
-        `
-          select
-            profile.id,
-            profile.user_id,
-            profile.church_id,
-            profile.full_name,
-            profile.email,
-            profile.role,
-            profile.display_title,
-            profile.is_pastoral,
-            church.name as church_name,
-            church.slug::text as church_slug,
-            church.timezone as church_timezone
-          from public.profiles profile
-          left join public.churches church
-            on church.id = profile.church_id
-          where profile.user_id = $1
-          limit 1
-        `,
-        [userId],
-      ),
-    ]);
+      );
+      tenantRows = tenantResult.rows;
+    } catch {
+      tenantRows = [];
+    }
+  }
 
   let memberships = normalizeMembershipRowsFromLocalDb(membershipsResult.rows);
-  const canAccessControl = platformAdminResult.rows.length > 0;
+  const canAccessControl = platformAdminRows.length > 0;
   const profileRow = profileResult.rows[0];
   const hydratedProfile: HydratedProfileRecord | null = profileRow
     ? {
@@ -505,8 +527,8 @@ async function loadSupabaseAppDataFromLocalDb(userId: string) {
     ];
   }
 
-  const tenantViews = canAccessControl
-    ? tenantResult.rows.map((row) => {
+  const tenantViews = canAccessControl && tenantRows.length > 0
+    ? tenantRows.map((row) => {
         const runtimeChurchId = extractRuntimeChurchId(row.metadata);
 
         return {

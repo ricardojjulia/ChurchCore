@@ -39,7 +39,24 @@ require_contains() {
   local route="$1"
   local needle="$2"
   local response
-  response="$(curl -sS -L -b "${COOKIE_JAR}" "${APP_URL}${route}")"
+  local meta_file
+  meta_file="$(mktemp)"
+  response="$(curl -sS -L -b "${COOKIE_JAR}" -w '\n%{url_effective}\n%{http_code}' "${APP_URL}${route}")"
+  printf '%s' "${response}" > "${meta_file}"
+  local final_code
+  local final_url
+  final_code="$(tail -n 1 "${meta_file}")"
+  final_url="$(tail -n 2 "${meta_file}" | head -n 1)"
+  response="$(sed '$d' "${meta_file}" | sed '$d')"
+  rm -f "${meta_file}"
+  if [[ "${final_code}" != "200" ]]; then
+    echo "Smoke check failed for ${route}: final HTTP ${final_code}"
+    exit 1
+  fi
+  if [[ "${route}" != /sign-in* && "${final_url}" == *"/sign-in"* ]]; then
+    echo "Smoke check failed for ${route}: redirected to sign-in (${final_url})"
+    exit 1
+  fi
   if [[ "${response}" != *"${needle}"* ]]; then
     echo "Smoke check failed for ${route}: missing expected text '${needle}'"
     exit 1
@@ -91,7 +108,7 @@ PY
     curl -sS -i -c "${COOKIE_JAR}" -b "${COOKIE_JAR}" \
       -X POST "${APP_URL}/sign-in" \
       -F "${ACTION_ID}=" \
-      -F "redirectTo=/control" \
+      -F "redirectTo=/app" \
       -F "email=${CHURCHCORE_OPS_DEMO_ADMIN_EMAIL}" \
       -F "password=${CHURCHCORE_OPS_DEV_PASSWORD}" \
       -F "intent=sign-in" > "${LOGIN_HEADERS}"
@@ -99,6 +116,11 @@ PY
     if ! grep -q " 303 " "${LOGIN_HEADERS}"; then
       echo "Smoke check failed: sign-in did not redirect successfully."
       cat "${LOGIN_HEADERS}"
+      exit 1
+    fi
+    if grep -qi "location: .*error=" "${LOGIN_HEADERS}"; then
+      echo "Smoke check failed: sign-in redirected with an error."
+      grep -i "location:" "${LOGIN_HEADERS}" || true
       exit 1
     fi
 
@@ -112,7 +134,7 @@ PY
     )"
     printf '#HttpOnly_localhost\tFALSE\t/\tFALSE\t0\tchurchcore_ops_app_context\t%s\n' "${APP_CONTEXT}" >> "${COOKIE_JAR}"
 
-    require_contains "/control" "ChurchCore Ops"
+    require_contains "/app" "Grace Harbor"
     require_contains "/app/church-admin/children/dashboard" "Children"
     require_contains "/app/church-admin/children/services" "Service"
     require_contains "/app/calendar" "Calendar"

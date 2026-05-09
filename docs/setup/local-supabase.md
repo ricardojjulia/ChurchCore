@@ -83,7 +83,7 @@ npx supabase db reset
 
 | Email | Role |
 |-------|------|
-| `sarah@churchcoreops.app` | Church Admin + Platform Admin |
+| `sarah@churchcoreops.app` | Church Admin |
 | `david@graceharbor.church` | Member |
 
 The password is either:
@@ -98,7 +98,8 @@ The generated file also includes:
 
 Sarah can access:
 - `/app` — Church admin workspace
-- `/control` — Control plane (platform admin)
+
+Control-plane local development uses the separate `supabase/control-plane` project. Provision platform staff there before testing `/control`.
 
 David can access:
 - `/app` — Member portal
@@ -212,8 +213,7 @@ npx supabase status --output env
 
 ```
 Sign in:         http://localhost:3000/sign-in
-App (member):    http://localhost:3000/app
-Control plane:   http://localhost:3000/control
+Tenant app:      http://localhost:3000/app
 Calendar:        http://localhost:3000/app/calendar
 Ministry Forge:  http://localhost:3000/app/church-admin/ministry
 CCM Dashboard:   http://localhost:3000/app/church-admin/children/dashboard
