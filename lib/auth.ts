@@ -132,6 +132,15 @@ export const demoProfiles: DemoProfile[] = [
     focus: "Weekend operations, giving reconciliation, and member follow-up.",
   },
   {
+    id: "olivia-secretary",
+    name: "Olivia Reed",
+    email: "olivia@graceharbor.church",
+    title: "Secretary / Office Admin",
+    roleId: "secretary",
+    defaultPath: "/app/secretary",
+    focus: "Daily Desk calls, office notes, visit scheduling, and request follow-up.",
+  },
+  {
     id: "miriam-pastor",
     name: "Miriam Cole",
     email: "miriam@newcity.church",
@@ -188,6 +197,12 @@ const previewMembershipsByProfileId: Record<string, ChurchMembership[]> = {
       roleId: "church-admin",
     },
   ],
+  "olivia-secretary": [
+    {
+      church: previewChurches[0],
+      roleId: "secretary",
+    },
+  ],
   "miriam-pastor": [
     {
       church: previewChurches[1],
@@ -240,6 +255,11 @@ function mapSupabaseRole(rawRole: unknown): PortalRoleId {
     case "volunteer":
     case "member_volunteer":
       return "member";
+    case "secretary":
+    case "office_admin":
+    case "office-admin":
+    case "church_secretary":
+      return "secretary";
     case "church_admin":
     case "church-admin":
     default:

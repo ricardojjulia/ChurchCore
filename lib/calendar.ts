@@ -219,6 +219,8 @@ export const roleCalendarFocus: Record<PortalRoleId, string> = {
     "Your calendar focus is cross-tenant risk, onboarding windows, and communications approval timing.",
   "church-admin":
     "Your calendar focus is weekend readiness, member response tracking, and volunteer coverage.",
+  secretary:
+    "Your calendar focus is calls, visit scheduling, office follow-up, and near-term event coordination.",
   pastor:
     "Your calendar focus is pastoral care timing, sermon prep rhythm, and prayer follow-up.",
   "ministry-leader":

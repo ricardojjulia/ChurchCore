@@ -33,9 +33,10 @@ async function requireDailyDeskSession() {
 
   if (
     session.appContext.roleId !== "church-admin" &&
+    session.appContext.roleId !== "secretary" &&
     session.appContext.roleId !== "pastor"
   ) {
-    throw new Error("Church-admin or pastor access is required.");
+    throw new Error("Church-admin, secretary, or pastor access is required.");
   }
 
   return session;

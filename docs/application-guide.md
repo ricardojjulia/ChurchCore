@@ -36,6 +36,7 @@ The local setup script creates demo credentials in `.demo-credentials.local`. Th
 | User | Role | Main Surface |
 | --- | --- | --- |
 | `sarah@churchcoreops.app` | Church Admin | `/app` |
+| `olivia@graceharbor.church` | Secretary / Office Admin | `/app/secretary` |
 | `david@graceharbor.church` | Member | `/app` |
 
 See `docs/setup/local-supabase.md` for the full tenant backend setup, reset, seed, and smoke-test flow. The control plane has a separate Supabase project and should be provisioned separately when testing platform-staff workflows.
@@ -58,6 +59,7 @@ Primary tenant roles:
 | Role | Purpose |
 | --- | --- |
 | ChurchAdmin | Church setup, people, ministries, events, giving, communications, finance, volunteers, and operations. |
+| Secretary / Office Admin | Daily Desk calls, notes, visit scheduling, calendar coordination, and request follow-up. |
 | Pastor / Elder | Pastoral visibility, people care, ministry oversight, discernment, and reporting. |
 | Ministry Leader | Ministry roster, volunteers, events, and assigned ministry work. |
 | Member / Volunteer | Profile, family, directory, giving, calendar, ministries, groups, and schedule. |
@@ -96,7 +98,7 @@ Supported readiness targets now include filtered or context-specific views for p
 
 Path: `/app/daily-desk`
 
-The Daily Desk is the daily working surface for church admins, secretaries, and pastors. It captures and tracks the work that usually happens between larger modules:
+The Daily Desk is the daily working surface for church admins, secretaries / office admins, and pastors. It captures and tracks the work that usually happens between larger modules:
 
 - incoming and outgoing calls
 - office notes
@@ -106,6 +108,8 @@ The Daily Desk is the daily working surface for church admins, secretaries, and 
 - routine checkups
 
 Each item can be connected to a church profile, assigned to a staff or pastoral profile, scheduled, given a due time, marked by priority, and moved to done, waiting, or cancelled. The screen also keeps the operator aware of near-term events and open operational signals such as pending account requests, care follow-up, suggested workflows, and roster gaps.
+
+The Secretary / Office Admin role has its own `/app/secretary` portal and can work `/app/daily-desk` plus `/app/calendar`. It does not receive the full ChurchAdmin sidebar or broad admin settings, finance, children, people-management, or readiness permissions.
 
 ### Church Setup
 

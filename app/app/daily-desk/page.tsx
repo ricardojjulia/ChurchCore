@@ -9,6 +9,7 @@ export default async function DailyDeskPage() {
 
   if (
     session.appContext.roleId !== "church-admin" &&
+    session.appContext.roleId !== "secretary" &&
     session.appContext.roleId !== "pastor"
   ) {
     redirect(session.homePath);

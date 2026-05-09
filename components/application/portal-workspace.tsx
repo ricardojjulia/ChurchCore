@@ -42,6 +42,7 @@ import { type PortalRole, type PortalRoleId } from "@/lib/portal";
 const roleIcons: Record<PortalRoleId, React.ComponentType<{ size?: number; className?: string }>> = {
   "super-admin": ShieldCheck,
   "church-admin": HeartHandshake,
+  secretary: PhoneCall,
   pastor: BrainCircuit,
   "ministry-leader": UsersRound,
   member: Sparkles,
@@ -203,6 +204,25 @@ export function PortalWorkspace({
         description: "Analytics & fund GL mappings",
         icon: DollarSign,
         active: isActiveHref("/app/church-admin/giving"),
+      },
+    );
+  }
+
+  if (role.id === "secretary") {
+    navItems.push(
+      {
+        href: "/app/daily-desk",
+        label: "Daily Desk",
+        description: "Calls and follow-up",
+        icon: PhoneCall,
+        active: isActiveHref("/app/daily-desk"),
+      },
+      {
+        href: "/app/calendar",
+        label: "Calendar",
+        description: "Events and schedule",
+        icon: Calendar,
+        active: isActiveHref("/app/calendar"),
       },
     );
   }

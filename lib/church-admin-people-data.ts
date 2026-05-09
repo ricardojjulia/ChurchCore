@@ -89,6 +89,9 @@ function normalizeRole(role: string | null) {
   switch (role) {
     case "church_admin":
       return "church_admin";
+    case "secretary":
+    case "office_admin":
+      return "secretary";
     case "pastor":
     case "pastor_elder":
       return "pastor";

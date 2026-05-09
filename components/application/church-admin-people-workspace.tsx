@@ -352,6 +352,7 @@ export function ChurchAdminPeopleWorkspace({
             data={[
               { value: "all", label: "All roles" },
               { value: "church_admin", label: "Church admin" },
+              { value: "secretary", label: "Secretary / office admin" },
               { value: "pastor", label: "Pastor" },
               { value: "ministry_leader", label: "Ministry leader" },
               { value: "member", label: "Member" },

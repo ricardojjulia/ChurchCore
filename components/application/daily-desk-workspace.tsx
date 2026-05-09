@@ -215,12 +215,15 @@ export function DailyDeskWorkspace({
     () => data.people.map((person) => ({ value: person.id, label: person.fullName })),
     [data.people],
   );
+  const isPastor = session.appContext.roleId === "pastor";
+  const isSecretary = session.appContext.roleId === "secretary";
+  const homeHref = isPastor ? "/app/pastor" : isSecretary ? "/app/secretary" : "/app/church-admin";
   const navItems = [
     {
-      href: session.appContext.roleId === "pastor" ? "/app/pastor" : "/app/church-admin",
+      href: homeHref,
       label: "Home",
       description: session.appContext.church.name,
-      icon: session.appContext.roleId === "pastor" ? UserRoundCheck : ClipboardList,
+      icon: isPastor ? UserRoundCheck : isSecretary ? PhoneCall : ClipboardList,
     },
     {
       href: "/app/daily-desk",
@@ -230,18 +233,21 @@ export function DailyDeskWorkspace({
       active: true,
     },
     {
-      href: "/app/church-admin/readiness",
-      label: "Readiness",
-      description: "Weekly launch path",
-      icon: ClipboardList,
-    },
-    {
       href: "/app/calendar",
       label: "Calendar",
       description: "Events and schedule",
       icon: CalendarClock,
     },
   ];
+
+  if (!isSecretary) {
+    navItems.splice(2, 0, {
+      href: "/app/church-admin/readiness",
+      label: "Readiness",
+      description: "Weekly launch path",
+      icon: ClipboardList,
+    });
+  }
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

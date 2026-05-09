@@ -116,6 +116,7 @@ export function ChurchAdminInviteUser() {
               { value: "member", label: "Member / Volunteer" },
               { value: "ministry-leader", label: "Ministry leader" },
               { value: "pastor", label: "Pastor / Elder" },
+              { value: "secretary", label: "Secretary / Office Admin" },
               { value: "church-admin", label: "Church admin" },
             ]}
             radius="md"

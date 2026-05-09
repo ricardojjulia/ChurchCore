@@ -15,6 +15,7 @@ declare
   -- auth.users IDs (looked up at runtime)
   v_sarah_auth_id  uuid;
   v_david_auth_id  uuid;
+  v_olivia_auth_id uuid;
   -- profiles IDs (looked up after upsert)
   v_sarah_id    uuid;
   v_david_id    uuid;
@@ -89,6 +90,11 @@ begin
   select id into v_david_auth_id
   from auth.users
   where email = 'david@graceharbor.church'
+  limit 1;
+
+  select id into v_olivia_auth_id
+  from auth.users
+  where email = 'olivia@graceharbor.church'
   limit 1;
 
   -- Skip seed if accounts don't exist yet
@@ -172,6 +178,26 @@ begin
 
   select id into v_david_id from public.profiles where email = 'david@graceharbor.church' limit 1;
 
+  -- Align the auth-trigger-created office admin profile to the deterministic
+  -- demo profile ID before the fixed-ID bulk insert below.
+  if v_olivia_auth_id is not null then
+    update public.profiles
+    set id = v_olivia_id,
+        user_id = v_olivia_auth_id,
+        church_id = v_church_id,
+        full_name = 'Olivia Reed',
+        role = 'secretary',
+        display_title = 'Secretary / Office Admin',
+        membership_status = 'active',
+        family_id = v_hopper_family_id,
+        phone = '555-1113',
+        address = '19 Orchard Street, Brighton, MI',
+        member_number = coalesce(member_number, 'GH-0013'),
+        account_status = 'active',
+        is_roster_eligible = true
+    where email = 'olivia@graceharbor.church';
+  end if;
+
   -- Extra demo profiles (no auth user required)
   insert into public.profiles (
     id, church_id, full_name, email, phone, address, role, display_title,
@@ -189,7 +215,7 @@ begin
     (v_carlos_id, v_church_id, 'Carlos Martinez', 'carlos@graceharbor.church',  '555-1110', '41 Lakeside Drive, Brighton, MI','member_volunteer',  null,                      'active',      v_martinez_family_id, 'GH-0010', 'active',   true, 'sms',   true, true, '2022-02-27'),
     (v_maya_id,   v_church_id, 'Maya Martinez',   'maya@graceharbor.church',    null,       '41 Lakeside Drive, Brighton, MI','member_volunteer',  null,                      'active',      v_martinez_family_id, 'GH-0011', 'pending',  true, 'app',   true, true, '2025-09-07'),
     (v_noah_id,   v_church_id, 'Noah Brooks',     'noah@graceharbor.church',    '555-1112', null,                            'member_volunteer',  null,                      'visitor',     null,                 'GH-0012', 'pending',  true, 'email', true, true, '2026-04-12'),
-    (v_olivia_id, v_church_id, 'Olivia Reed',     'olivia@graceharbor.church',  '555-1113', '19 Orchard Street, Brighton, MI','member_volunteer',  'Children''s Volunteer',   'active',      v_hopper_family_id,   'GH-0013', 'active',   true, 'email', true, true, '2021-08-15'),
+    (v_olivia_id, v_church_id, 'Olivia Reed',     'olivia@graceharbor.church',  '555-1113', '19 Orchard Street, Brighton, MI','secretary',         'Secretary / Office Admin','active',      v_hopper_family_id,   'GH-0013', 'active',   true, 'email', true, true, '2021-08-15'),
     (v_ethan_id,  v_church_id, 'Ethan Reed',      'ethan@graceharbor.church',   '555-1114', '19 Orchard Street, Brighton, MI','member_volunteer',  null,                      'active',      v_hopper_family_id,   'GH-0014', 'active',   true, 'sms',   true, true, '2021-08-15'),
     (v_chloe_id,  v_church_id, 'Chloe Brooks',    'chloe@graceharbor.church',   null,       null,                            'member_volunteer',  null,                      'visitor',     null,                 'GH-0015', 'pending',  false,'email', false,true, '2026-04-26'),
     (v_samuel_id, v_church_id, 'Samuel Price',    'samuel@graceharbor.church',  '555-1116', '70 Hillcrest, Brighton, MI',     'member_volunteer',  'Prayer Team Lead',        'active',      null,                 'GH-0016', 'active',   true, 'email', true, false,'2020-10-11'),
@@ -235,6 +261,14 @@ begin
   -- Re-read stable IDs for the main accounts after update
   select id into v_sarah_id from public.profiles where email = 'sarah@churchcoreops.app' limit 1;
   select id into v_david_id from public.profiles where email = 'david@graceharbor.church' limit 1;
+  select id into v_olivia_id from public.profiles where email = 'olivia@graceharbor.church' limit 1;
+
+  if v_olivia_auth_id is not null then
+    update public.profiles
+    set user_id = v_olivia_auth_id,
+        account_status = 'active'
+    where id = v_olivia_id;
+  end if;
 
   -- ── Platform admin (sarah — control-plane access) ────────
   -- platform_admins.user_id references auth.users.id (fixed in migration 20260422)
@@ -251,6 +285,12 @@ begin
   insert into public.church_memberships (user_id, church_id, role, is_active)
   values (v_david_auth_id, v_church_id, 'member', true)
   on conflict (church_id, user_id, role) do update set is_active = excluded.is_active;
+
+  if v_olivia_auth_id is not null then
+    insert into public.church_memberships (user_id, church_id, role, is_active)
+    values (v_olivia_auth_id, v_church_id, 'secretary', true)
+    on conflict (church_id, user_id, role) do update set is_active = excluded.is_active;
+  end if;
 
   -- ── Legacy tenant registry compatibility ────────────────
   -- ADR 0002 moved tenant registry tables to the control-plane database.

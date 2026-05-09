@@ -10,6 +10,7 @@ import {
 
 const roleMap: Record<ChurchRoleId, string> = {
   "church-admin": "church_admin",
+  secretary: "secretary",
   pastor: "pastor",
   "ministry-leader": "ministry_leader",
   member: "member",

@@ -124,7 +124,7 @@ These should be closed before calling the product MVP-ready:
 - **ChurchAdmin weekly path:** `/app/church-admin/readiness` now provides the guided route through setup, people, event, children, volunteers, giving, reports, and suggested workflows. Readiness links now open filtered target views for people, events, children's ministry, volunteers, giving/finance, draft journals, and suggested workflows. Continue tightening each item until every target route has a complete resolve flow.
 - **Readiness resolution:** Children's Ministry, Giving/Finance, and draft-journal readiness views now include direct resolution actions or next-workflow buttons. Continue adding the same treatment to any remaining readiness target that still only reports a problem.
 - **Empty/error states:** every admin module should explain whether it has no data, no backend, or insufficient permission.
-- **Role access audit:** verify ChurchAdmin, Pastor, Ministry Leader, Member, and Control Plane cannot see each other's restricted data.
+- **Role access audit:** verify ChurchAdmin, Secretary / Office Admin, Pastor, Ministry Leader, Member, and Control Plane cannot see each other's restricted data.
 - **Mobile sanity pass:** member routes and check-in/checkout routes must be usable on phone-sized screens.
 
 ## MVP Polish Queue

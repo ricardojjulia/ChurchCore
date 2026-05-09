@@ -12,6 +12,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added `docs/mvp-readiness-audit.md` to capture the current product, UI, information architecture, verification, and MVP-readiness assessment.
 - Added `/app/church-admin/readiness` as the ChurchAdmin weekly MVP readiness path, aggregating setup, account request, people, weekend, children's ministry, volunteer, giving/finance, and suggested workflow signals with direct workflow links.
 - Added `/app/daily-desk` as the daily operator workspace for church admins and pastors, backed by `daily_work_items` tenant data for calls, notes, visits, calendar items, follow-ups, checkups, assignments, priority, and status updates.
+- Added Secretary / Office Admin as a dedicated tenant role with a `/app/secretary` portal, Daily Desk access, calendar navigation, seed/demo credentials, tenant-view audit support, and RLS scoped to daily office work rather than full church-admin privileges.
 - Added account-onboarding happy-path documentation from public portal request through admin approval, auth invitation, membership linkage, and member portal hydration.
 - Added query-aware readiness views for Children's Ministry safety checks, Giving/Finance exceptions, and draft finance journals.
 - Added readiness resolution actions for Children's Ministry safety gaps, Giving/Finance exceptions, and draft finance journals.
@@ -53,7 +54,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ### Unreleased — Changed
 
 - Rebranded the product to ChurchCore Ops across the application shell, public metadata, documentation, demo domains, and local automation naming.
-- `create-dev-users.sh` now writes shell-compatible demo credential metadata into `.demo-credentials.local`, including admin/member email variables for local automation.
+- `create-dev-users.sh` now writes shell-compatible demo credential metadata into `.demo-credentials.local`, including admin, secretary, and member email variables for local automation.
 - README and local setup docs now point evaluators to the setup/smoke helpers and the post-create GitHub hardening checklist.
 - Reorganized the repo documentation tree by moving setup guides into `docs/setup/` and long-form planning documents into `docs/plans/`, which removes document clutter from the repository root and keeps the root focused on active repo controls.
 - README now documents the new automated test commands and links the application-specific testing schema.
@@ -71,7 +72,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Church-admin navigation now includes a Settings entry for the new church setup profile.
 - Church-admin navigation now surfaces account requests, suggested workflows, and reports directly, differentiates Donations from Giving Ops, and highlights the current route instead of leaving Home active.
 - Church-admin navigation now includes the weekly Readiness path.
-- Church-admin and pastor navigation now include the Daily Desk daily work surface.
+- Church-admin, secretary, and pastor navigation now include the Daily Desk daily work surface.
 - Weekly Readiness links now deep-link into filtered People, Events, Volunteers, and Suggested Workflows views where supported.
 - Weekly Readiness now opens context-specific Children's Ministry, Giving/Finance, and draft-journal views instead of generic target pages.
 - Giving readiness can post mapped gifts to GL from the exception view, Children's Ministry readiness links directly to service/volunteer/incident/safety workflows, and draft journals expose an explicit post/void resolution path.

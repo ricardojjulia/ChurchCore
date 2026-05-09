@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import {
   BrainCircuit,
   HeartHandshake,
+  PhoneCall,
   ShieldCheck,
   Sparkles,
   UsersRound,
@@ -17,6 +18,7 @@ import { cn } from "@/lib/utils";
 const roleIcons: Record<PortalRoleId, React.ComponentType<{ className?: string }>> = {
   "super-admin": ShieldCheck,
   "church-admin": HeartHandshake,
+  secretary: PhoneCall,
   pastor: BrainCircuit,
   "ministry-leader": UsersRound,
   member: Sparkles,

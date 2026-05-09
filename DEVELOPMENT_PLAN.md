@@ -1,7 +1,7 @@
 # ChurchCore Ops Development Plan
 
-**Living Document** - Last Updated: April 15, 2026  
-**Version**: 1.8  
+**Living Document** - Last Updated: May 9, 2026
+**Version**: 1.9
 **Purpose**: This is the single source of truth for all ChurchCore Ops development. Every GitHub Issue, PR, sprint, and code review must reference this document. Update only via PR.
 
 ## Table of Contents
@@ -32,6 +32,7 @@ Build a secure, multi-tenant SaaS platform for churches called **ChurchCore Ops*
 
 - **SuperAdmin**: Platform-wide management.
 - **ChurchAdmin**: Full church settings, users, donations.
+- **Secretary / Office Admin**: Daily Desk, calls, notes, visit scheduling, calendar coordination, and office follow-up without full church-admin access.
 - **Pastor / Elder**: Leadership tools, sermon oversight.
 - **MinistryAdmin / Leader**: Ministry tracking and volunteers.
 - **Volunteer / Member**: Self-service portal for profile, giving, calendar, RSVPs, and ministries.
@@ -153,7 +154,7 @@ create table public.profiles (
   phone text,
   address text,
   avatar_url text,
-  role text check (role in ('church_admin', 'pastor_elder', 'ministry_leader', 'member_volunteer')) not null default 'member_volunteer',
+  role text check (role in ('church_admin', 'secretary', 'pastor_elder', 'ministry_leader', 'member_volunteer')) not null default 'member_volunteer',
   display_title text,
   is_pastoral boolean default false,
   created_at timestamptz default now()

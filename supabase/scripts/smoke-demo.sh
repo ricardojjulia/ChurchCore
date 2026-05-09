@@ -59,7 +59,7 @@ require_contains() {
     exit 1
   fi
   if [[ "${response}" != *"${needle}"* ]]; then
-    echo "Smoke check failed for ${route}: missing expected text '${needle}'"
+    echo "Smoke check failed for ${route}: missing expected text '${needle}' (final URL ${final_url})"
     exit 1
   fi
   if [[ "${response}" == *"Application error"* ]]; then
@@ -83,11 +83,24 @@ SQL
   echo "OK onboarding request submitted"
 }
 
+set_app_context_cookie() {
+  local value="$1"
+  clear_app_context_cookie
+  printf 'localhost\tFALSE\t/\tFALSE\t0\tchurchcore_ops_app_context\t%s\n' "${value}" >> "${COOKIE_JAR}"
+}
+
+clear_app_context_cookie() {
+  local next_cookie_jar
+  next_cookie_jar="$(mktemp)"
+  grep -v $'\tchurchcore_ops_app_context\t' "${COOKIE_JAR}" > "${next_cookie_jar}" || true
+  mv "${next_cookie_jar}" "${COOKIE_JAR}"
+}
+
 load_env_file "${ROOT_DIR}/.env"
 load_env_file "${ROOT_DIR}/.env.local"
 load_env_file "${ROOT_DIR}/.demo-credentials.local"
 
-APP_URL="${NEXT_PUBLIC_APP_URL:-http://localhost:3000}"
+APP_URL="${APP_URL:-${NEXT_PUBLIC_APP_URL:-http://localhost:3000}}"
 APP_URL="${APP_URL%/}"
 
 echo "Running ${MODE} smoke checks against ${APP_URL}"
@@ -101,6 +114,7 @@ case "${MODE}" in
     ;;
   local)
     : "${CHURCHCORE_OPS_DEMO_ADMIN_EMAIL:?Run ./supabase/scripts/create-dev-users.sh first.}"
+    : "${CHURCHCORE_OPS_DEMO_SECRETARY_EMAIL:?Run ./supabase/scripts/create-dev-users.sh first.}"
     : "${CHURCHCORE_OPS_DEV_PASSWORD:?Run ./supabase/scripts/create-dev-users.sh first.}"
 
     curl -sS -c "${COOKIE_JAR}" "${APP_URL}/sign-in" > "${HTML_FILE}"
@@ -141,13 +155,11 @@ PY
 
     APP_CONTEXT="$(
       python3 - <<'PY'
-import urllib.parse
-
 value = '{"kind":"church","churchId":"11111111-0000-0000-0000-000000000001","roleId":"church-admin","source":"impersonation"}'
-print(urllib.parse.quote(value, safe=''))
+print(value)
 PY
     )"
-    printf '#HttpOnly_localhost\tFALSE\t/\tFALSE\t0\tchurchcore_ops_app_context\t%s\n' "${APP_CONTEXT}" >> "${COOKIE_JAR}"
+    set_app_context_cookie "${APP_CONTEXT}"
 
     require_contains "/app" "Grace Harbor"
     submit_local_onboarding_request
@@ -160,6 +172,29 @@ PY
     require_contains "/app/church-admin/children/dashboard" "Children"
     require_contains "/app/church-admin/children/services" "Service"
     require_contains "/app/calendar" "Calendar"
+
+    clear_app_context_cookie
+    curl -sS -i -c "${COOKIE_JAR}" -b "${COOKIE_JAR}" \
+      -X POST "${APP_URL}/sign-in" \
+      -F "${ACTION_ID}=" \
+      -F "redirectTo=/app/secretary" \
+      -F "email=${CHURCHCORE_OPS_DEMO_SECRETARY_EMAIL}" \
+      -F "password=${CHURCHCORE_OPS_DEV_PASSWORD}" \
+      -F "intent=sign-in" > "${LOGIN_HEADERS}"
+
+    if ! grep -q " 303 " "${LOGIN_HEADERS}"; then
+      echo "Smoke check failed: secretary sign-in did not redirect successfully."
+      cat "${LOGIN_HEADERS}"
+      exit 1
+    fi
+    if grep -qi "location: .*error=" "${LOGIN_HEADERS}"; then
+      echo "Smoke check failed: secretary sign-in redirected with an error."
+      grep -i "location:" "${LOGIN_HEADERS}" || true
+      exit 1
+    fi
+
+    require_contains "/app/secretary" "Office Admin"
+    require_contains "/app/daily-desk" "Daily Desk"
     ;;
   *)
     echo "Usage: $0 [preview|local]"
