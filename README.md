@@ -63,6 +63,8 @@ Start with `docs/application-guide.md` for the end-to-end product walkthrough: w
 
 For product readiness review, see `docs/mvp-readiness-audit.md`. It captures the current MVP verdict, navigation fit, UI fit, verification gaps, and the remaining readiness queue.
 
+The in-app ChurchAdmin readiness route is `/app/church-admin/readiness`; it is the guided weekly path for deciding whether a tenant is operationally ready.
+
 ## Release 2.12.1 Highlights
 
 Release 2.12.1 hardens the ADR 0002 control-plane and tenant split. Backend configuration is now explicit per surface, and the completed split removes the shared local database fallback path from the active configuration.

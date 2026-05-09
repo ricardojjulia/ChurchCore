@@ -135,6 +135,7 @@ PY
     printf '#HttpOnly_localhost\tFALSE\t/\tFALSE\t0\tchurchcore_ops_app_context\t%s\n' "${APP_CONTEXT}" >> "${COOKIE_JAR}"
 
     require_contains "/app" "Grace Harbor"
+    require_contains "/app/church-admin/readiness" "Weekly readiness"
     require_contains "/app/church-admin/children/dashboard" "Children"
     require_contains "/app/church-admin/children/services" "Service"
     require_contains "/app/calendar" "Calendar"

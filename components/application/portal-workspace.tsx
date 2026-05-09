@@ -82,7 +82,14 @@ export function PortalWorkspace({
         label: "Settings",
         description: "Church setup",
         icon: Settings,
-        active: false,
+        active: isActiveHref("/app/church-admin/settings"),
+      },
+      {
+        href: "/app/church-admin/readiness",
+        label: "Readiness",
+        description: "Weekly launch path",
+        icon: ClipboardCheck,
+        active: isActiveHref("/app/church-admin/readiness"),
       },
       {
         href: "/app/church-admin/people",
