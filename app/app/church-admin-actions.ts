@@ -903,6 +903,11 @@ export async function approveAccountRequestAction(
     }
 
     const fullName = `${request.first_name} ${request.last_name}`.trim();
+    const inviteResult = await inviteChurchMember({
+      churchId: session.appContext.church.id,
+      email: request.email,
+      fullName,
+    });
     let profileId = request.profile_id;
 
     if (profileId) {
@@ -910,6 +915,7 @@ export async function approveAccountRequestAction(
         `
           update public.profiles
           set
+            user_id = coalesce($7, user_id),
             full_name = $1,
             email = $2,
             phone = coalesce($3, phone),
@@ -929,12 +935,14 @@ export async function approveAccountRequestAction(
           memberNumber,
           profileId,
           session.appContext.church.id,
+          inviteResult.userId,
         ],
       );
     } else {
       const insertResult = await queryTenantLocalDb<{ id: string }>(
         `
           insert into public.profiles (
+            user_id,
             church_id,
             full_name,
             email,
@@ -945,10 +953,11 @@ export async function approveAccountRequestAction(
             account_status,
             is_roster_eligible
           )
-          values ($1, $2, $3, $4, 'member_volunteer', 'visitor', $5, 'active', true)
+          values ($1, $2, $3, $4, $5, 'member_volunteer', 'visitor', $6, 'active', true)
           returning id
         `,
         [
+          inviteResult.userId,
           session.appContext.church.id,
           fullName,
           request.email,
@@ -958,6 +967,20 @@ export async function approveAccountRequestAction(
       );
 
       profileId = insertResult.rows[0]?.id ?? null;
+    }
+
+    if (inviteResult.userId) {
+      await queryTenantLocalDb(
+        `
+          insert into public.church_memberships (church_id, user_id, role, is_active)
+          values ($1, $2, 'member', true)
+          on conflict (church_id, user_id, role)
+          do update set
+            is_active = true,
+            updated_at = timezone('utc', now())
+        `,
+        [session.appContext.church.id, inviteResult.userId],
+      );
     }
 
     await queryTenantLocalDb(
@@ -975,7 +998,12 @@ export async function approveAccountRequestAction(
 
     revalidatePath("/app/church-admin/accounts");
     revalidatePath("/app/church-admin/people");
-    return { previewMode: true, invited: false };
+    revalidatePath("/app/member");
+    revalidatePath("/portal");
+    return {
+      previewMode: inviteResult.previewMode,
+      invited: inviteResult.invited,
+    };
   }
 
   const supabase = await createTenantServerClient();

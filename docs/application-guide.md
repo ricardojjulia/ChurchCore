@@ -126,6 +126,20 @@ Admins manage member and attendee records, including:
 
 This area is also where Sprint 2 continues to expand deeper household workflows, invite edge cases, and role-management hardening.
 
+### Account Requests
+
+Path: `/app/church-admin/accounts`
+
+Church admins review portal access requests submitted from `/portal/register`. Approval creates or updates the member profile, activates the account state, links the profile to the invited Supabase auth user when tenant admin auth is configured, records an active member role in `church_memberships`, and sends a Supabase invitation.
+
+The MVP happy path is:
+
+1. A member opens `/portal/register`, selects the church, and submits first name, last name, email, and optional phone.
+2. The request appears at `/app/church-admin/accounts` with an existing-member match when the email already belongs to a church profile.
+3. A church admin approves the request.
+4. The app assigns or preserves a member number, activates the profile, creates the auth invitation, and records active member access.
+5. The invited member completes sign-in and lands in the member portal with church-scoped profile data.
+
 ### Communications
 
 Path: `/app/communications`

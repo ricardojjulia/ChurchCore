@@ -12,6 +12,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added `docs/mvp-readiness-audit.md` to capture the current product, UI, information architecture, verification, and MVP-readiness assessment.
 - Added `/app/church-admin/readiness` as the ChurchAdmin weekly MVP readiness path, aggregating setup, account request, people, weekend, children's ministry, volunteer, giving/finance, and suggested workflow signals with direct workflow links.
 - Added `/app/daily-desk` as the daily operator workspace for church admins and pastors, backed by `daily_work_items` tenant data for calls, notes, visits, calendar items, follow-ups, checkups, assignments, priority, and status updates.
+- Added account-onboarding happy-path documentation from public portal request through admin approval, auth invitation, membership linkage, and member portal hydration.
 - Added `supabase/control-plane/` as the dedicated Supabase project directory for control-plane concerns (tenant registry, billing metadata, platform staff identity, tenant-view audit trail). Includes `config.toml` with separate ports (API 54331, DB 54332) to allow both projects to run locally without conflict, a clean schema migration (`20260424000000_control_plane_schema.sql`) with no cross-database FK constraints, and a local development seed.
 - Added `supabase/migrations/20260425010000_drop_control_plane_tables_from_tenant.sql` to remove vestigial control-plane registry tables from the tenant runtime project now that ADR 0002 is complete.
 - Added `docs/plans/ui-stack-migration.md` as a deferred Mantine-to-Tailwind/shadcn/Base UI migration plan.
@@ -70,6 +71,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Church-admin navigation now includes the weekly Readiness path.
 - Church-admin and pastor navigation now include the Daily Desk daily work surface.
 - Weekly Readiness links now deep-link into filtered People, Events, Volunteers, and Suggested Workflows views where supported.
+- Local account-request approval now creates the tenant auth invitation when admin auth is configured, links the approved profile to the invited user, and records the active member role.
 - Church-admin person updates now manage application roles alongside membership status and contact/profile fields.
 - ChurchAdmin home now reads aggregate tenant data instead of relying only on static preview spotlight cards.
 - The ChurchAdmin Care lane now links live pastoral care assignment work to people records while preserving preview behavior when live tenant data is unavailable.
@@ -88,6 +90,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Hardened local smoke checks so failed sign-in redirects and protected-route redirects back to `/sign-in` fail clearly.
 - Aligned local smoke and setup docs with the tenant demo users created by `npm run setup:local`; control-plane local provisioning is now called out as a separate workflow.
 - Expanded local smoke coverage to include the Daily Desk and ChurchAdmin readiness routes.
+- Expanded local smoke coverage to submit a portal account request and verify it appears in the ChurchAdmin approval queue.
 - Fixed tenant local session hydration so an unavailable control-plane database no longer takes down the tenant app.
 - Fixed the local ChurchAdmin giving operations query so donation aggregates and public giving page status can load without a SQL group-by error.
 - Fixed ShepherdAI scheduled evaluation in hosted cron context by using tenant admin client reads/writes when no user session is present, preventing zero-entity evaluations under RLS.

@@ -6,6 +6,8 @@ const {
   createTenantServerClientMock,
   hasTenantBackendEnvMock,
   hasTenantAdminBackendEnvMock,
+  createTenantAdminClientMock,
+  adminInviteUserByEmailMock,
   queryTenantLocalDbMock,
   shouldUseLocalTenantFallbackMock,
   supabaseFromMock,
@@ -19,6 +21,14 @@ const {
   const hasTenantAdminBackendEnv = vi.fn();
   const queryTenantLocalDb = vi.fn();
   const shouldUseLocalTenantFallback = vi.fn();
+  const adminInviteUserByEmail = vi.fn();
+  const createTenantAdminClient = vi.fn(() => ({
+    auth: {
+      admin: {
+        inviteUserByEmail: adminInviteUserByEmail,
+      },
+    },
+  }));
 
   const supabaseMaybeSingle = vi.fn();
   const supabaseEq = vi.fn(() => ({
@@ -47,6 +57,8 @@ const {
     revalidatePathMock: revalidatePath,
     requireChurchSessionMock: requireChurchSession,
     createTenantServerClientMock: createTenantServerClient,
+    createTenantAdminClientMock: createTenantAdminClient,
+    adminInviteUserByEmailMock: adminInviteUserByEmail,
     hasTenantBackendEnvMock: hasTenantBackendEnv,
     hasTenantAdminBackendEnvMock: hasTenantAdminBackendEnv,
     queryTenantLocalDbMock: queryTenantLocalDb,
@@ -71,7 +83,7 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 vi.mock("@/lib/supabase/tenant", () => ({
-  createTenantAdminClient: vi.fn(),
+  createTenantAdminClient: createTenantAdminClientMock,
   createTenantServerClient: createTenantServerClientMock,
   hasTenantAdminBackendEnv: hasTenantAdminBackendEnvMock,
   hasTenantBackendEnv: hasTenantBackendEnvMock,
@@ -101,6 +113,7 @@ describe("church-admin actions", () => {
     shouldUseLocalTenantFallbackMock.mockReturnValue(true);
     hasTenantBackendEnvMock.mockReturnValue(true);
     hasTenantAdminBackendEnvMock.mockReturnValue(false);
+    adminInviteUserByEmailMock.mockResolvedValue({ data: { user: { id: "invited-user-1" } }, error: null });
     supabaseMaybeSingleMock.mockResolvedValue({ data: { id: "event-1" }, error: null });
     supabaseUpdateEqMock.mockResolvedValue({ error: null });
     supabaseUpsertMock.mockResolvedValue({ error: null });
@@ -324,7 +337,7 @@ describe("church-admin actions", () => {
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
       4,
       expect.stringContaining("insert into public.profiles"),
-      ["church-1", "New Member", "new.member@example.com", "555-0190", "GH-0007"],
+      [null, "church-1", "New Member", "new.member@example.com", "555-0190", "GH-0007"],
     );
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
       5,
@@ -333,6 +346,60 @@ describe("church-admin actions", () => {
     );
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/accounts");
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/people");
+  });
+
+  it("links local account approval to an invited auth user when admin auth is configured", async () => {
+    hasTenantAdminBackendEnvMock.mockReturnValue(true);
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "admin-profile-1" }] })
+      .mockResolvedValueOnce({ rows: [{ member_number: "GH-0008" }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "request-2",
+            profile_id: null,
+            email: "invited.member@example.com",
+            phone: "555-0191",
+            first_name: "Invited",
+            last_name: "Member",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ id: "profile-8" }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const result = await approveAccountRequestAction({ requestId: "request-2" });
+
+    expect(result).toEqual({ previewMode: false, invited: true });
+    expect(adminInviteUserByEmailMock).toHaveBeenCalledWith(
+      "invited.member@example.com",
+      expect.objectContaining({
+        data: expect.objectContaining({
+          church_id: "church-1",
+          full_name: "Invited Member",
+          role: "member",
+        }),
+        redirectTo: "http://localhost:3000/app/member",
+      }),
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining("insert into public.profiles"),
+      [
+        "invited-user-1",
+        "church-1",
+        "Invited Member",
+        "invited.member@example.com",
+        "555-0191",
+        "GH-0008",
+      ],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      5,
+      expect.stringContaining("insert into public.church_memberships"),
+      ["church-1", "invited-user-1"],
+    );
   });
 
   it("rejects a portal account request inside the active church only", async () => {

@@ -65,6 +65,8 @@ For product readiness review, see `docs/mvp-readiness-audit.md`. It captures the
 
 The in-app Daily Desk route is `/app/daily-desk`; it is the shared daily workspace for calls, notes, visits, calendar items, checkups, and operational signals. The ChurchAdmin readiness route is `/app/church-admin/readiness`; it is the guided weekly path for deciding whether a tenant is operationally ready.
 
+The member account onboarding path starts at `/portal/register` and continues through `/app/church-admin/accounts`, where approval links or creates the member profile, records active member access, and sends the tenant auth invitation when admin auth is configured.
+
 ## Release 2.12.1 Highlights
 
 Release 2.12.1 hardens the ADR 0002 control-plane and tenant split. Backend configuration is now explicit per surface, and the completed split removes the shared local database fallback path from the active configuration.

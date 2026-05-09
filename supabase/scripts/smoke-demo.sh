@@ -8,9 +8,10 @@ ROOT_DIR="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 COOKIE_JAR="$(mktemp)"
 HTML_FILE="$(mktemp)"
 LOGIN_HEADERS="$(mktemp)"
+SQL_FILE="$(mktemp)"
 
 cleanup() {
-  rm -f "${COOKIE_JAR}" "${HTML_FILE}" "${LOGIN_HEADERS}"
+  rm -f "${COOKIE_JAR}" "${HTML_FILE}" "${LOGIN_HEADERS}" "${SQL_FILE}"
 }
 trap cleanup EXIT
 
@@ -66,6 +67,20 @@ require_contains() {
     exit 1
   fi
   echo "OK ${route}"
+}
+
+submit_local_onboarding_request() {
+  cat > "${SQL_FILE}" <<'SQL'
+select public.submit_account_request(
+  '11111111-0000-0000-0000-000000000001'::uuid,
+  'smoke.portal.request@example.com',
+  'Smoke',
+  'Request',
+  '555-0199'
+);
+SQL
+  npx supabase db query --file "${SQL_FILE}" >/dev/null
+  echo "OK onboarding request submitted"
 }
 
 load_env_file "${ROOT_DIR}/.env"
@@ -135,6 +150,8 @@ PY
     printf '#HttpOnly_localhost\tFALSE\t/\tFALSE\t0\tchurchcore_ops_app_context\t%s\n' "${APP_CONTEXT}" >> "${COOKIE_JAR}"
 
     require_contains "/app" "Grace Harbor"
+    submit_local_onboarding_request
+    require_contains "/app/church-admin/accounts" "smoke.portal.request@example.com"
     require_contains "/app/daily-desk" "Daily Desk"
     require_contains "/app/church-admin/readiness" "Weekly readiness"
     require_contains "/app/church-admin/children/dashboard" "Children"
