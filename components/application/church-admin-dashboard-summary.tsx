@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import {
   CalendarCheck,
   DollarSign,
+  MoveRight,
   Sparkles,
   UsersRound,
 } from "lucide-react";
@@ -38,24 +40,28 @@ export function ChurchAdminDashboardSummaryCards({
       value: summary.people.active.toLocaleString(),
       detail: `${summary.people.visitors} visitors · ${summary.people.incomplete} incomplete`,
       icon: UsersRound,
+      href: "/app/church-admin/people",
     },
     {
       label: "Ministries",
       value: summary.ministries.total.toLocaleString(),
       detail: `${summary.ministries.assignments} assignments · ${summary.ministries.withoutLeader} need leaders`,
       icon: Sparkles,
+      href: "/app/church-admin/ministry",
     },
     {
       label: "Events",
       value: summary.events.upcoming.toLocaleString(),
       detail: `${summary.events.next14Days} in 14 days · ${summary.events.withoutRoster} without roster`,
       icon: CalendarCheck,
+      href: "/app/church-admin/events",
     },
     {
       label: "Giving",
       value: formatCurrency(summary.giving.last30DaysCents),
       detail: `${summary.giving.giftCount} gifts in last 30 days`,
       icon: DollarSign,
+      href: "/app/church-admin/giving",
     },
   ];
 
@@ -75,7 +81,17 @@ export function ChurchAdminDashboardSummaryCards({
           const Icon = card.icon;
 
           return (
-            <Paper key={card.label} withBorder radius="xl" p="lg" bg="#f8fbff">
+            <Paper
+              key={card.label}
+              component={Link}
+              href={card.href}
+              aria-label={`Open ${card.label}`}
+              withBorder
+              radius="xl"
+              p="lg"
+              bg="#f8fbff"
+              style={{ color: "inherit", textDecoration: "none" }}
+            >
               <Stack gap="sm">
                 <Group justify="space-between" align="center">
                   <Text size="xs" tt="uppercase" fw={700} c="dimmed">
@@ -89,6 +105,12 @@ export function ChurchAdminDashboardSummaryCards({
                 <Text size="sm" c="dimmed">
                   {card.detail}
                 </Text>
+                <Group gap={6} align="center">
+                  <Text size="sm" fw={700} c="churchBlue">
+                    Open
+                  </Text>
+                  <MoveRight size={16} color="var(--mantine-color-churchBlue-6)" />
+                </Group>
               </Stack>
             </Paper>
           );

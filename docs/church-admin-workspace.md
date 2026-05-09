@@ -17,7 +17,7 @@ Sprint 2 extends the ChurchAdmin surface further with:
 ## What It Includes
 
 - A Mantine-based operations view within the shared app shell
-- Live aggregate dashboard cards for people, ministries, upcoming events, and recent giving
+- Live aggregate dashboard cards for people, ministries, upcoming events, and recent giving, with each card linking to the matching admin workspace
 - Segmented operational lanes for care, weekend, communications, and giving
 - A live Care lane derived from tenant pastoral care assignments that need assignment, contact, due-date, or priority attention
 - A live Weekend lane derived from upcoming tenant events that need approval, roster, waitlist, capacity, or near-term attention
