@@ -10,6 +10,7 @@ import {
   HeartHandshake,
   Landmark,
   MessageSquare,
+  PhoneCall,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -83,6 +84,13 @@ export function PortalWorkspace({
         description: "Church setup",
         icon: Settings,
         active: isActiveHref("/app/church-admin/settings"),
+      },
+      {
+        href: "/app/daily-desk",
+        label: "Daily Desk",
+        description: "Calls and follow-up",
+        icon: PhoneCall,
+        active: isActiveHref("/app/daily-desk"),
       },
       {
         href: "/app/church-admin/readiness",

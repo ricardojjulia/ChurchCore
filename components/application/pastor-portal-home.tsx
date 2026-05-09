@@ -6,6 +6,7 @@ import {
   BrainCircuit,
   HeartPulse,
   Phone,
+  PhoneCall,
   UsersRound,
 } from "lucide-react";
 import {
@@ -64,6 +65,12 @@ export function PastorPortalHome({
           description: "Pastor overview",
           icon: BrainCircuit,
           active: true,
+        },
+        {
+          href: "/app/daily-desk",
+          label: "Daily Desk",
+          description: "Calls and follow-up",
+          icon: PhoneCall,
         },
         {
           href: "/app/pastor/people",

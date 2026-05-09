@@ -63,7 +63,7 @@ Start with `docs/application-guide.md` for the end-to-end product walkthrough: w
 
 For product readiness review, see `docs/mvp-readiness-audit.md`. It captures the current MVP verdict, navigation fit, UI fit, verification gaps, and the remaining readiness queue.
 
-The in-app ChurchAdmin readiness route is `/app/church-admin/readiness`; it is the guided weekly path for deciding whether a tenant is operationally ready.
+The in-app Daily Desk route is `/app/daily-desk`; it is the shared daily workspace for calls, notes, visits, calendar items, checkups, and operational signals. The ChurchAdmin readiness route is `/app/church-admin/readiness`; it is the guided weekly path for deciding whether a tenant is operationally ready.
 
 ## Release 2.12.1 Highlights
 

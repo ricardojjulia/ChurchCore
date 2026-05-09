@@ -109,6 +109,7 @@ begin
   delete from public.ccm_services where church_id = v_church_id;
   delete from public.donations where church_id = v_church_id;
   delete from public.communication_logs where church_id = v_church_id;
+  delete from public.daily_work_items where church_id = v_church_id;
   delete from public.care_assignments where church_id = v_church_id;
   delete from public.account_requests where church_id = v_church_id;
   delete from public.event_registrations where church_id = v_church_id;
@@ -659,6 +660,15 @@ begin
     (v_church_id, v_noah_id,  v_sarah_id, v_sarah_id, 'First-time visitor follow-up after Sunday registration.',       'open',        'high',   timezone('utc', now()) + interval '1 day', null),
     (v_church_id, v_rachel_id,v_sarah_id, v_linda_id, 'Reconnect inactive member and confirm current contact preference.', 'in_progress', 'high', timezone('utc', now()) + interval '2 days', timezone('utc', now()) - interval '3 days'),
     (v_church_id, v_peter_id, v_sarah_id, v_samuel_id,'Membership class follow-up and next-step conversation.',        'open',        'routine',timezone('utc', now()) + interval '5 days', null)
+  on conflict do nothing;
+
+  insert into public.daily_work_items
+    (church_id, item_type, title, body, status, priority, direction, related_profile_id, assigned_to_profile_id, scheduled_at, due_at, location, created_by)
+  values
+    (v_church_id, 'call', 'Return call to Noah Brooks', 'First-time visitor asked about children''s check-in and membership class next steps.', 'open', 'high', 'outgoing', v_noah_id, v_sarah_id, null, timezone('utc', now()) + interval '2 hours', null, v_sarah_id),
+    (v_church_id, 'visit', 'Hospital follow-up with Elena Martinez', 'Confirm meal train coverage and note any pastoral care needs.', 'scheduled', 'urgent', null, v_elena_id, v_david_id, timezone('utc', now()) + interval '4 hours', timezone('utc', now()) + interval '4 hours', 'Brighton Medical Center', v_sarah_id),
+    (v_church_id, 'checkup', 'Check account approval queue', 'Review pending portal requests before the office closes.', 'open', 'normal', null, null, v_sarah_id, null, timezone('utc', now()) + interval '6 hours', null, v_sarah_id),
+    (v_church_id, 'note', 'Rosters need final confirmation', 'Youth Worship Night still has unconfirmed serving coverage.', 'waiting', 'normal', null, null, v_sarah_id, null, timezone('utc', now()) + interval '1 day', null, v_sarah_id)
   on conflict do nothing;
 
   insert into public.notification_preferences

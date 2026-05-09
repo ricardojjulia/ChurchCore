@@ -90,6 +90,21 @@ Path: `/app/church-admin/readiness`
 
 The readiness workspace is the MVP operating path. It checks whether a church admin can run the week across church setup, portal account requests, people and households, weekend events, children's ministry, volunteer schedule, giving and finance, and suggested ministry workflows. Each item links directly to the workflow that resolves it, and supported routes open in a filtered readiness view.
 
+### Daily Desk
+
+Path: `/app/daily-desk`
+
+The Daily Desk is the daily working surface for church admins, secretaries, and pastors. It captures and tracks the work that usually happens between larger modules:
+
+- incoming and outgoing calls
+- office notes
+- scheduled pastoral or administrative visits
+- calendar-related items
+- follow-up tasks
+- routine checkups
+
+Each item can be connected to a church profile, assigned to a staff or pastoral profile, scheduled, given a due time, marked by priority, and moved to done, waiting, or cancelled. The screen also keeps the operator aware of near-term events and open operational signals such as pending account requests, care follow-up, suggested workflows, and roster gaps.
+
 ### Church Setup
 
 Path: `/app/church-admin/settings`
