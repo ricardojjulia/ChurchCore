@@ -88,7 +88,7 @@ It also includes live operations lanes:
 
 Path: `/app/church-admin/readiness`
 
-The readiness workspace is the MVP operating path. It checks whether a church admin can run the week across church setup, portal account requests, people and households, weekend events, children's ministry, volunteer schedule, giving and finance, and suggested ministry workflows. Each item links directly to the workflow that resolves it.
+The readiness workspace is the MVP operating path. It checks whether a church admin can run the week across church setup, portal account requests, people and households, weekend events, children's ministry, volunteer schedule, giving and finance, and suggested ministry workflows. Each item links directly to the workflow that resolves it, and supported routes open in a filtered readiness view.
 
 ### Church Setup
 

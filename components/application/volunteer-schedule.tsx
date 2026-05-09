@@ -31,6 +31,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 import type { ServicePlanDetail, ServicePlanListEntry, ServicePlanTemplate, VolunteerPoolEntry } from "@/lib/volunteer-types";
 import {
@@ -60,6 +61,8 @@ export function ServicePlansWorkspace({
   plans: ServicePlanListEntry[];
   templates: ServicePlanTemplate[];
 }) {
+  const searchParams = useSearchParams();
+  const view = searchParams.get("view");
   const [plans] = useState(initialPlans);
   const [isPending, startTransition] = useTransition();
   const [showCreate, setShowCreate] = useState(false);
@@ -68,8 +71,12 @@ export function ServicePlansWorkspace({
     name: "", serviceDate: "", serviceTime: "", notes: "", templateId: "",
   });
 
-  const upcoming = plans.filter((p) => p.serviceDate >= new Date().toISOString().slice(0, 10));
-  const past = plans.filter((p) => p.serviceDate < new Date().toISOString().slice(0, 10));
+  const visiblePlans =
+    view === "unassigned"
+      ? plans.filter((plan) => plan.filledCount < plan.positionCount)
+      : plans;
+  const upcoming = visiblePlans.filter((p) => p.serviceDate >= new Date().toISOString().slice(0, 10));
+  const past = visiblePlans.filter((p) => p.serviceDate < new Date().toISOString().slice(0, 10));
 
   function handleCreate() {
     if (!form.name.trim() || !form.serviceDate) return;
@@ -93,7 +100,11 @@ export function ServicePlansWorkspace({
       <Group justify="space-between">
         <div>
           <Title order={3}>Service Plans</Title>
-          <Text c="dimmed" size="sm">{upcoming.length} upcoming</Text>
+          <Text c="dimmed" size="sm">
+            {view === "unassigned"
+              ? `${visiblePlans.length} need volunteer coverage`
+              : `${upcoming.length} upcoming`}
+          </Text>
         </div>
         <Button leftSection={<Plus size={15} />} onClick={() => setShowCreate(true)}>
           New Plan
@@ -101,6 +112,22 @@ export function ServicePlansWorkspace({
       </Group>
 
       {msg && <Alert color="red" onClose={() => setMsg(null)} withCloseButton>{msg}</Alert>}
+
+      {view === "unassigned" && (
+        <Paper withBorder radius="lg" p="md" bg="#f8fbff">
+          <Group justify="space-between" gap="md">
+            <div>
+              <Text fw={700} size="sm">Readiness view: plans needing volunteer coverage.</Text>
+              <Text size="sm" c="dimmed" mt={4}>
+                Open a service plan to fill positions and confirm volunteers.
+              </Text>
+            </div>
+            <Text component={Link} href="/app/church-admin/readiness" size="sm" fw={700} c="churchBlue">
+              Back to readiness
+            </Text>
+          </Group>
+        </Paper>
+      )}
 
       {[
         { label: "Upcoming", rows: upcoming },

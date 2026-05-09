@@ -67,6 +67,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Church-admin navigation now includes a Settings entry for the new church setup profile.
 - Church-admin navigation now surfaces account requests, suggested workflows, and reports directly, differentiates Donations from Giving Ops, and highlights the current route instead of leaving Home active.
 - Church-admin navigation now includes the weekly Readiness path.
+- Weekly Readiness links now deep-link into filtered People, Events, Volunteers, and Suggested Workflows views where supported.
 - Church-admin person updates now manage application roles alongside membership status and contact/profile fields.
 - ChurchAdmin home now reads aggregate tenant data instead of relying only on static preview spotlight cards.
 - The ChurchAdmin Care lane now links live pastoral care assignment work to people records while preserving preview behavior when live tenant data is unavailable.

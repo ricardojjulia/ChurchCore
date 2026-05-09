@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   BellRing,
@@ -665,6 +666,8 @@ export function EventsListWorkspace({
   session: import("@/lib/auth").ChurchAppSession;
   events: ChurchAdminEventsListEntry[];
 }) {
+  const searchParams = useSearchParams();
+  const view = searchParams.get("view");
   const [showCreate, setShowCreate] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [form, setForm] = useState({
@@ -673,8 +676,10 @@ export function EventsListWorkspace({
   });
   const [err, setErr] = useState<string | null>(null);
 
-  const upcoming = events.filter((e) => new Date(e.startsAt) >= new Date());
-  const past = events.filter((e) => new Date(e.startsAt) < new Date());
+  const eventRows =
+    view === "needs-roster" ? events.filter((event) => event.rosterCount === 0) : events;
+  const upcoming = eventRows.filter((e) => new Date(e.startsAt) >= new Date());
+  const past = eventRows.filter((e) => new Date(e.startsAt) < new Date());
 
   function handleCreate() {
     if (!form.title.trim() || !form.startsAt || !form.endsAt) {
@@ -718,12 +723,34 @@ export function EventsListWorkspace({
         <Group justify="space-between">
           <div>
             <Title order={2}>Events</Title>
-            <Text c="dimmed" size="sm">{events.length} total</Text>
+            <Text c="dimmed" size="sm">
+              {view === "needs-roster"
+                ? `${eventRows.length} need roster review`
+                : `${events.length} total`}
+            </Text>
           </div>
           <Button leftSection={<Plus size={16} />} onClick={() => setShowCreate(true)}>
             New Event
           </Button>
         </Group>
+
+        {view === "needs-roster" ? (
+          <Paper withBorder radius="lg" p="md" bg="#f8fbff">
+            <Group justify="space-between" gap="md">
+              <div>
+                <Text fw={700} size="sm">
+                  Readiness view: events without roster coverage.
+                </Text>
+                <Text size="sm" c="dimmed" mt={4}>
+                  Open an event to add roster assignments or confirm attendance setup.
+                </Text>
+              </div>
+              <Text component={Link} href="/app/church-admin/readiness" size="sm" fw={700} c="churchBlue">
+                Back to readiness
+              </Text>
+            </Group>
+          </Paper>
+        ) : null}
 
         <Tabs defaultValue="upcoming">
           <Tabs.List>

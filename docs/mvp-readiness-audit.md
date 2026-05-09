@@ -120,7 +120,7 @@ These should be closed before calling the product MVP-ready:
 - **Reliable local demo:** `npm run setup:local`, `npm run dev`, and `npm run smoke:local` must pass on a clean machine. The local smoke now includes the ChurchAdmin readiness route.
 - **Control-plane local demo:** either provision local control-plane staff users during setup or move control-plane checks into a separate explicit smoke command.
 - **Account onboarding path:** public registration, account approval, user invite, first sign-in, and profile hydration need one documented happy path and one automated smoke path.
-- **ChurchAdmin weekly path:** `/app/church-admin/readiness` now provides the first guided route through setup, people, event, children, volunteers, giving, reports, and suggested workflows. Continue tightening each item until it is actionable enough for a non-developer evaluator.
+- **ChurchAdmin weekly path:** `/app/church-admin/readiness` now provides the first guided route through setup, people, event, children, volunteers, giving, reports, and suggested workflows. Readiness links now open filtered target views where the receiving route supports it. Continue tightening each item until every target route has a complete resolve flow.
 - **Empty/error states:** every admin module should explain whether it has no data, no backend, or insufficient permission.
 - **Role access audit:** verify ChurchAdmin, Pastor, Ministry Leader, Member, and Control Plane cannot see each other's restricted data.
 - **Mobile sanity pass:** member routes and check-in/checkout routes must be usable on phone-sized screens.
@@ -131,6 +131,7 @@ Priority 1:
 
 - Make local Supabase demo smoke pass reliably from generated credentials.
 - Expand the "ChurchAdmin weekly readiness" smoke path into a full route-by-route Playwright flow.
+- Add query-aware readiness filters to the remaining money and children's ministry targets.
 - Finish account-request invite edge cases and document the operator path.
 - Add missing empty/error states for settings, people, events, children, giving, finance, reports, and workflows.
 

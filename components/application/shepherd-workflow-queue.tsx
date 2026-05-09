@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Alert,
   Badge,
@@ -48,12 +49,19 @@ export function ShepherdWorkflowQueue({
   queue: ShepherdWorkflowQueueRow[];
   assignees: ShepherdAssignee[];
 }) {
+  const searchParams = useSearchParams();
   const isManager = session.appContext.roleId === "church-admin";
+  const initialStatus = searchParams.get("status");
 
   const [urgency, setUrgency] = useState<"all" | "low" | "medium" | "high">("all");
   const [status, setStatus] = useState<
     "all" | "suggested" | "open" | "assigned" | "deferred" | "dismissed" | "completed"
-  >("all");
+  >(
+    initialStatus &&
+      ["suggested", "open", "assigned", "deferred", "dismissed", "completed"].includes(initialStatus)
+      ? (initialStatus as "suggested" | "open" | "assigned" | "deferred" | "dismissed" | "completed")
+      : "all",
+  );
   const [workflowCode, setWorkflowCode] = useState<
     | "all"
     | "reconnect_inactive_member"
@@ -266,6 +274,22 @@ export function ShepherdWorkflowQueue({
           This queue shows suggested ministry workflows from structured Ops signals. Suggestions are
           not diagnoses and require human review before action.
         </Alert>
+
+        {initialStatus === "open" ? (
+          <Paper withBorder radius="lg" p="md" bg="#f8fbff">
+            <Group justify="space-between" gap="md">
+              <div>
+                <Text fw={700} size="sm">Readiness view: open ministry workflows.</Text>
+                <Text size="sm" c="dimmed" mt={4}>
+                  Assign, defer, dismiss, or complete open workflow items before handoff.
+                </Text>
+              </div>
+              <Text component="a" href="/app/church-admin/readiness" size="sm" fw={700} c="churchBlue">
+                Back to readiness
+              </Text>
+            </Group>
+          </Paper>
+        ) : null}
 
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
           <Paper withBorder radius="xl" p="md">

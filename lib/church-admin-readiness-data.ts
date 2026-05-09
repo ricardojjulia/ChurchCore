@@ -59,7 +59,7 @@ const previewItems: ChurchAdminReadinessItem[] = [
     id: "portal-requests",
     title: "Portal account requests",
     description: "Approve or reject member portal access requests.",
-    href: "/app/church-admin/accounts",
+    href: "/app/church-admin/accounts?status=pending",
     status: "attention",
     detail: "Use the account queue once a tenant backend is configured.",
   },
@@ -67,7 +67,7 @@ const previewItems: ChurchAdminReadinessItem[] = [
     id: "people-households",
     title: "People and households",
     description: "Resolve incomplete profiles and unassigned household records.",
-    href: "/app/church-admin/people",
+    href: "/app/church-admin/people?view=incomplete-profiles",
     status: "attention",
     detail: "Preview mode does not verify live profile completeness.",
   },
@@ -75,7 +75,7 @@ const previewItems: ChurchAdminReadinessItem[] = [
     id: "weekend-events",
     title: "Weekend events",
     description: "Review upcoming events, rosters, capacity, and check-in readiness.",
-    href: "/app/church-admin/events",
+    href: "/app/church-admin/events?view=needs-roster",
     status: "attention",
     detail: "Use event records after local or hosted tenant data is configured.",
   },
@@ -83,7 +83,7 @@ const previewItems: ChurchAdminReadinessItem[] = [
     id: "children-ministry",
     title: "Children's ministry",
     description: "Check service state, volunteer coverage, and follow-up incidents.",
-    href: "/app/church-admin/children/dashboard",
+    href: "/app/church-admin/children/dashboard?view=readiness",
     status: "attention",
     detail: "Preview mode cannot confirm live child-safety readiness.",
   },
@@ -91,7 +91,7 @@ const previewItems: ChurchAdminReadinessItem[] = [
     id: "volunteer-schedule",
     title: "Volunteer schedule",
     description: "Review open and unassigned volunteer shifts.",
-    href: "/app/church-admin/volunteers/schedules",
+    href: "/app/church-admin/volunteers/schedules?view=unassigned",
     status: "attention",
     detail: "Volunteer coverage requires tenant data.",
   },
@@ -99,7 +99,7 @@ const previewItems: ChurchAdminReadinessItem[] = [
     id: "giving-finance",
     title: "Giving and finance",
     description: "Review failed gifts, GL posting gaps, giving page status, and draft journals.",
-    href: "/app/church-admin/giving",
+    href: "/app/church-admin/giving?view=exceptions",
     status: "attention",
     detail: "Financial readiness requires tenant data.",
   },
@@ -107,7 +107,7 @@ const previewItems: ChurchAdminReadinessItem[] = [
     id: "suggested-workflows",
     title: "Suggested ministry workflows",
     description: "Triage open ministry suggestions and follow-up workflows.",
-    href: "/app/church-admin/workflows",
+    href: "/app/church-admin/workflows?status=open",
     status: "attention",
     detail: "Workflow signals require tenant data.",
   },
@@ -146,7 +146,7 @@ function buildItems(row: ReadinessMetricRow): ChurchAdminReadinessItem[] {
       id: "portal-requests",
       title: "Portal account requests",
       description: "Approve or reject member portal access requests.",
-      href: "/app/church-admin/accounts",
+      href: "/app/church-admin/accounts?status=pending",
       status: statusFor(row.pending_account_requests > 5, row.pending_account_requests > 0),
       detail:
         row.pending_account_requests === 0
@@ -157,7 +157,10 @@ function buildItems(row: ReadinessMetricRow): ChurchAdminReadinessItem[] {
       id: "people-households",
       title: "People and households",
       description: "Resolve incomplete profiles and unassigned household records.",
-      href: "/app/church-admin/people",
+      href:
+        row.unassigned_households > 0
+          ? "/app/church-admin/people?view=unassigned-households&household=unassigned"
+          : "/app/church-admin/people?view=incomplete-profiles",
       status: statusFor(
         row.incomplete_profiles + row.unassigned_households > 8,
         row.incomplete_profiles + row.unassigned_households > 0,
@@ -168,7 +171,7 @@ function buildItems(row: ReadinessMetricRow): ChurchAdminReadinessItem[] {
       id: "weekend-events",
       title: "Weekend events",
       description: "Review upcoming events, rosters, capacity, and check-in readiness.",
-      href: "/app/church-admin/events",
+      href: "/app/church-admin/events?view=needs-roster",
       status: statusFor(
         row.upcoming_events === 0 || row.events_without_roster > 2,
         row.events_without_roster > 0,
@@ -182,7 +185,7 @@ function buildItems(row: ReadinessMetricRow): ChurchAdminReadinessItem[] {
       id: "children-ministry",
       title: "Children's ministry",
       description: "Check service state, volunteer coverage, and follow-up incidents.",
-      href: "/app/church-admin/children/dashboard",
+      href: "/app/church-admin/children/dashboard?view=readiness",
       status: statusFor(
         row.open_ccm_services > 0 && row.ccm_volunteers === 0,
         row.ccm_followups > 0 || row.open_ccm_services === 0,
@@ -196,7 +199,7 @@ function buildItems(row: ReadinessMetricRow): ChurchAdminReadinessItem[] {
       id: "volunteer-schedule",
       title: "Volunteer schedule",
       description: "Review open and unassigned volunteer shifts.",
-      href: "/app/church-admin/volunteers/schedules",
+      href: "/app/church-admin/volunteers/schedules?view=unassigned",
       status: statusFor(row.unassigned_volunteer_shifts > 3, row.open_volunteer_shifts > 0),
       detail: `${row.open_volunteer_shifts} open shift${row.open_volunteer_shifts === 1 ? "" : "s"} · ${row.unassigned_volunteer_shifts} unassigned.`,
     },
@@ -204,7 +207,7 @@ function buildItems(row: ReadinessMetricRow): ChurchAdminReadinessItem[] {
       id: "giving-finance",
       title: "Giving and finance",
       description: "Review failed gifts, GL posting gaps, giving page status, and draft journals.",
-      href: "/app/church-admin/giving",
+      href: "/app/church-admin/giving?view=exceptions",
       status: statusFor(
         row.live_giving_pages === 0 || row.failed_donations > 0,
         row.unposted_donations > 0 || row.draft_journals > 0,
@@ -215,7 +218,7 @@ function buildItems(row: ReadinessMetricRow): ChurchAdminReadinessItem[] {
       id: "suggested-workflows",
       title: "Suggested ministry workflows",
       description: "Triage open ministry suggestions and follow-up workflows.",
-      href: "/app/church-admin/workflows",
+      href: "/app/church-admin/workflows?status=open",
       status: statusFor(row.open_workflows > 10, row.open_workflows > 0),
       detail:
         row.open_workflows === 0
