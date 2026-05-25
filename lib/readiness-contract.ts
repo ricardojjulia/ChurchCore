@@ -28,6 +28,30 @@ export type ReadinessSummary = {
   detail: string;
 };
 
+export function readinessStatusFor(blocked: boolean, attention: boolean): ReadinessStatus {
+  if (blocked) return "blocked";
+  if (attention) return "attention";
+  return "ready";
+}
+
+export function readinessSeverityFor(
+  status: ReadinessStatus,
+  issueCount: number,
+): ReadinessSeverity {
+  if (status === "blocked") return "critical";
+  if (status === "attention" && issueCount > 0) return "warning";
+  if (status === "attention") return "notice";
+  return "none";
+}
+
+export function readinessCompletionStateFor(
+  status: ReadinessStatus,
+): ReadinessCompletionState {
+  if (status === "blocked") return "blocked";
+  if (status === "attention") return "needs_review";
+  return "complete";
+}
+
 export function buildReadinessHref(target: ReadinessTarget) {
   const query = new URLSearchParams(target.query ?? {});
   const queryString = query.toString();

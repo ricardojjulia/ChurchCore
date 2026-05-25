@@ -32,6 +32,8 @@ ChurchCore Ops is built in the open from the repository's point of view. The fac
 
 If a future maintainer cannot understand the change without reading an AI chat transcript, the factory run is incomplete.
 
+Factory runs are tracked in [docs/factory-runs](factory-runs/). Add or update a run record for every meaningful factory execution.
+
 ## File Map
 
 | Path | Used by | Purpose |

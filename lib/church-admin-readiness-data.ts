@@ -9,9 +9,16 @@ import {
 } from "@/lib/supabase/tenant";
 import {
   createReadinessSummary,
-  type ReadinessStatus,
+  readinessCompletionStateFor,
+  readinessSeverityFor,
+  readinessStatusFor,
   type ReadinessSummary,
 } from "@/lib/readiness-contract";
+import {
+  buildAccountRequestsReadinessSummary,
+  buildChurchSetupReadinessSummary,
+  buildPeopleReadinessSummary,
+} from "@/lib/church-admin-readiness-modules";
 
 export type { ReadinessStatus } from "@/lib/readiness-contract";
 
@@ -161,108 +168,32 @@ function summarize(items: ChurchAdminReadinessItem[], source: ChurchAdminReadine
   } satisfies ChurchAdminReadinessData;
 }
 
-function statusFor(blocked: boolean, attention: boolean): ReadinessStatus {
-  if (blocked) return "blocked";
-  if (attention) return "attention";
-  return "ready";
-}
-
-function severityFor(status: ReadinessStatus, issueCount: number) {
-  if (status === "blocked") return "critical";
-  if (status === "attention" && issueCount > 0) return "warning";
-  if (status === "attention") return "notice";
-  return "none";
-}
-
-function completionStateFor(status: ReadinessStatus) {
-  if (status === "blocked") return "blocked";
-  if (status === "attention") return "needs_review";
-  return "complete";
-}
-
 export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchAdminReadinessItem[] {
-  const setupStatus = statusFor(row.missing_settings >= 3, row.missing_settings > 0);
-  const accountStatus = statusFor(row.pending_account_requests > 5, row.pending_account_requests > 0);
-  const peopleIssueCount = row.incomplete_profiles + row.unassigned_households;
-  const peopleStatus = statusFor(peopleIssueCount > 8, peopleIssueCount > 0);
-  const weekendStatus = statusFor(
+  const weekendStatus = readinessStatusFor(
     row.upcoming_events === 0 || row.events_without_roster > 2,
     row.events_without_roster > 0,
   );
   const childrenIssueCount =
     (row.open_ccm_services === 0 ? 1 : 0) + row.ccm_followups + (row.open_ccm_services > 0 && row.ccm_volunteers === 0 ? 1 : 0);
-  const childrenStatus = statusFor(
+  const childrenStatus = readinessStatusFor(
     row.open_ccm_services > 0 && row.ccm_volunteers === 0,
     row.ccm_followups > 0 || row.open_ccm_services === 0,
   );
-  const volunteerStatus = statusFor(row.unassigned_volunteer_shifts > 3, row.open_volunteer_shifts > 0);
+  const volunteerStatus = readinessStatusFor(row.unassigned_volunteer_shifts > 3, row.open_volunteer_shifts > 0);
   const givingIssueCount =
     row.failed_donations + row.unposted_donations + row.draft_journals + (row.live_giving_pages === 0 ? 1 : 0);
-  const givingStatus = statusFor(
+  const givingStatus = readinessStatusFor(
     row.live_giving_pages === 0 || row.failed_donations > 0,
     row.unposted_donations > 0 || row.draft_journals > 0,
   );
-  const workflowStatus = statusFor(row.open_workflows > 10, row.open_workflows > 0);
+  const workflowStatus = readinessStatusFor(row.open_workflows > 10, row.open_workflows > 0);
 
   return [
-    createReadinessSummary({
-      id: "church-setup",
-      module: "setup",
-      title: "Church setup",
-      description: "Confirm tenant profile, contact, website, address, and public summary.",
-      status: setupStatus,
-      severity: severityFor(setupStatus, row.missing_settings),
-      issueCount: row.missing_settings,
-      completionState: completionStateFor(setupStatus),
-      recommendedAction:
-        row.missing_settings === 0
-          ? "No action needed."
-          : "Open church settings and complete the missing setup fields.",
-      target: { route: "/app/church-admin/settings" },
-      detail:
-        row.missing_settings === 0
-          ? "Core church settings are complete."
-          : `${row.missing_settings} setup field${row.missing_settings === 1 ? "" : "s"} still need attention.`,
-    }),
-    createReadinessSummary({
-      id: "portal-requests",
-      module: "accounts",
-      title: "Portal account requests",
-      description: "Approve or reject member portal access requests.",
-      status: accountStatus,
-      severity: severityFor(accountStatus, row.pending_account_requests),
-      issueCount: row.pending_account_requests,
-      completionState: completionStateFor(accountStatus),
-      recommendedAction:
-        row.pending_account_requests === 0
-          ? "No action needed."
-          : "Open the account queue and approve or reject pending portal requests.",
-      target: { route: "/app/church-admin/accounts", query: { status: "pending" } },
-      detail:
-        row.pending_account_requests === 0
-          ? "No pending account requests."
-          : `${row.pending_account_requests} pending account request${row.pending_account_requests === 1 ? "" : "s"}.`,
-    }),
-    createReadinessSummary({
-      id: "people-households",
-      module: "people",
-      title: "People and households",
-      description: "Resolve incomplete profiles and unassigned household records.",
-      status: peopleStatus,
-      severity: severityFor(peopleStatus, peopleIssueCount),
-      issueCount: peopleIssueCount,
-      completionState: completionStateFor(peopleStatus),
-      recommendedAction:
-        peopleIssueCount === 0
-          ? "No action needed."
-          : row.unassigned_households > 0
-            ? "Open people management filtered to unassigned households."
-            : "Open people management filtered to incomplete profiles.",
-      target:
-        row.unassigned_households > 0
-          ? { route: "/app/church-admin/people", query: { view: "unassigned-households", household: "unassigned" } }
-          : { route: "/app/church-admin/people", query: { view: "incomplete-profiles" } },
-      detail: `${row.incomplete_profiles} incomplete profile${row.incomplete_profiles === 1 ? "" : "s"} · ${row.unassigned_households} unassigned household record${row.unassigned_households === 1 ? "" : "s"}.`,
+    buildChurchSetupReadinessSummary({ missingSettings: row.missing_settings }),
+    buildAccountRequestsReadinessSummary({ pendingAccountRequests: row.pending_account_requests }),
+    buildPeopleReadinessSummary({
+      incompleteProfiles: row.incomplete_profiles,
+      unassignedHouseholds: row.unassigned_households,
     }),
     createReadinessSummary({
       id: "weekend-events",
@@ -270,9 +201,9 @@ export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchA
       title: "Weekend events",
       description: "Review upcoming events, rosters, capacity, and check-in readiness.",
       status: weekendStatus,
-      severity: severityFor(weekendStatus, row.upcoming_events === 0 ? 1 : row.events_without_roster),
+      severity: readinessSeverityFor(weekendStatus, row.upcoming_events === 0 ? 1 : row.events_without_roster),
       issueCount: row.upcoming_events === 0 ? 1 : row.events_without_roster,
-      completionState: completionStateFor(weekendStatus),
+      completionState: readinessCompletionStateFor(weekendStatus),
       recommendedAction:
         row.upcoming_events === 0
           ? "Create or review upcoming event records for the next two weeks."
@@ -291,9 +222,9 @@ export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchA
       title: "Children's ministry",
       description: "Check service state, volunteer coverage, and follow-up incidents.",
       status: childrenStatus,
-      severity: severityFor(childrenStatus, childrenIssueCount),
+      severity: readinessSeverityFor(childrenStatus, childrenIssueCount),
       issueCount: childrenIssueCount,
-      completionState: completionStateFor(childrenStatus),
+      completionState: readinessCompletionStateFor(childrenStatus),
       recommendedAction:
         childrenIssueCount === 0
           ? "No action needed."
@@ -310,9 +241,9 @@ export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchA
       title: "Volunteer schedule",
       description: "Review open and unassigned volunteer shifts.",
       status: volunteerStatus,
-      severity: severityFor(volunteerStatus, row.unassigned_volunteer_shifts),
+      severity: readinessSeverityFor(volunteerStatus, row.unassigned_volunteer_shifts),
       issueCount: row.unassigned_volunteer_shifts,
-      completionState: completionStateFor(volunteerStatus),
+      completionState: readinessCompletionStateFor(volunteerStatus),
       recommendedAction:
         row.unassigned_volunteer_shifts === 0
           ? "No action needed."
@@ -326,9 +257,9 @@ export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchA
       title: "Giving and finance",
       description: "Review failed gifts, GL posting gaps, giving page status, and draft journals.",
       status: givingStatus,
-      severity: severityFor(givingStatus, givingIssueCount),
+      severity: readinessSeverityFor(givingStatus, givingIssueCount),
       issueCount: givingIssueCount,
-      completionState: completionStateFor(givingStatus),
+      completionState: readinessCompletionStateFor(givingStatus),
       recommendedAction:
         givingIssueCount === 0
           ? "No action needed."
@@ -342,9 +273,9 @@ export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchA
       title: "Suggested ministry workflows",
       description: "Triage open ministry suggestions and follow-up workflows.",
       status: workflowStatus,
-      severity: severityFor(workflowStatus, row.open_workflows),
+      severity: readinessSeverityFor(workflowStatus, row.open_workflows),
       issueCount: row.open_workflows,
-      completionState: completionStateFor(workflowStatus),
+      completionState: readinessCompletionStateFor(workflowStatus),
       recommendedAction:
         row.open_workflows === 0
           ? "No action needed."

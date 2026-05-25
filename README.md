@@ -64,6 +64,7 @@ npm run smoke:local
 | [docs/diagrams.md](docs/diagrams.md) | Mermaid architecture, role, workflow, and documentation diagrams with SVG companions. |
 | [docs/application-guide.md](docs/application-guide.md) | End-to-end product walkthrough and operator guide. |
 | [docs/software-factory.md](docs/software-factory.md) | How to use the Claude Code and Codex software-factory workflows, including agents, skills, hooks, role contracts, and diagrams. |
+| [docs/factory-runs](docs/factory-runs) | Durable tracker for meaningful software-factory runs, including story, brief, implementation, verification, residual risk, and commit evidence. |
 | [docs/setup/local-supabase.md](docs/setup/local-supabase.md) | Full local Supabase setup, seed, reset, and smoke-test path. |
 | [docs/mvp-readiness-audit.md](docs/mvp-readiness-audit.md) | Current MVP verdict, navigation fit, verification gaps, and readiness queue. |
 | [docs/plans/competitive-readiness-roadmap.md](docs/plans/competitive-readiness-roadmap.md) | Next major-release roadmap for closing competitive gaps across operator, member, communications, service planning, import, and security proof workflows. |
