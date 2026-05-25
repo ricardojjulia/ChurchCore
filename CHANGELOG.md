@@ -6,6 +6,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Unreleased — Security
+
+- Upgraded `next` from `16.2.3` to `16.2.6` to remediate multiple CVEs: Middleware/Proxy bypass via segment-prefetch routes, DoS via connection exhaustion in Cache Components, SSRF via WebSocket upgrades, Middleware/Proxy bypass via dynamic route parameter injection, Middleware/Proxy bypass in Pages Router i18n, and DoS with Server Components (GHSA advisories patched in 16.2.5/16.2.6).
+- Upgraded `eslint-config-next` from `16.2.3` to `16.2.6` to match Next.js version.
+- Patched transitive vulnerabilities in `brace-expansion` and `ws` via `npm audit fix`.
+
 ### Unreleased — Added
 
 - Added `docs/application-guide.md` as the end-to-end application walkthrough covering first entry, tenant roles, ChurchAdmin operations, member workflows, public portal behavior, control-plane boundaries, security posture, and current Sprint 2 gaps.
