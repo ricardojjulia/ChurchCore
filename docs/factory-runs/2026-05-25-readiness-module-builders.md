@@ -4,7 +4,7 @@
 **Factory surface:** Codex  
 **Workflow:** `churchcore-feature-factory` with `churchcore-build-with-tests` implementation discipline  
 **Roadmap phase:** Competitive Readiness Phase 1, Finish The Operator Path  
-**Status:** Verification passed, commit pending
+**Status:** Implemented and verified
 
 ## Intent
 
@@ -71,7 +71,7 @@ Patterns reused:
 - `npm test -- lib/church-admin-readiness-data.test.ts lib/church-admin-readiness-modules.test.ts` - passed, 2 files and 6 tests.
 - `npm run lint` - passed.
 - `npm run build` - passed.
-- `git diff --check` - pending final pre-commit check.
+- `git diff --check` - passed before implementation commit.
 
 ## Residual Risk
 
@@ -85,4 +85,5 @@ Split the remaining readiness domains into module-owned builders, starting with 
 
 ## Commit
 
-Pending.
+- Implementation commit: `043db58 feat: split readiness module builders`
+- Tracker finalization commit: pending.

@@ -19,4 +19,4 @@ Each run file should be committed with the change it describes. The goal is to m
 
 | Date | Run | Scope | Commit |
 | --- | --- | --- | --- |
-| 2026-05-25 | [Readiness module-owned builders](2026-05-25-readiness-module-builders.md) | Split setup, accounts, and people readiness into module builders | Pending |
+| 2026-05-25 | [Readiness module-owned builders](2026-05-25-readiness-module-builders.md) | Split setup, accounts, and people readiness into module builders | `043db58` |
