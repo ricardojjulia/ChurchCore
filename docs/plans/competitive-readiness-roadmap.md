@@ -99,8 +99,8 @@ These workstreams convert the competitive findings into implementation-ready ste
 **Steps:**
 
 1. Inventory all current ChurchAdmin routes and classify each as setup, people, weekend, children, volunteers, money, communications, or insights.
-2. Define a `ReadinessSummary` contract for status, severity, issue count, recommended action, target route, target query, and completion state.
-3. Add or align module loaders so setup, accounts, people, events, children, volunteers, giving, finance, communications, reports, and workflows can each produce readiness summaries.
+2. Define a `ReadinessSummary` contract for status, severity, issue count, recommended action, target route, target query, and completion state. **Started:** `lib/readiness-contract.ts` now provides the shared contract and href builder; `lib/church-admin-readiness-data.ts` emits that contract for the current weekly readiness modules.
+3. Add or align module loaders so setup, accounts, people, events, children, volunteers, giving, finance, communications, reports, and workflows can each produce readiness summaries. **In progress:** the existing ChurchAdmin readiness aggregate now emits shared summaries for setup, accounts, people, weekend events, children's ministry, volunteers, giving/finance, and workflows. Communications and reports summaries still need module-owned loaders.
 4. Update `/app/church-admin/readiness` to use the shared summaries rather than duplicating module-specific rules.
 5. Add filtered target views for every readiness issue type.
 6. Add empty, no-backend, permission-denied, validation-error, and completed states to every readiness target route.
@@ -279,7 +279,7 @@ These workstreams convert the competitive findings into implementation-ready ste
 
 ### Architecture Work
 
-- Introduce a shared readiness contract for module summaries, blocking issues, recommended actions, route targets, and completion state.
+- Introduce a shared readiness contract for module summaries, blocking issues, recommended actions, route targets, and completion state. The first contract lives in `lib/readiness-contract.ts` and is used by `lib/church-admin-readiness-data.ts`.
 - Keep each module's data loader responsible for its own domain, while the readiness workspace composes summaries.
 - Add route-level filtered views where readiness links target a specific class of issue.
 - Standardize module empty, loading, unavailable-backend, insufficient-permission, and completed states.
