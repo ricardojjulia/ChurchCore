@@ -14,6 +14,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Unreleased — Added
 
+- Added `docs/plans/competitive-readiness-roadmap.md` as the next major-release execution roadmap for finishing the operator path, hardening mobile member workflows, completing communications delivery, closing service planning and registration gaps, adding migration/import tooling, and proving security claims.
+- Added `docs/adr/0004-competitive-readiness-architecture.md` to govern readiness contracts, mobile member self-service, communications provider adapters, service planning and registration boundaries, import staging, and security evidence for the competitive-readiness release.
 - Added `docs/diagrams.md` as the canonical diagram set for the repository, with Mermaid source for system architecture, role/surface mapping, core workflows, and documentation flow.
 - Added `docs/development-plan-visual.md` as a visual companion to `DEVELOPMENT_PLAN.md`, covering strategy, roadmap, boundary/security model, and Sprint 1 execution flow.
 - Added `docs/plans/github-repository-operations.md` to preserve the GitHub roadmap for projects, milestones, issue forms, branch protection, security triage, and releases.

@@ -65,8 +65,10 @@ npm run smoke:local
 | [docs/application-guide.md](docs/application-guide.md) | End-to-end product walkthrough and operator guide. |
 | [docs/setup/local-supabase.md](docs/setup/local-supabase.md) | Full local Supabase setup, seed, reset, and smoke-test path. |
 | [docs/mvp-readiness-audit.md](docs/mvp-readiness-audit.md) | Current MVP verdict, navigation fit, verification gaps, and readiness queue. |
+| [docs/plans/competitive-readiness-roadmap.md](docs/plans/competitive-readiness-roadmap.md) | Next major-release roadmap for closing competitive gaps across operator, member, communications, service planning, import, and security proof workflows. |
 | [docs/security-assessment.md](docs/security-assessment.md) | Security and privacy assessment for sensitive church data. |
 | [docs/adr/0002-control-plane-and-tenant-separation.md](docs/adr/0002-control-plane-and-tenant-separation.md) | Approved architecture for separated control-plane and tenant data boundaries. |
+| [docs/adr/0004-competitive-readiness-architecture.md](docs/adr/0004-competitive-readiness-architecture.md) | Architecture decision governing readiness contracts, mobile member workflows, communications adapters, import staging, and security evidence. |
 
 ## Current Product Surface
 
