@@ -38,6 +38,7 @@ Repository setting changed:
 
 Files changed:
 
+- `.github/workflows/secret-scan.yml`
 - `AGENTS.md`
 - `README.md`
 - `docs/software-factory.md`
@@ -52,6 +53,7 @@ Files changed:
 - `npm run lint` - passed.
 - `npm run build` - passed.
 - `git diff --check` - passed.
+- PR check observation: first `gitleaks` run failed because checkout depth `1` could not resolve the PR commit range. This run updates `.github/workflows/secret-scan.yml` to use `fetch-depth: 0`; the rerun must pass before merge.
 
 ## Residual Risk
 
