@@ -23,7 +23,14 @@
 # misc
 .DS_Store
 *.pem
-.claude/
+.claude/*
+!.claude/agents/
+!.claude/agents/*.md
+!.claude/skills/
+!.claude/skills/**
+!.claude/hooks/
+!.claude/hooks/*.sh
+!.claude/settings.example.json
 .sixth/
 .superpowers/
 .demo-credentials.local

@@ -63,12 +63,15 @@ npm run smoke:local
 | [docs/development-plan-visual.md](docs/development-plan-visual.md) | Visual companion for the plan: strategy map, roadmap, security model, and Sprint 1 flow. |
 | [docs/diagrams.md](docs/diagrams.md) | Mermaid architecture, role, workflow, and documentation diagrams with SVG companions. |
 | [docs/application-guide.md](docs/application-guide.md) | End-to-end product walkthrough and operator guide. |
+| [docs/software-factory.md](docs/software-factory.md) | How to use the Claude Code and Codex software-factory workflows, including agents, skills, hooks, role contracts, and diagrams. |
 | [docs/setup/local-supabase.md](docs/setup/local-supabase.md) | Full local Supabase setup, seed, reset, and smoke-test path. |
 | [docs/mvp-readiness-audit.md](docs/mvp-readiness-audit.md) | Current MVP verdict, navigation fit, verification gaps, and readiness queue. |
 | [docs/plans/competitive-readiness-roadmap.md](docs/plans/competitive-readiness-roadmap.md) | Next major-release roadmap for closing competitive gaps across operator, member, communications, service planning, import, and security proof workflows. |
 | [docs/security-assessment.md](docs/security-assessment.md) | Security and privacy assessment for sensitive church data. |
 | [docs/adr/0002-control-plane-and-tenant-separation.md](docs/adr/0002-control-plane-and-tenant-separation.md) | Approved architecture for separated control-plane and tenant data boundaries. |
 | [docs/adr/0004-competitive-readiness-architecture.md](docs/adr/0004-competitive-readiness-architecture.md) | Architecture decision governing readiness contracts, mobile member workflows, communications adapters, import staging, and security evidence. |
+| [.claude/agents](.claude/agents) and [.claude/skills](.claude/skills) | Claude Code software-factory setup: focused agents, feature orchestration, build-with-tests workflow, and safety hook example. |
+| [.codex/skills](.codex/skills) | Codex-compatible software-factory setup mirroring the Claude workflow through repo-local skills and role contracts. |
 
 ## Current Product Surface
 
@@ -79,6 +82,15 @@ npm run smoke:local
 - **Member portal:** profile, family, directory, giving, schedule, groups, privacy/data rights, and preferences.
 - **Public portal:** host-aware church resolution plus member account onboarding through `/portal/register`.
 - **ShepherdAI workflow queue:** `/app/church-admin/workflows` for suggested ministry workflows generated from deterministic signals.
+
+## AI-Assisted Development
+
+ChurchCore Ops includes a repo-local software factory for structured AI-assisted development:
+
+- **Claude Code:** use `.claude/agents/`, `.claude/skills/feature-factory`, `.claude/skills/build-with-tests`, and `.claude/hooks/pre-commit.sh`.
+- **Codex:** use `.codex/skills/churchcore-feature-factory`, `.codex/skills/churchcore-build-with-tests`, and `.codex/skills/churchcore-pr-review`.
+
+Start with [docs/software-factory.md](docs/software-factory.md) for the how-to and [docs/diagrams.md](docs/diagrams.md#claude-code-software-factory) for the visual workflow maps.
 
 ## Plan Highlights
 

@@ -6,6 +6,8 @@ Static SVG companions live in `docs/assets/diagrams/` for contexts where Mermaid
 
 For the visual companion to the development plan, see [docs/development-plan-visual.md](development-plan-visual.md).
 
+For the AI-assisted workflow guide, see [docs/software-factory.md](software-factory.md).
+
 ## System Architecture
 
 ![ChurchCore Ops system architecture](assets/diagrams/system-architecture.svg)
@@ -116,4 +118,59 @@ flowchart TB
   setup --> local[Local evaluator path]
   diagrams --> svg[Static SVG companions]
   visualPlan --> strategy[Strategy, roadmap, security, Sprint 1 diagrams]
+```
+
+## Claude Code Software Factory
+
+![Claude Code software factory](assets/diagrams/software-factory-claude.svg)
+
+```mermaid
+flowchart TB
+  facts[CLAUDE.md, AGENTS.md, DEVELOPMENT_PLAN.md, docs, ADRs] --> skill[feature-factory skill]
+  hook[pre-commit safety hook] --> delivery[Commit or PR]
+
+  skill --> researcher[codebase-researcher]
+  researcher --> story[story-writer]
+  story --> storyGate{Human approves story?}
+  storyGate -->|revise| story
+  storyGate -->|approved| spec[spec-writer]
+  spec --> specGate{Human approves brief?}
+  specGate -->|revise| spec
+  specGate -->|approved| backend[backend-builder]
+  backend --> frontend[frontend-builder]
+  frontend --> tests[test-verifier]
+  tests --> validator[implementation-validator]
+  validator -->|critical findings| backend
+  validator --> review[pr-reviewer]
+  review --> verify[npm run lint and npm run build]
+  verify --> delivery
+```
+
+## Codex Software Factory
+
+![Codex software factory](assets/diagrams/software-factory-codex.svg)
+
+```mermaid
+flowchart TB
+  rules[AGENTS.md and DEVELOPMENT_PLAN.md] --> codexSkills[.codex/skills]
+  roles[agent role contracts] --> codexSkills
+
+  codexSkills --> research[research phase]
+  research --> story[story phase]
+  story --> storyGate{Human approves story?}
+  storyGate -->|revise| story
+  storyGate -->|approved| spec[spec phase]
+  spec --> specGate{Human approves brief?}
+  specGate -->|revise| spec
+  specGate -->|approved| backend[backend phase]
+  backend --> frontend[frontend phase]
+  frontend --> tests[test verifier phase]
+  tests --> validate[implementation validator phase]
+  validate -->|critical findings| backend
+  validate --> pr[churchcore-pr-review]
+  pr --> verify[npm run lint and npm run build]
+  verify --> handoff[commit, PR, or handoff]
+
+  research -. safe in parallel .-> roles
+  backend -. writes run sequentially .-> frontend
 ```

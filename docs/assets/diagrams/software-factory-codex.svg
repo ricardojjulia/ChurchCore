@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">Codex software factory for ChurchCore Ops</title>
+  <desc id="desc">Diagram showing Codex using AGENTS.md, repo-local skills, role contracts, tool phases, verification, and delivery.</desc>
+  <defs>
+    <style>
+      .bg{fill:#f8fafc}.title{font:700 30px system-ui,-apple-system,Segoe UI,sans-serif;fill:#111827}.sub{font:500 15px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475467}.box{fill:#fff;stroke:#cbd5e1;stroke-width:2;rx:12}.skill{fill:#ecfdf3;stroke:#16a34a}.phase{fill:#f0f9ff;stroke:#0284c7}.human{fill:#fff7ed;stroke:#ea580c}.guard{fill:#fef2f2;stroke:#dc2626}.label{font:700 16px system-ui,-apple-system,Segoe UI,sans-serif;fill:#111827}.small{font:500 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475467}.tiny{font:500 12px system-ui,-apple-system,Segoe UI,sans-serif;fill:#667085}.arrow{stroke:#64748b;stroke-width:2.5;fill:none;marker-end:url(#arrow)}.dashed{stroke-dasharray:7 6}.lane{fill:#ffffff;stroke:#e2e8f0;stroke-width:2;rx:16}
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="1280" height="760"/>
+  <text class="title" x="48" y="52">Codex Software Factory</text>
+  <text class="sub" x="48" y="80">Codex uses AGENTS.md plus repo-local skills to run the same factory as phases inside the shared workspace.</text>
+
+  <rect class="lane" x="40" y="112" width="1200" height="118"/>
+  <text class="label" x="64" y="144">Codex Context And Tools</text>
+  <rect class="box" x="64" y="164" width="180" height="44"/><text class="small" x="103" y="191">AGENTS.md</text>
+  <rect class="box" x="276" y="164" width="210" height="44"/><text class="small" x="297" y="191">DEVELOPMENT_PLAN.md</text>
+  <rect class="skill" x="518" y="164" width="210" height="44"/><text class="small" x="547" y="191">.codex/skills</text>
+  <rect class="box" x="760" y="164" width="190" height="44"/><text class="small" x="792" y="191">agent roles reference</text>
+  <rect class="guard" x="982" y="164" width="205" height="44"/><text class="small" x="1012" y="191">lint / build / tests</text>
+
+  <rect class="lane" x="40" y="260" width="1200" height="292"/>
+  <text class="label" x="64" y="292">Codex Factory Phases</text>
+  <rect class="skill" x="64" y="322" width="210" height="72"/><text class="label" x="91" y="350">feature-factory</text><text class="tiny" x="92" y="373">repo-local skill</text>
+  <rect class="phase" x="314" y="322" width="136" height="72"/><text class="small" x="348" y="350">research</text><text class="tiny" x="337" y="373">parallel reads</text>
+  <rect class="phase" x="486" y="322" width="136" height="72"/><text class="small" x="524" y="350">story</text><text class="tiny" x="509" y="373">criteria</text>
+  <rect class="human" x="658" y="322" width="136" height="72"/><text class="small" x="690" y="350">approve</text><text class="tiny" x="687" y="373">story gate</text>
+  <rect class="phase" x="830" y="322" width="136" height="72"/><text class="small" x="868" y="350">spec</text><text class="tiny" x="853" y="373">brief</text>
+  <rect class="human" x="1002" y="322" width="136" height="72"/><text class="small" x="1034" y="350">approve</text><text class="tiny" x="1030" y="373">brief gate</text>
+
+  <rect class="skill" x="64" y="438" width="210" height="72"/><text class="label" x="90" y="466">build-with-tests</text><text class="tiny" x="93" y="489">implementation skill</text>
+  <rect class="phase" x="314" y="438" width="136" height="72"/><text class="small" x="348" y="466">backend</text><text class="tiny" x="335" y="489">sequential write</text>
+  <rect class="phase" x="486" y="438" width="136" height="72"/><text class="small" x="522" y="466">frontend</text><text class="tiny" x="507" y="489">mobile/UI</text>
+  <rect class="phase" x="658" y="438" width="136" height="72"/><text class="small" x="700" y="466">tests</text><text class="tiny" x="685" y="489">acceptance</text>
+  <rect class="phase" x="830" y="438" width="136" height="72"/><text class="small" x="858" y="466">validate</text><text class="tiny" x="858" y="489">diff review</text>
+  <rect class="skill" x="1002" y="438" width="136" height="72"/><text class="small" x="1034" y="466">PR review</text><text class="tiny" x="1033" y="489">skill</text>
+
+  <path class="arrow" d="M274 358H314"/><path class="arrow" d="M450 358H486"/><path class="arrow" d="M622 358H658"/><path class="arrow" d="M794 358H830"/><path class="arrow" d="M966 358H1002"/>
+  <path class="arrow" d="M1070 394V420 Q1070 438 1048 438H450"/><path class="arrow" d="M450 474H486"/><path class="arrow" d="M622 474H658"/><path class="arrow" d="M794 474H830"/><path class="arrow" d="M966 474H1002"/>
+  <path class="arrow dashed" d="M898 438V416 Q898 406 885 406H379 Q366 406 366 438"/>
+
+  <rect class="lane" x="40" y="582" width="1200" height="112"/>
+  <text class="label" x="64" y="614">Codex Execution Rules</text>
+  <rect class="box" x="64" y="638" width="210" height="40"/><text class="small" x="90" y="663">use update_plan</text>
+  <rect class="box" x="310" y="638" width="210" height="40"/><text class="small" x="334" y="663">parallelize reads</text>
+  <rect class="guard" x="556" y="638" width="210" height="40"/><text class="small" x="579" y="663">sequence writes</text>
+  <rect class="box" x="802" y="638" width="180" height="40"/><text class="small" x="839" y="663">verify evidence</text>
+  <rect class="human" x="1018" y="638" width="170" height="40"/><text class="small" x="1053" y="663">human judgement</text>
+  <path class="arrow" d="M274 658H310"/><path class="arrow" d="M520 658H556"/><path class="arrow" d="M766 658H802"/><path class="arrow" d="M982 658H1018"/>
+</svg>

@@ -6,3 +6,8 @@
 - Favor mainstream, well-supported dependencies. Use an ADR before introducing anything unusual.
 - Update `README.md`, `CHANGELOG.md`, and relevant docs in `/docs` with every meaningful feature change.
 - Verify work with `npm run lint` and `npm run build` before handoff when feasible.
+- For Codex sessions, use repo-local skills in `.codex/skills/` as the Codex-compatible software-factory workflow:
+  - `churchcore-feature-factory` for non-trivial feature planning and orchestration.
+  - `churchcore-build-with-tests` for implementation work.
+  - `churchcore-pr-review` for review before merge or PR handoff.
+- Treat `.claude/` as Claude Code-specific factory configuration and `.codex/` as Codex-compatible factory configuration. Keep both aligned when changing the workflow.
