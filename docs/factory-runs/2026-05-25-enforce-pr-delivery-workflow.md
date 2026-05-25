@@ -61,5 +61,5 @@ Files changed:
 ## Delivery
 
 - Branch: `chore/enforce-pr-workflow`
-- Pull request: pending
+- Pull request: https://github.com/ricardojjulia/ChurchCore-Ops/pull/11
 - Merge: pending
