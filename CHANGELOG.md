@@ -6,6 +6,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Unreleased — Security
+
+- Upgraded `next` from `16.2.3` to `16.2.6` to address 7 high and 5 moderate CVEs (middleware/proxy bypass, DoS via Server Components, SSRF via WebSocket upgrades, XSS via CSP nonces and `beforeInteractive` scripts, cache poisoning, and Image Optimization DoS).
+- Added npm `overrides` to enforce `ws>=8.20.1` (uninitialized memory disclosure) and `brace-expansion>=5.0.6` (ReDoS) across all transitive dependents.
+- Patched `postcss` nested inside `next` to `8.5.10` via lockfile and postinstall cleanup to resolve XSS in CSS stringify output (GHSA-qx2v-qp2m-jg93).
+
 ### Unreleased — Added
 
 - Added `docs/diagrams.md` as the canonical diagram set for the repository, with Mermaid source for system architecture, role/surface mapping, core workflows, and documentation flow.
