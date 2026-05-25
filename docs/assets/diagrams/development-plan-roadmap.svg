@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="520" viewBox="0 0 1120 520" role="img" aria-labelledby="title desc">
+  <title id="title">ChurchCore Ops sprint roadmap</title>
+  <desc id="desc">Visual sprint roadmap from foundation and member portal through admin setup, events, finance, AI ministry tools, communications, polish, and launch.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475467"/>
+    </marker>
+    <style>
+      .bg{fill:#f8fafc}.box{fill:#e0f2fe;stroke:#0284c7}.now{fill:#ecfdf3;stroke:#16a34a}.later{fill:#fff7ed;stroke:#ea580c}.title{font:700 28px Arial,sans-serif;fill:#101828}.label{font:700 13px Arial,sans-serif;fill:#101828}.small{font:12px Arial,sans-serif;fill:#344054}.line{stroke:#475467;stroke-width:2.1;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect class="bg" width="1120" height="520" rx="18"/>
+  <text x="48" y="58" class="title">Sprint Roadmap</text>
+  <text x="48" y="84" class="small">The plan moves from a church-scoped foundation into operations, stewardship, AI support, communications, and launch readiness.</text>
+
+  <rect x="54" y="142" width="138" height="88" rx="11" class="now"/><text x="74" y="172" class="label">Sprint 1</text><text x="74" y="196" class="small">Foundation and</text><text x="74" y="214" class="small">Member Portal</text>
+  <rect x="220" y="142" width="138" height="88" rx="11" class="now"/><text x="240" y="172" class="label">Sprint 2</text><text x="240" y="196" class="small">Admin Dashboard</text><text x="240" y="214" class="small">and Setup</text>
+  <rect x="386" y="142" width="138" height="88" rx="11" class="box"/><text x="406" y="172" class="label">Sprint 3</text><text x="406" y="196" class="small">Events and</text><text x="406" y="214" class="small">Volunteers</text>
+  <rect x="552" y="142" width="138" height="88" rx="11" class="box"/><text x="572" y="172" class="label">Sprint 4</text><text x="572" y="196" class="small">Giving, Reports,</text><text x="572" y="214" class="small">Finance</text>
+  <rect x="718" y="142" width="138" height="88" rx="11" class="box"/><text x="738" y="172" class="label">Sprint 5</text><text x="738" y="196" class="small">AI Ministry</text><text x="738" y="214" class="small">Tools</text>
+  <rect x="884" y="142" width="138" height="88" rx="11" class="later"/><text x="904" y="172" class="label">Sprint 6+</text><text x="904" y="196" class="small">Communications,</text><text x="904" y="214" class="small">Polish, Launch</text>
+
+  <path d="M192 186 H220" class="line"/><path d="M358 186 H386" class="line"/><path d="M524 186 H552" class="line"/><path d="M690 186 H718" class="line"/><path d="M856 186 H884" class="line"/>
+
+  <rect x="54" y="322" width="968" height="92" rx="12" fill="#ffffff" stroke="#d0d5dd"/>
+  <text x="78" y="354" class="label">Exit story</text>
+  <text x="78" y="378" class="small">A signed-in church user lands in real church-scoped context, profiles and ministries load from tenant data, events use categories, and RLS is baseline-enforced.</text>
+  <text x="78" y="402" class="small">Later sprints add mature admin operations, volunteer management, financial stewardship, AI ministry tools, communications, and production launch polish.</text>
+</svg>

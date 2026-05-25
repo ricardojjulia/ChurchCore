@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="720" viewBox="0 0 1120 720" role="img" aria-labelledby="title desc">
+  <title id="title">ChurchCore Ops product strategy map</title>
+  <desc id="desc">Visual strategy map for the ChurchCore Ops development plan, showing boundaries, roles, stewardship domains, trust controls, and assistive AI.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475467"/>
+    </marker>
+    <style>
+      .bg{fill:#f8fafc}.center{fill:#101828;stroke:#344054}.boundary{fill:#e0f2fe;stroke:#0284c7}.role{fill:#fff7ed;stroke:#ea580c}.feature{fill:#ecfdf3;stroke:#16a34a}.trust{fill:#fef3c7;stroke:#d97706}.ai{fill:#f5f3ff;stroke:#7c3aed}.title{font:700 28px Arial,sans-serif;fill:#101828}.label{font:700 14px Arial,sans-serif;fill:#101828}.white{fill:#fff}.small{font:12px Arial,sans-serif;fill:#344054}.line{stroke:#475467;stroke-width:2.1;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect class="bg" width="1120" height="720" rx="18"/>
+  <text x="48" y="58" class="title">Development Plan Strategy Map</text>
+  <text x="48" y="84" class="small">The plan organizes ChurchCore Ops around boundaries, roles, stewardship workflows, trust controls, and assistive AI.</text>
+
+  <rect x="396" y="116" width="328" height="82" rx="14" class="center"/>
+  <text x="432" y="150" class="label white">ChurchCore Ops</text>
+  <text x="432" y="174" class="small white">Secure multi-tenant church operations</text>
+
+  <rect x="66" y="270" width="190" height="72" rx="12" class="boundary"/><text x="88" y="300" class="label">Boundaries</text><text x="88" y="322" class="small">Control plane and tenant app</text>
+  <rect x="292" y="270" width="190" height="72" rx="12" class="role"/><text x="314" y="300" class="label">Roles</text><text x="314" y="322" class="small">Least privilege portals</text>
+  <rect x="518" y="270" width="190" height="72" rx="12" class="feature"/><text x="540" y="300" class="label">Stewardship</text><text x="540" y="322" class="small">People, ministry, giving</text>
+  <rect x="744" y="270" width="190" height="72" rx="12" class="trust"/><text x="766" y="300" class="label">Trust</text><text x="766" y="322" class="small">Security and compliance</text>
+  <rect x="518" y="470" width="190" height="72" rx="12" class="ai"/><text x="540" y="500" class="label">Assistive AI</text><text x="540" y="522" class="small">Guardrailed ministry support</text>
+
+  <path d="M448 198 C332 228 242 238 161 270" class="line"/>
+  <path d="M500 198 C456 228 424 238 387 270" class="line"/>
+  <path d="M560 198 V270" class="line"/>
+  <path d="M622 198 C704 228 776 238 839 270" class="line"/>
+  <path d="M602 342 V470" class="line"/>
+
+  <rect x="66" y="384" width="190" height="46" rx="9" class="boundary"/><text x="88" y="413" class="small">Platform staff operations</text>
+  <rect x="66" y="444" width="190" height="46" rx="9" class="boundary"/><text x="88" y="473" class="small">Church runtime data</text>
+  <rect x="292" y="384" width="190" height="46" rx="9" class="role"/><text x="314" y="413" class="small">Admin, secretary, pastor</text>
+  <rect x="292" y="444" width="190" height="46" rx="9" class="role"/><text x="314" y="473" class="small">Leader, volunteer, member</text>
+  <rect x="744" y="384" width="190" height="46" rx="9" class="trust"/><text x="766" y="413" class="small">PII, care, child safety</text>
+  <rect x="744" y="444" width="190" height="46" rx="9" class="trust"/><text x="766" y="473" class="small">RBAC, RLS, consent, audit</text>
+
+  <rect x="518" y="584" width="190" height="46" rx="9" class="ai"/><text x="540" y="613" class="small">Human approval and disclaimers</text>
+  <path d="M161 342 V384" class="line"/><path d="M161 430 V444" class="line"/>
+  <path d="M387 342 V384" class="line"/><path d="M387 430 V444" class="line"/>
+  <path d="M839 342 V384" class="line"/><path d="M839 430 V444" class="line"/>
+  <path d="M613 542 V584" class="line"/>
+</svg>

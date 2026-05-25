@@ -25,6 +25,7 @@
 *.pem
 .claude/
 .sixth/
+.superpowers/
 .demo-credentials.local
 
 # debug

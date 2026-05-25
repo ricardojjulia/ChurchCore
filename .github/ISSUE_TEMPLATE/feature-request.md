@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Propose a new capability or enhancement aligned to the ChurchForge development plan.
+about: Propose a new capability or enhancement aligned to the ChurchCore Ops development plan.
 title: "feat: "
 labels: ["feature"]
 assignees: []

@@ -36,7 +36,7 @@ The repository already includes workflow-level checks for CI, CodeQL, dependency
 
 ## First Review Pass
 
-- Confirm `README.md` reflects the intended private evaluation posture.
+- Confirm `README.md` reflects the intended repository and evaluation posture.
 - Confirm no machine-local files are staged.
 - Confirm the seeded demo routes load locally for both preview mode and local Supabase mode.
 - Confirm GitHub Actions are enabled for the repository after the first push.

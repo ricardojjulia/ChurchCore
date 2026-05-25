@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a defect with enough context to map it back to the ChurchForge development plan.
+about: Report a defect with enough context to map it back to the ChurchCore Ops development plan.
 title: "fix: "
 labels: ["bug"]
 assignees: []

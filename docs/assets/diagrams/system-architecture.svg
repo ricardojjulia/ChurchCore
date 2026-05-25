@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="620" viewBox="0 0 1120 620" role="img" aria-labelledby="title desc">
+  <title id="title">ChurchCore Ops system architecture</title>
+  <desc id="desc">Technical architecture showing GitHub, CI, Vercel, public portal, tenant app, control plane, cron, and separated Supabase projects.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475467"/>
+    </marker>
+    <style>
+      .bg{fill:#f8fafc}.panel{fill:#fff;stroke:#d0d5dd;stroke-width:2}.repo{fill:#101828;stroke:#344054}.app{fill:#e0f2fe;stroke:#0284c7}.data{fill:#ecfdf3;stroke:#16a34a}.guard{fill:#fff7ed;stroke:#ea580c}.title{font:700 28px Arial,sans-serif;fill:#101828}.label{font:700 15px Arial,sans-serif;fill:#101828}.small{font:13px Arial,sans-serif;fill:#344054}.white{fill:#fff}.line{stroke:#475467;stroke-width:2.5;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect class="bg" width="1120" height="620" rx="18"/>
+  <text x="48" y="58" class="title">ChurchCore Ops Technical Blueprint</text>
+  <text x="48" y="86" class="small">Separated control-plane and tenant runtime with GitHub, Vercel, Supabase, and scheduled workflow evaluation.</text>
+
+  <rect x="48" y="130" width="190" height="84" rx="12" class="guard"/>
+  <text x="72" y="163" class="label">Contributor</text>
+  <text x="72" y="188" class="small">Evaluator or maintainer</text>
+
+  <rect x="300" y="116" width="190" height="84" rx="12" class="repo"/>
+  <text x="324" y="149" class="label white">GitHub Repo</text>
+  <text x="324" y="174" class="small white">Source, docs, PRs</text>
+  <rect x="300" y="232" width="190" height="84" rx="12" class="repo"/>
+  <text x="324" y="265" class="label white">GitHub Actions</text>
+  <text x="324" y="290" class="small white">Lint, build, security</text>
+
+  <rect x="552" y="174" width="190" height="84" rx="12" class="app"/>
+  <text x="576" y="207" class="label">Vercel Next.js</text>
+  <text x="576" y="232" class="small">App Router runtime</text>
+
+  <rect x="804" y="96" width="220" height="78" rx="12" class="app"/>
+  <text x="828" y="128" class="label">Public Portal</text>
+  <text x="828" y="152" class="small">Entry, giving, requests</text>
+  <rect x="804" y="210" width="220" height="78" rx="12" class="app"/>
+  <text x="828" y="242" class="label">Tenant App</text>
+  <text x="828" y="266" class="small">/app role workspaces</text>
+  <rect x="804" y="324" width="220" height="78" rx="12" class="app"/>
+  <text x="828" y="356" class="label">Control Plane</text>
+  <text x="828" y="380" class="small">/control platform ops</text>
+  <rect x="804" y="438" width="220" height="78" rx="12" class="app"/>
+  <text x="828" y="470" class="label">ShepherdAI Cron</text>
+  <text x="828" y="494" class="small">Scheduled signals</text>
+
+  <rect x="522" y="398" width="220" height="78" rx="12" class="data"/>
+  <text x="546" y="430" class="label">Tenant Supabase</text>
+  <text x="546" y="454" class="small">Church runtime data</text>
+  <rect x="522" y="506" width="220" height="78" rx="12" class="data"/>
+  <text x="546" y="538" class="label">Control Supabase</text>
+  <text x="546" y="562" class="small">Tenant registry, audit</text>
+
+  <path d="M238 172 H300" class="line"/>
+  <path d="M490 158 C525 160 530 193 552 207" class="line"/>
+  <path d="M490 274 C530 274 530 234 552 225" class="line"/>
+  <path d="M742 216 H804" class="line"/>
+  <path d="M742 216 C774 216 774 135 804 135" class="line"/>
+  <path d="M742 216 C774 216 774 363 804 363" class="line"/>
+  <path d="M742 216 C774 216 774 477 804 477" class="line"/>
+  <path d="M914 288 C914 428 760 437 742 437" class="line"/>
+  <path d="M914 402 C914 526 760 545 742 545" class="line"/>
+  <path d="M804 477 C766 477 766 437 742 437" class="line"/>
+
+  <rect x="48" y="506" width="360" height="78" rx="12" class="panel"/>
+  <text x="72" y="538" class="label">Boundary rules</text>
+  <text x="72" y="562" class="small">RBAC, RLS, consent, audit logging, and no shared long-term runtime data model.</text>
+</svg>

@@ -1,73 +1,115 @@
 # ChurchCore Ops
 
-ChurchCore Ops is a secure multi-tenant church operations platform focused on role-based portals, ministry administration, voluntary donations, a working calendar, volunteer coordination, guardrailed AI ministry tools, and graphical stewardship reporting. This private evaluation snapshot is aligned to `DEVELOPMENT_PLAN.md` v1.8 and is at release `2.12.1`, incorporating the Phase 1 product strategy work, Children's Church Ministry (CCM), Financial Management, Advanced Ministry Forge, Communications Hub, GDPR/CCPA data rights, and a fully operational local Supabase development environment with safe demo data.
+ChurchCore Ops is a secure, multi-tenant church operations platform for member records, ministries, events, volunteer coordination, giving, financial stewardship, communications, reporting, and guardrailed ministry workflow recommendations.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-f97316.svg)](LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js-16-111827.svg)](package.json)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-2563eb.svg)](tsconfig.json)
+[![Supabase](https://img.shields.io/badge/Supabase-split%20control%2Ftenant-16a34a.svg)](docs/adr/0002-control-plane-and-tenant-separation.md)
+[![Vercel](https://img.shields.io/badge/Vercel-ready-000000.svg)](vercel.json)
+
+## Technical Blueprint
+
+ChurchCore Ops is built around a hard boundary between platform operations and church runtime data:
+
+- **Control plane:** ChurchCore Ops staff surface for tenant lifecycle, billing metadata, platform staff identity, support audit, and provisioning.
+- **Tenant app:** Church-facing runtime for admins, pastors, secretaries, ministry leaders, volunteers, members, and public portal visitors.
+- **Data boundary:** Control-plane and tenant data live in separate Supabase projects. Cross-boundary support access must be explicit, audited, and intentionally designed.
+- **Workflow intelligence:** ShepherdAI is Ops-only and deterministic-first. It recommends ministry workflows from signals; it is not a chatbot and does not replace pastoral discernment.
+
+![ChurchCore Ops system architecture](docs/assets/diagrams/system-architecture.svg)
+
+Full diagram set: [docs/diagrams.md](docs/diagrams.md)
+
+## Quick Start
+
+Recommended runtime: Node `22.13.0` or newer.
+
+```bash
+npm ci
+npm run dev
+```
+
+Open `http://localhost:4200`. Without backend environment variables, the app runs in preview mode with in-memory demo data.
+
+For a full local Supabase-backed evaluation:
+
+```bash
+npm run setup:local
+npm run dev
+```
+
+In another terminal:
+
+```bash
+npm run smoke:preview
+npm run smoke:local
+```
 
 ## Stack
 
 - Next.js 16 App Router with TypeScript
-- Tailwind CSS v4
-- Mantine UI as the standard UI framework for ChurchCore Ops surfaces
-- Lucide React icons
-- GitHub Actions for CI verification
+- Tailwind CSS v4 and Mantine UI
+- Supabase for split control-plane and tenant data surfaces
+- Stripe-oriented giving and finance flows
+- GitHub Actions for lint, build, CodeQL, dependency review, and secret scanning
+- Vercel hosting with scheduled ShepherdAI evaluation support
 
-Current plan target:
+## Repository Map
 
-- Next.js App Router with TypeScript
-- Tailwind CSS
-- Mantine UI
-- calendar tooling integrated into the Mantine shell
-- separated control-plane and tenant data boundaries
+| Start here | Purpose |
+| --- | --- |
+| [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) | Source of truth for scope, stack, security posture, roadmap, and release discipline. |
+| [docs/development-plan-visual.md](docs/development-plan-visual.md) | Visual companion for the plan: strategy map, roadmap, security model, and Sprint 1 flow. |
+| [docs/diagrams.md](docs/diagrams.md) | Mermaid architecture, role, workflow, and documentation diagrams with SVG companions. |
+| [docs/application-guide.md](docs/application-guide.md) | End-to-end product walkthrough and operator guide. |
+| [docs/setup/local-supabase.md](docs/setup/local-supabase.md) | Full local Supabase setup, seed, reset, and smoke-test path. |
+| [docs/mvp-readiness-audit.md](docs/mvp-readiness-audit.md) | Current MVP verdict, navigation fit, verification gaps, and readiness queue. |
+| [docs/security-assessment.md](docs/security-assessment.md) | Security and privacy assessment for sensitive church data. |
+| [docs/adr/0002-control-plane-and-tenant-separation.md](docs/adr/0002-control-plane-and-tenant-separation.md) | Approved architecture for separated control-plane and tenant data boundaries. |
 
-## Current Plan Highlights
+## Current Product Surface
+
+- **Control plane:** `/control` for platform staff.
+- **ChurchAdmin workspace:** people, households, accounts, ministries, events, readiness, giving ops, finance, communications, workflows, reports, and settings.
+- **Daily Desk:** `/app/daily-desk` for calls, notes, visits, calendar items, checkups, and operational signals.
+- **Secretary portal:** `/app/secretary` for office work without full church-admin authority.
+- **Member portal:** profile, family, directory, giving, schedule, groups, privacy/data rights, and preferences.
+- **Public portal:** host-aware church resolution plus member account onboarding through `/portal/register`.
+- **ShepherdAI workflow queue:** `/app/church-admin/workflows` for suggested ministry workflows generated from deterministic signals.
+
+## Plan Highlights
 
 - Role-based portals with least-privilege enforcement for platform, church, ministry, and member workflows.
-- The control plane and the tenant-facing church app are now explicitly different products with separate long-term data boundaries.
-- Ministry Forge supports designated ministry leaders, and that leader assignment now feeds pastor-facing led-ministry visibility.
-- Public portal entry can resolve a church from the request hostname, and member communication preferences now write append-only consent records.
-- Core product scope spanning member directory, ministries, pastoral profiles, giving, reporting, communications, and leadership collaboration.
-- Sprint 2 is now unblocked and focused on Admin Dashboard and Church Setup work.
-- A working calendar hub remains core, now with explicit event categories defined in the development plan.
-- An AI ministry tools suite that stays assistive only, requires consent, and never replaces prayer, Scripture study, or pastoral judgment.
-- Security and privacy expectations centered on sensitive-data classification, consent, auditing, and disciplined application security checks.
-- Future Ministry Forge work is now explicitly documented around specialized tracks for men, women, children, youth, young adults, marriage, education, missions, and outreach, with deterministic stewardship metrics and tighter safety/confidentiality rules.
-- Future reporting work is now explicitly documented as a multi-surface reporting suite spanning members, events, giving, ministries, communications, and outreach, with graphical dashboards and differentiated stewardship insights.
-- ShepherdAI for ChurchCore Ops is now implemented as an Ops-only, explainable workflow recommendation foundation that generates suggested ministry workflows from deterministic signals (no chatbot interface).
+- Explicit separation between the ChurchCore Ops control plane and tenant-facing church app.
+- Sensitive-data posture for PII, PHI-adjacent pastoral data, donations, child safety, care records, and audit logs.
+- Categorized calendar, RSVP, volunteer scheduling, burnout guardrails, and ministry stewardship metrics.
+- Giving, double-entry finance, reporting, communications, and ministry pathway intelligence.
+- Assistive AI only, with consent, auditability, theological guardrails, and human approval where ministry content is generated.
 
 ## ShepherdAI Ops Foundation
 
 - Core module location: `lib/shepherd-ai/`
 - Workflow operations module: `lib/ministry-workflows/`
-- New church-admin workflow queue route: `/app/church-admin/workflows`
+- Church-admin workflow queue route: `/app/church-admin/workflows`
 - Scheduled evaluation endpoint: `/api/cron/shepherd-ai`
 - Data persistence tables: `ai_signals`, `ai_suggestions`, `workflows`, `workflow_actions`, `workflow_feedback`
 - Product boundary: Ops-only data and logic; no Academy or Care cross-product inference
 
 For recurring evaluation, configure `CRON_SECRET` and deploy `vercel.json` cron schedule.
 The endpoint supports scoped runs with `tenantId` and bounded runs with `maxTenants`.
-Hosted rollout reference: `docs/setup/hosted-shepherdai-rollout.md`.
+Hosted rollout reference: [docs/setup/hosted-shepherdai-rollout.md](docs/setup/hosted-shepherdai-rollout.md).
 
-See `docs/shepherd-ai-ops.md` for architecture and guardrails.
+See [docs/shepherd-ai-ops.md](docs/shepherd-ai-ops.md) for architecture and guardrails.
 
-## Private Evaluation Snapshot
+## Evaluation Snapshot
 
 - Current repo version: `2.12.1`
-- Intended use: private evaluation, invited collaboration, and local demo environments
+- License: [MIT](LICENSE)
 - Included demo scope: preview mode without a backend, or local Supabase with seeded Grace Harbor Church data
-- Current repo posture: local credential material is not committed; demo credentials are generated locally by the bootstrap script and saved to the gitignored `.demo-credentials.local`
-- Security posture in repo: lint/build CI plus CodeQL, dependency review, and secret-scanning workflows for GitHub
+- Local credential material is not committed; demo credentials are generated locally by the bootstrap script and saved to gitignored `.demo-credentials.local`
 - Evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, and `npm run smoke:local`
-
-## Application Guide
-
-Start with `docs/application-guide.md` for the end-to-end product walkthrough: what ChurchCore Ops does, how each portal works, the main operator flows, the control-plane boundary, and what is still in progress.
-
-For product readiness review, see `docs/mvp-readiness-audit.md`. It captures the current MVP verdict, navigation fit, UI fit, verification gaps, and the remaining readiness queue.
-
-The in-app Daily Desk route is `/app/daily-desk`; it is the shared daily workspace for calls, notes, visits, calendar items, checkups, and operational signals. It is available to ChurchAdmin, Secretary / Office Admin, and Pastor roles, with the secretary home at `/app/secretary`. The ChurchAdmin readiness route is `/app/church-admin/readiness`; it is the guided weekly path for deciding whether a tenant is operationally ready.
-
-Spanish UI support has started with a cookie-backed language selector in the application shell. The shared shell and Daily Desk now support English and Spanish; remaining modules should move to the same dictionary pattern as they are made translation-ready.
-
-The member account onboarding path starts at `/portal/register` and continues through `/app/church-admin/accounts`, where approval links or creates the member profile, records active member access, and sends the tenant auth invitation when admin auth is configured.
+- Spanish UI support has started with cookie-backed English/Spanish selection; track rollout in [docs/plans/spanish-ui-coverage.md](docs/plans/spanish-ui-coverage.md)
 
 ## Release 2.12.1 Highlights
 
@@ -214,7 +256,7 @@ npm run test
 npm run test:coverage
 ```
 
-Open `http://localhost:3000`. The app runs in **preview mode** with no backend — all data is in-memory stubs.
+Open `http://localhost:4200`. The app runs in **preview mode** with no backend — all data is in-memory stubs.
 
 Quick local evaluator path:
 
@@ -253,10 +295,10 @@ If you pull a new schema migration such as the CCM module, rerun the reset comma
 Your `.env.local` needs these four variables (use JWT-format keys from `npx supabase status --output env`):
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:4201
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJ...   # ANON_KEY from supabase status --output env
 SUPABASE_SERVICE_ROLE_KEY=eyJ...              # SERVICE_ROLE_KEY from supabase status --output env
-SUPABASE_DB_URL=postgresql://postgres:<local-db-password>@127.0.0.1:54322/postgres
+SUPABASE_DB_URL=postgresql://postgres:<local-db-password>@127.0.0.1:4202/postgres
 ```
 
 > **Important:** Use the `eyJ…` JWT key, not the `sb_publishable_*` key shown in the default `supabase status` output. The JWT key comes from `npx supabase status --output env`.

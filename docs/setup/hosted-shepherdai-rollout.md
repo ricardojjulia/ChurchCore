@@ -55,7 +55,7 @@ The following accounts were provisioned and linked to tenant data:
 
 Church records created/confirmed:
 
-- `churchforge` (`ChurchForge Demo Church`)
+- `churchforge` (`ChurchCore Ops Demo Church`)
 - `graceharbor` (`Grace Harbor Church`)
 
 ## Security Notes

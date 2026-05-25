@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="540" viewBox="0 0 1120 540" role="img" aria-labelledby="title desc">
+  <title id="title">ChurchCore Ops Sprint 1 execution flow</title>
+  <desc id="desc">Sprint 1 execution flow from frontend alignment through data-boundary documentation, schema normalization, profile hydration, member portal, ministry assignment, and categorized events.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475467"/>
+    </marker>
+    <style>
+      .bg{fill:#f8fafc}.step{fill:#e0f2fe;stroke:#0284c7}.schema{fill:#ecfdf3;stroke:#16a34a}.exit{fill:#fff7ed;stroke:#ea580c}.title{font:700 28px Arial,sans-serif;fill:#101828}.label{font:700 13px Arial,sans-serif;fill:#101828}.small{font:12px Arial,sans-serif;fill:#344054}.line{stroke:#475467;stroke-width:2.1;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect class="bg" width="1120" height="540" rx="18"/>
+  <text x="48" y="58" class="title">Sprint 1 Execution Flow</text>
+  <text x="48" y="84" class="small">The foundation sprint moves the repo from preview surfaces toward a real church-scoped tenant application.</text>
+
+  <rect x="54" y="142" width="156" height="72" rx="11" class="step"/><text x="76" y="172" class="label">Align frontend</text><text x="76" y="194" class="small">Approved app shell</text>
+  <rect x="242" y="142" width="156" height="72" rx="11" class="step"/><text x="264" y="172" class="label">Freeze drift</text><text x="264" y="194" class="small">No shared data plane</text>
+  <rect x="430" y="142" width="156" height="72" rx="11" class="step"/><text x="452" y="172" class="label">Document boundary</text><text x="452" y="194" class="small">Control vs tenant</text>
+  <rect x="618" y="142" width="156" height="72" rx="11" class="schema"/><text x="640" y="172" class="label">Normalize schema</text><text x="640" y="194" class="small">Tenant core tables</text>
+  <rect x="806" y="142" width="156" height="72" rx="11" class="step"/><text x="828" y="172" class="label">Hydrate profiles</text><text x="828" y="194" class="small">After sign-in</text>
+
+  <path d="M210 178 H242" class="line"/><path d="M398 178 H430" class="line"/><path d="M586 178 H618" class="line"/><path d="M774 178 H806" class="line"/>
+
+  <rect x="148" y="316" width="156" height="72" rx="11" class="step"/><text x="170" y="346" class="label">Member portal</text><text x="170" y="368" class="small">Real tenant data</text>
+  <rect x="398" y="316" width="156" height="72" rx="11" class="step"/><text x="420" y="346" class="label">Ministry flows</text><text x="420" y="368" class="small">Create and assign</text>
+  <rect x="648" y="316" width="156" height="72" rx="11" class="step"/><text x="670" y="346" class="label">Event records</text><text x="670" y="368" class="small">Categorized calendar</text>
+  <rect x="868" y="316" width="156" height="72" rx="11" class="exit"/><text x="890" y="346" class="label">Sprint exit</text><text x="890" y="368" class="small">Auth, profiles, RLS</text>
+
+  <path d="M884 214 C884 260 226 260 226 316" class="line"/>
+  <path d="M304 352 H398" class="line"/><path d="M554 352 H648" class="line"/><path d="M804 352 H868" class="line"/>
+
+  <rect x="618" y="236" width="344" height="46" rx="9" class="schema"/>
+  <text x="640" y="264" class="small">Core tables: churches, profiles, ministries, profile_ministries, events</text>
+  <path d="M696 214 V236" class="line"/>
+</svg>

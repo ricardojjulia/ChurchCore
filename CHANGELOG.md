@@ -8,16 +8,30 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Unreleased — Added
 
+- Added `docs/diagrams.md` as the canonical diagram set for the repository, with Mermaid source for system architecture, role/surface mapping, core workflows, and documentation flow.
+- Added `docs/development-plan-visual.md` as a visual companion to `DEVELOPMENT_PLAN.md`, covering strategy, roadmap, boundary/security model, and Sprint 1 execution flow.
+- Added static SVG diagram companions under `docs/assets/diagrams/` for environments where Mermaid rendering is unavailable.
 - Added `docs/application-guide.md` as the end-to-end application walkthrough covering first entry, tenant roles, ChurchAdmin operations, member workflows, public portal behavior, control-plane boundaries, security posture, and current Sprint 2 gaps.
 - Added `docs/mvp-readiness-audit.md` to capture the current product, UI, information architecture, verification, and MVP-readiness assessment.
 - Added `/app/church-admin/readiness` as the ChurchAdmin weekly MVP readiness path, aggregating setup, account request, people, weekend, children's ministry, volunteer, giving/finance, and suggested workflow signals with direct workflow links.
 - Added `/app/daily-desk` as the daily operator workspace for church admins and pastors, backed by `daily_work_items` tenant data for calls, notes, visits, calendar items, follow-ups, checkups, assignments, priority, and status updates.
 - Added Secretary / Office Admin as a dedicated tenant role with a `/app/secretary` portal, Daily Desk access, calendar navigation, seed/demo credentials, tenant-view audit support, and RLS scoped to daily office work rather than full church-admin privileges.
 - Added the first English/Spanish UI translation foundation with a cookie-backed language selector in the application shell and translated shared shell labels plus the Daily Desk workspace.
+- Added `docs/plans/spanish-ui-coverage.md` to track the rollout from partial Spanish support to full UI translation coverage.
+- Added a reusable public language selector so users can switch English/Spanish before signing in.
+- Expanded Spanish UI coverage for the public home page, sign-in page, public portal landing page, and portal access request form.
+- Expanded Spanish UI coverage for the member home page, bottom navigation, profile editor, family editor, and notification preference controls.
+- Expanded Spanish UI coverage for the member directory and family detail pages, including directory search/filter labels, membership status badges, household copy, and empty states.
+- Expanded Spanish UI coverage for the ChurchAdmin default navigation and weekly Readiness workspace, including readiness status labels, cards, calls to action, and live metric summaries.
+- Expanded Spanish UI coverage for the ChurchAdmin dashboard summary cards, including card labels, live/preview status, metric details, and open actions.
+- Expanded Spanish UI coverage for the ChurchAdmin operations lanes, including section labels, empty states, drawer notes, workflow actions, and known status labels.
+- Expanded Spanish UI coverage for the ChurchAdmin portal account approval queue, including shell labels, summary cards, queue text, request badges, actions, dates, and notifications.
+- Expanded Spanish UI coverage for the ChurchAdmin church settings page, including setup cards, form labels, fallback values, save actions, and update messages.
+- Expanded Spanish UI coverage for the ChurchAdmin people management page, including summaries, filters, bulk actions, person cards, add/invite modals, edit fields, and household/duplicate relationship controls.
 - Added account-onboarding happy-path documentation from public portal request through admin approval, auth invitation, membership linkage, and member portal hydration.
 - Added query-aware readiness views for Children's Ministry safety checks, Giving/Finance exceptions, and draft finance journals.
 - Added readiness resolution actions for Children's Ministry safety gaps, Giving/Finance exceptions, and draft finance journals.
-- Added `supabase/control-plane/` as the dedicated Supabase project directory for control-plane concerns (tenant registry, billing metadata, platform staff identity, tenant-view audit trail). Includes `config.toml` with separate ports (API 54331, DB 54332) to allow both projects to run locally without conflict, a clean schema migration (`20260424000000_control_plane_schema.sql`) with no cross-database FK constraints, and a local development seed.
+- Added `supabase/control-plane/` as the dedicated Supabase project directory for control-plane concerns (tenant registry, billing metadata, platform staff identity, tenant-view audit trail). Includes `config.toml` with separate ports (API 4211, DB 4212) to allow both projects to run locally without conflict, a clean schema migration (`20260424000000_control_plane_schema.sql`) with no cross-database FK constraints, and a local development seed.
 - Added `supabase/migrations/20260425010000_drop_control_plane_tables_from_tenant.sql` to remove vestigial control-plane registry tables from the tenant runtime project now that ADR 0002 is complete.
 - Added `docs/plans/ui-stack-migration.md` as a deferred Mantine-to-Tailwind/shadcn/Base UI migration plan.
 - Added the first Sprint 2 church setup surface at `/app/church-admin/settings`, backed by tenant-scoped church profile fields and a church-admin-only update action.
@@ -54,7 +68,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Unreleased — Changed
 
+- Changed repository licensing from `UNLICENSED` to MIT in `LICENSE`, `package.json`, and `package-lock.json`.
+- Reworked the README opening into a technical blueprint entry point with status badges, architecture preview, quick start, repo map, and clearer control-plane/tenant boundary positioning.
 - Rebranded the product to ChurchCore Ops across the application shell, public metadata, documentation, demo domains, and local automation naming.
+- Reworked the public home screen into a sharper operations-console landing experience with clearer church-operations positioning, stronger entry actions, and English/Spanish copy coverage.
+- Reworked the signed-in ChurchAdmin shell with a higher-contrast navigation rail, stronger dashboard summary cards, and clearer action-path styling.
+- Changed local development ports to start at `4200`: the Next.js app runs on `4200`, tenant Supabase uses the `4201` series, and the control-plane Supabase project uses the `4211` series.
 - `create-dev-users.sh` now writes shell-compatible demo credential metadata into `.demo-credentials.local`, including admin, secretary, and member email variables for local automation.
 - README and local setup docs now point evaluators to the setup/smoke helpers and the post-create GitHub hardening checklist.
 - Reorganized the repo documentation tree by moving setup guides into `docs/setup/` and long-form planning documents into `docs/plans/`, which removes document clutter from the repository root and keeps the root focused on active repo controls.
@@ -73,6 +92,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Church-admin navigation now includes a Settings entry for the new church setup profile.
 - Church-admin navigation now surfaces account requests, suggested workflows, and reports directly, differentiates Donations from Giving Ops, and highlights the current route instead of leaving Home active.
 - Church-admin navigation now includes the weekly Readiness path.
+- Church-admin navigation now places the weekly Readiness path directly below Home in the default role menu.
 - Church-admin, secretary, and pastor navigation now include the Daily Desk daily work surface.
 - Weekly Readiness links now deep-link into filtered People, Events, Volunteers, and Suggested Workflows views where supported.
 - Weekly Readiness now opens context-specific Children's Ministry, Giving/Finance, and draft-journal views instead of generic target pages.

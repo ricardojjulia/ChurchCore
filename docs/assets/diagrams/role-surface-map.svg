@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="620" viewBox="0 0 1120 620" role="img" aria-labelledby="title desc">
+  <title id="title">ChurchCore Ops role and surface map</title>
+  <desc id="desc">Role map showing how platform staff, church staff, ministry leaders, members, volunteers, and visitors enter ChurchCore Ops surfaces.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475467"/>
+    </marker>
+    <style>
+      .bg{fill:#f8fafc}.role{fill:#fff7ed;stroke:#ea580c}.surface{fill:#e0f2fe;stroke:#0284c7}.data{fill:#ecfdf3;stroke:#16a34a}.guard{fill:#fef3c7;stroke:#d97706}.title{font:700 28px Arial,sans-serif;fill:#101828}.label{font:700 15px Arial,sans-serif;fill:#101828}.small{font:13px Arial,sans-serif;fill:#344054}.line{stroke:#475467;stroke-width:2.3;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect class="bg" width="1120" height="620" rx="18"/>
+  <text x="48" y="58" class="title">Role And Surface Map</text>
+  <text x="48" y="86" class="small">Each role lands on a bounded surface, then reads and writes through church-scoped tenant data or platform-scoped control data.</text>
+
+  <g>
+    <rect x="60" y="130" width="210" height="58" rx="10" class="role"/><text x="82" y="165" class="label">SuperAdmin</text>
+    <rect x="60" y="210" width="210" height="58" rx="10" class="role"/><text x="82" y="245" class="label">ChurchCore Ops Staff</text>
+    <rect x="60" y="290" width="210" height="58" rx="10" class="role"/><text x="82" y="325" class="label">ChurchAdmin</text>
+    <rect x="60" y="370" width="210" height="58" rx="10" class="role"/><text x="82" y="405" class="label">Secretary / Office Admin</text>
+    <rect x="60" y="450" width="210" height="58" rx="10" class="role"/><text x="82" y="485" class="label">Pastor / Ministry / Member</text>
+  </g>
+
+  <g>
+    <rect x="410" y="158" width="230" height="70" rx="12" class="surface"/><text x="434" y="190" class="label">Control Plane</text><text x="434" y="212" class="small">/control platform operations</text>
+    <rect x="410" y="278" width="230" height="70" rx="12" class="surface"/><text x="434" y="310" class="label">Church Admin Workspace</text><text x="434" y="332" class="small">People, events, giving, readiness</text>
+    <rect x="410" y="378" width="230" height="70" rx="12" class="surface"/><text x="434" y="410" class="label">Daily Desk</text><text x="434" y="432" class="small">Calls, notes, visits, follow-up</text>
+    <rect x="410" y="478" width="230" height="70" rx="12" class="surface"/><text x="434" y="510" class="label">Role Portals</text><text x="434" y="532" class="small">Pastor, ministry, member, volunteer</text>
+  </g>
+
+  <g>
+    <rect x="792" y="178" width="244" height="84" rx="12" class="data"/><text x="818" y="212" class="label">Control Plane DB</text><text x="818" y="236" class="small">Tenants, staff, billing metadata, audit</text>
+    <rect x="792" y="360" width="244" height="84" rx="12" class="data"/><text x="818" y="394" class="label">Tenant DB</text><text x="818" y="418" class="small">Church-scoped members, ministries, events</text>
+    <rect x="792" y="486" width="244" height="58" rx="12" class="guard"/><text x="818" y="522" class="label">RBAC + RLS + Consent + Audit</text>
+  </g>
+
+  <path d="M270 159 C330 159 346 192 410 193" class="line"/>
+  <path d="M270 239 C330 239 346 194 410 193" class="line"/>
+  <path d="M270 319 H410" class="line"/>
+  <path d="M270 399 H410" class="line"/>
+  <path d="M270 479 H410" class="line"/>
+  <path d="M640 193 H792" class="line"/>
+  <path d="M640 313 C704 313 724 402 792 402" class="line"/>
+  <path d="M640 413 H792" class="line"/>
+  <path d="M640 513 C704 513 724 402 792 402" class="line"/>
+  <path d="M914 444 V486" class="line"/>
+</svg>

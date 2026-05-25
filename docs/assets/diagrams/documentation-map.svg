@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="620" viewBox="0 0 1120 620" role="img" aria-labelledby="title desc">
+  <title id="title">ChurchCore Ops documentation map</title>
+  <desc id="desc">Documentation map showing README links to development plan, diagrams, application guide, local setup, security, ADRs, and generated SVG companions.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475467"/>
+    </marker>
+    <style>
+      .bg{fill:#f8fafc}.root{fill:#101828;stroke:#344054}.doc{fill:#e0f2fe;stroke:#0284c7}.adr{fill:#ecfdf3;stroke:#16a34a}.asset{fill:#fff7ed;stroke:#ea580c}.title{font:700 28px Arial,sans-serif;fill:#101828}.label{font:700 14px Arial,sans-serif;fill:#101828}.white{fill:#fff}.small{font:13px Arial,sans-serif;fill:#344054}.line{stroke:#475467;stroke-width:2.2;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect class="bg" width="1120" height="620" rx="18"/>
+  <text x="48" y="58" class="title">Documentation Map</text>
+  <text x="48" y="86" class="small">The README is the repo entry point; the development plan remains the source of truth.</text>
+
+  <rect x="450" y="116" width="220" height="72" rx="12" class="root"/>
+  <text x="492" y="156" class="label white">README.md</text>
+
+  <rect x="64" y="262" width="204" height="64" rx="10" class="doc"/><text x="86" y="299" class="label">DEVELOPMENT_PLAN.md</text>
+  <rect x="316" y="262" width="204" height="64" rx="10" class="doc"/><text x="338" y="299" class="label">docs/diagrams.md</text>
+  <rect x="568" y="262" width="204" height="64" rx="10" class="doc"/><text x="590" y="299" class="label">Application guide</text>
+  <rect x="820" y="262" width="204" height="64" rx="10" class="doc"/><text x="842" y="299" class="label">Local setup</text>
+
+  <rect x="64" y="430" width="204" height="64" rx="10" class="adr"/><text x="86" y="467" class="label">ADR 0001</text>
+  <rect x="316" y="430" width="204" height="64" rx="10" class="adr"/><text x="338" y="467" class="label">ADR 0002</text>
+  <rect x="568" y="430" width="204" height="64" rx="10" class="adr"/><text x="590" y="467" class="label">ADR 0003</text>
+  <rect x="820" y="430" width="204" height="64" rx="10" class="asset"/><text x="842" y="467" class="label">SVG companions</text>
+
+  <path d="M505 188 C440 226 232 226 166 262" class="line"/>
+  <path d="M545 188 C510 226 456 226 418 262" class="line"/>
+  <path d="M580 188 C615 226 634 226 670 262" class="line"/>
+  <path d="M616 188 C704 226 836 226 922 262" class="line"/>
+  <path d="M166 326 V430" class="line"/>
+  <path d="M418 326 V430" class="line"/>
+  <path d="M670 326 V430" class="line"/>
+  <path d="M520 294 C650 360 788 392 922 430" class="line"/>
+</svg>

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="640" viewBox="0 0 1120 640" role="img" aria-labelledby="title desc">
+  <title id="title">ChurchCore Ops boundary and security model</title>
+  <desc id="desc">Visual security model for ChurchCore Ops showing platform staff, church users, separated databases, sensitive data classes, and protections.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475467"/>
+    </marker>
+    <style>
+      .bg{fill:#f8fafc}.actor{fill:#fff7ed;stroke:#ea580c}.surface{fill:#e0f2fe;stroke:#0284c7}.data{fill:#ecfdf3;stroke:#16a34a}.risk{fill:#fef3c7;stroke:#d97706}.protect{fill:#f5f3ff;stroke:#7c3aed}.title{font:700 28px Arial,sans-serif;fill:#101828}.label{font:700 14px Arial,sans-serif;fill:#101828}.small{font:12px Arial,sans-serif;fill:#344054}.line{stroke:#475467;stroke-width:2.1;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect class="bg" width="1120" height="640" rx="18"/>
+  <text x="48" y="58" class="title">Boundary And Security Model</text>
+  <text x="48" y="84" class="small">The development plan treats sensitive church data as a first-order architecture constraint.</text>
+
+  <rect x="70" y="140" width="220" height="64" rx="11" class="actor"/><text x="94" y="176" class="label">Platform staff</text>
+  <rect x="70" y="254" width="220" height="64" rx="11" class="actor"/><text x="94" y="290" class="label">Church users</text>
+  <rect x="390" y="140" width="220" height="64" rx="11" class="surface"/><text x="414" y="176" class="label">Control plane</text>
+  <rect x="390" y="254" width="220" height="64" rx="11" class="surface"/><text x="414" y="290" class="label">Tenant app</text>
+  <rect x="710" y="140" width="250" height="64" rx="11" class="data"/><text x="734" y="176" class="label">Control-plane database</text>
+  <rect x="710" y="254" width="250" height="64" rx="11" class="data"/><text x="734" y="290" class="label">Tenant database</text>
+
+  <path d="M290 172 H390" class="line"/><path d="M290 286 H390" class="line"/><path d="M610 172 H710" class="line"/><path d="M610 286 H710" class="line"/>
+
+  <rect x="92" y="424" width="160" height="46" rx="9" class="risk"/><text x="112" y="453" class="small">Member PII</text>
+  <rect x="272" y="424" width="160" height="46" rx="9" class="risk"/><text x="292" y="453" class="small">Donations and finance</text>
+  <rect x="452" y="424" width="160" height="46" rx="9" class="risk"/><text x="472" y="453" class="small">Pastoral care data</text>
+  <rect x="632" y="424" width="160" height="46" rx="9" class="risk"/><text x="652" y="453" class="small">Child safety records</text>
+  <rect x="812" y="424" width="160" height="46" rx="9" class="risk"/><text x="832" y="453" class="small">AI and consent logs</text>
+
+  <rect x="92" y="532" width="160" height="46" rx="9" class="protect"/><text x="112" y="561" class="small">Minimize and mask</text>
+  <rect x="272" y="532" width="160" height="46" rx="9" class="protect"/><text x="292" y="561" class="small">Encrypt transport/data</text>
+  <rect x="452" y="532" width="160" height="46" rx="9" class="protect"/><text x="472" y="561" class="small">RBAC and RLS</text>
+  <rect x="632" y="532" width="160" height="46" rx="9" class="protect"/><text x="652" y="561" class="small">Consent and audit</text>
+  <rect x="812" y="532" width="160" height="46" rx="9" class="protect"/><text x="832" y="561" class="small">Manual review gates</text>
+
+  <path d="M835 318 C835 374 172 374 172 424" class="line"/>
+  <path d="M835 318 C835 374 352 374 352 424" class="line"/>
+  <path d="M835 318 C835 374 532 374 532 424" class="line"/>
+  <path d="M835 318 C835 374 712 374 712 424" class="line"/>
+  <path d="M835 318 V424" class="line"/>
+  <path d="M172 470 V532" class="line"/><path d="M352 470 V532" class="line"/><path d="M532 470 V532" class="line"/><path d="M712 470 V532" class="line"/><path d="M892 470 V532" class="line"/>
+</svg>

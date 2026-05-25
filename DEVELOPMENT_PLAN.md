@@ -4,6 +4,8 @@
 **Version**: 1.9
 **Purpose**: This is the single source of truth for all ChurchCore Ops development. Every GitHub Issue, PR, sprint, and code review must reference this document. Update only via PR.
 
+Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual.md) summarizes the strategy, roadmap, boundary model, and Sprint 1 flow as diagrams. This document remains the source of truth.
+
 ## Table of Contents
 
 - [1. Project Vision & Scope](#1-project-vision--scope)
