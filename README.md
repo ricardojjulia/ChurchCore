@@ -92,6 +92,24 @@ ChurchCore Ops includes a repo-local software factory for structured AI-assisted
 
 Start with [docs/software-factory.md](docs/software-factory.md) for the how-to and [docs/diagrams.md](docs/diagrams.md#claude-code-software-factory) for the visual workflow maps.
 
+### Preferred Factory Workflow
+
+ChurchCore Ops is intentionally transparent: every meaningful change should leave enough documentation for a future maintainer, church evaluator, or security reviewer to understand what changed, why it changed, and how it was verified.
+
+Use this workflow for non-trivial work in either Claude Code or Codex:
+
+1. Read `DEVELOPMENT_PLAN.md`, `AGENTS.md`, relevant docs, and relevant ADRs.
+2. Run the factory research phase before implementation.
+3. Write or confirm the user story and acceptance criteria.
+4. Write or confirm the technical brief, including tenant boundaries, RBAC, sensitive data, tests, and documentation impact.
+5. Implement in the smallest coherent vertical slice.
+6. Update `README.md`, `CHANGELOG.md`, and the relevant document under `docs/`.
+7. Run `npm run lint` and `npm run build` when feasible; run focused tests for touched behavior.
+8. Use the validator or PR-review workflow before commit or PR handoff.
+9. Commit with a clear message, merge through the active branch strategy, and push.
+
+Claude Code should run this through the `feature-factory` and `build-with-tests` skills. Codex should run the same sequence through `churchcore-feature-factory`, `churchcore-build-with-tests`, and `churchcore-pr-review`.
+
 ## Plan Highlights
 
 - Role-based portals with least-privilege enforcement for platform, church, ministry, and member workflows.

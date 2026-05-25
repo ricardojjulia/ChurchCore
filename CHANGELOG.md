@@ -21,6 +21,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added a Claude Code software-factory setup with project agents, feature orchestration and build-with-tests skills, a sensitive-file pre-commit safety hook, and shareable hook settings example under `.claude/`.
 - Added Codex-compatible repo-local skills under `.codex/skills/` and updated `AGENTS.md` so Codex can use the same feature-factory, build-with-tests, and PR-review workflow.
 - Added `docs/software-factory.md` plus Claude Code and Codex SVG diagrams under `docs/assets/diagrams/` to document how the factory agents, skills, hooks, approval gates, validation, and delivery steps interact.
+- Documented the preferred transparent coding workflow for Claude Code and Codex, including research, story, technical brief, implementation, documentation updates, verification, review, commit, merge, and push expectations.
 - Added `docs/diagrams.md` as the canonical diagram set for the repository, with Mermaid source for system architecture, role/surface mapping, core workflows, and documentation flow.
 - Added `docs/development-plan-visual.md` as a visual companion to `DEVELOPMENT_PLAN.md`, covering strategy, roadmap, boundary/security model, and Sprint 1 execution flow.
 - Added `docs/plans/github-repository-operations.md` to preserve the GitHub roadmap for projects, milestones, issue forms, branch protection, security triage, and releases.
