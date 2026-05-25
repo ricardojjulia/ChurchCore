@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { ArrowRight, KeyRound } from "lucide-react";
 import { redirect } from "next/navigation";
 import {
@@ -18,6 +19,7 @@ import {
 } from "@mantine/core";
 
 import { signInAction, signOutAction } from "@/app/sign-in/actions";
+import { LanguageSelect } from "@/components/language-select";
 import {
   demoProfiles,
   getSession,
@@ -29,6 +31,7 @@ import {
   hasSupabaseEnvForSurface,
 } from "@/lib/supabase/config";
 import { toFriendlySupabaseErrorMessage } from "@/lib/supabase/postgrest";
+import { localeCookieName, messages, normalizeLocale } from "@/lib/i18n";
 
 export const metadata: Metadata = {
   title: "Sign In | ChurchCore Ops",
@@ -47,6 +50,20 @@ type SignInPageProps = {
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const params = await searchParams;
+  const cookieStore = await cookies();
+  const locale = normalizeLocale(cookieStore.get(localeCookieName)?.value);
+  const translate = (
+    key: keyof typeof messages.en.signIn,
+    values?: Record<string, string | number>,
+  ) => {
+    const template = String(messages[locale].signIn[key] ?? messages.en.signIn[key]);
+    if (!values) return template;
+    return Object.entries(values).reduce(
+      (next, [valueKey, replacement]) =>
+        next.replaceAll(`{${valueKey}}`, String(replacement)),
+      template,
+    );
+  };
   const redirectTo = sanitizeRedirectTarget(params.redirectTo);
   const preferredSurface = getPreferredSupabaseSurfaceForRedirect(redirectTo);
   const [session, requestedChurch] = await Promise.all([
@@ -59,11 +76,11 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const errorMessage = !params.error
     ? null
     : params.error === "profile"
-      ? "The selected preview profile was not recognized. Try again."
+      ? translate("profileError")
       : params.error === "confirm"
-        ? "The email confirmation link could not be verified."
+        ? translate("confirmError")
         : params.error === "supabase-not-configured"
-          ? "Supabase environment variables are not configured for email confirmation."
+          ? translate("supabaseNotConfigured")
           : toFriendlySupabaseErrorMessage(decodeURIComponent(params.error));
 
   if (session && (!forceSignIn || session.canAccessControl)) {
@@ -84,18 +101,19 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             <Badge color="gray" variant="light" mb="sm">
               ChurchCore Ops
             </Badge>
-            <Title order={1}>Sign in</Title>
+            <Title order={1}>{translate("signIn")}</Title>
             <Text c="dimmed" mt="sm">
               {supabaseConfigured
-                ? "Use your account."
-                : "Choose a preview account."}
+                ? translate("useAccount")
+                : translate("usePreview")}
             </Text>
           </Box>
 
           <Group gap="sm">
+            <LanguageSelect />
             <Link href="/">
               <Button component="span" variant="default" radius="xl">
-                Back home
+                {translate("backHome")}
               </Button>
             </Link>
           </Group>
@@ -109,13 +127,14 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             ) : null}
             {requestedChurch ? (
               <Alert color="blue">
-                Signing in for <strong>{requestedChurch.name}</strong>.
+                {translate("requestedChurch", { church: requestedChurch.name })}
               </Alert>
             ) : null}
             {session && forceSignIn && !session.canAccessControl ? (
-              <Alert color="yellow" title="Control access required">
-                You are signed in as {session.profile.email}. Use a control-plane account to continue to
-                ChurchCore Ops Control.
+              <Alert color="yellow" title={translate("controlAccessRequired")}>
+                {translate("controlAccessRequiredDescription", {
+                  email: session.profile.email,
+                })}
               </Alert>
             ) : null}
 
@@ -134,14 +153,14 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
                   >
                     <KeyRound size={16} />
                   </Box>
-                  <Text fw={700}>Account</Text>
+                  <Text fw={700}>{translate("account")}</Text>
                 </Group>
 
                 <form action={signInAction}>
                   <input type="hidden" name="redirectTo" value={redirectTo} />
                   <Stack gap="md">
                     <TextInput
-                      label="Email"
+                      label={translate("email")}
                       name="email"
                       type="email"
                       required
@@ -149,7 +168,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
                       size="md"
                     />
                     <PasswordInput
-                      label="Password"
+                      label={translate("password")}
                       name="password"
                       required
                       radius="lg"
@@ -163,7 +182,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
                         radius="xl"
                         rightSection={<ArrowRight size={16} />}
                       >
-                        Sign in
+                        {translate("signIn")}
                       </Button>
                       {showSelfSignup ? (
                         <Button
@@ -173,7 +192,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
                           variant="default"
                           radius="xl"
                         >
-                          Create account
+                          {translate("createAccount")}
                         </Button>
                       ) : null}
                     </Group>
@@ -182,7 +201,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
                 {session && forceSignIn ? (
                   <form action={signOutAction}>
                     <Button type="submit" variant="subtle" radius="xl" mt="md">
-                      Sign out current account
+                      {translate("signOutCurrent")}
                     </Button>
                   </form>
                 ) : null}
@@ -209,7 +228,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
                           radius="xl"
                           rightSection={<ArrowRight size={16} />}
                         >
-                          Continue
+                          {translate("continue")}
                         </Button>
                       </Group>
                     </form>

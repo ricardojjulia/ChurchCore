@@ -29,7 +29,7 @@ load_env_file() {
 load_env_file "${ROOT_DIR}/.env"
 load_env_file "${ROOT_DIR}/.env.local"
 
-SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL:-http://127.0.0.1:54321}"
+SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL:-http://127.0.0.1:4201}"
 SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-}"
 
 if [[ -z "${SERVICE_ROLE_KEY}" ]]; then
@@ -129,6 +129,6 @@ echo ""
 echo "Saved local demo credentials to:"
 echo "  ${CREDENTIALS_FILE}"
 echo ""
-echo "App:      http://localhost:3000/sign-in"
-echo "Studio:   http://127.0.0.1:54323"
-echo "Mailpit:  http://127.0.0.1:54324"
+echo "App:      http://localhost:4200/sign-in"
+echo "Studio:   http://127.0.0.1:4204"
+echo "Mailpit:  http://127.0.0.1:4205"

@@ -75,7 +75,7 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("next/headers", () => ({
-  headers: vi.fn(async () => ({ get: vi.fn(() => "http://localhost:3000") })),
+  headers: vi.fn(async () => ({ get: vi.fn(() => "http://localhost:4200") })),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -380,7 +380,7 @@ describe("church-admin actions", () => {
           full_name: "Invited Member",
           role: "member",
         }),
-        redirectTo: "http://localhost:3000/app/member",
+        redirectTo: "http://localhost:4200/app/member",
       }),
     );
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(

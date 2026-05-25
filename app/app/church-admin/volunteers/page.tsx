@@ -4,12 +4,12 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import { requireChurchSession } from "@/lib/auth";
 import { getVolunteerDirectory } from "@/lib/volunteer-data";
 import { Badge, Group, Paper, Stack, Table, Text, Title } from "@mantine/core";
-import { CalendarCheck, ShieldCheck, Users } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/app/church-admin", label: "Home", description: "Church admin", icon: Users },
-  { href: "/app/church-admin/volunteers", label: "Volunteers", description: "Directory & hours", icon: Users, active: true },
-  { href: "/app/church-admin/volunteers/schedules", label: "Schedules", description: "Service plans", icon: CalendarCheck },
+  { href: "/app/church-admin", label: "Home", description: "Church admin", icon: "Users" },
+  { href: "/app/church-admin/volunteers", label: "Volunteers", description: "Directory & hours", icon: "Users", active: true },
+  { href: "/app/church-admin/volunteers/schedules", label: "Schedules", description: "Service plans", icon: "CalendarCheck" },
 ];
 
 const ONE_YEAR_AGO = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);

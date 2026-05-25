@@ -496,7 +496,7 @@ async function inviteChurchMember({
   const origin =
     headerStore.get("origin") ??
     process.env.NEXT_PUBLIC_APP_URL ??
-    "http://localhost:3000";
+    "http://localhost:4200";
 
   const admin = createTenantAdminClient();
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {

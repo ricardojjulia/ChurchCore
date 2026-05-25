@@ -71,7 +71,7 @@ export async function signInAction(formData: FormData) {
       const origin =
         headerStore.get("origin") ??
         process.env.NEXT_PUBLIC_APP_URL ??
-        "http://localhost:3000";
+        "http://localhost:4200";
       const emailRedirectTo = `${origin}/auth/confirm?next=${encodeURIComponent(
         redirectTo,
       )}`;

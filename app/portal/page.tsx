@@ -1,10 +1,27 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { Alert, Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
 
+import { LanguageSelect } from "@/components/language-select";
 import { getSession } from "@/lib/auth";
 import { getRequestedPublicChurch } from "@/lib/public-portal-data";
+import { localeCookieName, messages, normalizeLocale } from "@/lib/i18n";
 
 export default async function PortalPage() {
+  const cookieStore = await cookies();
+  const locale = normalizeLocale(cookieStore.get(localeCookieName)?.value);
+  const translate = (
+    key: keyof typeof messages.en.portal,
+    values?: Record<string, string | number>,
+  ) => {
+    const template = String(messages[locale].portal[key] ?? messages.en.portal[key]);
+    if (!values) return template;
+    return Object.entries(values).reduce(
+      (next, [valueKey, replacement]) =>
+        next.replaceAll(`{${valueKey}}`, String(replacement)),
+      template,
+    );
+  };
   const [session, requestedChurch] = await Promise.all([
     getSession("/portal"),
     getRequestedPublicChurch(),
@@ -24,25 +41,26 @@ export default async function PortalPage() {
         <Stack gap="lg">
           <div>
             <Text size="sm" fw={700} c="dimmed" tt="uppercase">
-              ChurchCore Ops Portal
+              {translate("portal")}
             </Text>
             <Title order={1} mt="sm">
-              Secure member access for attendance, profile, and serving updates.
+              {translate("secureMemberAccess")}
             </Title>
             <Text c="dimmed" mt="md">
-              Sign in if you already have a portal account, or request access so your church can review and activate one.
+              {translate("signInOrRequest")}
             </Text>
           </div>
 
           {requestedChurch ? (
             <Alert color="teal" radius="xl" variant="light">
-              Church detected from this address: <strong>{requestedChurch.name}</strong>.
+              {translate("detectedChurch", { church: requestedChurch.name })}
             </Alert>
           ) : null}
 
           <Group>
+            <LanguageSelect />
             <Button component="a" href="/sign-in?redirectTo=%2Fportal">
-              Sign in
+              {translate("signIn")}
             </Button>
             <Button
               component="a"
@@ -53,7 +71,7 @@ export default async function PortalPage() {
               }
               variant="default"
             >
-              Request access
+              {translate("requestAccess")}
             </Button>
           </Group>
         </Stack>

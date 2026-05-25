@@ -30,6 +30,7 @@ import {
 } from "@/app/app/church-admin-actions";
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
+import { useI18n } from "@/components/i18n-provider";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { ChurchSettingsData } from "@/lib/church-settings-data";
 
@@ -64,6 +65,8 @@ export function ChurchAdminSettingsWorkspace({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const { t } = useI18n();
+  const translateSettings = (key: string) => t("churchSettings", key);
 
   function updateField(field: keyof UpdateChurchSettingsInput, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -78,14 +81,14 @@ export function ChurchAdminSettingsWorkspace({
       const result = await updateChurchSettingsAction(form);
 
       if (!result.ok) {
-        setError(result.error ?? "Unable to update church settings.");
+        setError(result.error ?? translateSettings("updateError"));
         return;
       }
 
       setMessage(
         result.previewMode
-          ? "Settings accepted in preview mode."
-          : "Church settings updated.",
+          ? translateSettings("previewAccepted")
+          : translateSettings("updated"),
       );
     });
   }
@@ -95,42 +98,42 @@ export function ChurchAdminSettingsWorkspace({
       session={session}
       workspaceHref="/app/church-admin"
       calendarHref="/app/calendar"
-      sectionLabel="ChurchAdmin"
-      title="Church Settings"
+      sectionLabel={t("portalNav", "churchAdmin")}
+      title={translateSettings("title")}
       description={settings.name}
-      sidebarTitle="Church setup"
-      sidebarDescription="Tenant profile, contact details, and setup metadata."
-      navLabel="Church admin"
+      sidebarTitle={translateSettings("churchSetup")}
+      sidebarDescription={translateSettings("sidebarDescription")}
+      navLabel={t("portalNav", "churchAdmin")}
       navItems={[
         {
           href: "/app/church-admin",
-          label: "Home",
-          description: "Operations",
+          label: t("portalNav", "home"),
+          description: t("portalNav", "operations"),
           icon: HeartHandshake,
         },
         {
           href: "/app/church-admin/settings",
-          label: "Settings",
-          description: "Church setup",
+          label: t("portalNav", "settings"),
+          description: t("portalNav", "churchSetup"),
           icon: Settings,
           active: true,
         },
         {
           href: "/app/church-admin/people",
-          label: "People",
-          description: "Records and statuses",
+          label: t("portalNav", "people"),
+          description: t("portalNav", "peopleDescription"),
           icon: UsersRound,
         },
         {
           href: "/app/church-admin/accounts",
-          label: "Accounts",
-          description: "Portal approvals",
+          label: t("accountRequests", "accounts"),
+          description: t("portalNav", "accountRequestsDescription"),
           icon: MailCheck,
         },
         {
           href: "/app/reports",
-          label: "Reports",
-          description: "Members, events, giving",
+          label: t("portalNav", "reports"),
+          description: t("portalNav", "reportsDescription"),
           icon: BarChart2,
         },
       ]}
@@ -145,7 +148,7 @@ export function ChurchAdminSettingsWorkspace({
             </ThemeIcon>
             <div>
               <Title order={3} size="h4">
-                Tenant Profile
+                {translateSettings("tenantProfile")}
               </Title>
               <Text size="sm" c="dimmed">
                 {settings.slug}
@@ -155,14 +158,18 @@ export function ChurchAdminSettingsWorkspace({
 
           <Stack gap="xs">
             <Text size="sm">
-              <Text span fw={700}>Timezone:</Text> {settings.timezone}
+              <Text span fw={700}>{translateSettings("timezone")}:</Text>{" "}
+              {settings.timezone}
             </Text>
             <Text size="sm">
-              <Text span fw={700}>Contact:</Text>{" "}
-              {settings.contactEmail ?? settings.contactPhone ?? "Not set"}
+              <Text span fw={700}>{translateSettings("contact")}:</Text>{" "}
+              {settings.contactEmail ??
+                settings.contactPhone ??
+                translateSettings("notSet")}
             </Text>
             <Text size="sm">
-              <Text span fw={700}>Website:</Text> {settings.websiteUrl ?? "Not set"}
+              <Text span fw={700}>{translateSettings("website")}:</Text>{" "}
+              {settings.websiteUrl ?? translateSettings("notSet")}
             </Text>
           </Stack>
         </Paper>
@@ -174,10 +181,10 @@ export function ChurchAdminSettingsWorkspace({
             </ThemeIcon>
             <div>
               <Title order={3} size="h4">
-                Setup Details
+                {translateSettings("setupDetails")}
               </Title>
               <Text size="sm" c="dimmed">
-                Updates are scoped to this church tenant.
+                {translateSettings("setupDescription")}
               </Text>
             </div>
           </Group>
@@ -193,37 +200,37 @@ export function ChurchAdminSettingsWorkspace({
 
               <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
                 <TextInput
-                  label="Church name"
+                  label={translateSettings("churchName")}
                   value={form.name}
                   onChange={(event) => updateField("name", event.currentTarget.value)}
                   required
                 />
                 <TextInput
-                  label="Legal name"
+                  label={translateSettings("legalName")}
                   value={form.legalName ?? ""}
                   onChange={(event) => updateField("legalName", event.currentTarget.value)}
                 />
                 <TextInput
-                  label="Timezone"
+                  label={translateSettings("timezone")}
                   value={form.timezone}
                   onChange={(event) => updateField("timezone", event.currentTarget.value)}
                   list="church-timezones"
                   required
                 />
                 <TextInput
-                  label="Website"
+                  label={translateSettings("website")}
                   value={form.websiteUrl ?? ""}
                   onChange={(event) => updateField("websiteUrl", event.currentTarget.value)}
                   placeholder="https://example.church"
                 />
                 <TextInput
-                  label="Contact email"
+                  label={translateSettings("contactEmail")}
                   value={form.contactEmail ?? ""}
                   onChange={(event) => updateField("contactEmail", event.currentTarget.value)}
                   type="email"
                 />
                 <TextInput
-                  label="Contact phone"
+                  label={translateSettings("contactPhone")}
                   value={form.contactPhone ?? ""}
                   onChange={(event) => updateField("contactPhone", event.currentTarget.value)}
                 />
@@ -236,14 +243,14 @@ export function ChurchAdminSettingsWorkspace({
               </datalist>
 
               <Textarea
-                label="Mailing address"
+                label={translateSettings("mailingAddress")}
                 value={form.mailingAddress ?? ""}
                 onChange={(event) => updateField("mailingAddress", event.currentTarget.value)}
                 autosize
                 minRows={2}
               />
               <Textarea
-                label="Public summary"
+                label={translateSettings("publicSummary")}
                 value={form.publicSummary ?? ""}
                 onChange={(event) => updateField("publicSummary", event.currentTarget.value)}
                 autosize
@@ -253,7 +260,7 @@ export function ChurchAdminSettingsWorkspace({
 
               <Group justify="flex-end">
                 <Button type="submit" loading={pending}>
-                  Save settings
+                  {translateSettings("saveSettings")}
                 </Button>
               </Group>
             </Stack>

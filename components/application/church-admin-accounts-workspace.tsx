@@ -21,11 +21,12 @@ import {
 } from "@/app/app/church-admin-actions";
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
+import { useI18n } from "@/components/i18n-provider";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { ChurchAdminAccountsData } from "@/lib/church-admin-accounts-data";
 
-function formatRequestedDate(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
+function formatRequestedDate(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale === "es" ? "es-US" : "en-US", {
     month: "short",
     day: "numeric",
     hour: "numeric",
@@ -41,22 +42,32 @@ export function ChurchAdminAccountsWorkspace({
   data: ChurchAdminAccountsData;
 }) {
   const [isPending, startTransition] = useTransition();
+  const { locale, t } = useI18n();
+  const translateAccounts = (
+    key: string,
+    values?: Record<string, string | number>,
+  ) => t("accountRequests", key, values);
 
   function handleApprove(requestId: string) {
     startTransition(async () => {
       try {
         const result = await approveAccountRequestAction({ requestId });
         notifications.show({
-          title: result.invited ? "Invite sent" : "Request approved",
+          title: result.invited
+            ? translateAccounts("inviteSent")
+            : translateAccounts("requestApproved"),
           message: result.previewMode
-            ? "The request was approved, but invite delivery requires a tenant service-role key."
-            : "The member was approved and the portal invitation was queued.",
+            ? translateAccounts("previewApprovalMessage")
+            : translateAccounts("approvalMessage"),
           color: result.previewMode ? "orange" : "teal",
         });
       } catch (error) {
         notifications.show({
-          title: "Approval failed",
-          message: error instanceof Error ? error.message : "The request could not be approved.",
+          title: translateAccounts("approvalFailed"),
+          message:
+            error instanceof Error
+              ? error.message
+              : translateAccounts("approvalFailedMessage"),
           color: "red",
         });
       }
@@ -68,14 +79,17 @@ export function ChurchAdminAccountsWorkspace({
       try {
         await rejectAccountRequestAction({ requestId });
         notifications.show({
-          title: "Request rejected",
-          message: "The pending request was removed from the queue.",
+          title: translateAccounts("requestRejected"),
+          message: translateAccounts("rejectionMessage"),
           color: "gray",
         });
       } catch (error) {
         notifications.show({
-          title: "Rejection failed",
-          message: error instanceof Error ? error.message : "The request could not be rejected.",
+          title: translateAccounts("rejectionFailed"),
+          message:
+            error instanceof Error
+              ? error.message
+              : translateAccounts("rejectionFailedMessage"),
           color: "red",
         });
       }
@@ -87,54 +101,54 @@ export function ChurchAdminAccountsWorkspace({
       session={session}
       workspaceHref="/app/church-admin"
       calendarHref="/app/calendar"
-      sectionLabel="ChurchAdmin"
-      title="Portal Requests"
+      sectionLabel={t("portalNav", "churchAdmin")}
+      title={translateAccounts("portalRequests")}
       description={session.appContext.church.name}
-      sidebarTitle="Accounts"
-      sidebarDescription="Review and approve member portal access."
-      navLabel="Church admin"
+      sidebarTitle={translateAccounts("accounts")}
+      sidebarDescription={translateAccounts("sidebarDescription")}
+      navLabel={t("portalNav", "churchAdmin")}
       navItems={[
         {
           href: "/app/church-admin",
-          label: "Home",
-          description: "Operations",
+          label: t("portalNav", "home"),
+          description: t("portalNav", "operations"),
           icon: HeartHandshake,
         },
         {
           href: "/app/church-admin/people",
-          label: "People",
-          description: "Records and statuses",
+          label: t("portalNav", "people"),
+          description: t("portalNav", "peopleDescription"),
           icon: UsersRound,
         },
         {
           href: "/app/church-admin/accounts",
-          label: "Accounts",
-          description: "Portal approvals",
+          label: translateAccounts("accounts"),
+          description: t("portalNav", "accountRequestsDescription"),
           icon: MailCheck,
           active: true,
         },
         {
           href: "/app/communications",
-          label: "Communications",
-          description: "Broadcast and messaging",
+          label: t("portalNav", "communications"),
+          description: t("portalNav", "communicationsDescription"),
           icon: BellRing,
         },
         {
           href: "/app/giving",
-          label: "Giving",
-          description: "Donations dashboard",
+          label: t("portalNav", "givingOps"),
+          description: t("portalNav", "donationsDescription"),
           icon: DollarSign,
         },
         {
           href: "/app/reports",
-          label: "Reports",
-          description: "Members, events, giving",
+          label: t("portalNav", "reports"),
+          description: t("portalNav", "reportsDescription"),
           icon: BarChart2,
         },
         {
           href: "/app/church-admin/ministry",
-          label: "Ministry Forge",
-          description: "Health, vision, and impact",
+          label: t("portalNav", "ministryForge"),
+          description: t("portalNav", "ministryForgeDescription"),
           icon: Sparkles,
         },
       ]}
@@ -144,7 +158,7 @@ export function ChurchAdminAccountsWorkspace({
       <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
         <Paper withBorder radius="xl" p="lg">
           <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-            Pending
+            {translateAccounts("pending")}
           </Text>
           <Title order={3} mt="xs">
             {data.pendingCount}
@@ -152,7 +166,7 @@ export function ChurchAdminAccountsWorkspace({
         </Paper>
         <Paper withBorder radius="xl" p="lg">
           <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-            Existing member match
+            {translateAccounts("existingMemberMatch")}
           </Text>
           <Title order={3} mt="xs">
             {data.existingMemberCount}
@@ -160,7 +174,7 @@ export function ChurchAdminAccountsWorkspace({
         </Paper>
         <Paper withBorder radius="xl" p="lg">
           <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-            Manual review
+            {translateAccounts("manualReview")}
           </Text>
           <Title order={3} mt="xs">
             {data.pendingCount - data.existingMemberCount}
@@ -175,10 +189,10 @@ export function ChurchAdminAccountsWorkspace({
           </ThemeIcon>
           <div>
             <Title order={3} size="h4">
-              Approval queue
+              {translateAccounts("approvalQueue")}
             </Title>
             <Text size="sm" c="dimmed">
-              Approvals generate a member number and send a Supabase invitation when the tenant admin key is configured.
+              {translateAccounts("approvalQueueDescription")}
             </Text>
           </div>
         </Group>
@@ -194,7 +208,9 @@ export function ChurchAdminAccountsWorkspace({
                         {request.firstName} {request.lastName}
                       </Text>
                       <Badge color={request.isExistingMember ? "teal" : "yellow"} variant="light">
-                        {request.isExistingMember ? "Existing member match" : "Manual review"}
+                        {request.isExistingMember
+                          ? translateAccounts("existingMemberMatch")
+                          : translateAccounts("manualReview")}
                       </Badge>
                     </Group>
                     <Text size="sm" c="dimmed">
@@ -202,17 +218,21 @@ export function ChurchAdminAccountsWorkspace({
                       {request.phone ? ` • ${request.phone}` : ""}
                     </Text>
                     <Text size="sm" c="dimmed">
-                      Requested {formatRequestedDate(request.createdAt)}
+                      {translateAccounts("requestedAt", {
+                        value: formatRequestedDate(request.createdAt, locale),
+                      })}
                     </Text>
                     {request.linkedProfileName ? (
                       <Text size="sm">
-                        Linked profile: {request.linkedProfileName}
+                        {translateAccounts("linkedProfile", {
+                          value: request.linkedProfileName,
+                        })}
                         {request.linkedMemberNumber ? ` • ${request.linkedMemberNumber}` : ""}
                         {request.linkedAccountStatus ? ` • ${request.linkedAccountStatus}` : ""}
                       </Text>
                     ) : (
                       <Text size="sm" c="dimmed">
-                        No linked member profile yet. Approval will create one.
+                        {translateAccounts("noLinkedProfile")}
                       </Text>
                     )}
                   </Stack>
@@ -223,10 +243,10 @@ export function ChurchAdminAccountsWorkspace({
                       onClick={() => handleReject(request.id)}
                       loading={isPending}
                     >
-                      Reject
+                      {translateAccounts("reject")}
                     </Button>
                     <Button onClick={() => handleApprove(request.id)} loading={isPending}>
-                      Approve
+                      {translateAccounts("approve")}
                     </Button>
                   </Group>
                 </Group>
@@ -234,7 +254,7 @@ export function ChurchAdminAccountsWorkspace({
             ))
           ) : (
             <Text size="sm" c="dimmed">
-              No pending portal requests right now.
+              {translateAccounts("noPendingRequests")}
             </Text>
           )}
         </Stack>

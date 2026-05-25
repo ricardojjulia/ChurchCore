@@ -4,7 +4,6 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import { MemberBottomNav } from "@/components/application/member-bottom-nav";
 import { requireChurchSession } from "@/lib/auth";
 import { getMemberSchedule } from "@/lib/volunteer-data";
-import { CalendarCheck } from "lucide-react";
 import { MemberScheduleView } from "@/components/application/member-schedule";
 
 export default async function MemberSchedulePage() {
@@ -25,8 +24,8 @@ export default async function MemberSchedulePage() {
       sidebarDescription="Your upcoming volunteer assignments."
       navLabel="Member"
       navItems={[
-        { href: "/app/member", label: "Home", description: "My church", icon: CalendarCheck },
-        { href: "/app/member/schedule", label: "Schedule", description: "My assignments", icon: CalendarCheck, active: true },
+        { href: "/app/member", label: "Home", description: "My church", icon: "CalendarCheck" },
+        { href: "/app/member/schedule", label: "Schedule", description: "My assignments", icon: "CalendarCheck", active: true },
       ]}
       bottomNav={<MemberBottomNav />}
     >

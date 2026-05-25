@@ -74,3 +74,27 @@ Reason:
 - Reduce remaining preview-era copy in role workspaces
 - Add list or table views where queue-heavy content still reads like card clutter
 - Introduce token-driven dark mode only after the light theme is complete
+
+## 2026-05-22: Public Home Console Direction
+
+The public home screen now uses a sharper ChurchCore Ops command-center presentation instead of the earlier soft centered card. The visual direction should feel professional and technical while keeping faith references restrained and operational.
+
+### Applied Direction
+
+- Lead with ChurchCore Ops as the first-viewport product signal.
+- Use the landing screen to communicate an operations system for people, ministries, events, care, giving, volunteers, and calendar coordination.
+- Prefer crisp panels, status lanes, and metric signals over decorative illustrations.
+- Keep faith language concrete and light: stewardship, prayer, worship, mission, care.
+- Preserve language, sign-in, control-plane, and public portal entry points.
+
+## 2026-05-22: ChurchAdmin Shell Emphasis
+
+The signed-in ChurchAdmin workspace now uses a stronger visual hierarchy to guide operators through the product.
+
+### Applied Direction
+
+- Use a dark, high-contrast navigation rail so the menu feels deliberate and app-like.
+- Use teal, gold, blue, and violet accents to separate people, ministry, events, and giving signals.
+- Make active navigation unmistakable with a colored rail, stronger contrast, and compact descriptions.
+- Give the dashboard summary a command-center lead panel instead of a flat card stack.
+- Keep operational detail cards quiet, but make their containing sections cleaner and easier to scan.

@@ -19,6 +19,7 @@ import {
   mergeChurchAdminDuplicateAction,
   reassignChurchAdminPersonFamilyAction,
 } from "@/app/app/actions";
+import { useI18n } from "@/components/i18n-provider";
 import type {
   ChurchAdminFamilyOption,
   ChurchAdminPersonEntry,
@@ -40,9 +41,11 @@ export function ChurchAdminPersonRelationships({
   );
   const [serverError, setServerError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const { t } = useI18n();
+  const translatePeople = (key: string) => t("people", key);
 
   const familyOptions = [
-    { value: "", label: "No family" },
+    { value: "", label: translatePeople("noFamily") },
     ...families.map((family) => ({
       value: family.id,
       label: family.familyName,
@@ -69,7 +72,7 @@ export function ChurchAdminPersonRelationships({
         setServerError(
           error instanceof Error
             ? error.message
-            : "Family change could not be saved.",
+            : translatePeople("familyChangeError"),
         );
       }
     });
@@ -87,7 +90,7 @@ export function ChurchAdminPersonRelationships({
         router.refresh();
       } catch (error) {
         setServerError(
-          error instanceof Error ? error.message : "Duplicate merge failed.",
+          error instanceof Error ? error.message : translatePeople("duplicateMergeError"),
         );
       }
     });
@@ -101,7 +104,7 @@ export function ChurchAdminPersonRelationships({
         leftSection={<ArrowRightLeft size={15} />}
         onClick={handleOpen}
       >
-        Relationships
+        {translatePeople("relationships")}
       </Button>
 
       <Modal
@@ -114,15 +117,15 @@ export function ChurchAdminPersonRelationships({
       >
         <Stack gap="lg">
           <div>
-            <Text fw={600}>Family</Text>
+            <Text fw={600}>{translatePeople("family")}</Text>
             <Text size="sm" c="dimmed" mt={4}>
-              Move this person to a different household or leave them unassigned.
+              {translatePeople("familyDescription")}
             </Text>
           </div>
 
           <Group align="flex-end" gap="md" wrap="wrap">
             <Select
-              label="Household"
+              label={translatePeople("household")}
               value={selectedFamilyId ?? ""}
               onChange={(value) => setSelectedFamilyId(value || null)}
               data={familyOptions}
@@ -134,14 +137,14 @@ export function ChurchAdminPersonRelationships({
               onClick={handleFamilySave}
               loading={isPending}
             >
-              Save family
+              {translatePeople("saveFamily")}
             </Button>
           </Group>
 
           <div>
-            <Text fw={600}>Duplicate candidates</Text>
+            <Text fw={600}>{translatePeople("duplicateCandidates")}</Text>
             <Text size="sm" c="dimmed" mt={4}>
-              Merge the duplicate record into this one when the current record should remain canonical.
+              {translatePeople("duplicateDescription")}
             </Text>
           </div>
 
@@ -158,17 +161,17 @@ export function ChurchAdminPersonRelationships({
                       <div>
                         <Text fw={600}>{candidate.fullName}</Text>
                         <Text size="sm" c="dimmed" mt={4}>
-                          {candidate.familyName || "No family"}{" "}
+                          {candidate.familyName || translatePeople("noFamily")}{" "}
                           {candidate.email ? `• ${candidate.email}` : ""}
                         </Text>
                         <Text size="sm" c="dimmed" mt={4}>
-                          {candidate.phone || "No phone on file"}
+                          {candidate.phone || translatePeople("noPhone")}
                         </Text>
                       </div>
 
                       <Stack gap="xs" align="flex-end">
                         <Badge color="gray" variant="light">
-                          {candidate.role}
+                          {translatePeople(candidate.role)}
                         </Badge>
                         <Button
                           radius="xl"
@@ -177,14 +180,14 @@ export function ChurchAdminPersonRelationships({
                           loading={isPending}
                           disabled={mergeBlocked}
                         >
-                          Merge into current
+                          {translatePeople("mergeIntoCurrent")}
                         </Button>
                       </Stack>
                     </Group>
 
                     {mergeBlocked ? (
                       <Text size="sm" c="dimmed" mt="sm">
-                        Staff records stay out of this merge flow.
+                        {translatePeople("mergeBlocked")}
                       </Text>
                     ) : null}
                   </Paper>
@@ -192,7 +195,7 @@ export function ChurchAdminPersonRelationships({
               })
             ) : (
               <Text size="sm" c="dimmed">
-                No duplicate candidates were detected for this record.
+                {translatePeople("noDuplicateCandidates")}
               </Text>
             )}
           </Stack>

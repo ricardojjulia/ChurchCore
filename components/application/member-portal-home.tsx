@@ -31,13 +31,14 @@ import { MemberBottomNav } from "@/components/application/member-bottom-nav";
 import { MemberFamilyEdit } from "@/components/application/member-family-edit";
 import { NotificationPreferencesForm } from "@/components/application/notification-preferences-form";
 import { MemberProfileEdit } from "@/components/application/member-profile-edit";
+import { useI18n } from "@/components/i18n-provider";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { MemberPortalData } from "@/lib/member-portal-data";
 
-function formatEventDate(value: string) {
+function formatEventDate(value: string, locale: string) {
   const date = new Date(value);
 
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat(locale === "es" ? "es-US" : "en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -46,11 +47,15 @@ function formatEventDate(value: string) {
   }).format(date);
 }
 
-function formatShortDate(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
+function formatShortDate(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale === "es" ? "es-US" : "en-US", {
     month: "short",
     day: "numeric",
   }).format(new Date(value));
+}
+
+function knownKey(value: string) {
+  return value.toLowerCase().replaceAll("-", "_").replaceAll(" ", "_");
 }
 
 export function MemberPortalHome({
@@ -61,36 +66,46 @@ export function MemberPortalHome({
   data: MemberPortalData;
 }) {
   const profile = data.profile;
+  const { locale, t } = useI18n();
+  const translateMember = (
+    key: string,
+    values?: Record<string, string | number>,
+  ) => t("member", key, values);
+  const translateKnown = (value: string) => {
+    const key = knownKey(value);
+    const translated = translateMember(key);
+    return translated === key ? value : translated;
+  };
 
   return (
     <ApplicationShell
       session={session}
       workspaceHref="/app/member"
       calendarHref="/app/calendar"
-      sectionLabel="Member"
+      sectionLabel={translateMember("member")}
       title={profile?.fullName ?? session.profile.name}
       description={session.appContext.church.name}
-      sidebarTitle="Member portal"
-      sidebarDescription="Profile, ministries, and upcoming events."
-      navLabel="Current role"
+      sidebarTitle={translateMember("memberPortal")}
+      sidebarDescription={translateMember("memberPortalDescription")}
+      navLabel={translateMember("currentRole")}
       navItems={[
         {
           href: "/app/member",
-          label: "Home",
-          description: "Personal overview",
+          label: translateMember("home"),
+          description: translateMember("personalOverview"),
           icon: HeartHandshake,
           active: true,
         },
         {
           href: "/app/member/directory",
-          label: "Directory",
-          description: "Church family",
+          label: translateMember("directory"),
+          description: translateMember("churchFamily"),
           icon: UsersRound,
         },
         {
           href: "/app/member/family",
-          label: "Family",
-          description: "Household details",
+          label: translateMember("family"),
+          description: translateMember("householdDetails"),
           icon: Home,
         },
       ]}
@@ -104,10 +119,9 @@ export function MemberPortalHome({
             icon={<AlertCircle size={16} />}
             color="yellow"
             radius="xl"
-            title="Profile incomplete"
+            title={translateMember("profileIncomplete")}
           >
-            Add an emergency contact so your church can reach someone on your
-            behalf if needed.{" "}
+            {translateMember("profileIncompleteDescription")}{" "}
             <MemberProfileEdit profile={profile} />
           </Alert>
         ) : null}
@@ -117,10 +131,9 @@ export function MemberPortalHome({
             icon={<AlertCircle size={16} />}
             color="blue"
             radius="xl"
-            title="Finish your communication preferences"
+            title={translateMember("finishCommunicationPreferences")}
           >
-            Set your preferred contact method and confirm which channels your church may use for
-            updates. ChurchCore Ops records these choices in your consent history.
+            {translateMember("communicationPreferencesDescription")}
           </Alert>
         ) : null}
 
@@ -132,7 +145,7 @@ export function MemberPortalHome({
                   <HeartHandshake size={18} />
                 </ThemeIcon>
                 <Badge color="gray" variant="light">
-                  {profile?.displayTitle || "Member"}
+                  {profile?.displayTitle || translateMember("member")}
                 </Badge>
               </Group>
               <Title order={2}>{profile?.fullName ?? session.profile.name}</Title>
@@ -141,12 +154,12 @@ export function MemberPortalHome({
               </Text>
               {profile?.memberNumber ? (
                 <Text size="sm" mt="sm">
-                  Member number: {profile.memberNumber}
+                  {translateMember("memberNumber", { value: profile.memberNumber })}
                 </Text>
               ) : null}
               {profile?.familyName ? (
                 <Text size="sm" mt="sm">
-                  Family: {profile.familyName}
+                  {translateMember("familyLabel", { value: profile.familyName })}
                 </Text>
               ) : null}
               {profile?.interests.length ? (
@@ -212,10 +225,10 @@ export function MemberPortalHome({
               </Badge>
             </Group>
             <Title order={3} size="h4">
-              {data.family?.familyName ?? "No family record"}
+              {data.family?.familyName ?? translateMember("noFamilyRecord")}
             </Title>
             <Text size="sm" c="dimmed" mt="sm">
-              {data.family?.address || "Add a household record for shared contact details."}
+              {data.family?.address || translateMember("addHouseholdRecord")}
             </Text>
             <Group mt="lg">
               <MemberFamilyEdit family={data.family} />
@@ -225,7 +238,7 @@ export function MemberPortalHome({
                 variant="subtle"
                 radius="xl"
               >
-                Open
+                {translateMember("open")}
               </Button>
             </Group>
           </Paper>
@@ -240,10 +253,10 @@ export function MemberPortalHome({
               </Badge>
             </Group>
             <Title order={3} size="h4">
-              Directory
+              {translateMember("directory")}
             </Title>
             <Text size="sm" c="dimmed" mt="sm">
-              Find people by name, family, or ministry.
+              {translateMember("directoryDescription")}
             </Text>
             <Button
               component={Link}
@@ -252,7 +265,7 @@ export function MemberPortalHome({
               radius="xl"
               mt="lg"
             >
-              Open directory
+              {translateMember("openDirectory")}
             </Button>
           </Paper>
 
@@ -266,12 +279,12 @@ export function MemberPortalHome({
               </Badge>
             </Group>
             <Title order={3} size="h4">
-              Ministries
+              {translateMember("ministries")}
             </Title>
             <Text size="sm" c="dimmed" mt="sm">
               {data.ministries.length
                 ? data.ministries.map((ministry) => ministry.name).join(", ")
-                : "No ministry assignments yet."}
+                : translateMember("noMinistryAssignments")}
             </Text>
           </Paper>
         </SimpleGrid>
@@ -279,7 +292,7 @@ export function MemberPortalHome({
         <Paper withBorder radius="xl" p="xl">
           <Group justify="space-between" align="center" mb="lg">
             <Title order={3} size="h4">
-              Upcoming
+              {translateMember("upcoming")}
             </Title>
             <Button
               component={Link}
@@ -288,7 +301,7 @@ export function MemberPortalHome({
               radius="xl"
               leftSection={<CalendarRange size={16} />}
             >
-              Calendar
+              {translateMember("calendar")}
             </Button>
           </Group>
 
@@ -300,7 +313,7 @@ export function MemberPortalHome({
                     <Box>
                       <Text fw={600}>{event.title}</Text>
                       <Text c="dimmed" size="sm" mt={6}>
-                        {formatEventDate(event.startsAt)}
+                        {formatEventDate(event.startsAt, locale)}
                       </Text>
                       {event.description ? (
                         <Text c="dimmed" size="sm" mt={6}>
@@ -311,7 +324,7 @@ export function MemberPortalHome({
 
                     <Stack gap={6} align="flex-end">
                       <Badge color="gray" variant="light">
-                        {event.category}
+                        {translateKnown(event.category)}
                       </Badge>
                       {event.ministryName ? (
                         <Text size="sm" c="dimmed">
@@ -324,7 +337,7 @@ export function MemberPortalHome({
               ))
             ) : (
               <Text c="dimmed" size="sm">
-                No upcoming events yet.
+                {translateMember("noUpcomingEvents")}
               </Text>
             )}
           </Stack>
@@ -334,7 +347,7 @@ export function MemberPortalHome({
           <Paper withBorder radius="xl" p="xl">
             <Group justify="space-between" align="center" mb="lg">
               <Title order={3} size="h4">
-                My History
+                {translateMember("myHistory")}
               </Title>
               <Badge color="gray" variant="light">
                 {data.attendanceHistory.length}
@@ -347,17 +360,19 @@ export function MemberPortalHome({
                   <Paper key={entry.id} withBorder radius="xl" p="lg">
                     <Group justify="space-between" align="flex-start" gap="md">
                       <Box>
-                        <Text fw={600}>{entry.eventTitle || "Church attendance"}</Text>
+                        <Text fw={600}>
+                          {entry.eventTitle || translateMember("churchAttendance")}
+                        </Text>
                         <Text c="dimmed" size="sm" mt={6}>
-                          {formatEventDate(entry.checkedInAt)}
+                          {formatEventDate(entry.checkedInAt, locale)}
                         </Text>
                       </Box>
                       <Stack gap={4} align="flex-end">
                         <Badge color="teal" variant="light">
-                          {entry.status}
+                          {translateKnown(entry.status)}
                         </Badge>
                         <Text size="xs" c="dimmed">
-                          {entry.checkInMethod.replaceAll("_", " ")}
+                          {translateKnown(entry.checkInMethod)}
                         </Text>
                       </Stack>
                     </Group>
@@ -365,7 +380,7 @@ export function MemberPortalHome({
                 ))
               ) : (
                 <Text size="sm" c="dimmed">
-                  No attendance history is available yet.
+                  {translateMember("noAttendanceHistory")}
                 </Text>
               )}
             </Stack>
@@ -374,7 +389,7 @@ export function MemberPortalHome({
           <Paper withBorder radius="xl" p="xl">
             <Group justify="space-between" align="center" mb="lg">
               <Title order={3} size="h4">
-                Upcoming serving
+                {translateMember("upcomingServing")}
               </Title>
               <Badge color="gray" variant="light">
                 {data.upcomingServing.length}
@@ -389,18 +404,20 @@ export function MemberPortalHome({
                       <Box>
                         <Text fw={600}>{assignment.eventTitle}</Text>
                         <Text c="dimmed" size="sm" mt={6}>
-                          {formatShortDate(assignment.startsAt)} • {assignment.roleTitle}
+                          {formatShortDate(assignment.startsAt, locale)} • {assignment.roleTitle}
                         </Text>
                       </Box>
                       <Badge color={assignment.isConfirmed ? "teal" : "yellow"} variant="light">
-                        {assignment.isConfirmed ? "Confirmed" : "Pending"}
+                        {assignment.isConfirmed
+                          ? translateMember("confirmed")
+                          : translateMember("pending")}
                       </Badge>
                     </Group>
                   </Paper>
                 ))
               ) : (
                 <Text size="sm" c="dimmed">
-                  No serving assignments are scheduled right now.
+                  {translateMember("noServingAssignments")}
                 </Text>
               )}
             </Stack>

@@ -16,6 +16,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
 import { inviteUserAction } from "@/app/app/actions";
+import { useI18n } from "@/components/i18n-provider";
 
 export function ChurchAdminInviteUser() {
   const [opened, { open, close }] = useDisclosure(false);
@@ -25,6 +26,9 @@ export function ChurchAdminInviteUser() {
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState("member");
   const [serverError, setServerError] = useState<string | null>(null);
+  const { t } = useI18n();
+  const translatePeople = (key: string, values?: Record<string, string | number>) =>
+    t("people", key, values);
 
   function handleClose() {
     setEmail("");
@@ -46,22 +50,21 @@ export function ChurchAdminInviteUser() {
 
         if (result?.previewMode) {
           notifications.show({
-            title: "Preview mode",
-            message:
-              "Invite emails require a live Supabase backend. Start Supabase locally to send real invites.",
+            title: translatePeople("previewMode"),
+            message: translatePeople("previewInviteMessage"),
             color: "orange",
           });
         } else {
           notifications.show({
-            title: "Invitation sent",
-            message: `An invite email has been sent to ${email.trim()}.`,
+            title: translatePeople("invitationSent"),
+            message: translatePeople("invitationSentMessage", { value: email.trim() }),
             color: "teal",
           });
         }
         handleClose();
       } catch (error) {
         setServerError(
-          error instanceof Error ? error.message : "Invite could not be sent.",
+          error instanceof Error ? error.message : translatePeople("inviteError"),
         );
       }
     });
@@ -75,25 +78,24 @@ export function ChurchAdminInviteUser() {
         leftSection={<Mail size={15} />}
         onClick={open}
       >
-        Invite user
+        {translatePeople("inviteUser")}
       </Button>
 
       <Modal
         opened={opened}
         onClose={handleClose}
-        title="Invite user"
+        title={translatePeople("inviteUser")}
         size="md"
         radius="lg"
         centered
       >
         <Stack gap="md">
           <Alert color="blue" radius="md">
-            The invited person will receive an email with a sign-in link and be
-            added to this church with the selected role.
+            {translatePeople("inviteDescription")}
           </Alert>
 
           <TextInput
-            label="Email"
+            label={translatePeople("email")}
             value={email}
             onChange={(e) => setEmail(e.currentTarget.value)}
             required
@@ -101,23 +103,23 @@ export function ChurchAdminInviteUser() {
             placeholder="jane@example.com"
           />
           <TextInput
-            label="Full name (optional)"
+            label={translatePeople("fullNameOptional")}
             value={fullName}
             onChange={(e) => setFullName(e.currentTarget.value)}
             radius="md"
             placeholder="Jane Smith"
-            description="Pre-fills their profile when they accept."
+            description={translatePeople("fullNameOptionalDescription")}
           />
           <Select
-            label="Role"
+            label={translatePeople("role")}
             value={role}
             onChange={(v) => setRole(v ?? "member")}
             data={[
-              { value: "member", label: "Member / Volunteer" },
-              { value: "ministry-leader", label: "Ministry leader" },
-              { value: "pastor", label: "Pastor / Elder" },
-              { value: "secretary", label: "Secretary / Office Admin" },
-              { value: "church-admin", label: "Church admin" },
+              { value: "member", label: translatePeople("member_volunteer") },
+              { value: "ministry-leader", label: translatePeople("ministry_leader") },
+              { value: "pastor", label: translatePeople("pastor_elder") },
+              { value: "secretary", label: translatePeople("secretary") },
+              { value: "church-admin", label: translatePeople("church_admin") },
             ]}
             radius="md"
           />
@@ -130,7 +132,7 @@ export function ChurchAdminInviteUser() {
 
           <Group justify="flex-end">
             <Button variant="default" radius="xl" onClick={handleClose}>
-              Cancel
+              {translatePeople("cancel")}
             </Button>
             <Button
               radius="xl"
@@ -139,7 +141,7 @@ export function ChurchAdminInviteUser() {
               disabled={!email.trim()}
               leftSection={<Mail size={15} />}
             >
-              Send invite
+              {translatePeople("sendInvite")}
             </Button>
           </Group>
         </Stack>

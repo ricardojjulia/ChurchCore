@@ -15,6 +15,7 @@ import {
 import { notifications } from "@mantine/notifications";
 
 import { submitPortalAccountRequestAction } from "@/app/portal/actions";
+import { useI18n } from "@/components/i18n-provider";
 import type { PublicPortalChurch } from "@/lib/public-portal-data";
 
 export function PortalRegisterForm({
@@ -34,6 +35,9 @@ export function PortalRegisterForm({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [isPending, startTransition] = useTransition();
+  const { t } = useI18n();
+  const translate = (key: string, values?: Record<string, string | number>) =>
+    t("portal", key, values);
 
   const churchOptions = useMemo(
     () =>
@@ -56,10 +60,10 @@ export function PortalRegisterForm({
         });
 
         notifications.show({
-          title: "Request received",
+          title: translate("requestReceived"),
           message: result.previewMode
-            ? "Preview mode recorded the request locally. Connect the tenant backend to send it through the real approval flow."
-            : "Your request was submitted. A church administrator will review it and send a portal invitation if approved.",
+            ? translate("previewRequestSubmitted")
+            : translate("requestSubmitted"),
           color: result.previewMode ? "orange" : "teal",
         });
 
@@ -69,8 +73,9 @@ export function PortalRegisterForm({
         setPhone("");
       } catch (error) {
         notifications.show({
-          title: "Request failed",
-          message: error instanceof Error ? error.message : "The request could not be submitted.",
+          title: translate("requestFailed"),
+          message:
+            error instanceof Error ? error.message : translate("requestFailedMessage"),
           color: "red",
         });
       }
@@ -81,29 +86,28 @@ export function PortalRegisterForm({
     <Paper withBorder radius="xl" p={{ base: "lg", sm: "xl" }}>
       <Stack gap="lg">
         <div>
-          <Title order={2}>Request portal access</Title>
+          <Title order={2}>{translate("requestTitle")}</Title>
           <Text size="sm" c="dimmed" mt="sm">
-            Submit your details to request access to the ChurchCore Ops member portal. Your church will review the request before activating an account.
+            {translate("registerDescription")}
           </Text>
         </div>
 
         <Alert color="blue" radius="xl" variant="light">
-          The portal exposes only your own profile, attendance history, and serving assignments.
+          {translate("portalPrivacy")}
         </Alert>
 
         {resolvedChurch ? (
           <Alert color="teal" radius="xl" variant="light">
-            Church detected from this address: <strong>{resolvedChurch.name}</strong>. Your request
-            will be routed there automatically.
+            {translate("detectedChurchRoute", { church: resolvedChurch.name })}
           </Alert>
         ) : null}
 
         <Select
-          label="Church"
+          label={translate("church")}
           value={churchId}
           onChange={setChurchId}
           data={churchOptions}
-          placeholder="Select your church"
+          placeholder={translate("selectChurch")}
           searchable
           radius="xl"
           disabled={!churchOptions.length || Boolean(resolvedChurch)}
@@ -111,28 +115,28 @@ export function PortalRegisterForm({
 
         <Stack gap="md">
           <TextInput
-            label="First name"
+            label={translate("firstName")}
             value={firstName}
             onChange={(event) => setFirstName(event.currentTarget.value)}
             radius="xl"
             required
           />
           <TextInput
-            label="Last name"
+            label={translate("lastName")}
             value={lastName}
             onChange={(event) => setLastName(event.currentTarget.value)}
             radius="xl"
             required
           />
           <TextInput
-            label="Email"
+            label={translate("email")}
             value={email}
             onChange={(event) => setEmail(event.currentTarget.value)}
             radius="xl"
             required
           />
           <TextInput
-            label="Phone"
+            label={translate("phone")}
             value={phone}
             onChange={(event) => setPhone(event.currentTarget.value)}
             radius="xl"
@@ -145,7 +149,7 @@ export function PortalRegisterForm({
           loading={isPending}
           disabled={!churchId || !firstName.trim() || !lastName.trim() || !email.trim()}
         >
-          Submit request
+          {translate("submitRequest")}
         </Button>
       </Stack>
     </Paper>

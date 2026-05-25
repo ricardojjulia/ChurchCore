@@ -16,6 +16,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { Pencil } from "lucide-react";
 
 import { updateMemberProfileAction } from "@/app/app/actions";
+import { useI18n } from "@/components/i18n-provider";
 import type { MemberPortalProfile } from "@/lib/member-portal-data";
 
 type Props = {
@@ -44,6 +45,8 @@ export function MemberProfileEdit({ profile }: Props) {
     profile.directoryVisible,
   );
   const [contactAllowed, setContactAllowed] = useState(profile.contactAllowed);
+  const { t } = useI18n();
+  const translateMember = (key: string) => t("member", key);
 
   function handleOpen() {
     // Reset to current profile values each time the modal opens.
@@ -81,7 +84,7 @@ export function MemberProfileEdit({ profile }: Props) {
         close();
       } catch (err) {
         setServerError(
-          err instanceof Error ? err.message : "Failed to save. Please try again.",
+          err instanceof Error ? err.message : translateMember("profileSaveError"),
         );
       }
     });
@@ -95,20 +98,20 @@ export function MemberProfileEdit({ profile }: Props) {
         leftSection={<Pencil size={15} />}
         onClick={handleOpen}
       >
-        Edit profile
+        {translateMember("editProfile")}
       </Button>
 
       <Modal
         opened={opened}
         onClose={close}
-        title="Edit your profile"
+        title={translateMember("editYourProfile")}
         radius="lg"
         size="md"
         centered
       >
         <Stack gap="md">
           <TextInput
-            label="Full name"
+            label={translateMember("fullName")}
             value={fullName}
             onChange={(e) => setFullName(e.currentTarget.value)}
             required
@@ -116,7 +119,7 @@ export function MemberProfileEdit({ profile }: Props) {
           />
 
           <TextInput
-            label="Phone"
+            label={translateMember("phone")}
             value={phone}
             onChange={(e) => setPhone(e.currentTarget.value)}
             placeholder="(555) 000-0000"
@@ -124,7 +127,7 @@ export function MemberProfileEdit({ profile }: Props) {
           />
 
           <TextInput
-            label="Address"
+            label={translateMember("address")}
             value={address}
             onChange={(e) => setAddress(e.currentTarget.value)}
             placeholder="123 Main St, City, State"
@@ -132,43 +135,43 @@ export function MemberProfileEdit({ profile }: Props) {
           />
 
           <Select
-            label="Preferred contact method"
+            label={translateMember("preferredContactMethod")}
             value={preferredContactMethod}
             onChange={setPreferredContactMethod}
             data={[
-              { value: "email", label: "Email" },
-              { value: "sms", label: "SMS / Text" },
-              { value: "app", label: "In-app notification" },
-              { value: "none", label: "No preference" },
+              { value: "email", label: translateMember("email") },
+              { value: "sms", label: translateMember("smsText") },
+              { value: "app", label: translateMember("inAppNotification") },
+              { value: "none", label: translateMember("noPreference") },
             ]}
             clearable
-            placeholder="Select one"
+            placeholder={translateMember("selectOne")}
             radius="md"
           />
 
           <Textarea
-            label="Interests"
+            label={translateMember("interests")}
             value={interests}
             onChange={(e) => setInterests(e.currentTarget.value)}
-            placeholder="Community groups, hospitality, youth, prayer"
-            description="Comma-separated interests help your church match opportunities and follow-up."
+            placeholder={translateMember("interestsPlaceholder")}
+            description={translateMember("interestsDescription")}
             minRows={2}
             radius="md"
           />
 
           <Stack gap="xs">
             <Text size="sm" fw={500}>
-              Emergency contact
+              {translateMember("emergencyContact")}
             </Text>
             <TextInput
-              label="Name"
+              label={translateMember("name")}
               value={emergencyContactName}
               onChange={(e) => setEmergencyContactName(e.currentTarget.value)}
               placeholder="Jane Doe"
               radius="md"
             />
             <TextInput
-              label="Phone"
+              label={translateMember("phone")}
               value={emergencyContactPhone}
               onChange={(e) => setEmergencyContactPhone(e.currentTarget.value)}
               placeholder="(555) 000-0000"
@@ -178,16 +181,16 @@ export function MemberProfileEdit({ profile }: Props) {
 
           <Stack gap="xs">
             <Text size="sm" fw={500}>
-              Privacy
+              {translateMember("privacy")}
             </Text>
             <Checkbox
-              label="Show my name in the church directory"
+              label={translateMember("showNameInDirectory")}
               checked={directoryVisible}
               onChange={(e) => setDirectoryVisible(e.currentTarget.checked)}
               radius="sm"
             />
             <Checkbox
-              label="Allow other members to contact me"
+              label={translateMember("allowMembersContact")}
               checked={contactAllowed}
               onChange={(e) => setContactAllowed(e.currentTarget.checked)}
               radius="sm"
@@ -202,7 +205,7 @@ export function MemberProfileEdit({ profile }: Props) {
 
           <Group justify="flex-end" mt="xs">
             <Button variant="default" radius="xl" onClick={close}>
-              Cancel
+              {translateMember("cancel")}
             </Button>
             <Button
               radius="xl"
@@ -210,7 +213,7 @@ export function MemberProfileEdit({ profile }: Props) {
               loading={isPending}
               disabled={!fullName.trim()}
             >
-              Save changes
+              {translateMember("saveChanges")}
             </Button>
           </Group>
         </Stack>

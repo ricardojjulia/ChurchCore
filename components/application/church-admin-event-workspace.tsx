@@ -6,12 +6,14 @@ import {
   AlertTriangle,
   BellRing,
   CalendarRange,
+  ClipboardList,
   DollarSign,
   HeartHandshake,
   MailCheck,
   Search,
   Sparkles,
   UserPlus,
+  Users,
   UsersRound,
 } from "lucide-react";
 import {
@@ -844,6 +846,67 @@ import {
 } from "@/app/app/church-admin-actions";
 import { NumberInput, Switch } from "@mantine/core";
 import { UserCheck, UserX, Download } from "lucide-react";
+
+export function ChurchAdminEventDetailWorkspace({
+  session,
+  eventId,
+  data,
+  registrations,
+  settings,
+}: {
+  session: import("@/lib/auth").ChurchAppSession;
+  eventId: string;
+  data: ChurchAdminEventWorkspaceData;
+  registrations: EventRegistration[];
+  settings: EventRegistrationSettings | null;
+}) {
+  return (
+    <ApplicationShell
+      session={session}
+      workspaceHref={session.homePath}
+      calendarHref="/app/calendar"
+      sectionLabel="Events"
+      title={data.event.title}
+      description={session.appContext.church.name}
+      sidebarTitle="Event management"
+      sidebarDescription="Roster, attendance & registrations"
+      navLabel="Church admin"
+      navItems={[
+        {
+          href: "/app/church-admin/events",
+          label: "Events",
+          description: "All events",
+          icon: "ClipboardList",
+          active: false,
+        },
+      ]}
+    >
+      <Tabs defaultValue="roster" p="md">
+        <Tabs.List mb="md">
+          <Tabs.Tab value="roster" leftSection={<Users size={14} />}>
+            Roster & Attendance
+          </Tabs.Tab>
+          <Tabs.Tab value="registrations" leftSection={<ClipboardList size={14} />}>
+            Registrations ({registrations.filter((r) => r.status !== "cancelled").length})
+          </Tabs.Tab>
+        </Tabs.List>
+
+        <Tabs.Panel value="roster">
+          <ChurchAdminEventWorkspace session={session} data={data} embedded />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="registrations">
+          <EventRegistrationsPanel
+            session={session}
+            eventId={eventId}
+            registrations={registrations}
+            settings={settings}
+          />
+        </Tabs.Panel>
+      </Tabs>
+    </ApplicationShell>
+  );
+}
 
 export function EventRegistrationsPanel({
   session,

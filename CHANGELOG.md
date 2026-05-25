@@ -10,6 +10,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 - Added `docs/diagrams.md` as the canonical diagram set for the repository, with Mermaid source for system architecture, role/surface mapping, core workflows, and documentation flow.
 - Added `docs/development-plan-visual.md` as a visual companion to `DEVELOPMENT_PLAN.md`, covering strategy, roadmap, boundary/security model, and Sprint 1 execution flow.
+- Added `docs/plans/github-repository-operations.md` to preserve the GitHub roadmap for projects, milestones, issue forms, branch protection, security triage, and releases.
 - Added static SVG diagram companions under `docs/assets/diagrams/` for environments where Mermaid rendering is unavailable.
 - Added `docs/application-guide.md` as the end-to-end application walkthrough covering first entry, tenant roles, ChurchAdmin operations, member workflows, public portal behavior, control-plane boundaries, security posture, and current Sprint 2 gaps.
 - Added `docs/mvp-readiness-audit.md` to capture the current product, UI, information architecture, verification, and MVP-readiness assessment.

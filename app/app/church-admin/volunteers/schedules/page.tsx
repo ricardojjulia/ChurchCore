@@ -4,12 +4,11 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import { ServicePlansWorkspace } from "@/components/application/volunteer-schedule";
 import { requireChurchSession } from "@/lib/auth";
 import { getServicePlanList, getServicePlanTemplates } from "@/lib/volunteer-data";
-import { CalendarCheck, Users } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/app/church-admin", label: "Home", description: "Church admin", icon: Users },
-  { href: "/app/church-admin/volunteers", label: "Volunteers", description: "Directory & hours", icon: Users },
-  { href: "/app/church-admin/volunteers/schedules", label: "Schedules", description: "Service plans", icon: CalendarCheck, active: true },
+  { href: "/app/church-admin", label: "Home", description: "Church admin", icon: "Users" },
+  { href: "/app/church-admin/volunteers", label: "Volunteers", description: "Directory & hours", icon: "Users" },
+  { href: "/app/church-admin/volunteers/schedules", label: "Schedules", description: "Service plans", icon: "CalendarCheck", active: true },
 ];
 
 export default async function ServicePlansPage() {

@@ -9,7 +9,7 @@ describe("public host routing", () => {
   });
 
   it("ignores localhost and reserved hosts", () => {
-    expect(extractPublicChurchSlugFromHost("localhost:3000")).toBeNull();
+    expect(extractPublicChurchSlugFromHost("localhost:4200")).toBeNull();
     expect(extractPublicChurchSlugFromHost("www.churchcoreops.com")).toBeNull();
     expect(extractPublicChurchSlugFromHost("app.churchcoreops.com")).toBeNull();
   });

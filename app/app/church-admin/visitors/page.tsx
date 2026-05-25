@@ -4,27 +4,26 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import { VisitorPipeline } from "@/components/application/visitor-pipeline";
 import { requireChurchSession } from "@/lib/auth";
 import { getFirstTimeVisitors } from "@/lib/groups-data";
-import { HeartHandshake, UserPlus, Users } from "lucide-react";
 
 const NAV_ITEMS = [
   {
     href: "/app/church-admin",
     label: "Home",
     description: "Church admin",
-    icon: HeartHandshake,
+    icon: "HeartHandshake",
   },
   {
     href: "/app/church-admin/visitors",
     label: "Visitors",
     description: "First-visit pipeline",
-    icon: UserPlus,
+    icon: "UserPlus",
     active: true,
   },
   {
     href: "/app/church-admin/people",
     label: "People",
     description: "Member directory",
-    icon: Users,
+    icon: "Users",
   },
 ];
 

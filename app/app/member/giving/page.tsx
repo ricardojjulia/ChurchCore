@@ -5,7 +5,6 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import { MemberBottomNav } from "@/components/application/member-bottom-nav";
 import { requireChurchSession } from "@/lib/auth";
 import { getDonorPortalData } from "@/lib/donations-data";
-import { Heart } from "lucide-react";
 
 export default async function MemberGivingPage() {
   const session = await requireChurchSession("/app/member/giving");
@@ -21,13 +20,13 @@ export default async function MemberGivingPage() {
       href: "/app/member",
       label: "Home",
       description: "Member overview",
-      icon: Heart,
+      icon: "Heart",
     },
     {
       href: "/app/member/giving",
       label: "Giving",
       description: "Your giving history",
-      icon: Heart,
+      icon: "Heart",
       active: true,
     },
   ];

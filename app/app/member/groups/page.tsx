@@ -1,5 +1,3 @@
-import { Users } from "lucide-react";
-
 import { ApplicationShell } from "@/components/application/app-shell";
 import { MemberBottomNav } from "@/components/application/member-bottom-nav";
 import { MemberGroupsBrowser } from "@/components/application/member-groups-browser";
@@ -12,8 +10,8 @@ export default async function MemberGroupsPage() {
   const data = await getGroupsList(session, { activeOnly: true });
 
   const navItems = [
-    { href: "/app/member", label: "Home", description: "Member overview", icon: Users },
-    { href: "/app/member/groups", label: "Groups", description: "Browse small groups", icon: Users, active: true },
+    { href: "/app/member", label: "Home", description: "Member overview", icon: "Users" },
+    { href: "/app/member/groups", label: "Groups", description: "Browse small groups", icon: "Users", active: true },
   ];
 
   return (

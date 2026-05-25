@@ -9,7 +9,6 @@ import {
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
-import { ShieldCheck } from "lucide-react";
 
 async function fetchDataRightsStatus(profileId: string) {
   if (shouldUseLocalTenantFallback()) {
@@ -60,13 +59,13 @@ export default async function MemberDataRightsPage() {
       href: "/app/member",
       label: "Home",
       description: "Member overview",
-      icon: ShieldCheck,
+      icon: "ShieldCheck",
     },
     {
       href: "/app/member/data-rights",
       label: "My Data",
       description: "Privacy & data rights",
-      icon: ShieldCheck,
+      icon: "ShieldCheck",
       active: true,
     },
   ];

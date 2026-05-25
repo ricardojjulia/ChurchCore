@@ -14,13 +14,13 @@ This document covers how to start, seed, and reset the local Supabase instance f
 
 | Tool | URL |
 | --- | --- |
-| Project URL | `http://127.0.0.1:54321` |
-| Studio | `http://127.0.0.1:54323` |
-| Mailpit | `http://127.0.0.1:54324` |
-| REST | `http://127.0.0.1:54321/rest/v1` |
-| GraphQL | `http://127.0.0.1:54321/graphql/v1` |
-| Edge Functions | `http://127.0.0.1:54321/functions/v1` |
-| App | `http://localhost:3000` |
+| Project URL | `http://127.0.0.1:4201` |
+| Studio | `http://127.0.0.1:4204` |
+| Mailpit | `http://127.0.0.1:4205` |
+| REST | `http://127.0.0.1:4201/rest/v1` |
+| GraphQL | `http://127.0.0.1:4201/graphql/v1` |
+| Edge Functions | `http://127.0.0.1:4201/functions/v1` |
+| App | `http://localhost:4200` |
 
 ---
 
@@ -36,23 +36,23 @@ This launches the local stack: Postgres, Auth, REST API, Studio, and Mailpit. Se
 
 | Service   | URL                        |
 |-----------|----------------------------|
-| API       | http://127.0.0.1:54321     |
-| Studio    | http://127.0.0.1:54323     |
-| Mailpit   | http://127.0.0.1:54324     |
-| DB (psql) | postgresql://postgres:<local-db-password>@127.0.0.1:54322/postgres |
+| API       | http://127.0.0.1:4201      |
+| Studio    | http://127.0.0.1:4204      |
+| Mailpit   | http://127.0.0.1:4205      |
+| DB (psql) | postgresql://postgres:<local-db-password>@127.0.0.1:4202/postgres |
 
 ### 2. Configure `.env.local`
 
 Your `.env.local` should contain values derived from `npx supabase status --output env`:
 
 ```env
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=http://localhost:4200
 
 # Local Supabase
-NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:4201
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJ...   # ANON_KEY from supabase status --output env
 SUPABASE_SERVICE_ROLE_KEY=eyJ...              # SERVICE_ROLE_KEY from supabase status --output env
-SUPABASE_DB_URL=postgresql://postgres:<local-db-password>@127.0.0.1:54322/postgres
+SUPABASE_DB_URL=postgresql://postgres:<local-db-password>@127.0.0.1:4202/postgres
 ```
 
 > **Note:** The publishable key is the JWT `eyJ…` format. The `sb_publishable_*` format shown in `supabase status` (non-`--output env`) is NOT compatible with `@supabase/ssr`.
@@ -198,10 +198,10 @@ npm run smoke:preview
 npm run smoke:local
 
 # Open Studio (database browser)
-open http://127.0.0.1:54323
+open http://127.0.0.1:4204
 
 # Open Mailpit (email preview — catches all outgoing email locally)
-open http://127.0.0.1:54324
+open http://127.0.0.1:4205
 
 # Check status + get API keys
 npx supabase status --output env
@@ -212,11 +212,11 @@ npx supabase status --output env
 ## App URLs
 
 ```
-Sign in:         http://localhost:3000/sign-in
-Tenant app:      http://localhost:3000/app
-Calendar:        http://localhost:3000/app/calendar
-Ministry Forge:  http://localhost:3000/app/church-admin/ministry
-CCM Dashboard:   http://localhost:3000/app/church-admin/children/dashboard
+Sign in:         http://localhost:4200/sign-in
+Tenant app:      http://localhost:4200/app
+Calendar:        http://localhost:4200/app/calendar
+Ministry Forge:  http://localhost:4200/app/church-admin/ministry
+CCM Dashboard:   http://localhost:4200/app/church-admin/children/dashboard
 ```
 
 ---
@@ -225,7 +225,7 @@ CCM Dashboard:   http://localhost:3000/app/church-admin/children/dashboard
 
 ### Auth flow (local)
 
-The app detects local Supabase by checking if `NEXT_PUBLIC_SUPABASE_URL` contains `127.0.0.1:54321`. When true and `SUPABASE_DB_URL` is set, it activates a **local DB fallback** path that executes raw SQL against Postgres directly (bypassing RLS). This is intentional for development — it means pages load even when RLS would deny the request.
+The app detects local Supabase by checking if `NEXT_PUBLIC_SUPABASE_URL` starts with a local `127.0.0.1` or `localhost` URL. When true and `SUPABASE_DB_URL` is set, it activates a **local DB fallback** path that executes raw SQL against Postgres directly (bypassing RLS). This is intentional for development — it means pages load even when RLS would deny the request.
 
 ### Key env variables
 
@@ -280,7 +280,7 @@ Use `ANON_KEY` as `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `SERVICE_ROLE_KEY` 
 The specialized tabs appear only when `ministry.ministry_type` is one of: `worship`, `men`, `women`, `marriage`, `missions`, `children`, `youth`, `young_adult`, `education`, `outreach`. The seed sets these correctly for the 10 demo ministries.
 
 **RLS blocking queries in dev**
-The local fallback path uses raw SQL (bypassing RLS) when `SUPABASE_DB_URL` is set and the URL includes `127.0.0.1`. If you're seeing empty data, check that `SUPABASE_DB_URL` is set in `.env.local`.
+The local fallback path uses raw SQL (bypassing RLS) when `SUPABASE_DB_URL` is set and the Supabase URL points to `127.0.0.1` or `localhost`. If you're seeing empty data, check that `SUPABASE_DB_URL` is set in `.env.local`.
 
 ## Local Dev Security Notice
 

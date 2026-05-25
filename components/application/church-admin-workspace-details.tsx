@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import {
   BellRing,
   ClipboardList,
@@ -22,6 +22,7 @@ import {
 } from "@mantine/core";
 
 import { persistChurchAdminWorkspaceStateAction } from "@/app/workspace/actions";
+import { useI18n } from "@/components/i18n-provider";
 import type {
   ChurchAdminWorkspaceState,
   WeekendItemState,
@@ -30,27 +31,27 @@ import type { ChurchAdminOperationsData } from "@/lib/church-admin-operations-da
 
 const sectionMeta = {
   care: {
-    label: "Care",
-    title: "Care",
-    description: "Requests and follow-up",
+    labelKey: "careLabel",
+    titleKey: "careTitle",
+    descriptionKey: "careDescription",
     icon: HeartPulse,
   },
   weekend: {
-    label: "Weekend",
-    title: "Weekend",
-    description: "Open operational items",
+    labelKey: "weekendLabel",
+    titleKey: "weekendTitle",
+    descriptionKey: "weekendDescription",
     icon: ClipboardList,
   },
   comms: {
-    label: "Comms",
-    title: "Communications",
-    description: "Drafts and sends",
+    labelKey: "commsLabel",
+    titleKey: "commsTitle",
+    descriptionKey: "commsDescription",
     icon: BellRing,
   },
   giving: {
-    label: "Giving",
-    title: "Giving",
-    description: "Review and reconciliation",
+    labelKey: "givingLabel",
+    titleKey: "givingTitle",
+    descriptionKey: "givingDescription",
     icon: Wallet,
   },
 } as const;
@@ -72,6 +73,15 @@ function nextChecklistStatus(
   return "done";
 }
 
+function formatKnownValue(
+  value: string,
+  translate: (key: string) => string,
+) {
+  const key = value.toLowerCase().replaceAll("-", "_").replaceAll(" ", "_");
+  const translated = translate(key);
+  return translated === key ? value : translated;
+}
+
 export function ChurchAdminWorkspaceDetails({
   initialState,
   operationsData,
@@ -84,6 +94,16 @@ export function ChurchAdminWorkspaceDetails({
   const [isPending, startTransition] = useTransition();
   const [workspaceState, setWorkspaceState] =
     useState<ChurchAdminWorkspaceState>(initialState);
+  const { t } = useI18n();
+  const translateOps = useCallback(
+    (key: string, values?: Record<string, string | number>) =>
+      t("churchAdminOps", key, values),
+    [t],
+  );
+  const translateKnown = useCallback(
+    (value: string) => formatKnownValue(value, translateOps),
+    [translateOps],
+  );
 
   const { careItems, weekendItems, communicationsItems, givingItems } =
     workspaceState;
@@ -135,7 +155,7 @@ export function ChurchAdminWorkspaceDetails({
                 })
               }
             >
-              Reassign
+              {translateOps("reassign")}
             </Button>
             <Button
               radius="xl"
@@ -145,20 +165,20 @@ export function ChurchAdminWorkspaceDetails({
                   ...workspaceState,
                   careItems: careItems.map((entry) =>
                     entry.id === item.id
-                      ? { ...entry, stage: "contacted", age: "Updated just now" }
+                      ? { ...entry, stage: "contacted", age: "updated_just_now" }
                       : entry,
                   ),
                 })
               }
             >
-              Mark contacted
+              {translateOps("markContacted")}
             </Button>
           </Group>
         ),
         notes: [
-          `Owner: ${item.owner}`,
-          `Stage: ${item.stage}`,
-          `Open age: ${item.age}`,
+          translateOps("ownerNote", { value: item.owner }),
+          translateOps("stageNote", { value: translateKnown(item.stage) }),
+          translateOps("openAgeNote", { value: translateKnown(item.age) }),
         ],
       };
     }
@@ -184,10 +204,14 @@ export function ChurchAdminWorkspaceDetails({
               })
             }
           >
-            Advance status
+            {translateOps("advanceStatus")}
           </Button>
         ),
-        notes: [`Current state: ${item.status}`],
+        notes: [
+          translateOps("currentStateNote", {
+            value: translateKnown(item.status),
+          }),
+        ],
       };
     }
 
@@ -196,7 +220,10 @@ export function ChurchAdminWorkspaceDetails({
       if (!item) return null;
 
       return {
-        title: `${item.channel} to ${item.audience}`,
+        title: translateOps("communicationTitle", {
+          channel: item.channel,
+          audience: item.audience,
+        }),
         subtitle: item.message,
         actions: (
           <Group>
@@ -211,7 +238,7 @@ export function ChurchAdminWorkspaceDetails({
                 })
               }
             >
-              Ready
+              {translateOps("readyAction")}
             </Button>
             <Button
               radius="xl"
@@ -227,11 +254,14 @@ export function ChurchAdminWorkspaceDetails({
                 })
               }
             >
-              Schedule
+              {translateOps("schedule")}
             </Button>
           </Group>
         ),
-        notes: [`Due: ${item.due}`, `Status: ${item.status}`],
+        notes: [
+          translateOps("dueNote", { value: item.due }),
+          translateOps("statusNote", { value: translateKnown(item.status) }),
+        ],
       };
     }
 
@@ -254,7 +284,7 @@ export function ChurchAdminWorkspaceDetails({
               })
             }
           >
-            Flag
+            {translateOps("flag")}
           </Button>
           <Button
             radius="xl"
@@ -270,37 +300,65 @@ export function ChurchAdminWorkspaceDetails({
               })
             }
           >
-            Reconcile
+            {translateOps("reconcile")}
           </Button>
         </Group>
       ),
-      notes: [`Amount: ${item.amount}`, `Status: ${item.status}`],
+      notes: [
+        translateOps("amountNote", { value: item.amount }),
+        translateOps("statusNote", { value: translateKnown(item.status) }),
+      ],
     };
-  }, [careItems, communicationsItems, drawer, givingItems, weekendItems, workspaceState]);
+  }, [
+    careItems,
+    communicationsItems,
+    drawer,
+    givingItems,
+    translateKnown,
+    translateOps,
+    weekendItems,
+    workspaceState,
+  ]);
 
   return (
     <>
-      <Paper withBorder radius="xl" p="xl">
+      <Paper
+        radius="lg"
+        p="xl"
+        style={{
+          background: "#ffffff",
+          border: "1px solid rgba(16, 24, 39, 0.1)",
+          boxShadow: "0 18px 48px rgba(16, 24, 39, 0.08)",
+        }}
+      >
         <Group justify="space-between" align="center" mb="xl">
           <div>
-            <Badge color="gray" variant="light" mb="sm">
-              Operations
+            <Badge color="dark" variant="light" radius="sm" mb="sm">
+              {translateOps("operations")}
             </Badge>
-            <Title order={2}>Church admin</Title>
+            <Title order={2} c="#101827">{translateOps("churchAdmin")}</Title>
           </div>
           <SegmentedControl
             value={activeSection}
             onChange={(value) => setActiveSection(value as SectionKey)}
             data={(Object.keys(sectionMeta) as SectionKey[]).map((key) => ({
-              label: sectionMeta[key].label,
+              label: translateOps(sectionMeta[key].labelKey),
               value: key,
             }))}
           />
         </Group>
 
-        <Paper withBorder radius="xl" p="xl">
+        <Paper
+          radius="lg"
+          p="xl"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(248, 251, 255, 0.96), rgba(255, 255, 255, 1))",
+            border: "1px solid rgba(16, 24, 39, 0.08)",
+          }}
+        >
           <Group gap="sm" mb="lg">
-            <ThemeIcon color="gray" variant="light" radius="xl">
+            <ThemeIcon color="teal" variant="light" radius="md">
               {(() => {
                 const Icon = sectionMeta[activeSection].icon;
                 return <Icon size={18} />;
@@ -308,10 +366,10 @@ export function ChurchAdminWorkspaceDetails({
             </ThemeIcon>
             <div>
               <Title order={3} size="h4">
-                {sectionMeta[activeSection].title}
+                {translateOps(sectionMeta[activeSection].titleKey)}
               </Title>
               <Text c="dimmed" size="sm" mt={4}>
-                {sectionMeta[activeSection].description}
+                {translateOps(sectionMeta[activeSection].descriptionKey)}
               </Text>
             </div>
           </Group>
@@ -320,7 +378,7 @@ export function ChurchAdminWorkspaceDetails({
             {activeSection === "care" && liveCareItems
               ? liveCareItems.length > 0
                 ? liveCareItems.map((item) => (
-                    <Paper key={item.id} radius="xl" p="md" bg="gray.0">
+                    <Paper key={item.id} radius="md" p="md" bg="white" withBorder>
                       <Group justify="space-between" align="flex-start" gap="md">
                         <div>
                           <Text fw={600}>{item.title}</Text>
@@ -346,7 +404,7 @@ export function ChurchAdminWorkspaceDetails({
                             }
                             variant="light"
                           >
-                            {item.status}
+                            {translateKnown(item.status)}
                           </Badge>
                           <Button
                             component={Link}
@@ -354,17 +412,17 @@ export function ChurchAdminWorkspaceDetails({
                             radius="xl"
                             variant="subtle"
                           >
-                            Open person
+                            {translateOps("openPerson")}
                           </Button>
                         </Group>
                       </Group>
                     </Paper>
                   ))
                 : (
-                    <Paper radius="xl" p="md" bg="gray.0">
-                      <Text fw={600}>No care actions need attention.</Text>
+                    <Paper radius="md" p="md" bg="white" withBorder>
+                      <Text fw={600}>{translateOps("noCareActions")}</Text>
                       <Text c="dimmed" size="sm" mt="xs">
-                        Open assignments are assigned, contacted, and not near their due window.
+                        {translateOps("noCareActionsDescription")}
                       </Text>
                     </Paper>
                   )
@@ -372,7 +430,7 @@ export function ChurchAdminWorkspaceDetails({
 
             {activeSection === "care" && !liveCareItems
               ? careItems.map((item) => (
-                  <Paper key={item.id} radius="xl" p="md" bg="gray.0">
+                  <Paper key={item.id} radius="md" p="md" bg="white" withBorder>
                     <Group justify="space-between" align="flex-start" gap="md">
                       <div>
                         <Group gap="sm">
@@ -387,15 +445,15 @@ export function ChurchAdminWorkspaceDetails({
                             }
                             variant="light"
                           >
-                            {item.urgency}
+                            {translateKnown(item.urgency)}
                           </Badge>
-                          <Badge variant="outline">{item.stage}</Badge>
+                          <Badge variant="outline">{translateKnown(item.stage)}</Badge>
                         </Group>
                         <Text c="dimmed" size="sm" mt="xs">
                           {item.request}
                         </Text>
                         <Text size="sm" mt="xs">
-                          Owner: {item.owner}
+                          {translateOps("ownerInline", { value: item.owner })}
                         </Text>
                       </div>
                       <Button
@@ -403,7 +461,7 @@ export function ChurchAdminWorkspaceDetails({
                         variant="subtle"
                         onClick={() => setDrawer({ section: "care", id: item.id })}
                       >
-                        Details
+                        {translateOps("details")}
                       </Button>
                     </Group>
                   </Paper>
@@ -413,7 +471,7 @@ export function ChurchAdminWorkspaceDetails({
             {activeSection === "weekend" && liveWeekendItems
               ? liveWeekendItems.length > 0
                 ? liveWeekendItems.map((item) => (
-                    <Paper key={item.id} radius="xl" p="md" bg="gray.0">
+                    <Paper key={item.id} radius="md" p="md" bg="white" withBorder>
                       <Group justify="space-between" align="flex-start" gap="md">
                         <div>
                           <Text fw={600}>{item.title}</Text>
@@ -439,7 +497,7 @@ export function ChurchAdminWorkspaceDetails({
                             }
                             variant="light"
                           >
-                            {item.status}
+                            {translateKnown(item.status)}
                           </Badge>
                           <Button
                             component={Link}
@@ -447,17 +505,17 @@ export function ChurchAdminWorkspaceDetails({
                             radius="xl"
                             variant="subtle"
                           >
-                            Open event
+                            {translateOps("openEvent")}
                           </Button>
                         </Group>
                       </Group>
                     </Paper>
                   ))
                 : (
-                    <Paper radius="xl" p="md" bg="gray.0">
-                      <Text fw={600}>No event actions need attention.</Text>
+                    <Paper radius="md" p="md" bg="white" withBorder>
+                      <Text fw={600}>{translateOps("noEventActions")}</Text>
                       <Text c="dimmed" size="sm" mt="xs">
-                        Upcoming events have approval, roster, and registration checks in good shape.
+                        {translateOps("noEventActionsDescription")}
                       </Text>
                     </Paper>
                   )
@@ -465,7 +523,7 @@ export function ChurchAdminWorkspaceDetails({
 
             {activeSection === "weekend" && !liveWeekendItems
               ? weekendItems.map((item) => (
-                  <Paper key={item.id} radius="xl" p="md" bg="gray.0">
+                  <Paper key={item.id} radius="md" p="md" bg="white" withBorder>
                     <Group justify="space-between" align="flex-start" gap="md">
                       <div>
                         <Text fw={600}>{item.title}</Text>
@@ -484,14 +542,14 @@ export function ChurchAdminWorkspaceDetails({
                           }
                           variant="light"
                         >
-                          {item.status}
+                          {translateKnown(item.status)}
                         </Badge>
                         <Button
                           radius="xl"
                           variant="subtle"
                           onClick={() => setDrawer({ section: "weekend", id: item.id })}
                         >
-                          Details
+                          {translateOps("details")}
                         </Button>
                       </Group>
                     </Group>
@@ -502,7 +560,7 @@ export function ChurchAdminWorkspaceDetails({
             {activeSection === "comms" && liveCommunicationItems
               ? liveCommunicationItems.length > 0
                 ? liveCommunicationItems.map((item) => (
-                    <Paper key={item.id} radius="xl" p="md" bg="gray.0">
+                    <Paper key={item.id} radius="md" p="md" bg="white" withBorder>
                       <Group justify="space-between" align="flex-start" gap="md">
                         <div>
                           <Text fw={600}>{item.title}</Text>
@@ -528,7 +586,7 @@ export function ChurchAdminWorkspaceDetails({
                             }
                             variant="light"
                           >
-                            {item.status}
+                            {translateKnown(item.status)}
                           </Badge>
                           <Button
                             component={Link}
@@ -536,17 +594,17 @@ export function ChurchAdminWorkspaceDetails({
                             radius="xl"
                             variant="subtle"
                           >
-                            Open
+                            {translateOps("open")}
                           </Button>
                         </Group>
                       </Group>
                     </Paper>
                   ))
                 : (
-                    <Paper radius="xl" p="md" bg="gray.0">
-                      <Text fw={600}>No communication actions need attention.</Text>
+                    <Paper radius="md" p="md" bg="white" withBorder>
+                      <Text fw={600}>{translateOps("noCommunicationActions")}</Text>
                       <Text c="dimmed" size="sm" mt="xs">
-                        Queued sends, failures, and consent/contact checks are clear.
+                        {translateOps("noCommunicationActionsDescription")}
                       </Text>
                     </Paper>
                   )
@@ -554,7 +612,7 @@ export function ChurchAdminWorkspaceDetails({
 
             {activeSection === "comms" && !liveCommunicationItems
               ? communicationsItems.map((item) => (
-                  <Paper key={item.id} radius="xl" p="md" bg="gray.0">
+                  <Paper key={item.id} radius="md" p="md" bg="white" withBorder>
                     <Group justify="space-between" align="flex-start" gap="md">
                       <div>
                         <Text fw={600}>
@@ -566,14 +624,14 @@ export function ChurchAdminWorkspaceDetails({
                       </div>
                       <Group gap="xs">
                         <Badge color="teal" variant="light">
-                          {item.status}
+                          {translateKnown(item.status)}
                         </Badge>
                         <Button
                           radius="xl"
                           variant="subtle"
                           onClick={() => setDrawer({ section: "comms", id: item.id })}
                         >
-                          Details
+                          {translateOps("details")}
                         </Button>
                       </Group>
                     </Group>
@@ -584,7 +642,7 @@ export function ChurchAdminWorkspaceDetails({
             {activeSection === "giving" && liveGivingItems
               ? liveGivingItems.length > 0
                 ? liveGivingItems.map((item) => (
-                    <Paper key={item.id} radius="xl" p="md" bg="gray.0">
+                    <Paper key={item.id} radius="md" p="md" bg="white" withBorder>
                       <Group justify="space-between" align="flex-start" gap="md">
                         <div>
                           <Text fw={600}>{item.title}</Text>
@@ -610,7 +668,7 @@ export function ChurchAdminWorkspaceDetails({
                             }
                             variant="light"
                           >
-                            {item.status}
+                            {translateKnown(item.status)}
                           </Badge>
                           <Button
                             component={Link}
@@ -618,17 +676,17 @@ export function ChurchAdminWorkspaceDetails({
                             radius="xl"
                             variant="subtle"
                           >
-                            Open
+                            {translateOps("open")}
                           </Button>
                         </Group>
                       </Group>
                     </Paper>
                   ))
                 : (
-                    <Paper radius="xl" p="md" bg="gray.0">
-                      <Text fw={600}>No giving actions need attention.</Text>
+                    <Paper radius="md" p="md" bg="white" withBorder>
+                      <Text fw={600}>{translateOps("noGivingActions")}</Text>
                       <Text c="dimmed" size="sm" mt="xs">
-                        Recent payments, receipts, GL posting, and giving page setup are clear.
+                        {translateOps("noGivingActionsDescription")}
                       </Text>
                     </Paper>
                   )
@@ -636,7 +694,7 @@ export function ChurchAdminWorkspaceDetails({
 
             {activeSection === "giving" && !liveGivingItems
               ? givingItems.map((item) => (
-                  <Paper key={item.id} radius="xl" p="md" bg="gray.0">
+                  <Paper key={item.id} radius="md" p="md" bg="white" withBorder>
                     <Group justify="space-between" align="flex-start" gap="md">
                       <div>
                         <Text fw={600}>{item.label}</Text>
@@ -657,15 +715,15 @@ export function ChurchAdminWorkspaceDetails({
                                 : "gray"
                           }
                           variant="light"
-                        >
-                          {item.status}
+                          >
+                          {translateKnown(item.status)}
                         </Badge>
                         <Button
                           radius="xl"
                           variant="subtle"
                           onClick={() => setDrawer({ section: "giving", id: item.id })}
                         >
-                          Details
+                          {translateOps("details")}
                         </Button>
                       </Group>
                     </Group>
@@ -675,7 +733,7 @@ export function ChurchAdminWorkspaceDetails({
 
             {isPending ? (
               <Text c="dimmed" size="sm">
-                Saving changes...
+                {translateOps("savingChanges")}
               </Text>
             ) : null}
           </Stack>

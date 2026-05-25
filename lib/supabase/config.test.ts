@@ -137,7 +137,7 @@ describe("supabase config surface routing", () => {
     expect(shouldUseLocalControlPlaneDbFallback()).toBe(false);
     expect(shouldUseLocalTenantDbFallback()).toBe(true);
 
-    process.env.TENANT_SUPABASE_URL = "http://127.0.0.1:54321";
+    process.env.TENANT_SUPABASE_URL = "http://127.0.0.1:4201";
     process.env.TENANT_SUPABASE_PUBLISHABLE_KEY = "tenant-key";
 
     expect(shouldUseLocalTenantDbFallback()).toBe(true);

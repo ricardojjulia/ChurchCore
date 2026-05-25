@@ -37,8 +37,13 @@ import { ChurchAdminPeopleBulkActions } from "@/components/application/church-ad
 import { ChurchAdminPersonEdit } from "@/components/application/church-admin-person-edit";
 import { ChurchAdminPersonRelationships } from "@/components/application/church-admin-person-relationships";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
+import { useI18n } from "@/components/i18n-provider";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { ChurchAdminPeopleData } from "@/lib/church-admin-people-data";
+
+function normalizeMessageKey(value: string) {
+  return value.toLowerCase().replaceAll("-", "_").replaceAll(" ", "_");
+}
 
 export function ChurchAdminPeopleWorkspace({
   session,
@@ -63,6 +68,17 @@ export function ChurchAdminPeopleWorkspace({
   const [accountFilter, setAccountFilter] = useState(initialAccount);
   const [householdFilter, setHouseholdFilter] = useState(initialHousehold);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const { t } = useI18n();
+  const translatePeople = (
+    key: string,
+    values?: Record<string, string | number>,
+  ) => t("people", key, values);
+  const translateKnown = (value: string | null | undefined) => {
+    if (!value) return "";
+    const key = normalizeMessageKey(value);
+    const translated = translatePeople(key);
+    return translated === key ? value : translated;
+  };
 
   const visiblePeople = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -138,19 +154,27 @@ export function ChurchAdminPeopleWorkspace({
     visiblePeople.length > 0 &&
     visiblePeople.every((person) => selectedIds.includes(person.id));
   const activeFilterLabels = [
-    query ? `Search: ${query}` : null,
-    status !== "all" ? `Status: ${status}` : null,
-    role !== "all" ? `Role: ${role}` : null,
-    accountFilter !== "all" ? `Account: ${accountFilter.replace("-", " ")}` : null,
-    householdFilter !== "all" ? `Household: ${householdFilter}` : null,
+    query ? translatePeople("searchFilter", { value: query }) : null,
+    status !== "all"
+      ? translatePeople("statusFilter", { value: translateKnown(status) })
+      : null,
+    role !== "all"
+      ? translatePeople("roleFilter", { value: translateKnown(role) })
+      : null,
+    accountFilter !== "all"
+      ? translatePeople("accountFilter", { value: translateKnown(accountFilter) })
+      : null,
+    householdFilter !== "all"
+      ? translatePeople("householdFilter", { value: translateKnown(householdFilter) })
+      : null,
   ].filter((label): label is string => Boolean(label));
   const readinessContext =
     initialView === "incomplete-profiles"
-      ? "Readiness view: incomplete profiles and contact records."
+      ? translatePeople("readinessIncomplete")
       : initialView === "unassigned-households"
-        ? "Readiness view: people without household assignments."
+        ? translatePeople("readinessUnassigned")
         : initialView === "pending-accounts"
-          ? "Readiness view: profiles tied to pending portal account requests."
+          ? translatePeople("readinessPendingAccounts")
           : null;
 
   function toggleSelected(id: string, checked: boolean) {
@@ -175,60 +199,60 @@ export function ChurchAdminPeopleWorkspace({
       session={session}
       workspaceHref="/app/church-admin"
       calendarHref="/app/calendar"
-      sectionLabel="ChurchAdmin"
-      title="People"
+      sectionLabel={t("portalNav", "churchAdmin")}
+      title={t("portalNav", "people")}
       description={session.appContext.church.name}
-      sidebarTitle="People management"
-      sidebarDescription="Church records, statuses, and contact visibility."
-      navLabel="Church admin"
+      sidebarTitle={translatePeople("peopleManagement")}
+      sidebarDescription={translatePeople("sidebarDescription")}
+      navLabel={t("portalNav", "churchAdmin")}
       navItems={[
         {
           href: "/app/church-admin",
-          label: "Home",
-          description: "Operations",
+          label: t("portalNav", "home"),
+          description: t("portalNav", "operations"),
           icon: HeartHandshake,
         },
         {
           href: "/app/church-admin/settings",
-          label: "Settings",
-          description: "Church setup",
+          label: t("portalNav", "settings"),
+          description: t("portalNav", "churchSetup"),
           icon: Settings,
         },
         {
           href: "/app/church-admin/people",
-          label: "People",
-          description: "Records and statuses",
+          label: t("portalNav", "people"),
+          description: t("portalNav", "peopleDescription"),
           icon: UsersRound,
           active: true,
         },
         {
           href: "/app/church-admin/accounts",
-          label: "Accounts",
-          description: "Portal approvals",
+          label: t("accountRequests", "accounts"),
+          description: t("portalNav", "accountRequestsDescription"),
           icon: MailCheck,
         },
         {
           href: "/app/communications",
-          label: "Communications",
-          description: "Broadcast and messaging",
+          label: t("portalNav", "communications"),
+          description: t("portalNav", "communicationsDescription"),
           icon: MessageSquare,
         },
         {
           href: "/app/giving",
-          label: "Giving",
-          description: "Donations dashboard",
+          label: t("portalNav", "givingOps"),
+          description: t("portalNav", "donationsDescription"),
           icon: DollarSign,
         },
         {
           href: "/app/reports",
-          label: "Reports",
-          description: "Members, events, giving",
+          label: t("portalNav", "reports"),
+          description: t("portalNav", "reportsDescription"),
           icon: BarChart2,
         },
         {
           href: "/app/church-admin/ministry",
-          label: "Ministry Forge",
-          description: "Health, vision, and impact",
+          label: t("portalNav", "ministryForge"),
+          description: t("portalNav", "ministryForgeDescription"),
           icon: Sparkles,
         },
       ]}
@@ -244,7 +268,7 @@ export function ChurchAdminPeopleWorkspace({
       <SimpleGrid cols={{ base: 1, sm: 2, xl: 6 }} spacing="md">
         <Paper withBorder radius="xl" p="lg">
           <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-            People
+            {t("portalNav", "people")}
           </Text>
           <Title order={3} mt="xs">
             {data.summary.totalPeople}
@@ -252,7 +276,7 @@ export function ChurchAdminPeopleWorkspace({
         </Paper>
         <Paper withBorder radius="xl" p="lg">
           <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-            Visitors
+            {translatePeople("visitors")}
           </Text>
           <Title order={3} mt="xs">
             {data.summary.visitorCount}
@@ -260,7 +284,7 @@ export function ChurchAdminPeopleWorkspace({
         </Paper>
         <Paper withBorder radius="xl" p="lg">
           <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-            Families
+            {translatePeople("families")}
           </Text>
           <Title order={3} mt="xs">
             {data.summary.familyCount}
@@ -268,7 +292,7 @@ export function ChurchAdminPeopleWorkspace({
         </Paper>
         <Paper withBorder radius="xl" p="lg">
           <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-            No household
+            {translatePeople("noHousehold")}
           </Text>
           <Title order={3} mt="xs">
             {data.summary.unassignedHouseholdCount}
@@ -276,7 +300,7 @@ export function ChurchAdminPeopleWorkspace({
         </Paper>
         <Paper withBorder radius="xl" p="lg">
           <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-            Incomplete
+            {translatePeople("incomplete")}
           </Text>
           <Title order={3} mt="xs">
             {data.summary.incompleteProfiles}
@@ -284,7 +308,7 @@ export function ChurchAdminPeopleWorkspace({
         </Paper>
         <Paper withBorder radius="xl" p="lg">
           <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-            Pending accounts
+            {translatePeople("pendingAccounts")}
           </Text>
           <Title order={3} mt="xs">
             {data.summary.pendingAccountRequests}
@@ -299,10 +323,10 @@ export function ChurchAdminPeopleWorkspace({
           </ThemeIcon>
           <div>
             <Title order={3} size="h4">
-              People records
+              {translatePeople("peopleRecords")}
             </Title>
             <Text size="sm" c="dimmed">
-              Search, filter, and update churchgoer records.
+              {translatePeople("peopleRecordsDescription")}
             </Text>
           </div>
         </Group>
@@ -315,11 +339,14 @@ export function ChurchAdminPeopleWorkspace({
                   {readinessContext}
                 </Text>
                 <Text size="sm" c="dimmed" mt={4}>
-                  Showing {visiblePeople.length} matching record{visiblePeople.length === 1 ? "" : "s"}.
+                  {translatePeople("showingMatching", {
+                    count: visiblePeople.length,
+                    plural: visiblePeople.length === 1 ? "" : "s",
+                  })}
                 </Text>
               </div>
               <Text component={Link} href="/app/church-admin/readiness" size="sm" fw={700} c="churchBlue">
-                Back to readiness
+                {translatePeople("backToReadiness")}
               </Text>
             </Group>
           </Paper>
@@ -329,7 +356,7 @@ export function ChurchAdminPeopleWorkspace({
           <TextInput
             value={query}
             onChange={(event) => setQuery(event.currentTarget.value)}
-            placeholder="Search people, family, email, or ministry"
+            placeholder={translatePeople("searchPlaceholder")}
             leftSection={<Search size={16} />}
             radius="xl"
           />
@@ -337,12 +364,12 @@ export function ChurchAdminPeopleWorkspace({
             value={status}
             onChange={(value) => setStatus(value ?? "all")}
             data={[
-              { value: "all", label: "All statuses" },
-              { value: "active", label: "Active" },
-              { value: "visitor", label: "Visitor" },
-              { value: "inactive", label: "Inactive" },
-              { value: "baptized", label: "Baptized" },
-              { value: "transferred", label: "Transferred" },
+              { value: "all", label: translatePeople("allStatuses") },
+              { value: "active", label: translatePeople("active") },
+              { value: "visitor", label: translatePeople("visitor") },
+              { value: "inactive", label: translatePeople("inactive") },
+              { value: "baptized", label: translatePeople("baptized") },
+              { value: "transferred", label: translatePeople("transferred") },
             ]}
             radius="xl"
           />
@@ -350,12 +377,12 @@ export function ChurchAdminPeopleWorkspace({
             value={role}
             onChange={(value) => setRole(value ?? "all")}
             data={[
-              { value: "all", label: "All roles" },
-              { value: "church_admin", label: "Church admin" },
-              { value: "secretary", label: "Secretary / office admin" },
-              { value: "pastor", label: "Pastor" },
-              { value: "ministry_leader", label: "Ministry leader" },
-              { value: "member", label: "Member" },
+              { value: "all", label: translatePeople("allRoles") },
+              { value: "church_admin", label: translatePeople("church_admin") },
+              { value: "secretary", label: translatePeople("secretary") },
+              { value: "pastor", label: translatePeople("pastor") },
+              { value: "ministry_leader", label: translatePeople("ministry_leader") },
+              { value: "member", label: translatePeople("member") },
             ]}
             radius="xl"
           />
@@ -363,10 +390,10 @@ export function ChurchAdminPeopleWorkspace({
             value={accountFilter}
             onChange={(value) => setAccountFilter(value ?? "all")}
             data={[
-              { value: "all", label: "All accounts" },
-              { value: "pending-request", label: "Pending request" },
-              { value: "active-account", label: "Active account" },
-              { value: "needs-account", label: "Needs account" },
+              { value: "all", label: translatePeople("allAccounts") },
+              { value: "pending-request", label: translatePeople("pending_request") },
+              { value: "active-account", label: translatePeople("active_account") },
+              { value: "needs-account", label: translatePeople("needs_account") },
             ]}
             radius="xl"
           />
@@ -374,9 +401,9 @@ export function ChurchAdminPeopleWorkspace({
             value={householdFilter}
             onChange={(value) => setHouseholdFilter(value ?? "all")}
             data={[
-              { value: "all", label: "All households" },
-              { value: "assigned", label: "Has household" },
-              { value: "unassigned", label: "No household" },
+              { value: "all", label: translatePeople("allHouseholds") },
+              { value: "assigned", label: translatePeople("hasHousehold") },
+              { value: "unassigned", label: translatePeople("noHousehold") },
             ]}
             radius="xl"
           />
@@ -390,7 +417,7 @@ export function ChurchAdminPeopleWorkspace({
               </Badge>
             ))}
             <Badge component={Link} href="/app/church-admin/people" color="churchBlue" variant="outline">
-              Clear filters
+              {translatePeople("clearFilters")}
             </Badge>
           </Group>
         ) : null}
@@ -399,11 +426,11 @@ export function ChurchAdminPeopleWorkspace({
           <Group gap="sm">
             <CheckSquare size={16} />
             <Text size="sm" c="dimmed">
-              Select visible people for bulk status and privacy updates.
+              {translatePeople("selectVisibleDescription")}
             </Text>
           </Group>
           <Checkbox
-            label="Select visible"
+            label={translatePeople("selectVisible")}
             checked={allVisibleSelected}
             onChange={(event) => toggleSelectVisible(event.currentTarget.checked)}
           />
@@ -432,21 +459,21 @@ export function ChurchAdminPeopleWorkspace({
                     <div>
                       <Text fw={600}>{person.fullName}</Text>
                       <Text size="sm" c="dimmed" mt={4}>
-                        {person.displayTitle || person.role}
+                        {person.displayTitle || translateKnown(person.role)}
                         {person.familyName ? ` • ${person.familyName}` : ""}
                       </Text>
                       <Text size="sm" mt={8}>
-                        {person.email || "No email on file"}
+                        {person.email || translatePeople("noEmail")}
                       </Text>
                       <Text size="sm" c="dimmed" mt={4}>
-                        {person.phone || "No phone on file"}
+                        {person.phone || translatePeople("noPhone")}
                       </Text>
                       <Group gap="xs" mt={8}>
                         <Badge
                           color={person.familyId ? "teal" : "yellow"}
                           variant="light"
                         >
-                          {person.familyName ?? "no household"}
+                          {person.familyName ?? translatePeople("noHouseholdLower")}
                         </Badge>
                         {person.memberNumber ? (
                           <Badge color="gray" variant="outline">
@@ -457,7 +484,9 @@ export function ChurchAdminPeopleWorkspace({
                           color={person.accountStatus === "active" ? "teal" : "gray"}
                           variant="light"
                         >
-                          {person.accountStatus ?? "no account"}
+                          {person.accountStatus
+                            ? translateKnown(person.accountStatus)
+                            : translatePeople("noAccount")}
                         </Badge>
                         {person.pendingAccountRequestId ? (
                           <Badge
@@ -466,7 +495,7 @@ export function ChurchAdminPeopleWorkspace({
                             color="yellow"
                             variant="light"
                           >
-                            pending request
+                            {translatePeople("pending_request")}
                           </Badge>
                         ) : null}
                       </Group>
@@ -478,11 +507,11 @@ export function ChurchAdminPeopleWorkspace({
 
                       <Stack gap={6} mt="md">
                         <Text size="xs" fw={700} tt="uppercase" c="dimmed">
-                          ShepherdAI Insights
+                          {translatePeople("shepherdInsights")}
                         </Text>
                         {person.shepherdInsights.length === 0 ? (
                           <Text size="xs" c="dimmed">
-                            No active suggestions.
+                            {translatePeople("noActiveSuggestions")}
                           </Text>
                         ) : (
                           person.shepherdInsights.map((insight) => (
@@ -507,7 +536,7 @@ export function ChurchAdminPeopleWorkspace({
                                   }
                                   variant="light"
                                 >
-                                  {insight.urgency}
+                                  {translateKnown(insight.urgency)}
                                 </Badge>
                               </Group>
                             </Paper>
@@ -520,7 +549,7 @@ export function ChurchAdminPeopleWorkspace({
                           c="churchBlue"
                           fw={600}
                         >
-                          View ministry workflows
+                          {translatePeople("viewMinistryWorkflows")}
                         </Text>
                       </Stack>
                     </div>
@@ -528,13 +557,17 @@ export function ChurchAdminPeopleWorkspace({
 
                   <Stack gap={8} align="flex-end">
                     <Badge color="gray" variant="light">
-                      {person.membershipStatus}
+                      {translateKnown(person.membershipStatus)}
                     </Badge>
                     <Badge color="gray" variant="outline">
-                      {person.directoryVisible ? "Directory" : "Hidden"}
+                      {person.directoryVisible
+                        ? translatePeople("directory")
+                        : translatePeople("hidden")}
                     </Badge>
                     <Badge color="gray" variant="outline">
-                      {person.contactAllowed ? "Contact ok" : "Contact private"}
+                      {person.contactAllowed
+                        ? translatePeople("contactOk")
+                        : translatePeople("contactPrivate")}
                     </Badge>
                     <ChurchAdminPersonRelationships
                       person={person}
@@ -547,9 +580,9 @@ export function ChurchAdminPeopleWorkspace({
             ))
           ) : (
             <Paper withBorder radius="lg" p="lg" bg="#f8fbff">
-              <Text fw={700}>No people match this view.</Text>
+              <Text fw={700}>{translatePeople("noPeopleMatch")}</Text>
               <Text size="sm" c="dimmed" mt={4}>
-                Clear filters or add a person record to continue setup.
+                {translatePeople("noPeopleMatchDescription")}
               </Text>
             </Paper>
           )}

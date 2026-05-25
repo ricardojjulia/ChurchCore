@@ -197,11 +197,15 @@ export function getTenantDbUrl() {
 export function shouldUseLocalControlPlaneDbFallback() {
   if (!hasControlPlaneDbUrl()) return false;
   if (!hasControlPlaneSupabaseEnv()) return true; // DB present but no Supabase — use DB
-  return getControlPlaneSupabaseEnv().url.includes("127.0.0.1:54321");
+  return isLocalSupabaseUrl(getControlPlaneSupabaseEnv().url);
 }
 
 export function shouldUseLocalTenantDbFallback() {
   if (!hasTenantDbUrl()) return false;
   if (!hasTenantSupabaseEnv()) return true; // DB present but no Supabase — use DB
-  return getTenantSupabaseEnv().url.includes("127.0.0.1:54321");
+  return isLocalSupabaseUrl(getTenantSupabaseEnv().url);
+}
+
+function isLocalSupabaseUrl(url: string) {
+  return url.startsWith("http://127.0.0.1:") || url.startsWith("http://localhost:");
 }

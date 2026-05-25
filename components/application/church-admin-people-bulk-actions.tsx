@@ -13,6 +13,7 @@ import {
 } from "@mantine/core";
 
 import { updateChurchAdminPeopleBulkAction } from "@/app/app/actions";
+import { useI18n } from "@/components/i18n-provider";
 
 export function ChurchAdminPeopleBulkActions({
   selectedIds,
@@ -25,6 +26,9 @@ export function ChurchAdminPeopleBulkActions({
   const [isPending, startTransition] = useTransition();
   const [membershipStatus, setMembershipStatus] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
+  const { t } = useI18n();
+  const translatePeople = (key: string, values?: Record<string, string | number>) =>
+    t("people", key, values);
 
   function runBulkUpdate(input: {
     membershipStatus?: string | null;
@@ -45,7 +49,7 @@ export function ChurchAdminPeopleBulkActions({
         router.refresh();
       } catch (error) {
         setServerError(
-          error instanceof Error ? error.message : "Bulk update could not be applied.",
+          error instanceof Error ? error.message : translatePeople("bulkUpdateError"),
         );
       }
     });
@@ -57,24 +61,26 @@ export function ChurchAdminPeopleBulkActions({
         <Group justify="space-between" align="center" gap="md">
           <Group gap="sm">
             <CheckCheck size={16} />
-            <Text fw={600}>{selectedIds.length} selected</Text>
+            <Text fw={600}>
+              {translatePeople("selectedCount", { count: selectedIds.length })}
+            </Text>
           </Group>
           <Button variant="subtle" radius="xl" onClick={onClear}>
-            Clear
+            {translatePeople("clear")}
           </Button>
         </Group>
 
         <Group align="flex-end" gap="md" wrap="wrap">
           <Select
-            label="Membership status"
+            label={translatePeople("membershipStatus")}
             value={membershipStatus}
             onChange={setMembershipStatus}
             data={[
-              { value: "active", label: "Active" },
-              { value: "visitor", label: "Visitor" },
-              { value: "inactive", label: "Inactive" },
-              { value: "baptized", label: "Baptized" },
-              { value: "transferred", label: "Transferred" },
+              { value: "active", label: translatePeople("active") },
+              { value: "visitor", label: translatePeople("visitor") },
+              { value: "inactive", label: translatePeople("inactive") },
+              { value: "baptized", label: translatePeople("baptized") },
+              { value: "transferred", label: translatePeople("transferred") },
             ]}
             clearable
             radius="xl"
@@ -87,7 +93,7 @@ export function ChurchAdminPeopleBulkActions({
             disabled={!membershipStatus}
             loading={isPending}
           >
-            Apply status
+            {translatePeople("applyStatus")}
           </Button>
           <Button
             radius="xl"
@@ -95,7 +101,7 @@ export function ChurchAdminPeopleBulkActions({
             onClick={() => runBulkUpdate({ directoryVisible: true })}
             loading={isPending}
           >
-            Show in directory
+            {translatePeople("showInDirectory")}
           </Button>
           <Button
             radius="xl"
@@ -103,7 +109,7 @@ export function ChurchAdminPeopleBulkActions({
             onClick={() => runBulkUpdate({ directoryVisible: false })}
             loading={isPending}
           >
-            Hide from directory
+            {translatePeople("hideFromDirectory")}
           </Button>
           <Button
             radius="xl"
@@ -111,7 +117,7 @@ export function ChurchAdminPeopleBulkActions({
             onClick={() => runBulkUpdate({ contactAllowed: true })}
             loading={isPending}
           >
-            Allow contact
+            {translatePeople("allowContact")}
           </Button>
           <Button
             radius="xl"
@@ -119,7 +125,7 @@ export function ChurchAdminPeopleBulkActions({
             onClick={() => runBulkUpdate({ contactAllowed: false })}
             loading={isPending}
           >
-            Make contact private
+            {translatePeople("makeContactPrivate")}
           </Button>
         </Group>
 

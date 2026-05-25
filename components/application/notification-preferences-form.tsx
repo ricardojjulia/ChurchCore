@@ -13,6 +13,7 @@ import {
 import { notifications } from "@mantine/notifications";
 
 import { updateNotificationPreferencesAction } from "@/app/app/communications-actions";
+import { useI18n } from "@/components/i18n-provider";
 
 export interface NotificationPreferencesFormProps {
   profileId: string;
@@ -36,6 +37,8 @@ export function NotificationPreferencesForm({
   const [inAppOptIn, setInAppOptIn] = useState(initial.inAppOptIn);
 
   const [isPending, startTransition] = useTransition();
+  const { t } = useI18n();
+  const translateMember = (key: string) => t("member", key);
 
   function handleSave() {
     startTransition(async () => {
@@ -48,14 +51,14 @@ export function NotificationPreferencesForm({
           inAppOptIn,
         });
         notifications.show({
-          title: "Preferences saved",
-          message: "Your notification preferences have been updated.",
+          title: translateMember("preferencesSaved"),
+          message: translateMember("preferencesSavedMessage"),
           color: "teal",
         });
       } catch (err) {
         notifications.show({
-          title: "Error",
-          message: err instanceof Error ? err.message : "Something went wrong.",
+          title: translateMember("error"),
+          message: err instanceof Error ? err.message : translateMember("genericError"),
           color: "red",
         });
       }
@@ -66,41 +69,43 @@ export function NotificationPreferencesForm({
     <Paper withBorder p="lg" radius="md">
       <Stack gap="md">
         <Text fw={600} fz="sm">
-          {isInitialSetup ? "Communication Consent Setup" : "Notification Preferences"}
+          {isInitialSetup
+            ? translateMember("communicationConsentSetup")
+            : translateMember("notificationPreferences")}
         </Text>
         <Text fz="xs" c="dimmed">
           {isInitialSetup
-            ? "Confirm which channels your church may use to contact you. You can update these choices at any time."
-            : "Choose how you would like to receive communications from your church. You can change these at any time."}
+            ? translateMember("communicationConsentDescription")
+            : translateMember("notificationPreferencesDescription")}
         </Text>
 
         <Stack gap="sm">
           <Switch
             checked={emailOptIn}
             onChange={(e) => setEmailOptIn(e.currentTarget.checked)}
-            label="Email notifications"
-            description="Receive church announcements and updates by email."
+            label={translateMember("emailNotifications")}
+            description={translateMember("emailNotificationsDescription")}
             size="sm"
           />
           <Switch
             checked={smsOptIn}
             onChange={(e) => setSmsOptIn(e.currentTarget.checked)}
-            label="SMS notifications"
-            description="Receive time-sensitive text messages (standard rates apply)."
+            label={translateMember("smsNotifications")}
+            description={translateMember("smsNotificationsDescription")}
             size="sm"
           />
           <Switch
             checked={pushOptIn}
             onChange={(e) => setPushOptIn(e.currentTarget.checked)}
-            label="Push notifications"
-            description="Receive alerts on your device when the app is installed."
+            label={translateMember("pushNotifications")}
+            description={translateMember("pushNotificationsDescription")}
             size="sm"
           />
           <Switch
             checked={inAppOptIn}
             onChange={(e) => setInAppOptIn(e.currentTarget.checked)}
-            label="In-app notifications"
-            description="See notification badges and messages inside the portal."
+            label={translateMember("inAppNotifications")}
+            description={translateMember("inAppNotificationsDescription")}
             size="sm"
           />
         </Stack>
@@ -108,7 +113,7 @@ export function NotificationPreferencesForm({
         <Divider />
 
         <Text fz="xs" c="dimmed">
-          Saving these preferences writes an append-only consent record for each communication channel.
+          {translateMember("consentRecordDescription")}
         </Text>
 
         <Group justify="flex-end">
@@ -119,7 +124,9 @@ export function NotificationPreferencesForm({
             loading={isPending}
             onClick={handleSave}
           >
-            {isInitialSetup ? "Save consent choices" : "Save preferences"}
+            {isInitialSetup
+              ? translateMember("saveConsentChoices")
+              : translateMember("savePreferences")}
           </Button>
         </Group>
       </Stack>

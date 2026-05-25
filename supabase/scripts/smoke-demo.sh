@@ -109,7 +109,7 @@ load_env_file "${ROOT_DIR}/.env"
 load_env_file "${ROOT_DIR}/.env.local"
 load_env_file "${ROOT_DIR}/.demo-credentials.local"
 
-APP_URL="${APP_URL:-${NEXT_PUBLIC_APP_URL:-http://localhost:3000}}"
+APP_URL="${APP_URL:-${NEXT_PUBLIC_APP_URL:-http://localhost:4200}}"
 APP_URL="${APP_URL%/}"
 
 echo "Running ${MODE} smoke checks against ${APP_URL}"

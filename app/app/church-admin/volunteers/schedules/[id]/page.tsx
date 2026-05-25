@@ -4,7 +4,6 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import { ServicePlanBuilder } from "@/components/application/volunteer-schedule";
 import { requireChurchSession } from "@/lib/auth";
 import { getServicePlanDetail, getVolunteerPool } from "@/lib/volunteer-data";
-import { CalendarCheck, Users } from "lucide-react";
 
 export default async function ServicePlanDetailPage({
   params,
@@ -21,9 +20,9 @@ export default async function ServicePlanDetailPage({
   const pool = await getVolunteerPool(session, detail.plan.serviceDate);
 
   const NAV_ITEMS = [
-    { href: "/app/church-admin", label: "Home", description: "Church admin", icon: Users },
-    { href: "/app/church-admin/volunteers", label: "Volunteers", description: "Directory & hours", icon: Users },
-    { href: "/app/church-admin/volunteers/schedules", label: "Schedules", description: "Service plans", icon: CalendarCheck, active: true },
+    { href: "/app/church-admin", label: "Home", description: "Church admin", icon: "Users" },
+    { href: "/app/church-admin/volunteers", label: "Volunteers", description: "Directory & hours", icon: "Users" },
+    { href: "/app/church-admin/volunteers/schedules", label: "Schedules", description: "Service plans", icon: "CalendarCheck", active: true },
   ];
 
   return (

@@ -66,6 +66,168 @@ html {
   filter: drop-shadow(0 4px 12px rgba(37, 99, 235, 0.15));
 }
 
+.public-home-shell {
+  overflow: hidden;
+  position: relative;
+}
+
+.public-home-shell::before {
+  background:
+    linear-gradient(rgba(16, 24, 39, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 24, 39, 0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
+  content: "";
+  inset: 0;
+  mask-image: linear-gradient(180deg, black 0%, transparent 78%);
+  pointer-events: none;
+  position: absolute;
+}
+
+.public-home-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+.public-home-console {
+  aspect-ratio: 0.96;
+  background:
+    radial-gradient(circle at 22% 18%, rgba(94, 234, 212, 0.22), transparent 28%),
+    radial-gradient(circle at 82% 12%, rgba(244, 201, 93, 0.18), transparent 24%),
+    linear-gradient(145deg, #101827 0%, #172033 54%, #0d1320 100%);
+  border: 1px solid rgba(16, 24, 39, 0.2);
+  border-radius: 18px;
+  box-shadow: 0 34px 80px rgba(16, 24, 39, 0.3);
+  min-height: 520px;
+  overflow: hidden;
+  padding: clamp(1.25rem, 3vw, 2.25rem);
+  position: relative;
+}
+
+.public-home-console::before {
+  background: linear-gradient(90deg, transparent, rgba(94, 234, 212, 0.52), transparent);
+  content: "";
+  height: 1px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 18%;
+}
+
+.public-home-console-grid {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 36px 36px;
+  inset: 0;
+  mask-image: radial-gradient(circle at 50% 40%, black, transparent 74%);
+  position: absolute;
+}
+
+.public-home-console > *:not(.public-home-console-grid) {
+  position: relative;
+  z-index: 1;
+}
+
+.console-dot {
+  border-radius: 999px;
+  height: 10px;
+  width: 10px;
+}
+
+.console-orbit {
+  align-items: center;
+  background: rgba(94, 234, 212, 0.1);
+  border: 1px solid rgba(94, 234, 212, 0.34);
+  border-radius: 999px;
+  box-shadow: 0 0 0 10px rgba(94, 234, 212, 0.05);
+  display: flex;
+  height: 76px;
+  justify-content: center;
+  width: 76px;
+}
+
+.console-metric,
+.console-lane,
+.console-scripture {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.console-metric {
+  min-width: 0;
+  padding: 14px;
+}
+
+.console-lane {
+  padding: 14px;
+}
+
+.console-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.console-track-fill {
+  border-radius: inherit;
+  height: 100%;
+}
+
+.console-scripture {
+  border-color: rgba(244, 201, 93, 0.28);
+  padding: 16px;
+}
+
+.app-shell-nav-link {
+  border: 1px solid transparent;
+  color: rgba(255, 255, 255, 0.82);
+  min-height: 54px;
+}
+
+.app-shell-nav-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.app-shell-nav-link[data-active] {
+  background: linear-gradient(135deg, rgba(94, 234, 212, 0.2), rgba(96, 165, 250, 0.16));
+  border-color: rgba(94, 234, 212, 0.38);
+  box-shadow: inset 3px 0 0 #5eead4;
+  color: white;
+}
+
+.app-shell-nav-link .mantine-NavLink-label {
+  color: inherit;
+  font-weight: 750;
+}
+
+.app-shell-nav-link .mantine-NavLink-description {
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.app-shell-nav-link[data-active] .mantine-NavLink-description {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.app-shell-nav-link .mantine-NavLink-section {
+  color: inherit;
+}
+
+.app-shell-language .mantine-Input-input {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: white;
+}
+
+@media (max-width: 48em) {
+  .public-home-console {
+    aspect-ratio: auto;
+    min-height: 460px;
+  }
+}
+
 body {
   min-height: 100vh;
   background:

@@ -21,8 +21,8 @@ project_id = "ChurchCoreOpsControlPlane"
 
 [api]
 enabled = true
-# Use a different port from the tenant project (54321) to allow both to run locally.
-port = 54331
+# Use a different port from the tenant project (4201) to allow both to run locally.
+port = 4211
 schemas = ["public", "graphql_public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
@@ -31,15 +31,15 @@ max_rows = 1000
 enabled = false
 
 [db]
-# Use ports that do not conflict with the tenant project (54322 / 54320).
-port = 54332
-shadow_port = 54330
+# Use ports that do not conflict with the tenant project (4202 / 4203).
+port = 4212
+shadow_port = 4210
 health_timeout = "2m"
 major_version = 17
 
 [db.pooler]
 enabled = false
-port = 54339
+port = 4219
 pool_mode = "transaction"
 default_pool_size = 20
 max_client_conn = 100
@@ -55,8 +55,8 @@ sql_paths = ["./seed.sql"]
 [auth]
 enabled = true
 # Control-plane staff authenticate here, not through the tenant auth project.
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://localhost:3000/control"]
+site_url = "http://localhost:4200"
+additional_redirect_urls = ["http://localhost:4200/control"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
@@ -68,7 +68,7 @@ enable_confirmations = true
 
 [studio]
 enabled = true
-port = 54333
+port = 4213
 
 [inbucket]
 enabled = false

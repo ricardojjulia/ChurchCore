@@ -13,6 +13,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 
 import { upsertMemberFamilyAction } from "@/app/app/actions";
+import { useI18n } from "@/components/i18n-provider";
 import type { MemberPortalFamily } from "@/lib/member-portal-data";
 
 type Props = {
@@ -27,6 +28,8 @@ export function MemberFamilyEdit({ family }: Props) {
   const [familyName, setFamilyName] = useState(family?.familyName ?? "");
   const [address, setAddress] = useState(family?.address ?? "");
   const [homePhone, setHomePhone] = useState(family?.homePhone ?? "");
+  const { t } = useI18n();
+  const translateMember = (key: string) => t("member", key);
 
   function handleOpen() {
     setFamilyName(family?.familyName ?? "");
@@ -48,7 +51,7 @@ export function MemberFamilyEdit({ family }: Props) {
         close();
       } catch (error) {
         setServerError(
-          error instanceof Error ? error.message : "Family could not be saved.",
+          error instanceof Error ? error.message : translateMember("familySaveError"),
         );
       }
     });
@@ -62,20 +65,20 @@ export function MemberFamilyEdit({ family }: Props) {
         leftSection={family ? <Pencil size={15} /> : <Home size={15} />}
         onClick={handleOpen}
       >
-        {family ? "Edit family" : "Add family"}
+        {family ? translateMember("editFamily") : translateMember("addFamily")}
       </Button>
 
       <Modal
         opened={opened}
         onClose={close}
-        title={family ? "Update family" : "Create family"}
+        title={family ? translateMember("updateFamily") : translateMember("createFamily")}
         radius="lg"
         size="md"
         centered
       >
         <Stack gap="md">
           <TextInput
-            label="Family name"
+            label={translateMember("familyName")}
             value={familyName}
             onChange={(event) => setFamilyName(event.currentTarget.value)}
             placeholder="Park family"
@@ -84,7 +87,7 @@ export function MemberFamilyEdit({ family }: Props) {
           />
 
           <TextInput
-            label="Address"
+            label={translateMember("address")}
             value={address}
             onChange={(event) => setAddress(event.currentTarget.value)}
             placeholder="123 Main St, City, State"
@@ -92,7 +95,7 @@ export function MemberFamilyEdit({ family }: Props) {
           />
 
           <TextInput
-            label="Home phone"
+            label={translateMember("homePhone")}
             value={homePhone}
             onChange={(event) => setHomePhone(event.currentTarget.value)}
             placeholder="(555) 000-0000"
@@ -100,7 +103,7 @@ export function MemberFamilyEdit({ family }: Props) {
           />
 
           <Text size="sm" c="dimmed">
-            This updates the household record linked to your church profile.
+            {translateMember("familyUpdateDescription")}
           </Text>
 
           {serverError ? (
@@ -111,7 +114,7 @@ export function MemberFamilyEdit({ family }: Props) {
 
           <Group justify="flex-end">
             <Button variant="default" radius="xl" onClick={close}>
-              Cancel
+              {translateMember("cancel")}
             </Button>
             <Button
               radius="xl"
@@ -119,7 +122,7 @@ export function MemberFamilyEdit({ family }: Props) {
               loading={isPending}
               disabled={!familyName.trim()}
             >
-              Save
+              {translateMember("save")}
             </Button>
           </Group>
         </Stack>

@@ -22,7 +22,7 @@ npm ci
 npm run dev
 ```
 
-Open `http://localhost:3000`. The app runs in preview mode with in-memory demo data.
+Open `http://localhost:4200`. The app runs in preview mode with in-memory demo data.
 
 For the full local demo with Supabase, seeded Grace Harbor Church data, and local demo users:
 
@@ -54,7 +54,7 @@ After sign-in, the app hydrates the user's session, role, and church context. A 
 
 The tenant app is the church's operating workspace. It is role-aware, so each user sees the workflows that match their responsibility.
 
-The application shell now includes an English / Spanish language selector. The shared shell and Daily Desk are the first translated surfaces; church-entered content such as member names, notes, event titles, fund names, and pastoral or office records remains in the language entered by the church.
+The application shell and public entry flow now include English / Spanish language selection. The public home page, sign-in page, public portal, shared shell, Daily Desk, member home, member directory, member family detail page, ChurchAdmin navigation, readiness path, dashboard summary cards, main operations lanes, portal account approval queue, church settings page, and people management page are translated surfaces; church-entered content such as member names, notes, event titles, fund names, and pastoral or office records remains in the language entered by the church. The full rollout is tracked in `docs/plans/spanish-ui-coverage.md`.
 
 Primary tenant roles:
 

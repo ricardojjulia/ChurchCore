@@ -16,6 +16,7 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
 import { MemberBottomNav } from "@/components/application/member-bottom-nav";
 import { MemberFamilyEdit } from "@/components/application/member-family-edit";
+import { useI18n } from "@/components/i18n-provider";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { MemberPortalData } from "@/lib/member-portal-data";
 
@@ -27,35 +28,45 @@ export function MemberFamilyWorkspace({
   data: MemberPortalData;
 }) {
   const family = data.family;
+  const { t } = useI18n();
+  const translateMember = (
+    key: string,
+    values?: Record<string, string | number>,
+  ) => t("member", key, values);
+  const familyMemberCount = family?.members.length ?? 0;
+  const familyMemberCountLabel =
+    familyMemberCount === 1
+      ? translateMember("personSingular")
+      : translateMember("peoplePlural");
 
   return (
     <ApplicationShell
       session={session}
       workspaceHref="/app/member"
       calendarHref="/app/calendar"
-      sectionLabel="Member"
-      title="Family"
+      sectionLabel={translateMember("member")}
+      title={translateMember("family")}
       description={session.appContext.church.name}
-      sidebarTitle="Household"
-      sidebarDescription="Keep your family record current."
-      navLabel="Member"
+      sidebarTitle={translateMember("household")}
+      sidebarDescription={translateMember("familySidebarDescription")}
+      navLabel={translateMember("member")}
       navItems={[
         {
           href: "/app/member",
-          label: "Home",
-          description: "Personal overview",
+          label: translateMember("home"),
+          description: translateMember("personalOverview"),
           icon: HeartHandshake,
         },
         {
           href: "/app/member/directory",
-          label: "Directory",
-          description: "Church family",
+          label: translateMember("directory"),
+          description: translateMember("churchFamily"),
           icon: UsersRound,
         },
         {
           href: "/app/member/family",
-          label: "Family",
-          description: "Household details",
+          label: translateMember("family"),
+          description: translateMember("householdDetails"),
           icon: Home,
           active: true,
         },
@@ -72,12 +83,19 @@ export function MemberFamilyWorkspace({
                 <Home size={18} />
               </ThemeIcon>
               <Badge color="gray" variant="light">
-                {family ? `${family.members.length} people` : "Not set"}
+                {family
+                  ? translateMember("peopleCount", {
+                      count: familyMemberCount,
+                      label: familyMemberCountLabel,
+                    })
+                  : translateMember("notSet")}
               </Badge>
             </Group>
-            <Title order={2}>{family?.familyName ?? "No family record yet"}</Title>
+            <Title order={2}>
+              {family?.familyName ?? translateMember("noFamilyRecordYet")}
+            </Title>
             <Text size="sm" c="dimmed" mt="sm">
-              Use one household record for address and shared contact context.
+              {translateMember("familyPageDescription")}
             </Text>
           </Box>
           <MemberFamilyEdit family={family} />
@@ -87,13 +105,13 @@ export function MemberFamilyWorkspace({
       <Paper withBorder radius="xl" p="xl">
         <Stack gap="sm">
           <Title order={3} size="h4">
-            Household details
+            {translateMember("householdDetails")}
           </Title>
           <Text size="sm" c="dimmed">
-            {family?.address || "No household address on file."}
+            {family?.address || translateMember("noHouseholdAddress")}
           </Text>
           <Text size="sm" c="dimmed">
-            {family?.homePhone || "No household phone on file."}
+            {family?.homePhone || translateMember("noHouseholdPhone")}
           </Text>
         </Stack>
       </Paper>
@@ -101,7 +119,7 @@ export function MemberFamilyWorkspace({
       <Paper withBorder radius="xl" p="xl">
         <Group justify="space-between" align="center" mb="lg">
           <Title order={3} size="h4">
-            People in household
+            {translateMember("peopleInHousehold")}
           </Title>
           <Badge color="gray" variant="light">
             {family?.members.length ?? 0}
@@ -114,13 +132,13 @@ export function MemberFamilyWorkspace({
               <Paper key={member.id} withBorder radius="xl" p="lg">
                 <Text fw={600}>{member.fullName}</Text>
                 <Text size="sm" c="dimmed" mt={4}>
-                  {member.displayTitle || "Church family"}
+                  {member.displayTitle || translateMember("churchFamily")}
                 </Text>
               </Paper>
             ))
           ) : (
             <Text size="sm" c="dimmed">
-              Create a family record to group household members under one church context.
+              {translateMember("createFamilyRecordDescription")}
             </Text>
           )}
         </Stack>

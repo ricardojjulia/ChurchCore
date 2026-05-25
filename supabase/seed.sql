@@ -314,7 +314,7 @@ begin
         'external_tenant_id',  v_church_id,
         'runtime_church_id',   v_church_id,
         'runtime_slug',        'grace-harbor',
-        'supabase_url',        'http://127.0.0.1:54321',
+        'supabase_url',        'http://127.0.0.1:4201',
         'publishable_key',     '<resolved-via-env>'
       )
     )

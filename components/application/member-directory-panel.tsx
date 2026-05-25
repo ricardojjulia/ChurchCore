@@ -14,7 +14,12 @@ import {
   Title,
 } from "@mantine/core";
 
+import { useI18n } from "@/components/i18n-provider";
 import type { MemberDirectoryEntry } from "@/lib/member-portal-data";
+
+function knownKey(value: string) {
+  return value.toLowerCase().replaceAll("-", "_").replaceAll(" ", "_");
+}
 
 export function MemberDirectoryPanel({
   directory,
@@ -25,6 +30,13 @@ export function MemberDirectoryPanel({
 }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<string>("all");
+  const { t } = useI18n();
+  const translateMember = (key: string) => t("member", key);
+  const translateKnown = (value: string) => {
+    const key = knownKey(value);
+    const translated = translateMember(key);
+    return translated === key ? value : translated;
+  };
 
   const visibleDirectory = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -64,10 +76,10 @@ export function MemberDirectoryPanel({
           </ThemeIcon>
           <div>
             <Title order={3} size="h4">
-              Directory
+              {translateMember("directory")}
             </Title>
             <Text size="sm" c="dimmed">
-              Search your church family by name, family, or ministry.
+              {translateMember("directoryPanelDescription")}
             </Text>
           </div>
         </Group>
@@ -79,7 +91,7 @@ export function MemberDirectoryPanel({
       <TextInput
         value={query}
         onChange={(event) => setQuery(event.currentTarget.value)}
-        placeholder="Search people, families, or ministries"
+        placeholder={translateMember("directorySearchPlaceholder")}
         leftSection={<Search size={16} />}
         radius="xl"
       />
@@ -89,12 +101,12 @@ export function MemberDirectoryPanel({
           value={status}
           onChange={(value) => setStatus(value ?? "all")}
           data={[
-            { value: "all", label: "All statuses" },
-            { value: "active", label: "Active" },
-            { value: "visitor", label: "Visitor" },
-            { value: "inactive", label: "Inactive" },
-            { value: "baptized", label: "Baptized" },
-            { value: "transferred", label: "Transferred" },
+            { value: "all", label: translateMember("allStatuses") },
+            { value: "active", label: translateMember("active") },
+            { value: "visitor", label: translateMember("visitor") },
+            { value: "inactive", label: translateMember("inactive") },
+            { value: "baptized", label: translateMember("baptized") },
+            { value: "transferred", label: translateMember("transferred") },
           ]}
           radius="xl"
           mt="md"
@@ -112,7 +124,7 @@ export function MemberDirectoryPanel({
                 <div>
                   <Text fw={600}>{entry.fullName}</Text>
                   <Text size="sm" c="dimmed" mt={4}>
-                    {entry.displayTitle || "Church member"}
+                    {entry.displayTitle || translateMember("churchMember")}
                     {entry.familyName ? ` • ${entry.familyName}` : ""}
                   </Text>
                   {entry.contactAllowed && (entry.email || entry.phone) ? (
@@ -122,14 +134,14 @@ export function MemberDirectoryPanel({
                     </Text>
                   ) : (
                     <Text size="sm" mt={8} c="dimmed">
-                      Contact details are private.
+                      {translateMember("contactDetailsPrivate")}
                     </Text>
                   )}
                 </div>
 
                 <Stack gap={6} align="flex-end">
                   <Badge color="gray" variant="light">
-                    {entry.membershipStatus}
+                    {translateKnown(entry.membershipStatus)}
                   </Badge>
                   {entry.ministryNames.length ? (
                     <Text size="xs" c="dimmed" ta="right">
@@ -142,7 +154,7 @@ export function MemberDirectoryPanel({
           ))
         ) : (
           <Text size="sm" c="dimmed">
-            No directory matches that search.
+            {translateMember("noDirectoryMatches")}
           </Text>
         )}
       </Stack>

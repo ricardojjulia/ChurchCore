@@ -16,6 +16,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
 import { addChurchgoerAction } from "@/app/app/actions";
+import { useI18n } from "@/components/i18n-provider";
 
 export function ChurchAdminAddPerson() {
   const router = useRouter();
@@ -28,6 +29,9 @@ export function ChurchAdminAddPerson() {
   const [membershipStatus, setMembershipStatus] = useState("visitor");
   const [role, setRole] = useState("member");
   const [serverError, setServerError] = useState<string | null>(null);
+  const { t } = useI18n();
+  const translatePeople = (key: string, values?: Record<string, string | number>) =>
+    t("people", key, values);
 
   function handleClose() {
     setFullName("");
@@ -51,15 +55,15 @@ export function ChurchAdminAddPerson() {
           role,
         });
         notifications.show({
-          title: "Person added",
-          message: `${fullName.trim()} has been added to the people list.`,
+          title: translatePeople("personAdded"),
+          message: translatePeople("personAddedMessage", { value: fullName.trim() }),
           color: "teal",
         });
         handleClose();
         router.refresh();
       } catch (error) {
         setServerError(
-          error instanceof Error ? error.message : "Person could not be added.",
+          error instanceof Error ? error.message : translatePeople("personAddError"),
         );
       }
     });
@@ -72,20 +76,20 @@ export function ChurchAdminAddPerson() {
         leftSection={<UserPlus size={15} />}
         onClick={open}
       >
-        Add person
+        {translatePeople("addPerson")}
       </Button>
 
       <Modal
         opened={opened}
         onClose={handleClose}
-        title="Add person"
+        title={translatePeople("addPerson")}
         size="md"
         radius="lg"
         centered
       >
         <Stack gap="md">
           <TextInput
-            label="Full name"
+            label={translatePeople("fullName")}
             value={fullName}
             onChange={(e) => setFullName(e.currentTarget.value)}
             required
@@ -93,43 +97,43 @@ export function ChurchAdminAddPerson() {
             placeholder="Jane Smith"
           />
           <TextInput
-            label="Email"
+            label={translatePeople("email")}
             value={email}
             onChange={(e) => setEmail(e.currentTarget.value)}
             radius="md"
             placeholder="jane@example.com"
-            description="Optional — for walk-in visitors, email can be added later."
+            description={translatePeople("emailOptionalDescription")}
           />
           <TextInput
-            label="Phone"
+            label={translatePeople("phone")}
             value={phone}
             onChange={(e) => setPhone(e.currentTarget.value)}
             radius="md"
             placeholder="+1 555-0100"
           />
           <Select
-            label="Membership status"
+            label={translatePeople("membershipStatus")}
             value={membershipStatus}
             onChange={(v) => setMembershipStatus(v ?? "visitor")}
             data={[
-              { value: "visitor", label: "Visitor" },
-              { value: "active", label: "Active member" },
-              { value: "inactive", label: "Inactive" },
-              { value: "baptized", label: "Baptized" },
-              { value: "transferred", label: "Transferred" },
+              { value: "visitor", label: translatePeople("visitor") },
+              { value: "active", label: translatePeople("activeMember") },
+              { value: "inactive", label: translatePeople("inactive") },
+              { value: "baptized", label: translatePeople("baptized") },
+              { value: "transferred", label: translatePeople("transferred") },
             ]}
             radius="md"
           />
           <Select
-            label="Role"
+            label={translatePeople("role")}
             value={role}
             onChange={(v) => setRole(v ?? "member")}
             data={[
-              { value: "member", label: "Member / Volunteer" },
-              { value: "ministry_leader", label: "Ministry leader" },
-              { value: "pastor", label: "Pastor / Elder" },
-              { value: "secretary", label: "Secretary / Office Admin" },
-              { value: "church_admin", label: "Church admin" },
+              { value: "member", label: translatePeople("member_volunteer") },
+              { value: "ministry_leader", label: translatePeople("ministry_leader") },
+              { value: "pastor", label: translatePeople("pastor_elder") },
+              { value: "secretary", label: translatePeople("secretary") },
+              { value: "church_admin", label: translatePeople("church_admin") },
             ]}
             radius="md"
           />
@@ -142,7 +146,7 @@ export function ChurchAdminAddPerson() {
 
           <Group justify="flex-end">
             <Button variant="default" radius="xl" onClick={handleClose}>
-              Cancel
+              {translatePeople("cancel")}
             </Button>
             <Button
               radius="xl"
@@ -150,7 +154,7 @@ export function ChurchAdminAddPerson() {
               loading={isPending}
               disabled={!fullName.trim()}
             >
-              Add person
+              {translatePeople("addPerson")}
             </Button>
           </Group>
         </Stack>

@@ -5,9 +5,11 @@ import { usePathname } from "next/navigation";
 import { CalendarCheck, CalendarRange, HeartHandshake, Home, Layers, Users, UsersRound } from "lucide-react";
 import { Group, Stack, Text, UnstyledButton } from "@mantine/core";
 
+import { useI18n } from "@/components/i18n-provider";
+
 type BottomNavItem = {
   href: string;
-  label: string;
+  labelKey: string;
   icon: React.ComponentType<{ size?: number; color?: string }>;
   exact?: boolean;
 };
@@ -15,45 +17,46 @@ type BottomNavItem = {
 const NAV_ITEMS: BottomNavItem[] = [
   {
     href: "/app/member",
-    label: "Home",
+    labelKey: "home",
     icon: HeartHandshake,
     exact: true,
   },
   {
     href: "/app/calendar",
-    label: "Calendar",
+    labelKey: "calendar",
     icon: CalendarRange,
     exact: true,
   },
   {
     href: "/app/member/directory",
-    label: "Directory",
+    labelKey: "directory",
     icon: UsersRound,
   },
   {
     href: "/app/member/ministries",
-    label: "Ministries",
+    labelKey: "ministries",
     icon: Layers,
   },
   {
     href: "/app/member/family",
-    label: "Family",
+    labelKey: "family",
     icon: Home,
   },
   {
     href: "/app/member/groups",
-    label: "Groups",
+    labelKey: "groups",
     icon: Users,
   },
   {
     href: "/app/member/schedule",
-    label: "Schedule",
+    labelKey: "schedule",
     icon: CalendarCheck,
   },
 ];
 
 export function MemberBottomNav() {
   const pathname = usePathname();
+  const { t } = useI18n();
 
   function isActive(item: BottomNavItem) {
     return item.exact ? pathname === item.href : pathname.startsWith(item.href);
@@ -79,7 +82,7 @@ export function MemberBottomNav() {
                 fw={active ? 700 : 400}
                 style={{ color, lineHeight: 1 }}
               >
-                {item.label}
+                {t("member", item.labelKey)}
               </Text>
             </Stack>
           </UnstyledButton>

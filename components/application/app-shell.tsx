@@ -1,8 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useTransition } from "react";
 import { useDisclosure } from "@mantine/hooks";
 import {
   AppShell,
@@ -20,36 +18,61 @@ import {
   NavLink,
   Paper,
   ScrollArea,
-  Select,
   Stack,
   Text,
   ThemeIcon,
 } from "@mantine/core";
 import {
+  Building2,
+  CalendarCheck,
   CalendarRange,
+  CheckSquare,
+  ClipboardList,
+  Heart,
+  HeartHandshake,
   LayoutGrid,
+  LifeBuoy,
   LogOut,
   ShieldCheck,
   Sparkles,
+  UserPlus,
+  Users,
+  Wallet,
 } from "lucide-react";
 
-import { setLocaleAction } from "@/app/language-actions";
+import { LanguageSelect } from "@/components/language-select";
 import { useI18n } from "@/components/i18n-provider";
 import { signOutAction } from "@/app/sign-in/actions";
 import type { AuthSession } from "@/lib/auth";
-import { localeLabels, supportedLocales, type Locale } from "@/lib/i18n";
 
 type ShellNavItem = {
   href: string;
   label: string;
   description: string;
-  icon: React.ComponentType<{ className?: string; size?: number }>;
+  icon: React.ComponentType<{ className?: string; size?: number }> | string;
   active?: boolean;
 };
 
+type ShellNavIconName = keyof typeof shellNavIcons;
+
+const shellNavIcons = {
+  Building2,
+  CalendarCheck,
+  CalendarRange,
+  CheckSquare,
+  ClipboardList,
+  Heart,
+  HeartHandshake,
+  LifeBuoy,
+  ShieldCheck,
+  Sparkles,
+  UserPlus,
+  Users,
+  Wallet,
+};
+
 const navLinkStyles = {
-  root: { borderRadius: 16 },
-  description: { color: "#5c6b7a" },
+  root: { borderRadius: 14 },
 };
 
 export function ApplicationShell({
@@ -82,21 +105,7 @@ export function ApplicationShell({
   children: React.ReactNode;
 }) {
   const [opened, { toggle, close }] = useDisclosure(false);
-  const router = useRouter();
-  const [isLocalePending, startLocaleTransition] = useTransition();
-  const { locale, t } = useI18n();
-  const languageOptions = supportedLocales.map((option) => ({
-    value: option,
-    label: localeLabels[option],
-  }));
-
-  function handleLocaleChange(value: string | null) {
-    if (!value) return;
-    startLocaleTransition(async () => {
-      await setLocaleAction(value);
-      router.refresh();
-    });
-  }
+  const { t } = useI18n();
 
   return (
     <AppShell
@@ -106,16 +115,18 @@ export function ApplicationShell({
       padding="lg"
       styles={{
         main: {
-          background: "#f6f7f9",
+          background:
+            "radial-gradient(circle at 18% 0%, rgba(37, 99, 235, 0.12), transparent 26%), radial-gradient(circle at 82% 3%, rgba(15, 118, 110, 0.12), transparent 24%), #f4f7fb",
           minHeight: "100vh",
         },
         navbar: {
-          background: "#fbfcfe",
-          borderRight: "1px solid rgba(20, 33, 61, 0.08)",
+          background:
+            "linear-gradient(180deg, #101827 0%, #14213d 48%, #0c1321 100%)",
+          borderRight: "1px solid rgba(255, 255, 255, 0.08)",
         },
         header: {
-          background: "rgba(251, 252, 254, 0.96)",
-          backdropFilter: "blur(12px)",
+          background: "rgba(244, 247, 251, 0.82)",
+          backdropFilter: "blur(18px)",
           borderBottom: "1px solid rgba(20, 33, 61, 0.08)",
         },
         footer: {
@@ -137,11 +148,11 @@ export function ApplicationShell({
               aria-label="Toggle navigation"
             />
             <Box>
-              <Text fw={700} size="md" lh={1.2}>
+              <Text fw={850} size="md" lh={1.2} c="#101827">
                 {title}
               </Text>
               {description ? (
-                <Text c="dimmed" size="xs" lh={1.2}>
+                <Text c="#617184" size="xs" lh={1.2}>
                   {description}
                 </Text>
               ) : null}
@@ -158,21 +169,42 @@ export function ApplicationShell({
       <AppShellNavbar p="md" style={{ display: "flex", flexDirection: "column" }}>
         {/* Brand */}
         <AppShellSection>
-          <Group gap="sm" mb="md">
-            <ThemeIcon size={36} radius="xl" color="churchBlue" variant="light">
-              <Sparkles size={16} />
-            </ThemeIcon>
-            <Box>
-              <Text fw={700} size="sm">ChurchCore Ops</Text>
-              <Text c="dimmed" size="xs">{sectionLabel}</Text>
-            </Box>
-          </Group>
+          <Paper
+            radius="md"
+            p="md"
+            mb="md"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(94, 234, 212, 0.18), rgba(244, 201, 93, 0.12))",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+            }}
+          >
+            <Group gap="sm" wrap="nowrap">
+              <ThemeIcon size={38} radius="md" color="teal" variant="filled">
+                <Sparkles size={17} />
+              </ThemeIcon>
+              <Box style={{ minWidth: 0 }}>
+                <Text fw={850} size="sm" c="white" truncate>ChurchCore Ops</Text>
+                <Text c="rgba(255, 255, 255, 0.62)" size="xs" truncate>
+                  {sectionLabel}
+                </Text>
+              </Box>
+            </Group>
+          </Paper>
 
           {sidebarTitle ? (
-            <Paper withBorder radius="xl" p="sm" mb="sm" bg="#f8fbff">
-              <Text fw={600} size="sm">{sidebarTitle}</Text>
+            <Paper
+              radius="md"
+              p="sm"
+              mb="sm"
+              style={{
+                background: "rgba(255, 255, 255, 0.06)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+              }}
+            >
+              <Text fw={700} size="sm" c="white">{sidebarTitle}</Text>
               {sidebarDescription ? (
-                <Text c="dimmed" size="xs" mt={4}>
+                <Text c="rgba(255, 255, 255, 0.55)" size="xs" mt={4}>
                   {sidebarDescription}
                 </Text>
               ) : null}
@@ -180,69 +212,79 @@ export function ApplicationShell({
           ) : null}
         </AppShellSection>
 
-        <Divider mb="sm" />
+        <Divider mb="sm" color="rgba(255, 255, 255, 0.1)" />
 
         {/* Page navigation */}
         <AppShellSection grow component={ScrollArea} scrollbarSize={6}>
-          <Stack gap={4}>
+          <Stack gap={5}>
             {navItems.length ? (
               <>
                 <Group gap={6} px="xs" mb={4}>
-                  <LayoutGrid size={13} />
-                  <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+                  <LayoutGrid size={13} color="rgba(255, 255, 255, 0.54)" />
+                  <Text size="xs" fw={800} tt="uppercase" c="rgba(255, 255, 255, 0.54)">
                     {navLabel ?? t("common", "navigation")}
                   </Text>
                 </Group>
 
-                {navItems.map((item) => (
-                  <NavLink
-                    key={item.href}
-                    component={Link}
-                    href={item.href}
-                    active={item.active}
-                    label={item.label}
-                    description={item.description}
-                    leftSection={<item.icon size={16} />}
-                    variant="light"
-                    color="churchBlue"
-                    onClick={close}
-                    styles={navLinkStyles}
-                  />
-                ))}
+                {navItems.map((item) => {
+                  const Icon =
+                    typeof item.icon === "string"
+                      ? shellNavIcons[item.icon as ShellNavIconName] ?? LayoutGrid
+                      : item.icon;
 
-                <Divider my="sm" />
+                  return (
+                    <NavLink
+                      key={item.href}
+                      className="app-shell-nav-link"
+                      component={Link}
+                      href={item.href}
+                      active={item.active}
+                      label={item.label}
+                      description={item.description}
+                      leftSection={<Icon size={16} />}
+                      variant="light"
+                      color="teal"
+                      onClick={close}
+                      styles={navLinkStyles}
+                    />
+                  );
+                })}
+
+                <Divider my="sm" color="rgba(255, 255, 255, 0.1)" />
               </>
             ) : null}
 
             {/* System links */}
             <Group gap={6} px="xs" mb={4}>
-              <LayoutGrid size={13} />
-              <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+              <LayoutGrid size={13} color="rgba(255, 255, 255, 0.54)" />
+              <Text size="xs" fw={800} tt="uppercase" c="rgba(255, 255, 255, 0.54)">
                 {t("common", "app")}
               </Text>
             </Group>
 
             <NavLink
+              className="app-shell-nav-link"
               component={Link}
               href={workspaceHref}
               label={t("common", "workspace")}
               description={t("common", "yourRoleHome")}
               leftSection={<ShieldCheck size={16} />}
               variant="light"
-              color="churchBlue"
+              color="teal"
               onClick={close}
               styles={navLinkStyles}
             />
 
             {calendarHref ? (
               <NavLink
+                className="app-shell-nav-link"
                 component={Link}
                 href={calendarHref}
                 label={t("common", "calendar")}
                 description={t("common", "churchEvents")}
                 leftSection={<CalendarRange size={16} />}
                 variant="light"
-                color="churchBlue"
+                color="teal"
                 onClick={close}
                 styles={navLinkStyles}
               />
@@ -250,46 +292,48 @@ export function ApplicationShell({
           </Stack>
         </AppShellSection>
 
-        <Divider mt="sm" mb="sm" />
+        <Divider mt="sm" mb="sm" color="rgba(255, 255, 255, 0.1)" />
 
         {/* User + Log out */}
         <AppShellSection>
-          <Paper withBorder radius="xl" p="sm" mb="sm">
-            <Group gap="sm">
-              <Avatar color="churchBlue" radius="xl" variant="light" size="sm">
+          <Paper
+            radius="md"
+            p="sm"
+            mb="sm"
+            style={{
+              background: "rgba(255, 255, 255, 0.07)",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+            }}
+          >
+            <Group gap="sm" wrap="nowrap">
+              <Avatar color="teal" radius="md" variant="filled" size="sm">
                 <ShieldCheck size={14} />
               </Avatar>
               <Box style={{ flex: 1, minWidth: 0 }}>
-                <Text fw={600} size="sm" truncate>
+                <Text fw={700} size="sm" c="white" truncate>
                   {session.profile.name}
                 </Text>
-                <Text c="dimmed" size="xs" truncate>
+                <Text c="rgba(255, 255, 255, 0.55)" size="xs" truncate>
                   {session.profile.title}
                 </Text>
               </Box>
             </Group>
           </Paper>
 
-          <Select
-            aria-label={t("common", "language")}
-            data={languageOptions}
-            value={locale}
-            onChange={(value) => handleLocaleChange(value as Locale | null)}
-            disabled={isLocalePending}
-            size="xs"
-            radius="xl"
-            mb="sm"
-          />
+          <Box mb="sm" className="app-shell-language">
+            <LanguageSelect size="xs" />
+          </Box>
 
           <form action={signOutAction}>
             <Button
               type="submit"
               fullWidth
-              variant="light"
+              variant="filled"
               color="red"
-              radius="xl"
+              radius="md"
               size="sm"
               leftSection={<LogOut size={15} />}
+              style={{ background: "rgba(185, 28, 28, 0.92)" }}
             >
               {t("common", "logOut")}
             </Button>
