@@ -13,10 +13,11 @@ Each run file should be committed with the change it describes. The goal is to m
 - **Implementation summary:** files changed and patterns reused.
 - **Verification:** exact commands and pass/fail results.
 - **Residual risk:** known gaps, pre-existing failures, or follow-up work.
-- **Commit:** final commit hash after push.
+- **Delivery:** branch, pull request, merge method, and final commit or merge hash.
 
 ## Runs
 
-| Date | Run | Scope | Commit |
+| Date | Run | Scope | Delivery |
 | --- | --- | --- | --- |
 | 2026-05-25 | [Readiness module-owned builders](2026-05-25-readiness-module-builders.md) | Split setup, accounts, and people readiness into module builders | `043db58` |
+| 2026-05-25 | [Enforce PR delivery workflow](2026-05-25-enforce-pr-delivery-workflow.md) | Enable admin branch-protection enforcement and document branch/PR delivery | Pending PR |
