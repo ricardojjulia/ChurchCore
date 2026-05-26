@@ -73,4 +73,4 @@ Patterns reused:
 
 - Branch: `feature/readiness-events-volunteers`
 - Pull request: https://github.com/ricardojjulia/ChurchCore-Ops/pull/12
-- Merge: pending
+- Merge: squash merged through GitHub as `eed10c80ac9da4d52ef5427ddcce8b7ff03fd49c` on 2026-05-26.
