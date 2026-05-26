@@ -10,6 +10,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 - Split giving and finance readiness summary construction into a module-owned builder with focused coverage for missing giving page, failed donation, GL posting, draft journal, and ready states.
 - Split suggested workflow readiness summary construction into a module-owned builder with focused coverage for ready, triage, and blocked workflow backlog states.
+- Added first-class communications readiness summary coverage for pending sends, failed delivery, bounced logs, contact gaps, consent gaps, and ready state.
 
 ## [3.0.0] - 2026-05-26
 

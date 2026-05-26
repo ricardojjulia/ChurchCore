@@ -61,6 +61,11 @@ const clearMetricRow = {
   unposted_donations: 0,
   draft_journals: 0,
   live_giving_pages: 1,
+  pending_communications: 0,
+  failed_communications: 0,
+  bounced_communications: 0,
+  contact_gaps: 0,
+  consent_gaps: 0,
   open_workflows: 0,
 };
 
@@ -97,10 +102,14 @@ describe("church admin readiness data", () => {
       failed_donations: 1,
       draft_journals: 2,
       live_giving_pages: 0,
+      failed_communications: 1,
+      bounced_communications: 1,
+      contact_gaps: 2,
     });
 
     const people = items.find((item) => item.id === "people-households");
     const money = items.find((item) => item.id === "giving-finance");
+    const communications = items.find((item) => item.id === "communications");
 
     expect(people).toMatchObject({
       status: "attention",
@@ -120,6 +129,13 @@ describe("church admin readiness data", () => {
       recommendedAction: expect.stringContaining("Open giving and finance exceptions"),
       href: "/app/church-admin/giving?view=exceptions",
     });
+    expect(communications).toMatchObject({
+      status: "blocked",
+      severity: "critical",
+      issueCount: 4,
+      recommendedAction: expect.stringContaining("Open communications"),
+      href: "/app/communications?view=readiness",
+    });
   });
 
   it("loads local fallback metrics into the shared readiness contract", async () => {
@@ -130,7 +146,7 @@ describe("church admin readiness data", () => {
     expect(data.source).toBe("live");
     expect(data.blockedCount).toBe(0);
     expect(data.attentionCount).toBe(0);
-    expect(data.readyCount).toBe(8);
+    expect(data.readyCount).toBe(9);
     expect(data.items.every((item) => item.completionState === "complete")).toBe(true);
     expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
       expect.stringContaining("with"),
