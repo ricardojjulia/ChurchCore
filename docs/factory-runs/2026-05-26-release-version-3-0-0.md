@@ -61,5 +61,5 @@ Files changed:
 ## Delivery
 
 - Branch: `release/version-3-0-0`
-- Pull request: pending
+- Pull request: [#16](https://github.com/ricardojjulia/ChurchCore-Ops/pull/16)
 - Merge: pending
