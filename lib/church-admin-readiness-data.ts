@@ -19,6 +19,7 @@ import {
   buildChildrenReadinessSummary,
   buildChurchSetupReadinessSummary,
   buildEventReadinessSummary,
+  buildGivingFinanceReadinessSummary,
   buildPeopleReadinessSummary,
   buildVolunteerReadinessSummary,
 } from "@/lib/church-admin-readiness-modules";
@@ -172,12 +173,6 @@ function summarize(items: ChurchAdminReadinessItem[], source: ChurchAdminReadine
 }
 
 export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchAdminReadinessItem[] {
-  const givingIssueCount =
-    row.failed_donations + row.unposted_donations + row.draft_journals + (row.live_giving_pages === 0 ? 1 : 0);
-  const givingStatus = readinessStatusFor(
-    row.live_giving_pages === 0 || row.failed_donations > 0,
-    row.unposted_donations > 0 || row.draft_journals > 0,
-  );
   const workflowStatus = readinessStatusFor(row.open_workflows > 10, row.open_workflows > 0);
 
   return [
@@ -200,21 +195,11 @@ export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchA
       openVolunteerShifts: row.open_volunteer_shifts,
       unassignedVolunteerShifts: row.unassigned_volunteer_shifts,
     }),
-    createReadinessSummary({
-      id: "giving-finance",
-      module: "money",
-      title: "Giving and finance",
-      description: "Review failed gifts, GL posting gaps, giving page status, and draft journals.",
-      status: givingStatus,
-      severity: readinessSeverityFor(givingStatus, givingIssueCount),
-      issueCount: givingIssueCount,
-      completionState: readinessCompletionStateFor(givingStatus),
-      recommendedAction:
-        givingIssueCount === 0
-          ? "No action needed."
-          : "Open giving and finance exceptions to resolve failed gifts, GL posting gaps, draft journals, or giving page setup.",
-      target: { route: "/app/church-admin/giving", query: { view: "exceptions" } },
-      detail: `${row.failed_donations} failed gift${row.failed_donations === 1 ? "" : "s"} · ${row.unposted_donations} unposted gift${row.unposted_donations === 1 ? "" : "s"} · ${row.draft_journals} draft journal${row.draft_journals === 1 ? "" : "s"} · ${row.live_giving_pages} live giving page${row.live_giving_pages === 1 ? "" : "s"}.`,
+    buildGivingFinanceReadinessSummary({
+      failedDonations: row.failed_donations,
+      unpostedDonations: row.unposted_donations,
+      draftJournals: row.draft_journals,
+      liveGivingPages: row.live_giving_pages,
     }),
     createReadinessSummary({
       id: "suggested-workflows",

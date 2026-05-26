@@ -24,3 +24,4 @@ Each run file should be committed with the change it describes. The goal is to m
 | 2026-05-25 | [Readiness events and volunteers](2026-05-25-readiness-events-volunteers.md) | Split weekend event and volunteer readiness into module builders | PR #12, squash merge `eed10c8` |
 | 2026-05-25 | [Readiness children's ministry](2026-05-25-readiness-children-ministry.md) | Split children's ministry readiness into a module builder | PR #14, squash merge `604a703` |
 | 2026-05-26 | [Release version 3.0.0](2026-05-26-release-version-3-0-0.md) | Recalculate the accumulated release as a SemVer major baseline | PR #16, squash merge `3d23855` |
+| 2026-05-26 | [Readiness giving and finance](2026-05-26-readiness-giving-finance.md) | Split giving and finance readiness into a module builder | PR #18, merge pending |

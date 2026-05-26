@@ -35,6 +35,13 @@ export type ChildrenReadinessMetrics = {
   ccmFollowups: number;
 };
 
+export type GivingFinanceReadinessMetrics = {
+  failedDonations: number;
+  unpostedDonations: number;
+  draftJournals: number;
+  liveGivingPages: number;
+};
+
 export function buildChurchSetupReadinessSummary({
   missingSettings,
 }: ChurchSetupReadinessMetrics): ReadinessSummary {
@@ -206,5 +213,39 @@ export function buildChildrenReadinessSummary({
       openCcmServices > 0
         ? `${openCcmServices} open service${openCcmServices === 1 ? "" : "s"} · ${ccmVolunteers} volunteer assignment${ccmVolunteers === 1 ? "" : "s"} · ${ccmFollowups} follow-up incident${ccmFollowups === 1 ? "" : "s"}.`
         : "No open children's ministry service is ready for check-in.",
+  });
+}
+
+export function buildGivingFinanceReadinessSummary({
+  failedDonations,
+  unpostedDonations,
+  draftJournals,
+  liveGivingPages,
+}: GivingFinanceReadinessMetrics): ReadinessSummary {
+  const issueCount =
+    failedDonations +
+    unpostedDonations +
+    draftJournals +
+    (liveGivingPages === 0 ? 1 : 0);
+  const status = readinessStatusFor(
+    liveGivingPages === 0 || failedDonations > 0,
+    unpostedDonations > 0 || draftJournals > 0,
+  );
+
+  return createReadinessSummary({
+    id: "giving-finance",
+    module: "money",
+    title: "Giving and finance",
+    description: "Review failed gifts, GL posting gaps, giving page status, and draft journals.",
+    status,
+    severity: readinessSeverityFor(status, issueCount),
+    issueCount,
+    completionState: readinessCompletionStateFor(status),
+    recommendedAction:
+      issueCount === 0
+        ? "No action needed."
+        : "Open giving and finance exceptions to resolve failed gifts, GL posting gaps, draft journals, or giving page setup.",
+    target: { route: "/app/church-admin/giving", query: { view: "exceptions" } },
+    detail: `${failedDonations} failed gift${failedDonations === 1 ? "" : "s"} · ${unpostedDonations} unposted gift${unpostedDonations === 1 ? "" : "s"} · ${draftJournals} draft journal${draftJournals === 1 ? "" : "s"} · ${liveGivingPages} live giving page${liveGivingPages === 1 ? "" : "s"}.`,
   });
 }

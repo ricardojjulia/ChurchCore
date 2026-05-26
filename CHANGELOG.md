@@ -6,7 +6,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
-No unreleased changes yet.
+### Added
+
+- Split giving and finance readiness summary construction into a module-owned builder with focused coverage for missing giving page, failed donation, GL posting, draft journal, and ready states.
 
 ## [3.0.0] - 2026-05-26
 
