@@ -72,5 +72,5 @@ Patterns reused:
 ## Delivery
 
 - Branch: `feature/readiness-events-volunteers`
-- Pull request: pending
+- Pull request: https://github.com/ricardojjulia/ChurchCore-Ops/pull/12
 - Merge: pending
