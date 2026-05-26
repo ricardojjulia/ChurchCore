@@ -58,10 +58,10 @@ Files changed:
 ## Residual Risk
 
 - Required status checks are not yet fully enumerated in this run. The immediate fix is admin enforcement so PR-only branch rules cannot be bypassed during normal work.
-- This run still needs to be opened and merged through a pull request to prove the corrected delivery path.
+- This run proved the corrected delivery path by landing through PR #11 with passing CI, CodeQL, dependency review, and Gitleaks checks.
 
 ## Delivery
 
 - Branch: `chore/enforce-pr-workflow`
 - Pull request: https://github.com/ricardojjulia/ChurchCore-Ops/pull/11
-- Merge: pending
+- Merge: squash merged through GitHub as `7538a861f52eaa52980345ddbb1b41b666e5fafc` on 2026-05-26.
