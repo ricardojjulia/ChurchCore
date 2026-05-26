@@ -65,6 +65,7 @@ export type ChurchAdminPeopleSummary = {
 };
 
 export type ChurchAdminPeopleData = {
+  source: "preview" | "live";
   summary: ChurchAdminPeopleSummary;
   people: ChurchAdminPersonEntry[];
   families: ChurchAdminFamilyOption[];
@@ -72,6 +73,7 @@ export type ChurchAdminPeopleData = {
 
 function buildPreviewChurchAdminPeopleData(): ChurchAdminPeopleData {
   return {
+    source: "preview",
     summary: {
       totalPeople: 0,
       visitorCount: 0,
@@ -418,6 +420,7 @@ export async function getChurchAdminPeopleData(
     );
 
     return {
+      source: "live",
       summary: {
         totalPeople: people.length,
         visitorCount: people.filter((person) => person.membershipStatus === "visitor").length,
@@ -564,6 +567,7 @@ export async function getChurchAdminPeopleData(
   );
 
   return {
+    source: "live",
     summary: {
       totalPeople: normalizedPeople.length,
       visitorCount: normalizedPeople.filter((person) => person.membershipStatus === "visitor")

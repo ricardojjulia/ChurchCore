@@ -37,6 +37,7 @@ import {
   upsertGivingPageAction,
 } from "@/app/app/giving-actions";
 import type { ChurchAppSession } from "@/lib/auth";
+import { ReadinessTargetState } from "@/components/application/readiness-target-state";
 
 function formatCents(cents: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -154,6 +155,29 @@ export function GivingReadinessPanel({
     readiness.unsentReceipts.length +
     readiness.draftJournalCount +
     (readiness.liveGivingPageCount === 0 ? 1 : 0);
+  const targetState =
+    readiness.source === "preview"
+      ? {
+          state: "no-backend" as const,
+          title: "Readiness target unavailable",
+          description:
+            "Giving readiness can be previewed, but live payment, receipt, GL, and journal checks need tenant data.",
+          detail: "Configure the tenant backend before using this target to clear readiness.",
+        }
+      : issueCount === 0
+        ? {
+            state: "completed" as const,
+            title: "Giving and finance readiness is clear",
+            description:
+              "No failed gifts, unposted donations, receipt gaps, draft journals, or public giving page gaps need review.",
+          }
+        : {
+            state: "validation-error" as const,
+            title: "Giving and finance exceptions need attention",
+            description:
+              "Resolve the exception lanes below before marking this readiness item complete.",
+            detail: `${issueCount} item${issueCount === 1 ? "" : "s"} need review.`,
+          };
 
   function handlePostToGl(donationId: string) {
     setMessage(null);
@@ -201,6 +225,12 @@ export function GivingReadinessPanel({
           </Group>
         </Group>
       </Paper>
+
+      <ReadinessTargetState
+        {...targetState}
+        primaryAction={{ label: "Back to readiness", href: "/app/church-admin/readiness" }}
+        secondaryAction={{ label: "Draft journals", href: "/app/church-admin/finance/journals?view=drafts" }}
+      />
 
       <Group grow align="stretch">
         <Paper withBorder p="md" radius="md">
