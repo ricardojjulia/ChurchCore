@@ -19,6 +19,7 @@ import { notifications } from "@mantine/notifications";
 import { HeartHandshake, RefreshCw, Sparkles, Users } from "lucide-react";
 
 import { ApplicationShell } from "@/components/application/app-shell";
+import { ReadinessTargetState } from "@/components/application/readiness-target-state";
 import type { ChurchAppSession } from "@/lib/auth";
 import type {
   ShepherdAssignee,
@@ -42,10 +43,12 @@ function urgencyColor(urgency: string) {
 
 export function ShepherdWorkflowQueue({
   session,
+  source,
   queue,
   assignees,
 }: {
   session: ChurchAppSession;
+  source: "preview" | "live";
   queue: ShepherdWorkflowQueueRow[];
   assignees: ShepherdAssignee[];
 }) {
@@ -90,6 +93,39 @@ export function ShepherdWorkflowQueue({
   ).length;
 
   const highCount = visibleQueue.filter((item) => item.urgency === "high").length;
+  const readinessState =
+    initialStatus === "open"
+      ? source === "preview"
+        ? {
+            state: "no-backend" as const,
+            title: "Readiness target unavailable",
+            description:
+              "Workflow readiness can be previewed, but live ShepherdAI queue checks need tenant data.",
+            detail: "Configure the tenant backend before using this target to clear readiness.",
+          }
+        : visibleQueue.length === 0
+          ? {
+              state: "completed" as const,
+              title: "Suggested workflow readiness is clear",
+              description: "No open ministry workflow items currently need review.",
+            }
+          : {
+              state: "validation-error" as const,
+              title: "Open ministry workflows need review",
+              description:
+                "Assign, defer, dismiss, or complete the matching workflow items below before handoff.",
+              detail: `${visibleQueue.length} workflow item${
+                visibleQueue.length === 1 ? "" : "s"
+              } still need review.`,
+            }
+      : source === "live" && queue.length === 0
+        ? {
+            state: "empty" as const,
+            title: "No workflow suggestions yet",
+            description:
+              "Run a scheduled evaluation after tenant data is available to populate ministry workflow suggestions.",
+          }
+        : null;
 
   function runEvaluation() {
     startTransition(async () => {
@@ -289,6 +325,14 @@ export function ShepherdWorkflowQueue({
               </Text>
             </Group>
           </Paper>
+        ) : null}
+
+        {readinessState ? (
+          <ReadinessTargetState
+            {...readinessState}
+            primaryAction={{ label: "Back to readiness", href: "/app/church-admin/readiness" }}
+            secondaryAction={{ label: "All workflows", href: "/app/church-admin/workflows" }}
+          />
         ) : null}
 
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">

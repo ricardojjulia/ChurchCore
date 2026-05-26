@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ServicePlansWorkspace } from "@/components/application/volunteer-schedule";
 import { requireChurchSession } from "@/lib/auth";
+import { hasTenantBackendEnv } from "@/lib/supabase/tenant";
 import { getServicePlanList, getServicePlanTemplates } from "@/lib/volunteer-data";
 
 const NAV_ITEMS = [
@@ -19,6 +20,7 @@ export default async function ServicePlansPage() {
     getServicePlanList(session, { upcoming: true }),
     getServicePlanTemplates(session),
   ]);
+  const source = hasTenantBackendEnv() && session.source === "supabase" ? "live" : "preview";
 
   return (
     <ApplicationShell
@@ -34,7 +36,7 @@ export default async function ServicePlansPage() {
       navItems={NAV_ITEMS}
     >
       <div style={{ padding: "var(--mantine-spacing-md)" }}>
-        <ServicePlansWorkspace plans={plans} templates={templates} />
+        <ServicePlansWorkspace plans={plans} templates={templates} source={source} />
       </div>
     </ApplicationShell>
   );
