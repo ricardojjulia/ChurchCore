@@ -71,4 +71,4 @@ Patterns reused:
 
 - Branch: `feature/readiness-children-builder`
 - Pull request: [#14](https://github.com/ricardojjulia/ChurchCore-Ops/pull/14)
-- Merge: pending
+- Merge: squash merge `604a703`
