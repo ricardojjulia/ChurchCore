@@ -27,6 +27,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Enabled admin enforcement on the protected `main` branch and updated factory documentation to require feature branches and pull requests instead of routine direct pushes.
 - Updated the secret-scan workflow checkout depth so Gitleaks can resolve pull-request commit ranges.
 - Split weekend event and volunteer schedule readiness summary construction into module-owned builders.
+- Split children's ministry readiness summary construction into a module-owned builder with safety-focused coverage for missing service, volunteer coverage, incident follow-up, and ready states.
 - Added `docs/diagrams.md` as the canonical diagram set for the repository, with Mermaid source for system architecture, role/surface mapping, core workflows, and documentation flow.
 - Added `docs/development-plan-visual.md` as a visual companion to `DEVELOPMENT_PLAN.md`, covering strategy, roadmap, boundary/security model, and Sprint 1 execution flow.
 - Added `docs/plans/github-repository-operations.md` to preserve the GitHub roadmap for projects, milestones, issue forms, branch protection, security triage, and releases.

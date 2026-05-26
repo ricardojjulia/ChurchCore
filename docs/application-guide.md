@@ -94,7 +94,7 @@ Path: `/app/church-admin/readiness`
 
 The readiness workspace is the MVP operating path. It checks whether a church admin can run the week across church setup, portal account requests, people and households, weekend events, children's ministry, volunteer schedule, giving and finance, and suggested ministry workflows. Each item links directly to the workflow that resolves it, and supported routes open in a filtered readiness view.
 
-Readiness items now follow a shared `ReadinessSummary` contract with status, severity, issue count, completion state, recommended action, target route, and target query metadata. Setup, account request, people/household, weekend event, and volunteer schedule readiness now use module-owned builders, which keeps the weekly operator path consistent as each remaining module starts owning its own readiness summary.
+Readiness items now follow a shared `ReadinessSummary` contract with status, severity, issue count, completion state, recommended action, target route, and target query metadata. Setup, account request, people/household, weekend event, children's ministry, and volunteer schedule readiness now use module-owned builders, which keeps the weekly operator path consistent as each remaining module starts owning its own readiness summary.
 
 Supported readiness targets now include filtered or context-specific views for people records, events without roster coverage, children's ministry safety checks, volunteer scheduling, giving/finance exceptions, draft finance journals, and suggested workflows.
 
