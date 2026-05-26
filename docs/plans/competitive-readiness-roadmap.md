@@ -104,7 +104,7 @@ These workstreams convert the competitive findings into implementation-ready ste
 4. Update `/app/church-admin/readiness` to use the shared summaries rather than duplicating module-specific rules.
 5. Add filtered target views for every readiness issue type.
 6. Add empty, no-backend, permission-denied, validation-error, and completed states to every readiness target route.
-7. Add route-level smoke coverage for the weekly path. **Started:** `npm run smoke:local` now checks the current readiness target routes after ChurchAdmin sign-in.
+7. Add route-level smoke coverage for the weekly path. **Started:** `npm run smoke:local` now checks the current readiness target routes after ChurchAdmin sign-in. **Browser coverage added:** `npm run test:e2e:readiness` uses Playwright to sign in through the browser, hydrate the ChurchAdmin church context, and visit the same current readiness target routes.
 8. Update `docs/application-guide.md` and `docs/mvp-readiness-audit.md` with the final operator path.
 
 **Done when:** A new evaluator can sign in as ChurchAdmin, open readiness, inspect every issue, follow every target link, and understand the next action without reading source code.
@@ -287,7 +287,7 @@ These workstreams convert the competitive findings into implementation-ready ste
 ### Acceptance Criteria
 
 - `npm run smoke:local` covers the ChurchAdmin weekly path from sign-in through the current readiness targets.
-- Add browser-level Playwright coverage for the same route-by-route weekly readiness path.
+- `npm run test:e2e:readiness` provides browser-level Playwright coverage for the same route-by-route weekly readiness path.
 - A new evaluator can follow `/app/church-admin/readiness` and resolve or inspect every issue linked there.
 - Every target route has a clear title, active navigation state, empty state, and primary next action.
 - Role guards prevent Secretary, Pastor, Ministry Leader, Member, and Control Plane users from reaching ChurchAdmin-only workflows.

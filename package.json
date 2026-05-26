@@ -12,6 +12,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
+    "test:e2e:readiness": "playwright test tests/e2e/church-admin-readiness.spec.ts",
     "check": "npm run lint && npm run build",
     "postinstall": "rm -rf node_modules/next/node_modules/postcss",
     "setup:local": "./supabase/scripts/setup-local.sh",
@@ -41,6 +44,7 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
