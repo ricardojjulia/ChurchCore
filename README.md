@@ -138,12 +138,22 @@ See [docs/shepherd-ai-ops.md](docs/shepherd-ai-ops.md) for architecture and guar
 
 ## Evaluation Snapshot
 
-- Current repo version: `2.12.1`
+- Current repo version: `3.0.0`
 - License: [MIT](LICENSE)
 - Included demo scope: preview mode without a backend, or local Supabase with seeded Grace Harbor Church data
 - Local credential material is not committed; demo credentials are generated locally by the bootstrap script and saved to gitignored `.demo-credentials.local`
 - Evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, and `npm run smoke:local`
 - Spanish UI support has started with cookie-backed English/Spanish selection; track rollout in [docs/plans/spanish-ui-coverage.md](docs/plans/spanish-ui-coverage.md)
+
+## Release 3.0.0 Highlights
+
+Release 3.0.0 is the correct SemVer position for the accumulated work after the last tagged 2.11.1 snapshot. The scope moved beyond patch hardening and routine feature delivery: it added new operator workspaces, new role surfaces, ShepherdAI operational persistence, split-backend security posture, bilingual UI foundations, readiness contracts, and the documented Claude/Codex software factory. Under the `DEVELOPMENT_PLAN.md` rules, that combination is a major release because it includes major operational modules and significant AI/sensitive-workflow changes.
+
+- **Operator path:** ChurchAdmin weekly readiness, Daily Desk, live operations lanes, account onboarding, readiness resolution actions, and module-owned readiness builders now make the weekly church-admin path more explicit.
+- **Role and member surfaces:** Secretary / Office Admin, member portal refinements, public portal account requests, English/Spanish shell coverage, and mobile-friendly member workflow foundations are now documented and partially implemented.
+- **AI and workflow operations:** ShepherdAI now has deterministic signal persistence, workflow recommendation/promotion services, scheduled evaluation, and guardrail documentation.
+- **Security and delivery posture:** control-plane and tenant backend separation is hardened, vulnerable dependencies were remediated, branch protection now enforces PR delivery, and factory runs are tracked as durable evidence.
+- **Software factory:** Claude Code and Codex workflows are documented with agents/skills, visual diagrams, approval gates, validation, and preferred transparent delivery steps.
 
 ## Release 2.12.1 Highlights
 

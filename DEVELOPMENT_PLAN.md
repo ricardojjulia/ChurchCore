@@ -1,7 +1,7 @@
 # ChurchCore Ops Development Plan
 
-**Living Document** - Last Updated: May 9, 2026
-**Version**: 1.9
+**Living Document** - Last Updated: May 26, 2026
+**Version**: 2.0
 **Purpose**: This is the single source of truth for all ChurchCore Ops development. Every GitHub Issue, PR, sprint, and code review must reference this document. Update only via PR.
 
 Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual.md) summarizes the strategy, roadmap, boundary model, and Sprint 1 flow as diagrams. This document remains the source of truth.
