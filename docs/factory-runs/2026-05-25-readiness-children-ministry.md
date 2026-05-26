@@ -70,5 +70,5 @@ Patterns reused:
 ## Delivery
 
 - Branch: `feature/readiness-children-builder`
-- Pull request: pending
+- Pull request: [#14](https://github.com/ricardojjulia/ChurchCore-Ops/pull/14)
 - Merge: pending
