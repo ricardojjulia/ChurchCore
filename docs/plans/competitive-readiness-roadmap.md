@@ -290,7 +290,7 @@ These workstreams convert the competitive findings into implementation-ready ste
 - `npm run test:e2e:readiness` provides browser-level Playwright coverage for the same route-by-route weekly readiness path.
 - A new evaluator can follow `/app/church-admin/readiness` and resolve or inspect every issue linked there.
 - Every target route has a clear title, active navigation state, empty state, and primary next action.
-- Role guards prevent Secretary, Pastor, Ministry Leader, Member, and Control Plane users from reaching ChurchAdmin-only workflows.
+- Role guards prevent Secretary, Pastor, Ministry Leader, and Member users from reaching ChurchAdmin-only readiness workflows. Control Plane browser coverage remains pending until the separate local control-plane demo is provisioned.
 - `docs/application-guide.md`, `docs/mvp-readiness-audit.md`, and this roadmap reflect the implemented path.
 
 ## Phase 2: Harden Mobile Member Workflows

@@ -95,6 +95,9 @@ The generated file also includes:
 
 - `CHURCHCORE_OPS_DEMO_ADMIN_EMAIL`
 - `CHURCHCORE_OPS_DEMO_MEMBER_EMAIL`
+- `CHURCHCORE_OPS_DEMO_SECRETARY_EMAIL`
+- `CHURCHCORE_OPS_DEMO_PASTOR_EMAIL`
+- `CHURCHCORE_OPS_DEMO_MINISTRY_LEADER_EMAIL`
 
 Sarah can access:
 - `/app` — Church admin workspace
@@ -103,6 +106,15 @@ Control-plane local development uses the separate `supabase/control-plane` proje
 
 David can access:
 - `/app` — Member portal
+
+Olivia can access:
+- `/app/secretary` — Secretary / Office Admin portal
+
+Miriam can access:
+- `/app/pastor` — Pastor / Elder portal
+
+Robert can access:
+- `/app/ministry-leader` — Ministry Leader portal
 
 ---
 
@@ -127,7 +139,7 @@ The seed creates **Grace Harbor Church** with the following:
 
 ### Profiles
 
-The seed creates 22 demo profiles across members, visitors, inactive members, transferred members, volunteers, ministry leaders, and account-request cases. Sarah Mitchell and David Chen are backed by local Supabase Auth users; the remaining profiles are directory and operations data for ministry workflows.
+The seed creates 23 demo profiles across members, visitors, inactive members, transferred members, volunteers, ministry leaders, pastoral users, and account-request cases. Sarah Mitchell, David Chen, Olivia Reed, Miriam Cole, and Robert James are backed by local Supabase Auth users; the remaining profiles are directory and operations data for ministry workflows.
 
 | Name | Email | Role | Status |
 |------|-------|------|--------|

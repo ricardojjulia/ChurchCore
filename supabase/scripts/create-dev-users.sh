@@ -101,6 +101,8 @@ echo "Creating dev auth users..."
 create_user "sarah@churchcoreops.app"
 create_user "david@graceharbor.church"
 create_user "olivia@graceharbor.church"
+create_user "miriam@graceharbor.church"
+create_user "robert@graceharbor.church"
 
 echo ""
 echo "Running seed..."
@@ -117,6 +119,8 @@ CHURCHCORE_OPS_DEV_PASSWORD=${DEFAULT_PASSWORD}
 CHURCHCORE_OPS_DEMO_ADMIN_EMAIL=sarah@churchcoreops.app
 CHURCHCORE_OPS_DEMO_MEMBER_EMAIL=david@graceharbor.church
 CHURCHCORE_OPS_DEMO_SECRETARY_EMAIL=olivia@graceharbor.church
+CHURCHCORE_OPS_DEMO_PASTOR_EMAIL=miriam@graceharbor.church
+CHURCHCORE_OPS_DEMO_MINISTRY_LEADER_EMAIL=robert@graceharbor.church
 EOF
 chmod 600 "${CREDENTIALS_FILE}"
 
@@ -125,6 +129,8 @@ echo "Done. Local dev accounts ready:"
 echo "  sarah@churchcoreops.app    / ${DEFAULT_PASSWORD}  (church-admin + platform-admin)"
 echo "  david@graceharbor.church    / ${DEFAULT_PASSWORD}  (member)"
 echo "  olivia@graceharbor.church   / ${DEFAULT_PASSWORD}  (secretary / office admin)"
+echo "  miriam@graceharbor.church   / ${DEFAULT_PASSWORD}  (pastor / elder)"
+echo "  robert@graceharbor.church   / ${DEFAULT_PASSWORD}  (ministry leader)"
 echo ""
 echo "Saved local demo credentials to:"
 echo "  ${CREDENTIALS_FILE}"
