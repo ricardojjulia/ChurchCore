@@ -12,6 +12,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Split suggested workflow readiness summary construction into a module-owned builder with focused coverage for ready, triage, and blocked workflow backlog states.
 - Added first-class communications readiness summary coverage for pending sends, failed delivery, bounced logs, contact gaps, consent gaps, and ready state.
 - Added first-class reports readiness summary coverage for member, event, giving, posted finance journal, and active budget report inputs.
+- Expanded the local ChurchAdmin readiness smoke path to verify each current readiness target route.
 
 ### Changed
 
