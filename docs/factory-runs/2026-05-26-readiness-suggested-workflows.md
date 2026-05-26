@@ -69,5 +69,5 @@ Patterns reused:
 ## Delivery
 
 - Branch: `feature/readiness-workflows-builder`
-- Pull request: pending
+- Pull request: [#20](https://github.com/ricardojjulia/ChurchCore-Ops/pull/20)
 - Merge: pending
