@@ -5,6 +5,7 @@ import {
   buildChildrenReadinessSummary,
   buildChurchSetupReadinessSummary,
   buildEventReadinessSummary,
+  buildGivingFinanceReadinessSummary,
   buildPeopleReadinessSummary,
   buildVolunteerReadinessSummary,
 } from "@/lib/church-admin-readiness-modules";
@@ -151,6 +152,70 @@ describe("church admin readiness module summaries", () => {
       openCcmServices: 1,
       ccmVolunteers: 4,
       ccmFollowups: 0,
+    })).toMatchObject({
+      status: "ready",
+      severity: "none",
+      issueCount: 0,
+      completionState: "complete",
+      recommendedAction: "No action needed.",
+    });
+  });
+
+  it("blocks giving and finance readiness when no live giving page exists", () => {
+    expect(buildGivingFinanceReadinessSummary({
+      failedDonations: 0,
+      unpostedDonations: 0,
+      draftJournals: 0,
+      liveGivingPages: 0,
+    })).toMatchObject({
+      id: "giving-finance",
+      module: "money",
+      status: "blocked",
+      severity: "critical",
+      issueCount: 1,
+      completionState: "blocked",
+      recommendedAction: "Open giving and finance exceptions to resolve failed gifts, GL posting gaps, draft journals, or giving page setup.",
+      href: "/app/church-admin/giving?view=exceptions",
+      detail: "0 failed gifts · 0 unposted gifts · 0 draft journals · 0 live giving pages.",
+    });
+  });
+
+  it("blocks giving and finance readiness when failed donations need review", () => {
+    expect(buildGivingFinanceReadinessSummary({
+      failedDonations: 2,
+      unpostedDonations: 0,
+      draftJournals: 0,
+      liveGivingPages: 1,
+    })).toMatchObject({
+      status: "blocked",
+      severity: "critical",
+      issueCount: 2,
+      completionState: "blocked",
+      detail: "2 failed gifts · 0 unposted gifts · 0 draft journals · 1 live giving page.",
+    });
+  });
+
+  it("flags giving and finance readiness when GL posting or draft journals need attention", () => {
+    expect(buildGivingFinanceReadinessSummary({
+      failedDonations: 0,
+      unpostedDonations: 3,
+      draftJournals: 2,
+      liveGivingPages: 1,
+    })).toMatchObject({
+      status: "attention",
+      severity: "warning",
+      issueCount: 5,
+      completionState: "needs_review",
+      detail: "0 failed gifts · 3 unposted gifts · 2 draft journals · 1 live giving page.",
+    });
+  });
+
+  it("builds ready giving and finance readiness when money checks are clear", () => {
+    expect(buildGivingFinanceReadinessSummary({
+      failedDonations: 0,
+      unpostedDonations: 0,
+      draftJournals: 0,
+      liveGivingPages: 1,
     })).toMatchObject({
       status: "ready",
       severity: "none",
