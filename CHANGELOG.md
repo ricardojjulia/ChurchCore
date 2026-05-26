@@ -12,6 +12,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Split suggested workflow readiness summary construction into a module-owned builder with focused coverage for ready, triage, and blocked workflow backlog states.
 - Added first-class communications readiness summary coverage for pending sends, failed delivery, bounced logs, contact gaps, consent gaps, and ready state.
 
+### Changed
+
+- Disabled Markdown MD013 line-length enforcement so long documentation links, tables, diagrams, and factory logs do not produce noisy lint failures.
+
 ## [3.0.0] - 2026-05-26
 
 ### Release Rationale
