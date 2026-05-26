@@ -6,13 +6,21 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
-### Unreleased — Security
+No unreleased changes yet.
+
+## [3.0.0] - 2026-05-26
+
+### Release Rationale
+
+Release 3.0.0 is a major-version release because the accumulated work since the last tagged release is no longer a patch or routine feature increment. It introduces significant operator-path architecture, new tenant role surfaces, live ChurchAdmin operations lanes, split control-plane/tenant hardening, ShepherdAI operational persistence, bilingual member/admin foundations, and a transparent AI-assisted software-factory workflow. Under `DEVELOPMENT_PLAN.md` SemVer rules, that combination crosses the threshold for a major release: major new operational modules plus significant AI and sensitive-workflow changes.
+
+### Security
 
 - Upgraded `next` from `16.2.3` to `16.2.6` to address 7 high and 5 moderate CVEs (middleware/proxy bypass, DoS via Server Components, SSRF via WebSocket upgrades, XSS via CSP nonces and `beforeInteractive` scripts, cache poisoning, and Image Optimization DoS).
 - Added npm `overrides` to enforce `ws>=8.20.1` (uninitialized memory disclosure) and `brace-expansion>=5.0.6` (ReDoS) across all transitive dependents.
 - Patched `postcss` nested inside `next` to `8.5.10` via lockfile and postinstall cleanup to resolve XSS in CSS stringify output (GHSA-qx2v-qp2m-jg93).
 
-### Unreleased — Added
+### Added
 
 - Added `docs/plans/competitive-readiness-roadmap.md` as the next major-release execution roadmap for finishing the operator path, hardening mobile member workflows, completing communications delivery, closing service planning and registration gaps, adding migration/import tooling, and proving security claims.
 - Added `docs/adr/0004-competitive-readiness-architecture.md` to govern readiness contracts, mobile member self-service, communications provider adapters, service planning and registration boundaries, import staging, and security evidence for the competitive-readiness release.
@@ -87,7 +95,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added architecture and guardrails documentation in `docs/shepherd-ai-ops.md`.
 - Added recurring ShepherdAI scheduler wiring with `lib/shepherd-ai/scheduler.ts`, secure cron route `GET /api/cron/shepherd-ai`, and `vercel.json` cron schedule support.
 
-### Unreleased — Changed
+### Changed
 
 - Changed repository licensing from `UNLICENSED` to MIT in `LICENSE`, `package.json`, and `package-lock.json`.
 - Reworked the README opening into a technical blueprint entry point with status badges, architecture preview, quick start, repo map, and clearer control-plane/tenant boundary positioning.
@@ -131,7 +139,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - ChurchAdmin home summary cards now link to the matching People, Ministry Forge, Events, and Giving Ops workspaces instead of rendering as static dashboard tiles.
 - Fixed remaining stale Ministry Forge links and added a compatibility redirect from `/app/church-admin/ministry/overview` to `/app/church-admin/ministry`.
 
-### Unreleased — Fixed
+### Fixed
 
 - Fixed public portal route rendering by avoiding server-to-client function props in Mantine buttons on `/portal` and `/portal/register`.
 - Fixed the split-backend configuration test to require explicit control-plane and tenant DB URLs instead of the retired shared `SUPABASE_DB_URL` fallback.
