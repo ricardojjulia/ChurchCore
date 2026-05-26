@@ -54,6 +54,14 @@ export type CommunicationsReadinessMetrics = {
   consentGaps: number;
 };
 
+export type ReportsReadinessMetrics = {
+  reportProfiles: number;
+  reportEvents: number;
+  reportGifts: number;
+  postedFinanceJournals: number;
+  activeFinanceBudgets: number;
+};
+
 export function buildChurchSetupReadinessSummary({
   missingSettings,
 }: ChurchSetupReadinessMetrics): ReadinessSummary {
@@ -316,5 +324,39 @@ export function buildCommunicationsReadinessSummary({
         : "Open communications and resolve pending sends, delivery failures, consent limits, or contact gaps.",
     target: { route: "/app/communications", query: { view: "readiness" } },
     detail: `${pendingCommunications} pending send${pendingCommunications === 1 ? "" : "s"} · ${failedCommunications} failed · ${bouncedCommunications} bounced · ${contactGaps} contact gap${contactGaps === 1 ? "" : "s"} · ${consentGaps} consent gap${consentGaps === 1 ? "" : "s"}.`,
+  });
+}
+
+export function buildReportsReadinessSummary({
+  reportProfiles,
+  reportEvents,
+  reportGifts,
+  postedFinanceJournals,
+  activeFinanceBudgets,
+}: ReportsReadinessMetrics): ReadinessSummary {
+  const missingSurfaces = [
+    reportProfiles === 0,
+    reportEvents === 0,
+    reportGifts === 0,
+    postedFinanceJournals === 0,
+    activeFinanceBudgets === 0,
+  ].filter(Boolean).length;
+  const status = readinessStatusFor(missingSurfaces >= 3, missingSurfaces > 0);
+
+  return createReadinessSummary({
+    id: "reports",
+    module: "reports",
+    title: "Reports",
+    description: "Review member, event, giving, finance, and budget report coverage.",
+    status,
+    severity: readinessSeverityFor(status, missingSurfaces),
+    issueCount: missingSurfaces,
+    completionState: readinessCompletionStateFor(status),
+    recommendedAction:
+      missingSurfaces === 0
+        ? "No action needed."
+        : "Open reports and confirm the missing member, event, giving, finance, or budget inputs.",
+    target: { route: "/app/reports", query: { range: "90d" } },
+    detail: `${reportProfiles} report profile${reportProfiles === 1 ? "" : "s"} · ${reportEvents} recent event${reportEvents === 1 ? "" : "s"} · ${reportGifts} recent gift${reportGifts === 1 ? "" : "s"} · ${postedFinanceJournals} posted finance journal${postedFinanceJournals === 1 ? "" : "s"} · ${activeFinanceBudgets} active budget${activeFinanceBudgets === 1 ? "" : "s"}.`,
   });
 }

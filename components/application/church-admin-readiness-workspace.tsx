@@ -115,6 +115,11 @@ function translateReadinessItem(
       description: "givingDescription",
       preview: "detailPreviewGiving",
     },
+    reports: {
+      title: "reportsTitle",
+      description: "reportsDescription",
+      preview: "detailPreviewReports",
+    },
     "suggested-workflows": {
       title: "workflowsTitle",
       description: "workflowsDescription",
@@ -236,6 +241,29 @@ function translateReadinessItem(
         journalsPlural: spanishPlural(journals),
         pages,
         pagesPlural: spanishPlural(pages),
+      }),
+    };
+  }
+  if (item.id === "reports") {
+    const profiles = values[0] ?? 0;
+    const events = values[1] ?? 0;
+    const gifts = values[2] ?? 0;
+    const journals = values[3] ?? 0;
+    const budgets = values[4] ?? 0;
+    return {
+      title,
+      description,
+      detail: t("readiness", "reportsReady", {
+        profiles,
+        profilesPlural: spanishPlural(profiles),
+        events,
+        eventsPlural: spanishPlural(events),
+        gifts,
+        giftsPlural: spanishPlural(gifts),
+        journals,
+        journalsPlural: spanishPlural(journals),
+        budgets,
+        budgetsPlural: spanishPlural(budgets),
       }),
     };
   }
