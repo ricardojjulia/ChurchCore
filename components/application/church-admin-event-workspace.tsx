@@ -42,6 +42,7 @@ import {
 } from "@/app/app/church-admin-actions";
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
+import { ReadinessTargetState } from "@/components/application/readiness-target-state";
 import type { ChurchAppSession } from "@/lib/auth";
 import Link from "next/link";
 import { Table, Tabs } from "@mantine/core";
@@ -664,9 +665,11 @@ function formatEventDate(v: string) {
 export function EventsListWorkspace({
   session,
   events,
+  source,
 }: {
   session: import("@/lib/auth").ChurchAppSession;
   events: ChurchAdminEventsListEntry[];
+  source: "preview" | "live";
 }) {
   const searchParams = useSearchParams();
   const view = searchParams.get("view");
@@ -682,6 +685,37 @@ export function EventsListWorkspace({
     view === "needs-roster" ? events.filter((event) => event.rosterCount === 0) : events;
   const upcoming = eventRows.filter((e) => new Date(e.startsAt) >= new Date());
   const past = eventRows.filter((e) => new Date(e.startsAt) < new Date());
+  const readinessState =
+    view === "needs-roster"
+      ? source === "preview"
+        ? {
+            state: "no-backend" as const,
+            title: "Readiness target unavailable",
+            description:
+              "Event roster readiness can be previewed, but live event and roster checks need tenant data.",
+            detail: "Configure the tenant backend before using this target to clear readiness.",
+          }
+        : eventRows.length === 0
+          ? {
+              state: "completed" as const,
+              title: "Event roster readiness is clear",
+              description: "No events currently need roster coverage.",
+            }
+          : {
+              state: "validation-error" as const,
+              title: "Events need roster coverage",
+              description:
+                "Open the matching events below to add roster assignments or confirm attendance setup.",
+              detail: `${eventRows.length} event${eventRows.length === 1 ? "" : "s"} need roster review.`,
+            }
+      : source === "live" && events.length === 0
+        ? {
+            state: "empty" as const,
+            title: "No event records yet",
+            description:
+              "Create upcoming events before using this workspace for roster, attendance, and readiness work.",
+          }
+        : null;
 
   function handleCreate() {
     if (!form.title.trim() || !form.startsAt || !form.endsAt) {
@@ -752,6 +786,14 @@ export function EventsListWorkspace({
               </Text>
             </Group>
           </Paper>
+        ) : null}
+
+        {readinessState ? (
+          <ReadinessTargetState
+            {...readinessState}
+            primaryAction={{ label: "Back to readiness", href: "/app/church-admin/readiness" }}
+            secondaryAction={{ label: "All events", href: "/app/church-admin/events" }}
+          />
         ) : null}
 
         <Tabs defaultValue="upcoming">

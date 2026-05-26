@@ -14,7 +14,7 @@ export default async function ShepherdWorkflowQueuePage() {
     redirect(session.homePath);
   }
 
-  const { queue, assignees } = await getShepherdAiWorkflowQueueData(session);
+  const data = await getShepherdAiWorkflowQueueData(session);
 
-  return <ShepherdWorkflowQueue session={session} queue={queue} assignees={assignees} />;
+  return <ShepherdWorkflowQueue session={session} {...data} />;
 }

@@ -33,6 +33,7 @@ import {
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
+import { ReadinessTargetState } from "@/components/application/readiness-target-state";
 import type { ServicePlanDetail, ServicePlanListEntry, ServicePlanTemplate, VolunteerPoolEntry } from "@/lib/volunteer-types";
 import {
   addPlanPositionAction,
@@ -57,9 +58,11 @@ const CONFIRM_COLOR: Record<string, string> = {
 export function ServicePlansWorkspace({
   plans: initialPlans,
   templates,
+  source,
 }: {
   plans: ServicePlanListEntry[];
   templates: ServicePlanTemplate[];
+  source: "preview" | "live";
 }) {
   const searchParams = useSearchParams();
   const view = searchParams.get("view");
@@ -77,6 +80,37 @@ export function ServicePlansWorkspace({
       : plans;
   const upcoming = visiblePlans.filter((p) => p.serviceDate >= new Date().toISOString().slice(0, 10));
   const past = visiblePlans.filter((p) => p.serviceDate < new Date().toISOString().slice(0, 10));
+  const readinessState =
+    view === "unassigned"
+      ? source === "preview"
+        ? {
+            state: "no-backend" as const,
+            title: "Readiness target unavailable",
+            description:
+              "Volunteer schedule readiness can be previewed, but live service-plan coverage checks need tenant data.",
+            detail: "Configure the tenant backend before using this target to clear readiness.",
+          }
+        : visiblePlans.length === 0
+          ? {
+              state: "completed" as const,
+              title: "Volunteer schedule readiness is clear",
+              description: "No upcoming service plans currently need volunteer coverage.",
+            }
+          : {
+              state: "validation-error" as const,
+              title: "Service plans need volunteer coverage",
+              description:
+                "Open the matching service plans below to fill positions and confirm volunteers.",
+              detail: `${visiblePlans.length} plan${visiblePlans.length === 1 ? "" : "s"} need coverage.`,
+            }
+      : source === "live" && plans.length === 0
+        ? {
+            state: "empty" as const,
+            title: "No service plans yet",
+            description:
+              "Create service plans before using this workspace for volunteer coverage and readiness work.",
+          }
+        : null;
 
   function handleCreate() {
     if (!form.name.trim() || !form.serviceDate) return;
@@ -128,6 +162,14 @@ export function ServicePlansWorkspace({
           </Group>
         </Paper>
       )}
+
+      {readinessState ? (
+        <ReadinessTargetState
+          {...readinessState}
+          primaryAction={{ label: "Back to readiness", href: "/app/church-admin/readiness" }}
+          secondaryAction={{ label: "All service plans", href: "/app/church-admin/volunteers/schedules" }}
+        />
+      ) : null}
 
       {[
         { label: "Upcoming", rows: upcoming },

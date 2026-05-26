@@ -21,6 +21,7 @@ import {
 } from "@/app/app/church-admin-actions";
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
+import { ReadinessTargetState } from "@/components/application/readiness-target-state";
 import { useI18n } from "@/components/i18n-provider";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { ChurchAdminAccountsData } from "@/lib/church-admin-accounts-data";
@@ -47,6 +48,30 @@ export function ChurchAdminAccountsWorkspace({
     key: string,
     values?: Record<string, string | number>,
   ) => t("accountRequests", key, values);
+  const readinessState =
+    data.source === "preview"
+      ? {
+          state: "no-backend" as const,
+          title: "Readiness target unavailable",
+          description:
+            "Portal account requests can be previewed, but live approval queue checks need tenant data.",
+          detail: "Configure the tenant backend before using this target to clear readiness.",
+        }
+      : data.pendingRequests.length === 0
+        ? {
+            state: "completed" as const,
+            title: "Portal account requests are clear",
+            description: "No pending portal requests are waiting for review.",
+          }
+        : {
+            state: "validation-error" as const,
+            title: "Portal account requests need review",
+            description:
+              "Approve or reject the pending requests below before marking this readiness item complete.",
+            detail: `${data.pendingRequests.length} request${
+              data.pendingRequests.length === 1 ? "" : "s"
+            } still need review.`,
+          };
 
   function handleApprove(requestId: string) {
     startTransition(async () => {
@@ -154,6 +179,11 @@ export function ChurchAdminAccountsWorkspace({
       ]}
     >
       <ChurchAppContextBanner session={session} />
+
+      <ReadinessTargetState
+        {...readinessState}
+        primaryAction={{ label: translateAccounts("backToReadiness"), href: "/app/church-admin/readiness" }}
+      />
 
       <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
         <Paper withBorder radius="xl" p="lg">

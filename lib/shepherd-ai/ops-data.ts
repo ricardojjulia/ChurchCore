@@ -40,6 +40,12 @@ export type ShepherdAssignee = {
   fullName: string;
 };
 
+export type ShepherdWorkflowQueueData = {
+  source: "preview" | "live";
+  queue: ShepherdWorkflowQueueRow[];
+  assignees: ShepherdAssignee[];
+};
+
 const repository = new ShepherdAiRepository();
 
 function emptyWidgetData(): ShepherdDashboardWidgetData {
@@ -118,9 +124,10 @@ export async function getShepherdAiWorkflowQueueData(
       | "first_time_visitor_follow_up"
       | "member_disengagement_trend";
   },
-) {
+): Promise<ShepherdWorkflowQueueData> {
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
     return {
+      source: "preview",
       queue: [] as ShepherdWorkflowQueueRow[],
       assignees: [] as ShepherdAssignee[],
     };
@@ -132,7 +139,7 @@ export async function getShepherdAiWorkflowQueueData(
 
   const assignees = await getWorkflowAssignees(session);
 
-  return { queue, assignees };
+  return { source: "live", queue, assignees };
 }
 
 export async function getWorkflowAssignees(session: ChurchAppSession): Promise<ShepherdAssignee[]> {

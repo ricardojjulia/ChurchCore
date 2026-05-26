@@ -16,11 +16,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added Playwright browser coverage for the ChurchAdmin weekly readiness path, including browser sign-in, church-context hydration, and each current readiness target route.
 - Added tenant-role denied-route Playwright coverage for ChurchAdmin-only readiness targets and local demo credentials for Pastor / Elder and Ministry Leader verification.
 - Added the first shared readiness target-state component with completed, empty, no-backend, permission-denied, and validation-error states, then wired it into settings, people readiness filters, and giving/finance exceptions.
+- Added readiness target-state coverage for the operations routes: account approvals, event roster review, volunteer service plans, and suggested workflows.
 
 ### Changed
 
 - Restricted the ChurchAdmin event list route to ChurchAdmin access so the weekly readiness event target is not reachable by pastor or ministry-leader roles.
-- Expanded the readiness Playwright smoke to require target-state evidence on the first standardized readiness target routes.
+- Expanded the readiness Playwright smoke to require target-state evidence on the standardized readiness target routes covered so far.
 - Disabled Markdown MD013 line-length enforcement so long documentation links, tables, diagrams, and factory logs do not produce noisy lint failures.
 
 ## [3.0.0] - 2026-05-26

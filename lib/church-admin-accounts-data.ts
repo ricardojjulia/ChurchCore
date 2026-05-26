@@ -23,6 +23,7 @@ export type ChurchAdminAccountRequestEntry = {
 };
 
 export type ChurchAdminAccountsData = {
+  source: "preview" | "live";
   pendingCount: number;
   existingMemberCount: number;
   pendingRequests: ChurchAdminAccountRequestEntry[];
@@ -33,6 +34,7 @@ export async function getChurchAdminAccountsData(
 ): Promise<ChurchAdminAccountsData> {
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
     return {
+      source: "preview",
       pendingCount: 0,
       existingMemberCount: 0,
       pendingRequests: [],
@@ -91,6 +93,7 @@ export async function getChurchAdminAccountsData(
     }));
 
     return {
+      source: "live",
       pendingCount: pendingRequests.length,
       existingMemberCount: pendingRequests.filter((request) => request.isExistingMember).length,
       pendingRequests,
@@ -134,6 +137,7 @@ export async function getChurchAdminAccountsData(
     }) ?? [];
 
   return {
+    source: "live",
     pendingCount: pendingRequests.length,
     existingMemberCount: pendingRequests.filter((request) => request.isExistingMember).length,
     pendingRequests,

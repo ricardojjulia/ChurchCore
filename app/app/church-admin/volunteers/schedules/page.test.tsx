@@ -6,6 +6,7 @@ const {
   requireChurchSessionMock,
   getServicePlanListMock,
   getServicePlanTemplatesMock,
+  hasTenantBackendEnvMock,
   applicationShellMock,
   workspaceMock,
 } = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const {
   requireChurchSessionMock: vi.fn(),
   getServicePlanListMock: vi.fn(),
   getServicePlanTemplatesMock: vi.fn(),
+  hasTenantBackendEnvMock: vi.fn(),
   applicationShellMock: vi.fn(({ title, description, children }: { title: string; description: string; children: React.ReactNode }) => (
     <div>
       <h1>{title}</h1>
@@ -38,6 +40,10 @@ vi.mock("@/lib/volunteer-data", () => ({
   getServicePlanTemplates: getServicePlanTemplatesMock,
 }));
 
+vi.mock("@/lib/supabase/tenant", () => ({
+  hasTenantBackendEnv: hasTenantBackendEnvMock,
+}));
+
 vi.mock("@/components/application/app-shell", () => ({
   ApplicationShell: applicationShellMock,
 }));
@@ -54,9 +60,11 @@ describe("service plans page", () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { name: "Grace Church" } },
       homePath: "/app/member",
+      source: "supabase",
     });
     getServicePlanListMock.mockResolvedValue([{ id: "plan-1" }]);
     getServicePlanTemplatesMock.mockResolvedValue([{ id: "template-1" }]);
+    hasTenantBackendEnvMock.mockReturnValue(true);
   });
 
   it("redirects non-admin users", async () => {
@@ -76,7 +84,27 @@ describe("service plans page", () => {
     expect(screen.getByText("Grace Church")).toBeInTheDocument();
     expect(screen.getByText("Service Plans Workspace")).toBeInTheDocument();
     expect(workspaceMock).toHaveBeenCalledWith(
-      { plans: [{ id: "plan-1" }], templates: [{ id: "template-1" }] },
+      {
+        plans: [{ id: "plan-1" }],
+        templates: [{ id: "template-1" }],
+        source: "live",
+      },
+      undefined,
+    );
+  });
+
+  it("passes preview source when the tenant backend is unavailable", async () => {
+    hasTenantBackendEnvMock.mockReturnValue(false);
+
+    const page = await ServicePlansPage();
+    render(page);
+
+    expect(workspaceMock).toHaveBeenCalledWith(
+      {
+        plans: [{ id: "plan-1" }],
+        templates: [{ id: "template-1" }],
+        source: "preview",
+      },
       undefined,
     );
   });

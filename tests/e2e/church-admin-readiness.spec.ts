@@ -30,7 +30,11 @@ const demoPassword = process.env.CHURCHCORE_OPS_DEV_PASSWORD;
 
 const readinessTargets = [
   { route: "/app/church-admin/settings", text: "Church setup", hasTargetState: true },
-  { route: "/app/church-admin/accounts?status=pending", text: "Approval queue" },
+  {
+    route: "/app/church-admin/accounts?status=pending",
+    text: "Approval queue",
+    hasTargetState: true,
+  },
   {
     route: "/app/church-admin/people?view=incomplete-profiles",
     text: "Readiness view",
@@ -40,14 +44,26 @@ const readinessTargets = [
     route: "/app/church-admin/people?view=unassigned-households&household=unassigned",
     text: "Readiness view",
   },
-  { route: "/app/church-admin/events?view=needs-roster", text: "Readiness view" },
+  {
+    route: "/app/church-admin/events?view=needs-roster",
+    text: "Readiness view",
+    hasTargetState: true,
+  },
   { route: "/app/church-admin/children/dashboard?view=readiness", text: "Volunteers" },
-  { route: "/app/church-admin/volunteers/schedules?view=unassigned", text: "Service Plans" },
+  {
+    route: "/app/church-admin/volunteers/schedules?view=unassigned",
+    text: "Service Plans",
+    hasTargetState: true,
+  },
   { route: "/app/church-admin/giving?view=exceptions", text: "Post to GL", hasTargetState: true },
   { route: "/app/church-admin/finance/journals?view=drafts", text: "Readiness view" },
   { route: "/app/communications?view=readiness", text: "Communications Hub" },
   { route: "/app/reports?range=90d", text: "Reports" },
-  { route: "/app/church-admin/workflows?status=open", text: "Readiness view" },
+  {
+    route: "/app/church-admin/workflows?status=open",
+    text: "Readiness view",
+    hasTargetState: true,
+  },
 ] as const;
 
 const churchAdminOnlyReadinessRoutes = [
