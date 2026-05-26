@@ -72,7 +72,7 @@ Preferred sequence:
 7. Update `README.md`, `CHANGELOG.md`, and affected docs.
 8. Run `npm run lint`, `npm run build`, and focused tests where applicable.
 9. Use `pr-reviewer` or review the final diff before commit.
-10. Commit, merge according to the active branch strategy, and push.
+10. Commit on a feature branch, push the branch, open a pull request, merge through GitHub after required checks/review, then pull `main`.
 
 ### 1. Start With Repository Rules
 
@@ -152,7 +152,17 @@ Preferred sequence:
 5. Update `README.md`, `CHANGELOG.md`, and affected docs.
 6. Run `npm run lint`, `npm run build`, and focused tests where applicable.
 7. Use `churchcore-pr-review` against the final diff.
-8. Commit, merge according to the active branch strategy, and push.
+8. Commit on a feature branch, push the branch, open a pull request, merge through GitHub after required checks/review, then pull `main`.
+
+## GitHub Delivery Rule
+
+The default branch is protected and admin enforcement is enabled. Factory runs must use this delivery path:
+
+```text
+feature branch -> push branch -> open PR -> required checks/review -> GitHub merge -> pull main
+```
+
+Direct pushes to `main` are not part of normal development. Reserve bypasses only for emergency repository administration, and document the reason in `docs/factory-runs/` if one ever occurs.
 
 ### 1. Start With Repository Rules
 

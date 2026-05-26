@@ -153,11 +153,13 @@ Recommended default-branch protections:
 - Block force pushes.
 - Block deletions.
 - Prefer linear history if the team wants a clean mainline.
+- Enforce branch protections for administrators so PR-only rules cannot be bypassed during routine work.
 
 Acceptance criteria:
 
 - Direct pushes to `main` are no longer routine.
 - Bypasses are reserved for emergency repository administration only.
+- Current status: `main` has admin enforcement enabled as of 2026-05-25, so factory work should land through feature branches and pull requests.
 
 ### 8. Add Review Ownership
 

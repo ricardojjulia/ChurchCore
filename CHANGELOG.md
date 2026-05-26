@@ -24,6 +24,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Documented the preferred transparent coding workflow for Claude Code and Codex, including research, story, technical brief, implementation, documentation updates, verification, review, commit, merge, and push expectations.
 - Added the first shared `ReadinessSummary` contract for the ChurchAdmin weekly operator path, including severity, issue counts, completion state, recommended actions, and route/query targets.
 - Added `docs/factory-runs/` as the durable software-factory run tracker and split setup, account request, and people/household readiness summary construction into module-owned builders.
+- Enabled admin enforcement on the protected `main` branch and updated factory documentation to require feature branches and pull requests instead of routine direct pushes.
+- Updated the secret-scan workflow checkout depth so Gitleaks can resolve pull-request commit ranges.
 - Added `docs/diagrams.md` as the canonical diagram set for the repository, with Mermaid source for system architecture, role/surface mapping, core workflows, and documentation flow.
 - Added `docs/development-plan-visual.md` as a visual companion to `DEVELOPMENT_PLAN.md`, covering strategy, roadmap, boundary/security model, and Sprint 1 execution flow.
 - Added `docs/plans/github-repository-operations.md` to preserve the GitHub roadmap for projects, milestones, issue forms, branch protection, security triage, and releases.

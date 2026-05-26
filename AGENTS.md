@@ -7,6 +7,7 @@
 - Update `README.md`, `CHANGELOG.md`, and relevant docs in `/docs` with every meaningful feature change.
 - Document meaningful factory runs transparently: intent, architecture impact, verification commands/results, residual risk, and follow-up work must be captured in committed docs or handoff notes, not only in chat.
 - Verify work with `npm run lint` and `npm run build` before handoff when feasible.
+- Do not push directly to `main`. Use a feature branch, push the branch, open a pull request, merge through GitHub after required checks/review, then pull `main`.
 - For Codex sessions, use repo-local skills in `.codex/skills/` as the Codex-compatible software-factory workflow:
   - `churchcore-feature-factory` for non-trivial feature planning and orchestration.
   - `churchcore-build-with-tests` for implementation work.

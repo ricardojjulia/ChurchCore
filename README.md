@@ -108,7 +108,7 @@ Use this workflow for non-trivial work in either Claude Code or Codex:
 6. Update `README.md`, `CHANGELOG.md`, and the relevant document under `docs/`.
 7. Run `npm run lint` and `npm run build` when feasible; run focused tests for touched behavior.
 8. Use the validator or PR-review workflow before commit or PR handoff.
-9. Commit with a clear message, merge through the active branch strategy, and push.
+9. Commit on a feature branch, push the branch, open a pull request, merge through GitHub after required checks/review, then pull `main`.
 
 Claude Code should run this through the `feature-factory` and `build-with-tests` skills. Codex should run the same sequence through `churchcore-feature-factory`, `churchcore-build-with-tests`, and `churchcore-pr-review`.
 
