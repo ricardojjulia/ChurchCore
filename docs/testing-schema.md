@@ -139,7 +139,7 @@ Status values:
 | Component family | Examples | Required tests | Status |
 | --- | --- | --- | --- |
 | Navigation | `components/application/member-bottom-nav.tsx`, `components/application/portal-workspace.tsx`, `components/application/ccm-nav.ts` | visible items, active-path logic, role filtering | Foundation |
-| Workspace components | people, events, finance, ministry, reports, communications | render, empty state, hydrated state, CTA visibility | Missing |
+| Workspace components | people, events, finance, ministry, reports, communications | render, empty state, hydrated state, CTA visibility | Started: shared readiness target-state component plus browser assertions for settings, people, and giving/finance |
 | Sensitive UI | CCM, finance import, data-rights, giving, pastoral care | masking, disclaimers, validation, confirmation states | Missing |
 
 ## Immediate Execution Order

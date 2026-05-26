@@ -270,6 +270,7 @@ export type GivingAnalyticsData = {
 };
 
 export type GivingReadinessData = {
+  source: "preview" | "live";
   failedDonations: DonationEntry[];
   unpostedDonations: DonationEntry[];
   unsentReceipts: DonationEntry[];
@@ -287,6 +288,7 @@ const EMPTY_ANALYTICS: GivingAnalyticsData = {
 };
 
 const EMPTY_READINESS: GivingReadinessData = {
+  source: "preview",
   failedDonations: [],
   unpostedDonations: [],
   unsentReceipts: [],
@@ -534,6 +536,7 @@ export async function getGivingReadinessData(
     const postedDonationIds = new Set(glPostsResult.rows.map((row) => row.donation_id));
 
     return {
+      source: "live",
       failedDonations: donations.filter((donation) => donation.status === "failed"),
       unpostedDonations: donations.filter(
         (donation) =>
@@ -579,6 +582,7 @@ export async function getGivingReadinessData(
   const postedDonationIds = new Set((glPostsResult.data ?? []).map((row) => row.donation_id));
 
   return {
+    source: "live",
     failedDonations: donations.filter((donation) => donation.status === "failed"),
     unpostedDonations: donations.filter(
       (donation) =>

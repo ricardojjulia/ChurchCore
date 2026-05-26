@@ -30,6 +30,7 @@ import {
 } from "@/app/app/church-admin-actions";
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
+import { ReadinessTargetState } from "@/components/application/readiness-target-state";
 import { useI18n } from "@/components/i18n-provider";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { ChurchSettingsData } from "@/lib/church-settings-data";
@@ -67,6 +68,35 @@ export function ChurchAdminSettingsWorkspace({
   const [pending, startTransition] = useTransition();
   const { t } = useI18n();
   const translateSettings = (key: string) => t("churchSettings", key);
+  const missingFields = [
+    form.websiteUrl ? null : "website",
+    form.contactEmail || form.contactPhone ? null : "contact email or phone",
+    form.mailingAddress ? null : "mailing address",
+    form.publicSummary ? null : "public summary",
+  ].filter((field): field is string => Boolean(field));
+  const readinessState =
+    settings.source === "preview"
+      ? {
+          state: "no-backend" as const,
+          title: "Readiness target unavailable",
+          description:
+            "Church setup can be previewed, but live setup completion needs tenant data.",
+          detail: "Configure the tenant backend before using this target to clear readiness.",
+        }
+      : missingFields.length === 0
+        ? {
+            state: "completed" as const,
+            title: "Church setup is complete",
+            description:
+              "The required setup fields for the weekly readiness path are filled.",
+          }
+        : {
+            state: "validation-error" as const,
+            title: "Church setup needs attention",
+            description:
+              "Complete the missing setup fields before marking this readiness item resolved.",
+            detail: `Missing: ${missingFields.join(", ")}.`,
+          };
 
   function updateField(field: keyof UpdateChurchSettingsInput, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -139,6 +169,11 @@ export function ChurchAdminSettingsWorkspace({
       ]}
     >
       <ChurchAppContextBanner session={session} />
+
+      <ReadinessTargetState
+        {...readinessState}
+        primaryAction={{ label: "Back to readiness", href: "/app/church-admin/readiness" }}
+      />
 
       <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="lg">
         <Paper withBorder radius="xl" p="xl">

@@ -9,6 +9,7 @@ import {
 } from "@/lib/supabase/tenant";
 
 export type ChurchSettingsData = {
+  source: "preview" | "live";
   id: string;
   name: string;
   legalName: string | null;
@@ -23,6 +24,7 @@ export type ChurchSettingsData = {
 
 function buildPreviewChurchSettingsData(session: ChurchAppSession): ChurchSettingsData {
   return {
+    source: "preview",
     id: session.appContext.church.id,
     name: session.appContext.church.name,
     legalName: null,
@@ -49,6 +51,7 @@ function mapChurchSettingsRow(row: {
   public_summary: string | null;
 }): ChurchSettingsData {
   return {
+    source: "live",
     id: row.id,
     name: row.name,
     legalName: row.legal_name,

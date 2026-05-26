@@ -37,6 +37,10 @@ import { ChurchAdminPeopleBulkActions } from "@/components/application/church-ad
 import { ChurchAdminPersonEdit } from "@/components/application/church-admin-person-edit";
 import { ChurchAdminPersonRelationships } from "@/components/application/church-admin-person-relationships";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
+import {
+  ReadinessTargetState,
+  type ReadinessTargetStateProps,
+} from "@/components/application/readiness-target-state";
 import { useI18n } from "@/components/i18n-provider";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { ChurchAdminPeopleData } from "@/lib/church-admin-people-data";
@@ -176,6 +180,44 @@ export function ChurchAdminPeopleWorkspace({
         : initialView === "pending-accounts"
           ? translatePeople("readinessPendingAccounts")
           : null;
+  const readinessTargetState: ReadinessTargetStateProps | null = readinessContext
+    ? data.source === "preview"
+      ? {
+          state: "no-backend",
+          title: "Readiness target unavailable",
+          description:
+            "People readiness can be previewed, but live profile completion needs tenant data.",
+          detail: "Configure the tenant backend before using this target to clear readiness.",
+          primaryAction: { label: translatePeople("backToReadiness"), href: "/app/church-admin/readiness" },
+        }
+      : visiblePeople.length === 0
+        ? {
+            state: "completed",
+            title: "People readiness item is clear",
+            description:
+              "No records currently match this readiness filter.",
+            primaryAction: { label: translatePeople("backToReadiness"), href: "/app/church-admin/readiness" },
+            secondaryAction: { label: translatePeople("clearFilters"), href: "/app/church-admin/people" },
+          }
+        : {
+            state: "validation-error",
+            title: "People records need attention",
+            description:
+              "Resolve the matching records below before marking this readiness item complete.",
+            detail: translatePeople("showingMatching", {
+              count: visiblePeople.length,
+              plural: visiblePeople.length === 1 ? "" : "s",
+            }),
+            primaryAction: { label: translatePeople("backToReadiness"), href: "/app/church-admin/readiness" },
+          }
+    : data.source === "live" && data.people.length === 0
+      ? {
+          state: "empty",
+          title: "No people records yet",
+          description:
+            "Add or import people before using this workspace for profile, household, account, and readiness work.",
+        }
+      : null;
 
   function toggleSelected(id: string, checked: boolean) {
     setSelectedIds((current) =>
@@ -350,6 +392,12 @@ export function ChurchAdminPeopleWorkspace({
               </Text>
             </Group>
           </Paper>
+        ) : null}
+
+        {readinessTargetState ? (
+          <Stack mb="md">
+            <ReadinessTargetState {...readinessTargetState} />
+          </Stack>
         ) : null}
 
         <Group align="flex-end" gap="md" grow mb="lg">
