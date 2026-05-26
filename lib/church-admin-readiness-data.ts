@@ -15,6 +15,7 @@ import {
   buildAccountRequestsReadinessSummary,
   buildChildrenReadinessSummary,
   buildChurchSetupReadinessSummary,
+  buildCommunicationsReadinessSummary,
   buildEventReadinessSummary,
   buildGivingFinanceReadinessSummary,
   buildPeopleReadinessSummary,
@@ -50,6 +51,11 @@ type ReadinessMetricRow = {
   unposted_donations: number;
   draft_journals: number;
   live_giving_pages: number;
+  pending_communications: number;
+  failed_communications: number;
+  bounced_communications: number;
+  contact_gaps: number;
+  consent_gaps: number;
   open_workflows: number;
 };
 
@@ -146,6 +152,19 @@ const previewItems: ChurchAdminReadinessItem[] = [
     detail: "Financial readiness requires tenant data.",
   }),
   createReadinessSummary({
+    id: "communications",
+    module: "communications",
+    title: "Communications",
+    description: "Review queued sends, failed delivery, bounced logs, consent gaps, and contact gaps.",
+    status: "attention",
+    severity: "notice",
+    issueCount: 1,
+    completionState: "unavailable",
+    recommendedAction: "Configure a tenant backend, then review communications readiness.",
+    target: { route: "/app/communications", query: { view: "readiness" } },
+    detail: "Communications readiness requires tenant data.",
+  }),
+  createReadinessSummary({
     id: "suggested-workflows",
     module: "workflows",
     title: "Suggested ministry workflows",
@@ -196,6 +215,13 @@ export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchA
       unpostedDonations: row.unposted_donations,
       draftJournals: row.draft_journals,
       liveGivingPages: row.live_giving_pages,
+    }),
+    buildCommunicationsReadinessSummary({
+      pendingCommunications: row.pending_communications,
+      failedCommunications: row.failed_communications,
+      bouncedCommunications: row.bounced_communications,
+      contactGaps: row.contact_gaps,
+      consentGaps: row.consent_gaps,
     }),
     buildWorkflowReadinessSummary({ openWorkflows: row.open_workflows }),
   ];
@@ -322,6 +348,40 @@ export async function getChurchAdminReadinessData(
             from public.public_giving_pages
             where church_id = $1
           ),
+          communication_summary as (
+            select
+              count(*) filter (
+                where status = 'queued'
+                   or (scheduled_for is not null and sent_at is null)
+              )::int as pending_communications,
+              count(*) filter (where status = 'failed')::int as failed_communications,
+              count(*) filter (where status = 'bounced')::int as bounced_communications
+            from public.communication_logs
+            where church_id = $1
+          ),
+          communication_gap_summary as (
+            select
+              (
+                count(*) filter (
+                  where coalesce(profile.email, '') = ''
+                     or coalesce(profile.phone, '') = ''
+                     or coalesce(profile.contact_allowed, true) = false
+                )
+              )::int as contact_gaps,
+              (
+                count(*) filter (
+                  where coalesce(preferences.email_opt_in, true) = false
+                     or coalesce(preferences.sms_opt_in, false) = false
+                )
+              )::int as consent_gaps
+            from public.profiles profile
+            left join public.notification_preferences preferences
+              on preferences.profile_id = profile.id
+             and preferences.church_id = profile.church_id
+            where profile.church_id = $1
+              and profile.merged_at is null
+              and coalesce(profile.membership_status, 'active') <> 'inactive'
+          ),
           workflow_summary as (
             select count(*) filter (where status in ('open', 'assigned'))::int as open_workflows
             from public.workflows
@@ -337,6 +397,8 @@ export async function getChurchAdminReadinessData(
              giving_summary,
              finance_summary,
              giving_page_summary,
+             communication_summary,
+             communication_gap_summary,
              workflow_summary
       `,
       [churchId],
@@ -365,6 +427,9 @@ export async function getChurchAdminReadinessData(
     glPostsResult,
     journalsResult,
     givingPagesResult,
+    communicationLogsResult,
+    communicationProfilesResult,
+    notificationPreferencesResult,
     workflowsResult,
   ] = await Promise.all([
     supabase
@@ -412,6 +477,16 @@ export async function getChurchAdminReadinessData(
     supabase.from("donation_gl_posts").select("donation_id, status").eq("church_id", churchId),
     supabase.from("finance_journals").select("id, status").eq("church_id", churchId),
     supabase.from("public_giving_pages").select("id, is_live").eq("church_id", churchId),
+    supabase
+      .from("communication_logs")
+      .select("id, status, scheduled_for, sent_at")
+      .eq("church_id", churchId),
+    supabase
+      .from("profiles")
+      .select("id, email, phone, contact_allowed, membership_status")
+      .eq("church_id", churchId)
+      .is("merged_at", null),
+    supabase.from("notification_preferences").select("profile_id, email_opt_in, sms_opt_in").eq("church_id", churchId),
     supabase.from("workflows").select("id, status").eq("tenant_id", churchId),
   ]);
 
@@ -426,6 +501,13 @@ export async function getChurchAdminReadinessData(
   );
   const shifts = shiftsResult.data ?? [];
   const donations = donationsResult.data ?? [];
+  const communicationLogs = communicationLogsResult.data ?? [];
+  const notificationPreferencesByProfileId = new Map(
+    (notificationPreferencesResult.data ?? []).map((preference) => [preference.profile_id, preference]),
+  );
+  const communicationProfiles = (communicationProfilesResult.data ?? []).filter(
+    (profile) => profile.membership_status !== "inactive",
+  );
   const postedDonationIds = new Set(
     (glPostsResult.data ?? [])
       .filter((post) => post.status === "posted")
@@ -471,6 +553,18 @@ export async function getChurchAdminReadinessData(
       ).length,
       draft_journals: (journalsResult.data ?? []).filter((journal) => journal.status === "draft").length,
       live_giving_pages: (givingPagesResult.data ?? []).filter((page) => page.is_live).length,
+      pending_communications: communicationLogs.filter(
+        (log) => log.status === "queued" || (log.scheduled_for && !log.sent_at),
+      ).length,
+      failed_communications: communicationLogs.filter((log) => log.status === "failed").length,
+      bounced_communications: communicationLogs.filter((log) => log.status === "bounced").length,
+      contact_gaps: communicationProfiles.filter(
+        (profile) => !profile.email || !profile.phone || profile.contact_allowed === false,
+      ).length,
+      consent_gaps: communicationProfiles.filter((profile) => {
+        const preferences = notificationPreferencesByProfileId.get(profile.id);
+        return preferences?.email_opt_in === false || preferences?.sms_opt_in !== true;
+      }).length,
       open_workflows: (workflowsResult.data ?? []).filter((workflow) =>
         ["open", "assigned"].includes(workflow.status),
       ).length,

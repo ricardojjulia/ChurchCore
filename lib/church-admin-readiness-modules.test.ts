@@ -4,6 +4,7 @@ import {
   buildAccountRequestsReadinessSummary,
   buildChildrenReadinessSummary,
   buildChurchSetupReadinessSummary,
+  buildCommunicationsReadinessSummary,
   buildEventReadinessSummary,
   buildGivingFinanceReadinessSummary,
   buildPeopleReadinessSummary,
@@ -217,6 +218,58 @@ describe("church admin readiness module summaries", () => {
       unpostedDonations: 0,
       draftJournals: 0,
       liveGivingPages: 1,
+    })).toMatchObject({
+      status: "ready",
+      severity: "none",
+      issueCount: 0,
+      completionState: "complete",
+      recommendedAction: "No action needed.",
+    });
+  });
+
+  it("blocks communications readiness when delivery failures exist", () => {
+    expect(buildCommunicationsReadinessSummary({
+      pendingCommunications: 1,
+      failedCommunications: 2,
+      bouncedCommunications: 1,
+      contactGaps: 0,
+      consentGaps: 0,
+    })).toMatchObject({
+      id: "communications",
+      module: "communications",
+      status: "blocked",
+      severity: "critical",
+      issueCount: 4,
+      completionState: "blocked",
+      href: "/app/communications?view=readiness",
+      recommendedAction: "Open communications and resolve pending sends, delivery failures, consent limits, or contact gaps.",
+      detail: "1 pending send · 2 failed · 1 bounced · 0 contact gaps · 0 consent gaps.",
+    });
+  });
+
+  it("flags communications readiness when pending sends or reach gaps need review", () => {
+    expect(buildCommunicationsReadinessSummary({
+      pendingCommunications: 3,
+      failedCommunications: 0,
+      bouncedCommunications: 0,
+      contactGaps: 2,
+      consentGaps: 4,
+    })).toMatchObject({
+      status: "attention",
+      severity: "warning",
+      issueCount: 9,
+      completionState: "needs_review",
+      detail: "3 pending sends · 0 failed · 0 bounced · 2 contact gaps · 4 consent gaps.",
+    });
+  });
+
+  it("builds ready communications readiness when delivery and reach checks are clear", () => {
+    expect(buildCommunicationsReadinessSummary({
+      pendingCommunications: 0,
+      failedCommunications: 0,
+      bouncedCommunications: 0,
+      contactGaps: 0,
+      consentGaps: 0,
     })).toMatchObject({
       status: "ready",
       severity: "none",

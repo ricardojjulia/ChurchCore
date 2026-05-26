@@ -46,6 +46,14 @@ export type WorkflowReadinessMetrics = {
   openWorkflows: number;
 };
 
+export type CommunicationsReadinessMetrics = {
+  pendingCommunications: number;
+  failedCommunications: number;
+  bouncedCommunications: number;
+  contactGaps: number;
+  consentGaps: number;
+};
+
 export function buildChurchSetupReadinessSummary({
   missingSettings,
 }: ChurchSetupReadinessMetrics): ReadinessSummary {
@@ -277,5 +285,36 @@ export function buildWorkflowReadinessSummary({
       openWorkflows === 0
         ? "No open suggested workflows."
         : `${openWorkflows} open suggested workflow${openWorkflows === 1 ? "" : "s"}.`,
+  });
+}
+
+export function buildCommunicationsReadinessSummary({
+  pendingCommunications,
+  failedCommunications,
+  bouncedCommunications,
+  contactGaps,
+  consentGaps,
+}: CommunicationsReadinessMetrics): ReadinessSummary {
+  const issueCount = pendingCommunications + failedCommunications + bouncedCommunications + contactGaps + consentGaps;
+  const status = readinessStatusFor(
+    failedCommunications > 0 || bouncedCommunications > 0,
+    pendingCommunications > 0 || contactGaps > 0 || consentGaps > 0,
+  );
+
+  return createReadinessSummary({
+    id: "communications",
+    module: "communications",
+    title: "Communications",
+    description: "Review queued sends, failed delivery, bounced logs, consent gaps, and contact gaps.",
+    status,
+    severity: readinessSeverityFor(status, issueCount),
+    issueCount,
+    completionState: readinessCompletionStateFor(status),
+    recommendedAction:
+      issueCount === 0
+        ? "No action needed."
+        : "Open communications and resolve pending sends, delivery failures, consent limits, or contact gaps.",
+    target: { route: "/app/communications", query: { view: "readiness" } },
+    detail: `${pendingCommunications} pending send${pendingCommunications === 1 ? "" : "s"} · ${failedCommunications} failed · ${bouncedCommunications} bounced · ${contactGaps} contact gap${contactGaps === 1 ? "" : "s"} · ${consentGaps} consent gap${consentGaps === 1 ? "" : "s"}.`,
   });
 }
