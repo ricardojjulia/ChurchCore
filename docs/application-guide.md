@@ -37,6 +37,8 @@ The local setup script creates demo credentials in `.demo-credentials.local`. Th
 | --- | --- | --- |
 | `sarah@churchcoreops.app` | Church Admin | `/app` |
 | `olivia@graceharbor.church` | Secretary / Office Admin | `/app/secretary` |
+| `miriam@graceharbor.church` | Pastor / Elder | `/app/pastor` |
+| `robert@graceharbor.church` | Ministry Leader | `/app/ministry-leader` |
 | `david@graceharbor.church` | Member | `/app` |
 
 See `docs/setup/local-supabase.md` for the full tenant backend setup, reset, seed, and smoke-test flow. The control plane has a separate Supabase project and should be provisioned separately when testing platform-staff workflows.

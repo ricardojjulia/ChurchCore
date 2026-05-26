@@ -64,6 +64,7 @@ This document closes the current gap between the development plan and the reposi
 
 - sign-in and church-context hydration
 - browser-level ChurchAdmin weekly readiness route path
+- browser-level denied-role checks for Secretary, Pastor, Ministry Leader, and Member against ChurchAdmin-only readiness targets
 - giving journey and public giving page
 - member profile, family, directory, ministries, groups, schedule
 - church-admin people, events, attendance, volunteers, finance, groups, visitors
@@ -115,7 +116,7 @@ Status values:
 | Surface | Route files | Required tests | Status |
 | --- | --- | --- | --- |
 | People and accounts | `app/app/church-admin/people/page.tsx`, `app/app/church-admin/accounts/page.tsx`, `app/app/church-admin-actions.ts`, people/account components | invite flow, edit validation, member number generation, preview fallback | Missing |
-| Weekly readiness path | `app/app/church-admin/readiness/page.tsx`, readiness target route pages, `tests/e2e/church-admin-readiness.spec.ts` | browser sign-in, church-context hydration, readiness route traversal, target text assertions | Foundation |
+| Weekly readiness path | `app/app/church-admin/readiness/page.tsx`, readiness target route pages, `tests/e2e/church-admin-readiness.spec.ts` | browser sign-in, church-context hydration, readiness route traversal, target text assertions, tenant denied-role assertions | Foundation |
 | Events | `app/app/church-admin/events/page.tsx`, `app/app/church-admin/events/[id]/page.tsx`, `components/application/church-admin-event-workspace.tsx`, `app/app/church-admin-actions.ts` | event list, create action, roster assignment, quick check-in, visitor add | Foundation |
 | Attendance and volunteers | `app/app/church-admin/attendance/page.tsx`, `app/app/church-admin/volunteers/page.tsx`, `app/app/church-admin/volunteers/schedules/page.tsx`, `app/app/church-admin/volunteers/schedules/[id]/page.tsx`, `app/app/volunteer-actions.ts` | headcount logging, scheduling rules, volunteer matching, duplicate handling | Foundation |
 | Groups and visitors | `app/app/church-admin/groups/page.tsx`, `app/app/church-admin/groups/[id]/page.tsx`, `app/app/church-admin/visitors/page.tsx`, `app/app/groups-actions.ts` | group create/edit, join approvals, visitor workflow advancement | Foundation |
@@ -149,6 +150,7 @@ Status values:
 4. Continue route render tests for remaining public routes, member routes, and church-admin workspaces after the new baseline coverage for sign-in, member giving, volunteer schedules, and the CCM dashboard.
 5. Add local Supabase verification scripts for RBAC, RLS, audit-log writes, and sensitive-field redaction.
 6. Expand Playwright from ChurchAdmin readiness route traversal into resolution actions, denied-role route checks, and mobile member browser checks.
+7. Provision local control-plane browser credentials so Control Plane denied-route checks can move from skipped to enforced.
 
 ## Initial Coverage Added Now
 

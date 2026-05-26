@@ -609,10 +609,17 @@ async function readAppContextSelection() {
     return null;
   }
 
+  const parseSelection = (value: string) =>
+    JSON.parse(value) as StoredAppContextSelection;
+
   try {
-    return JSON.parse(raw) as StoredAppContextSelection;
+    return parseSelection(raw);
   } catch {
-    return null;
+    try {
+      return parseSelection(decodeURIComponent(raw));
+    } catch {
+      return null;
+    }
   }
 }
 

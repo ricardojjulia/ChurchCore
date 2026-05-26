@@ -16,6 +16,8 @@ declare
   v_sarah_auth_id  uuid;
   v_david_auth_id  uuid;
   v_olivia_auth_id uuid;
+  v_miriam_auth_id uuid;
+  v_robert_auth_id uuid;
   -- profiles IDs (looked up after upsert)
   v_sarah_id    uuid;
   v_david_id    uuid;
@@ -95,6 +97,16 @@ begin
   select id into v_olivia_auth_id
   from auth.users
   where email = 'olivia@graceharbor.church'
+  limit 1;
+
+  select id into v_miriam_auth_id
+  from auth.users
+  where email = 'miriam@graceharbor.church'
+  limit 1;
+
+  select id into v_robert_auth_id
+  from auth.users
+  where email = 'robert@graceharbor.church'
   limit 1;
 
   -- Skip seed if accounts don't exist yet
@@ -198,6 +210,41 @@ begin
     where email = 'olivia@graceharbor.church';
   end if;
 
+  -- Align the auth-trigger-created ministry leader profile to the
+  -- deterministic demo profile ID before the fixed-ID bulk insert below.
+  if v_robert_auth_id is not null then
+    update public.profiles
+    set id = v_robert_id,
+        user_id = v_robert_auth_id,
+        church_id = v_church_id,
+        full_name = 'Robert James',
+        role = 'ministry_leader',
+        display_title = 'Men''s Ministry Leader',
+        membership_status = 'active',
+        family_id = v_james_family_id,
+        phone = '555-1105',
+        address = '88 Willow Lane, Brighton, MI',
+        member_number = coalesce(member_number, 'GH-0005'),
+        account_status = 'active',
+        is_roster_eligible = true
+    where email = 'robert@graceharbor.church';
+  end if;
+
+  if v_miriam_auth_id is not null then
+    update public.profiles
+    set church_id = v_church_id,
+        full_name = 'Miriam Cole',
+        role = 'pastor_elder',
+        display_title = 'Pastor / Elder',
+        membership_status = 'active',
+        phone = '555-1123',
+        member_number = coalesce(member_number, 'GH-0023'),
+        account_status = 'active',
+        is_roster_eligible = true,
+        is_pastoral = true
+    where email = 'miriam@graceharbor.church';
+  end if;
+
   -- Extra demo profiles (no auth user required)
   insert into public.profiles (
     id, church_id, full_name, email, phone, address, role, display_title,
@@ -270,6 +317,13 @@ begin
     where id = v_olivia_id;
   end if;
 
+  if v_robert_auth_id is not null then
+    update public.profiles
+    set user_id = v_robert_auth_id,
+        account_status = 'active'
+    where id = v_robert_id;
+  end if;
+
   -- ── Platform admin (sarah — control-plane access) ────────
   -- platform_admins.user_id references auth.users.id (fixed in migration 20260422)
   insert into public.platform_admins (user_id)
@@ -289,6 +343,18 @@ begin
   if v_olivia_auth_id is not null then
     insert into public.church_memberships (user_id, church_id, role, is_active)
     values (v_olivia_auth_id, v_church_id, 'secretary', true)
+    on conflict (church_id, user_id, role) do update set is_active = excluded.is_active;
+  end if;
+
+  if v_miriam_auth_id is not null then
+    insert into public.church_memberships (user_id, church_id, role, is_active)
+    values (v_miriam_auth_id, v_church_id, 'pastor', true)
+    on conflict (church_id, user_id, role) do update set is_active = excluded.is_active;
+  end if;
+
+  if v_robert_auth_id is not null then
+    insert into public.church_memberships (user_id, church_id, role, is_active)
+    values (v_robert_auth_id, v_church_id, 'ministry_leader', true)
     on conflict (church_id, user_id, role) do update set is_active = excluded.is_active;
   end if;
 
@@ -908,5 +974,5 @@ begin
     end if;
   end;
 
-  raise notice 'Seed complete — Grace Harbor Church with 10 ministries, 22 profiles, operations data, track data for all 10 panel types + CCM demo service.';
+  raise notice 'Seed complete — Grace Harbor Church with 10 ministries, 23 profiles, operations data, track data for all 10 panel types + CCM demo service.';
 end $$;

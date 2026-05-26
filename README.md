@@ -49,6 +49,7 @@ npm run test:e2e:readiness
 ```
 
 The Playwright readiness check starts the Next.js dev server automatically, but it still expects the local Supabase demo setup and generated `.demo-credentials.local` from `npm run setup:local`.
+That local setup now generates tenant demo users for ChurchAdmin, Secretary / Office Admin, Pastor / Elder, Ministry Leader, and Member role-access checks.
 
 ## Stack
 
