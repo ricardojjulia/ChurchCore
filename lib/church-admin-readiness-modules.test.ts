@@ -8,6 +8,7 @@ import {
   buildEventReadinessSummary,
   buildGivingFinanceReadinessSummary,
   buildPeopleReadinessSummary,
+  buildReportsReadinessSummary,
   buildVolunteerReadinessSummary,
   buildWorkflowReadinessSummary,
 } from "@/lib/church-admin-readiness-modules";
@@ -270,6 +271,58 @@ describe("church admin readiness module summaries", () => {
       bouncedCommunications: 0,
       contactGaps: 0,
       consentGaps: 0,
+    })).toMatchObject({
+      status: "ready",
+      severity: "none",
+      issueCount: 0,
+      completionState: "complete",
+      recommendedAction: "No action needed.",
+    });
+  });
+
+  it("blocks reports readiness when most report surfaces have no data", () => {
+    expect(buildReportsReadinessSummary({
+      reportProfiles: 0,
+      reportEvents: 0,
+      reportGifts: 0,
+      postedFinanceJournals: 1,
+      activeFinanceBudgets: 0,
+    })).toMatchObject({
+      id: "reports",
+      module: "reports",
+      status: "blocked",
+      severity: "critical",
+      issueCount: 4,
+      completionState: "blocked",
+      href: "/app/reports?range=90d",
+      recommendedAction: "Open reports and confirm the missing member, event, giving, finance, or budget inputs.",
+      detail: "0 report profiles · 0 recent events · 0 recent gifts · 1 posted finance journal · 0 active budgets.",
+    });
+  });
+
+  it("flags reports readiness when one report surface needs more data", () => {
+    expect(buildReportsReadinessSummary({
+      reportProfiles: 25,
+      reportEvents: 3,
+      reportGifts: 0,
+      postedFinanceJournals: 4,
+      activeFinanceBudgets: 1,
+    })).toMatchObject({
+      status: "attention",
+      severity: "warning",
+      issueCount: 1,
+      completionState: "needs_review",
+      detail: "25 report profiles · 3 recent events · 0 recent gifts · 4 posted finance journals · 1 active budget.",
+    });
+  });
+
+  it("builds ready reports readiness when reporting inputs are present", () => {
+    expect(buildReportsReadinessSummary({
+      reportProfiles: 25,
+      reportEvents: 3,
+      reportGifts: 12,
+      postedFinanceJournals: 4,
+      activeFinanceBudgets: 1,
     })).toMatchObject({
       status: "ready",
       severity: "none",

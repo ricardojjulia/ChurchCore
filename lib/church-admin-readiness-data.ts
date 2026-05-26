@@ -19,6 +19,7 @@ import {
   buildEventReadinessSummary,
   buildGivingFinanceReadinessSummary,
   buildPeopleReadinessSummary,
+  buildReportsReadinessSummary,
   buildVolunteerReadinessSummary,
   buildWorkflowReadinessSummary,
 } from "@/lib/church-admin-readiness-modules";
@@ -56,6 +57,11 @@ type ReadinessMetricRow = {
   bounced_communications: number;
   contact_gaps: number;
   consent_gaps: number;
+  report_profiles: number;
+  report_events: number;
+  report_gifts: number;
+  posted_finance_journals: number;
+  active_finance_budgets: number;
   open_workflows: number;
 };
 
@@ -165,6 +171,19 @@ const previewItems: ChurchAdminReadinessItem[] = [
     detail: "Communications readiness requires tenant data.",
   }),
   createReadinessSummary({
+    id: "reports",
+    module: "reports",
+    title: "Reports",
+    description: "Review member, event, giving, finance, and budget report coverage.",
+    status: "attention",
+    severity: "notice",
+    issueCount: 1,
+    completionState: "unavailable",
+    recommendedAction: "Configure a tenant backend, then review reporting coverage.",
+    target: { route: "/app/reports", query: { range: "90d" } },
+    detail: "Reporting readiness requires tenant data.",
+  }),
+  createReadinessSummary({
     id: "suggested-workflows",
     module: "workflows",
     title: "Suggested ministry workflows",
@@ -222,6 +241,13 @@ export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchA
       bouncedCommunications: row.bounced_communications,
       contactGaps: row.contact_gaps,
       consentGaps: row.consent_gaps,
+    }),
+    buildReportsReadinessSummary({
+      reportProfiles: row.report_profiles,
+      reportEvents: row.report_events,
+      reportGifts: row.report_gifts,
+      postedFinanceJournals: row.posted_finance_journals,
+      activeFinanceBudgets: row.active_finance_budgets,
     }),
     buildWorkflowReadinessSummary({ openWorkflows: row.open_workflows }),
   ];
@@ -382,6 +408,42 @@ export async function getChurchAdminReadinessData(
               and profile.merged_at is null
               and coalesce(profile.membership_status, 'active') <> 'inactive'
           ),
+          report_summary as (
+            select
+              (
+                select count(*)::int
+                from public.profiles profile
+                where profile.church_id = $1
+                  and profile.merged_at is null
+              ) as report_profiles,
+              (
+                select count(*)::int
+                from public.events event
+                where event.church_id = $1
+                  and event.starts_at >= timezone('utc', now()) - interval '90 days'
+              ) as report_events,
+              (
+                select count(*)::int
+                from public.donations donation
+                where donation.church_id = $1
+                  and donation.status = 'succeeded'
+                  and donation.created_at >= timezone('utc', now()) - interval '90 days'
+              ) as report_gifts,
+              (
+                select count(*)::int
+                from public.finance_journals journal
+                where journal.church_id = $1
+                  and journal.status = 'posted'
+                  and extract(year from journal.journal_date) = extract(year from current_date)
+              ) as posted_finance_journals,
+              (
+                select count(*)::int
+                from public.finance_budgets budget
+                where budget.church_id = $1
+                  and budget.is_active
+                  and budget.fiscal_year = extract(year from current_date)::int
+              ) as active_finance_budgets
+          ),
           workflow_summary as (
             select count(*) filter (where status in ('open', 'assigned'))::int as open_workflows
             from public.workflows
@@ -399,6 +461,7 @@ export async function getChurchAdminReadinessData(
              giving_page_summary,
              communication_summary,
              communication_gap_summary,
+             report_summary,
              workflow_summary
       `,
       [churchId],
@@ -430,6 +493,10 @@ export async function getChurchAdminReadinessData(
     communicationLogsResult,
     communicationProfilesResult,
     notificationPreferencesResult,
+    reportEventsResult,
+    reportDonationsResult,
+    postedFinanceJournalsResult,
+    activeFinanceBudgetsResult,
     workflowsResult,
   ] = await Promise.all([
     supabase
@@ -487,6 +554,30 @@ export async function getChurchAdminReadinessData(
       .eq("church_id", churchId)
       .is("merged_at", null),
     supabase.from("notification_preferences").select("profile_id, email_opt_in, sms_opt_in").eq("church_id", churchId),
+    supabase
+      .from("events")
+      .select("id")
+      .eq("church_id", churchId)
+      .gte("starts_at", new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()),
+    supabase
+      .from("donations")
+      .select("id")
+      .eq("church_id", churchId)
+      .eq("status", "succeeded")
+      .gte("created_at", new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()),
+    supabase
+      .from("finance_journals")
+      .select("id")
+      .eq("church_id", churchId)
+      .eq("status", "posted")
+      .gte("journal_date", `${now.getFullYear()}-01-01`)
+      .lte("journal_date", `${now.getFullYear()}-12-31`),
+    supabase
+      .from("finance_budgets")
+      .select("id")
+      .eq("church_id", churchId)
+      .eq("is_active", true)
+      .eq("fiscal_year", now.getFullYear()),
     supabase.from("workflows").select("id, status").eq("tenant_id", churchId),
   ]);
 
@@ -565,6 +656,11 @@ export async function getChurchAdminReadinessData(
         const preferences = notificationPreferencesByProfileId.get(profile.id);
         return preferences?.email_opt_in === false || preferences?.sms_opt_in !== true;
       }).length,
+      report_profiles: profiles.length,
+      report_events: reportEventsResult.data?.length ?? 0,
+      report_gifts: reportDonationsResult.data?.length ?? 0,
+      posted_finance_journals: postedFinanceJournalsResult.data?.length ?? 0,
+      active_finance_budgets: activeFinanceBudgetsResult.data?.length ?? 0,
       open_workflows: (workflowsResult.data ?? []).filter((workflow) =>
         ["open", "assigned"].includes(workflow.status),
       ).length,
