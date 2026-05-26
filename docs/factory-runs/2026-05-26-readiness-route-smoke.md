@@ -4,7 +4,7 @@
 **Factory surface:** Codex  
 **Workflow:** `churchcore-feature-factory` with `churchcore-build-with-tests` implementation discipline  
 **Roadmap phase:** Competitive Readiness Phase 1, Finish The Operator Path  
-**Status:** Pull request open, merge pending
+**Status:** Merged
 
 ## Intent
 
@@ -75,4 +75,4 @@ Patterns reused:
 
 - Branch: `test/readiness-route-smoke`
 - Pull request: [#27](https://github.com/ricardojjulia/ChurchCore-Ops/pull/27)
-- Merge: pending
+- Merge: squash merge `d54ab85`
