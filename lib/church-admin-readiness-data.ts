@@ -17,7 +17,9 @@ import {
 import {
   buildAccountRequestsReadinessSummary,
   buildChurchSetupReadinessSummary,
+  buildEventReadinessSummary,
   buildPeopleReadinessSummary,
+  buildVolunteerReadinessSummary,
 } from "@/lib/church-admin-readiness-modules";
 
 export type { ReadinessStatus } from "@/lib/readiness-contract";
@@ -169,17 +171,12 @@ function summarize(items: ChurchAdminReadinessItem[], source: ChurchAdminReadine
 }
 
 export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchAdminReadinessItem[] {
-  const weekendStatus = readinessStatusFor(
-    row.upcoming_events === 0 || row.events_without_roster > 2,
-    row.events_without_roster > 0,
-  );
   const childrenIssueCount =
     (row.open_ccm_services === 0 ? 1 : 0) + row.ccm_followups + (row.open_ccm_services > 0 && row.ccm_volunteers === 0 ? 1 : 0);
   const childrenStatus = readinessStatusFor(
     row.open_ccm_services > 0 && row.ccm_volunteers === 0,
     row.ccm_followups > 0 || row.open_ccm_services === 0,
   );
-  const volunteerStatus = readinessStatusFor(row.unassigned_volunteer_shifts > 3, row.open_volunteer_shifts > 0);
   const givingIssueCount =
     row.failed_donations + row.unposted_donations + row.draft_journals + (row.live_giving_pages === 0 ? 1 : 0);
   const givingStatus = readinessStatusFor(
@@ -195,26 +192,9 @@ export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchA
       incompleteProfiles: row.incomplete_profiles,
       unassignedHouseholds: row.unassigned_households,
     }),
-    createReadinessSummary({
-      id: "weekend-events",
-      module: "events",
-      title: "Weekend events",
-      description: "Review upcoming events, rosters, capacity, and check-in readiness.",
-      status: weekendStatus,
-      severity: readinessSeverityFor(weekendStatus, row.upcoming_events === 0 ? 1 : row.events_without_roster),
-      issueCount: row.upcoming_events === 0 ? 1 : row.events_without_roster,
-      completionState: readinessCompletionStateFor(weekendStatus),
-      recommendedAction:
-        row.upcoming_events === 0
-          ? "Create or review upcoming event records for the next two weeks."
-          : row.events_without_roster > 0
-            ? "Open event readiness filtered to events without roster coverage."
-            : "No action needed.",
-      target: { route: "/app/church-admin/events", query: { view: "needs-roster" } },
-      detail:
-        row.upcoming_events === 0
-          ? "No upcoming event records are scheduled."
-          : `${row.upcoming_events} upcoming event${row.upcoming_events === 1 ? "" : "s"} · ${row.events_without_roster} without rosters.`,
+    buildEventReadinessSummary({
+      upcomingEvents: row.upcoming_events,
+      eventsWithoutRoster: row.events_without_roster,
     }),
     createReadinessSummary({
       id: "children-ministry",
@@ -235,21 +215,9 @@ export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchA
           ? `${row.open_ccm_services} open service${row.open_ccm_services === 1 ? "" : "s"} · ${row.ccm_volunteers} volunteer assignment${row.ccm_volunteers === 1 ? "" : "s"} · ${row.ccm_followups} follow-up incident${row.ccm_followups === 1 ? "" : "s"}.`
           : "No open children's ministry service is ready for check-in.",
     }),
-    createReadinessSummary({
-      id: "volunteer-schedule",
-      module: "volunteers",
-      title: "Volunteer schedule",
-      description: "Review open and unassigned volunteer shifts.",
-      status: volunteerStatus,
-      severity: readinessSeverityFor(volunteerStatus, row.unassigned_volunteer_shifts),
-      issueCount: row.unassigned_volunteer_shifts,
-      completionState: readinessCompletionStateFor(volunteerStatus),
-      recommendedAction:
-        row.unassigned_volunteer_shifts === 0
-          ? "No action needed."
-          : "Open volunteer schedules filtered to unassigned shifts.",
-      target: { route: "/app/church-admin/volunteers/schedules", query: { view: "unassigned" } },
-      detail: `${row.open_volunteer_shifts} open shift${row.open_volunteer_shifts === 1 ? "" : "s"} · ${row.unassigned_volunteer_shifts} unassigned.`,
+    buildVolunteerReadinessSummary({
+      openVolunteerShifts: row.open_volunteer_shifts,
+      unassignedVolunteerShifts: row.unassigned_volunteer_shifts,
     }),
     createReadinessSummary({
       id: "giving-finance",

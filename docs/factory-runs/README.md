@@ -21,3 +21,4 @@ Each run file should be committed with the change it describes. The goal is to m
 | --- | --- | --- | --- |
 | 2026-05-25 | [Readiness module-owned builders](2026-05-25-readiness-module-builders.md) | Split setup, accounts, and people readiness into module builders | `043db58` |
 | 2026-05-25 | [Enforce PR delivery workflow](2026-05-25-enforce-pr-delivery-workflow.md) | Enable admin branch-protection enforcement and document branch/PR delivery | Pending PR |
+| 2026-05-25 | [Readiness events and volunteers](2026-05-25-readiness-events-volunteers.md) | Split weekend event and volunteer readiness into module builders | Pending PR |
