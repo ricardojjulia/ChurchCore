@@ -19,6 +19,16 @@ export type PeopleReadinessMetrics = {
   unassignedHouseholds: number;
 };
 
+export type EventReadinessMetrics = {
+  upcomingEvents: number;
+  eventsWithoutRoster: number;
+};
+
+export type VolunteerReadinessMetrics = {
+  openVolunteerShifts: number;
+  unassignedVolunteerShifts: number;
+};
+
 export function buildChurchSetupReadinessSummary({
   missingSettings,
 }: ChurchSetupReadinessMetrics): ReadinessSummary {
@@ -98,5 +108,62 @@ export function buildPeopleReadinessSummary({
         ? { route: "/app/church-admin/people", query: { view: "unassigned-households", household: "unassigned" } }
         : { route: "/app/church-admin/people", query: { view: "incomplete-profiles" } },
     detail: `${incompleteProfiles} incomplete profile${incompleteProfiles === 1 ? "" : "s"} · ${unassignedHouseholds} unassigned household record${unassignedHouseholds === 1 ? "" : "s"}.`,
+  });
+}
+
+export function buildEventReadinessSummary({
+  upcomingEvents,
+  eventsWithoutRoster,
+}: EventReadinessMetrics): ReadinessSummary {
+  const issueCount = upcomingEvents === 0 ? 1 : eventsWithoutRoster;
+  const status = readinessStatusFor(
+    upcomingEvents === 0 || eventsWithoutRoster > 2,
+    eventsWithoutRoster > 0,
+  );
+
+  return createReadinessSummary({
+    id: "weekend-events",
+    module: "events",
+    title: "Weekend events",
+    description: "Review upcoming events, rosters, capacity, and check-in readiness.",
+    status,
+    severity: readinessSeverityFor(status, issueCount),
+    issueCount,
+    completionState: readinessCompletionStateFor(status),
+    recommendedAction:
+      upcomingEvents === 0
+        ? "Create or review upcoming event records for the next two weeks."
+        : eventsWithoutRoster > 0
+          ? "Open event readiness filtered to events without roster coverage."
+          : "No action needed.",
+    target: { route: "/app/church-admin/events", query: { view: "needs-roster" } },
+    detail:
+      upcomingEvents === 0
+        ? "No upcoming event records are scheduled."
+        : `${upcomingEvents} upcoming event${upcomingEvents === 1 ? "" : "s"} · ${eventsWithoutRoster} without rosters.`,
+  });
+}
+
+export function buildVolunteerReadinessSummary({
+  openVolunteerShifts,
+  unassignedVolunteerShifts,
+}: VolunteerReadinessMetrics): ReadinessSummary {
+  const status = readinessStatusFor(unassignedVolunteerShifts > 3, openVolunteerShifts > 0);
+
+  return createReadinessSummary({
+    id: "volunteer-schedule",
+    module: "volunteers",
+    title: "Volunteer schedule",
+    description: "Review open and unassigned volunteer shifts.",
+    status,
+    severity: readinessSeverityFor(status, unassignedVolunteerShifts),
+    issueCount: unassignedVolunteerShifts,
+    completionState: readinessCompletionStateFor(status),
+    recommendedAction:
+      unassignedVolunteerShifts === 0
+        ? "No action needed."
+        : "Open volunteer schedules filtered to unassigned shifts.",
+    target: { route: "/app/church-admin/volunteers/schedules", query: { view: "unassigned" } },
+    detail: `${openVolunteerShifts} open shift${openVolunteerShifts === 1 ? "" : "s"} · ${unassignedVolunteerShifts} unassigned.`,
   });
 }

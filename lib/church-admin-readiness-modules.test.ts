@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildAccountRequestsReadinessSummary,
   buildChurchSetupReadinessSummary,
+  buildEventReadinessSummary,
   buildPeopleReadinessSummary,
+  buildVolunteerReadinessSummary,
 } from "@/lib/church-admin-readiness-modules";
 
 describe("church admin readiness module summaries", () => {
@@ -53,6 +55,47 @@ describe("church admin readiness module summaries", () => {
         query: { view: "unassigned-households", household: "unassigned" },
       },
       href: "/app/church-admin/people?view=unassigned-households&household=unassigned",
+    });
+  });
+
+  it("builds event readiness for missing events and roster gaps", () => {
+    expect(buildEventReadinessSummary({
+      upcomingEvents: 0,
+      eventsWithoutRoster: 0,
+    })).toMatchObject({
+      id: "weekend-events",
+      module: "events",
+      status: "blocked",
+      severity: "critical",
+      issueCount: 1,
+      completionState: "blocked",
+      recommendedAction: "Create or review upcoming event records for the next two weeks.",
+      href: "/app/church-admin/events?view=needs-roster",
+    });
+
+    expect(buildEventReadinessSummary({
+      upcomingEvents: 4,
+      eventsWithoutRoster: 1,
+    })).toMatchObject({
+      status: "attention",
+      severity: "warning",
+      issueCount: 1,
+      recommendedAction: "Open event readiness filtered to events without roster coverage.",
+    });
+  });
+
+  it("builds volunteer readiness with schedule targeting", () => {
+    expect(buildVolunteerReadinessSummary({
+      openVolunteerShifts: 5,
+      unassignedVolunteerShifts: 4,
+    })).toMatchObject({
+      id: "volunteer-schedule",
+      module: "volunteers",
+      status: "blocked",
+      severity: "critical",
+      issueCount: 4,
+      target: { route: "/app/church-admin/volunteers/schedules", query: { view: "unassigned" } },
+      href: "/app/church-admin/volunteers/schedules?view=unassigned",
     });
   });
 });
