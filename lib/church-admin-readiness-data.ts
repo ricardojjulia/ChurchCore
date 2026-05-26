@@ -9,9 +9,6 @@ import {
 } from "@/lib/supabase/tenant";
 import {
   createReadinessSummary,
-  readinessCompletionStateFor,
-  readinessSeverityFor,
-  readinessStatusFor,
   type ReadinessSummary,
 } from "@/lib/readiness-contract";
 import {
@@ -22,6 +19,7 @@ import {
   buildGivingFinanceReadinessSummary,
   buildPeopleReadinessSummary,
   buildVolunteerReadinessSummary,
+  buildWorkflowReadinessSummary,
 } from "@/lib/church-admin-readiness-modules";
 
 export type { ReadinessStatus } from "@/lib/readiness-contract";
@@ -173,8 +171,6 @@ function summarize(items: ChurchAdminReadinessItem[], source: ChurchAdminReadine
 }
 
 export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchAdminReadinessItem[] {
-  const workflowStatus = readinessStatusFor(row.open_workflows > 10, row.open_workflows > 0);
-
   return [
     buildChurchSetupReadinessSummary({ missingSettings: row.missing_settings }),
     buildAccountRequestsReadinessSummary({ pendingAccountRequests: row.pending_account_requests }),
@@ -201,25 +197,7 @@ export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchA
       draftJournals: row.draft_journals,
       liveGivingPages: row.live_giving_pages,
     }),
-    createReadinessSummary({
-      id: "suggested-workflows",
-      module: "workflows",
-      title: "Suggested ministry workflows",
-      description: "Triage open ministry suggestions and follow-up workflows.",
-      status: workflowStatus,
-      severity: readinessSeverityFor(workflowStatus, row.open_workflows),
-      issueCount: row.open_workflows,
-      completionState: readinessCompletionStateFor(workflowStatus),
-      recommendedAction:
-        row.open_workflows === 0
-          ? "No action needed."
-          : "Open suggested workflows and triage open or assigned ministry actions.",
-      target: { route: "/app/church-admin/workflows", query: { status: "open" } },
-      detail:
-        row.open_workflows === 0
-          ? "No open suggested workflows."
-          : `${row.open_workflows} open suggested workflow${row.open_workflows === 1 ? "" : "s"}.`,
-    }),
+    buildWorkflowReadinessSummary({ openWorkflows: row.open_workflows }),
   ];
 }
 

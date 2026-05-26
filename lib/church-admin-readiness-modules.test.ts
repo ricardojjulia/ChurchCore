@@ -8,6 +8,7 @@ import {
   buildGivingFinanceReadinessSummary,
   buildPeopleReadinessSummary,
   buildVolunteerReadinessSummary,
+  buildWorkflowReadinessSummary,
 } from "@/lib/church-admin-readiness-modules";
 
 describe("church admin readiness module summaries", () => {
@@ -222,6 +223,41 @@ describe("church admin readiness module summaries", () => {
       issueCount: 0,
       completionState: "complete",
       recommendedAction: "No action needed.",
+    });
+  });
+
+  it("builds ready workflow readiness when no suggested workflows are open", () => {
+    expect(buildWorkflowReadinessSummary({ openWorkflows: 0 })).toMatchObject({
+      id: "suggested-workflows",
+      module: "workflows",
+      status: "ready",
+      severity: "none",
+      issueCount: 0,
+      completionState: "complete",
+      recommendedAction: "No action needed.",
+      href: "/app/church-admin/workflows?status=open",
+      detail: "No open suggested workflows.",
+    });
+  });
+
+  it("flags workflow readiness when suggested workflows need triage", () => {
+    expect(buildWorkflowReadinessSummary({ openWorkflows: 4 })).toMatchObject({
+      status: "attention",
+      severity: "warning",
+      issueCount: 4,
+      completionState: "needs_review",
+      recommendedAction: "Open suggested workflows and triage open or assigned ministry actions.",
+      detail: "4 open suggested workflows.",
+    });
+  });
+
+  it("blocks workflow readiness when too many suggested workflows are open", () => {
+    expect(buildWorkflowReadinessSummary({ openWorkflows: 11 })).toMatchObject({
+      status: "blocked",
+      severity: "critical",
+      issueCount: 11,
+      completionState: "blocked",
+      detail: "11 open suggested workflows.",
     });
   });
 });

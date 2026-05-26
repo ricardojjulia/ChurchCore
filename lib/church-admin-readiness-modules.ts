@@ -42,6 +42,10 @@ export type GivingFinanceReadinessMetrics = {
   liveGivingPages: number;
 };
 
+export type WorkflowReadinessMetrics = {
+  openWorkflows: number;
+};
+
 export function buildChurchSetupReadinessSummary({
   missingSettings,
 }: ChurchSetupReadinessMetrics): ReadinessSummary {
@@ -247,5 +251,31 @@ export function buildGivingFinanceReadinessSummary({
         : "Open giving and finance exceptions to resolve failed gifts, GL posting gaps, draft journals, or giving page setup.",
     target: { route: "/app/church-admin/giving", query: { view: "exceptions" } },
     detail: `${failedDonations} failed gift${failedDonations === 1 ? "" : "s"} · ${unpostedDonations} unposted gift${unpostedDonations === 1 ? "" : "s"} · ${draftJournals} draft journal${draftJournals === 1 ? "" : "s"} · ${liveGivingPages} live giving page${liveGivingPages === 1 ? "" : "s"}.`,
+  });
+}
+
+export function buildWorkflowReadinessSummary({
+  openWorkflows,
+}: WorkflowReadinessMetrics): ReadinessSummary {
+  const status = readinessStatusFor(openWorkflows > 10, openWorkflows > 0);
+
+  return createReadinessSummary({
+    id: "suggested-workflows",
+    module: "workflows",
+    title: "Suggested ministry workflows",
+    description: "Triage open ministry suggestions and follow-up workflows.",
+    status,
+    severity: readinessSeverityFor(status, openWorkflows),
+    issueCount: openWorkflows,
+    completionState: readinessCompletionStateFor(status),
+    recommendedAction:
+      openWorkflows === 0
+        ? "No action needed."
+        : "Open suggested workflows and triage open or assigned ministry actions.",
+    target: { route: "/app/church-admin/workflows", query: { status: "open" } },
+    detail:
+      openWorkflows === 0
+        ? "No open suggested workflows."
+        : `${openWorkflows} open suggested workflow${openWorkflows === 1 ? "" : "s"}.`,
   });
 }
