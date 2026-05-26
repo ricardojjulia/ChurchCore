@@ -70,4 +70,4 @@ Patterns reused:
 
 - Branch: `feature/readiness-workflows-builder`
 - Pull request: [#20](https://github.com/ricardojjulia/ChurchCore-Ops/pull/20)
-- Merge: pending
+- Merge: squash merge `307263c`
