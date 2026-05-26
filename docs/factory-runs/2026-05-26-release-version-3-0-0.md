@@ -62,4 +62,4 @@ Files changed:
 
 - Branch: `release/version-3-0-0`
 - Pull request: [#16](https://github.com/ricardojjulia/ChurchCore-Ops/pull/16)
-- Merge: pending
+- Merge: squash merge `3d23855`
