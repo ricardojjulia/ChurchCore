@@ -29,4 +29,4 @@ Each run file should be committed with the change it describes. The goal is to m
 | 2026-05-26 | [Readiness communications](2026-05-26-readiness-communications.md) | Add communications readiness to the weekly operator path | PR #22, squash merge `d1376cc` |
 | 2026-05-26 | [Readiness reports](2026-05-26-readiness-reports.md) | Add reports readiness to the weekly operator path | PR #25, squash merge `c231ca7` |
 | 2026-05-26 | [Readiness route smoke](2026-05-26-readiness-route-smoke.md) | Expand local smoke coverage across weekly readiness targets | PR #27, squash merge `d54ab85` |
-| 2026-05-26 | [Readiness Playwright smoke](2026-05-26-readiness-playwright-smoke.md) | Add browser-level coverage across weekly readiness targets | Pending |
+| 2026-05-26 | [Readiness Playwright smoke](2026-05-26-readiness-playwright-smoke.md) | Add browser-level coverage across weekly readiness targets | PR #29, squash merge `4608bf8` |
