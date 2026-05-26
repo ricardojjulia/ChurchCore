@@ -71,5 +71,5 @@ Patterns reused:
 ## Delivery
 
 - Branch: `feature/readiness-giving-finance-builder`
-- Pull request: pending
+- Pull request: [#18](https://github.com/ricardojjulia/ChurchCore-Ops/pull/18)
 - Merge: pending
