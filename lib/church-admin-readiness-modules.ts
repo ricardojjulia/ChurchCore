@@ -29,6 +29,12 @@ export type VolunteerReadinessMetrics = {
   unassignedVolunteerShifts: number;
 };
 
+export type ChildrenReadinessMetrics = {
+  openCcmServices: number;
+  ccmVolunteers: number;
+  ccmFollowups: number;
+};
+
 export function buildChurchSetupReadinessSummary({
   missingSettings,
 }: ChurchSetupReadinessMetrics): ReadinessSummary {
@@ -165,5 +171,40 @@ export function buildVolunteerReadinessSummary({
         : "Open volunteer schedules filtered to unassigned shifts.",
     target: { route: "/app/church-admin/volunteers/schedules", query: { view: "unassigned" } },
     detail: `${openVolunteerShifts} open shift${openVolunteerShifts === 1 ? "" : "s"} · ${unassignedVolunteerShifts} unassigned.`,
+  });
+}
+
+export function buildChildrenReadinessSummary({
+  openCcmServices,
+  ccmVolunteers,
+  ccmFollowups,
+}: ChildrenReadinessMetrics): ReadinessSummary {
+  const issueCount =
+    (openCcmServices === 0 ? 1 : 0) +
+    ccmFollowups +
+    (openCcmServices > 0 && ccmVolunteers === 0 ? 1 : 0);
+  const status = readinessStatusFor(
+    openCcmServices > 0 && ccmVolunteers === 0,
+    ccmFollowups > 0 || openCcmServices === 0,
+  );
+
+  return createReadinessSummary({
+    id: "children-ministry",
+    module: "children",
+    title: "Children's ministry",
+    description: "Check service state, volunteer coverage, and follow-up incidents.",
+    status,
+    severity: readinessSeverityFor(status, issueCount),
+    issueCount,
+    completionState: readinessCompletionStateFor(status),
+    recommendedAction:
+      issueCount === 0
+        ? "No action needed."
+        : "Open the children's ministry readiness dashboard and resolve service, volunteer, or incident gaps.",
+    target: { route: "/app/church-admin/children/dashboard", query: { view: "readiness" } },
+    detail:
+      openCcmServices > 0
+        ? `${openCcmServices} open service${openCcmServices === 1 ? "" : "s"} · ${ccmVolunteers} volunteer assignment${ccmVolunteers === 1 ? "" : "s"} · ${ccmFollowups} follow-up incident${ccmFollowups === 1 ? "" : "s"}.`
+        : "No open children's ministry service is ready for check-in.",
   });
 }

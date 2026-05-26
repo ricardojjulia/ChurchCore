@@ -78,7 +78,7 @@ npm run smoke:local
 
 - **Control plane:** `/control` for platform staff.
 - **ChurchAdmin workspace:** people, households, accounts, ministries, events, readiness, giving ops, finance, communications, workflows, reports, and settings.
-- **Weekly readiness path:** shared readiness summaries now carry status, severity, issue count, recommended action, route target, query target, and completion state metadata for the operator path.
+- **Weekly readiness path:** shared readiness summaries now carry status, severity, issue count, recommended action, route target, query target, and completion state metadata for the operator path. Setup, account requests, people, events, children's ministry, and volunteers now use module-owned readiness builders.
 - **Daily Desk:** `/app/daily-desk` for calls, notes, visits, calendar items, checkups, and operational signals.
 - **Secretary portal:** `/app/secretary` for office work without full church-admin authority.
 - **Member portal:** profile, family, directory, giving, schedule, groups, privacy/data rights, and preferences.

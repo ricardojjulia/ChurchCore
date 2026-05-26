@@ -16,6 +16,7 @@ import {
 } from "@/lib/readiness-contract";
 import {
   buildAccountRequestsReadinessSummary,
+  buildChildrenReadinessSummary,
   buildChurchSetupReadinessSummary,
   buildEventReadinessSummary,
   buildPeopleReadinessSummary,
@@ -171,12 +172,6 @@ function summarize(items: ChurchAdminReadinessItem[], source: ChurchAdminReadine
 }
 
 export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchAdminReadinessItem[] {
-  const childrenIssueCount =
-    (row.open_ccm_services === 0 ? 1 : 0) + row.ccm_followups + (row.open_ccm_services > 0 && row.ccm_volunteers === 0 ? 1 : 0);
-  const childrenStatus = readinessStatusFor(
-    row.open_ccm_services > 0 && row.ccm_volunteers === 0,
-    row.ccm_followups > 0 || row.open_ccm_services === 0,
-  );
   const givingIssueCount =
     row.failed_donations + row.unposted_donations + row.draft_journals + (row.live_giving_pages === 0 ? 1 : 0);
   const givingStatus = readinessStatusFor(
@@ -196,24 +191,10 @@ export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchA
       upcomingEvents: row.upcoming_events,
       eventsWithoutRoster: row.events_without_roster,
     }),
-    createReadinessSummary({
-      id: "children-ministry",
-      module: "children",
-      title: "Children's ministry",
-      description: "Check service state, volunteer coverage, and follow-up incidents.",
-      status: childrenStatus,
-      severity: readinessSeverityFor(childrenStatus, childrenIssueCount),
-      issueCount: childrenIssueCount,
-      completionState: readinessCompletionStateFor(childrenStatus),
-      recommendedAction:
-        childrenIssueCount === 0
-          ? "No action needed."
-          : "Open the children's ministry readiness dashboard and resolve service, volunteer, or incident gaps.",
-      target: { route: "/app/church-admin/children/dashboard", query: { view: "readiness" } },
-      detail:
-        row.open_ccm_services > 0
-          ? `${row.open_ccm_services} open service${row.open_ccm_services === 1 ? "" : "s"} · ${row.ccm_volunteers} volunteer assignment${row.ccm_volunteers === 1 ? "" : "s"} · ${row.ccm_followups} follow-up incident${row.ccm_followups === 1 ? "" : "s"}.`
-          : "No open children's ministry service is ready for check-in.",
+    buildChildrenReadinessSummary({
+      openCcmServices: row.open_ccm_services,
+      ccmVolunteers: row.ccm_volunteers,
+      ccmFollowups: row.ccm_followups,
     }),
     buildVolunteerReadinessSummary({
       openVolunteerShifts: row.open_volunteer_shifts,
