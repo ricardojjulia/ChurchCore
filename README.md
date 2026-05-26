@@ -44,7 +44,11 @@ In another terminal:
 ```bash
 npm run smoke:preview
 npm run smoke:local
+npm run test:e2e:install
+npm run test:e2e:readiness
 ```
+
+The Playwright readiness check starts the Next.js dev server automatically, but it still expects the local Supabase demo setup and generated `.demo-credentials.local` from `npm run setup:local`.
 
 ## Stack
 
@@ -142,7 +146,7 @@ See [docs/shepherd-ai-ops.md](docs/shepherd-ai-ops.md) for architecture and guar
 - License: [MIT](LICENSE)
 - Included demo scope: preview mode without a backend, or local Supabase with seeded Grace Harbor Church data
 - Local credential material is not committed; demo credentials are generated locally by the bootstrap script and saved to gitignored `.demo-credentials.local`
-- Evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, and `npm run smoke:local`
+- Evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, `npm run smoke:local`, and `npm run test:e2e:readiness`
 - Spanish UI support has started with cookie-backed English/Spanish selection; track rollout in [docs/plans/spanish-ui-coverage.md](docs/plans/spanish-ui-coverage.md)
 
 ## Release 3.0.0 Highlights

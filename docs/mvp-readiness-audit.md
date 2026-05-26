@@ -117,7 +117,7 @@ The local smoke path validates the tenant demo app that `npm run setup:local` pr
 
 These should be closed before calling the product MVP-ready:
 
-- **Reliable local demo:** `npm run setup:local`, `npm run dev`, and `npm run smoke:local` must pass on a clean machine. The local smoke now includes the Daily Desk, ChurchAdmin readiness, and the current route targets linked from weekly readiness.
+- **Reliable local demo:** `npm run setup:local`, `npm run dev`, `npm run smoke:local`, and `npm run test:e2e:readiness` must pass on a clean machine. The local smoke now includes the Daily Desk, ChurchAdmin readiness, and the current route targets linked from weekly readiness; the Playwright readiness check opens the same path in Chromium after browser sign-in.
 - **Spanish UI path:** the public entry flow, shared application shell, Daily Desk, member home/directory/family surfaces, and high-traffic ChurchAdmin home/readiness/account approval/settings/people surfaces now have English/Spanish dictionary coverage. Remaining MVP modules still need translation extraction and review before claiming full Spanish readiness; the rollout is tracked in `docs/plans/spanish-ui-coverage.md`.
 - **Control-plane local demo:** either provision local control-plane staff users during setup or move control-plane checks into a separate explicit smoke command.
 - **Account onboarding path:** public registration, account approval, user invite, membership linkage, first sign-in, and profile hydration now have a documented happy path. Local smoke submits a portal request and verifies it appears in the admin approval queue; keep expanding this into a browser-level approve-and-sign-in smoke as test tooling grows.
@@ -133,7 +133,7 @@ These should be closed before calling the product MVP-ready:
 Priority 1:
 
 - Make local Supabase demo smoke pass reliably from generated credentials.
-- Add browser-level Playwright coverage for the route-by-route ChurchAdmin weekly readiness path now covered by local smoke.
+- Keep expanding browser-level Playwright coverage from the route-by-route ChurchAdmin weekly readiness path into resolution actions and denied-role checks.
 - Add query-aware readiness filters to the remaining money and children's ministry targets.
 - Finish account-request invite edge cases and document the operator path.
 - Add missing empty/error states for settings, people, events, children, giving, finance, reports, and workflows.

@@ -41,6 +41,15 @@ The local setup script creates demo credentials in `.demo-credentials.local`. Th
 
 See `docs/setup/local-supabase.md` for the full tenant backend setup, reset, seed, and smoke-test flow. The control plane has a separate Supabase project and should be provisioned separately when testing platform-staff workflows.
 
+For browser-level verification of the weekly ChurchAdmin operator path, install the Playwright Chromium runtime once and run the readiness e2e check:
+
+```bash
+npm run test:e2e:install
+npm run test:e2e:readiness
+```
+
+The readiness e2e check starts the Next.js dev server automatically and expects local Supabase plus `.demo-credentials.local` from `npm run setup:local`.
+
 ## 3. First Screen And Sign-In
 
 The root page introduces ChurchCore Ops and gives two main entry points:
