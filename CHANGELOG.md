@@ -20,6 +20,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Changed
 
+- Updated the public home page name and hero copy to use the friendlier Church Core positioning.
 - Restricted the ChurchAdmin event list route to ChurchAdmin access so the weekly readiness event target is not reachable by pastor or ministry-leader roles.
 - Expanded the readiness Playwright smoke to require target-state evidence on the standardized readiness target routes covered so far.
 - Disabled Markdown MD013 line-length enforcement so long documentation links, tables, diagrams, and factory logs do not produce noisy lint failures.

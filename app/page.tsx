@@ -67,7 +67,7 @@ export default function Home() {
               <Church size={22} strokeWidth={2.1} />
             </Box>
             <Text fw={800} size="lg" c="#101827">
-              ChurchCore Ops
+              Church Core
             </Text>
           </Group>
 
