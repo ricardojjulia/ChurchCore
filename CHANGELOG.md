@@ -8,6 +8,22 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 
+- Added `docs/plans/member-mobile-pwa-foundation-audit.md` as the Phase 2 mobile-first baseline, including route-by-route phone viewport audit results, intended member workflow order, and first implementation slices for home, schedule, groups, directory/privacy, giving history, family/profile updates, notification preferences, and member self-check-in entry.
+- Added baseline phone-sized Playwright coverage in `tests/e2e/member-mobile-foundation.spec.ts` for member routes, `/app/calendar`, and member denied access to ChurchAdmin-only readiness at mobile viewport sizes.
+- Added mobile-view screenshot attachments to the member Playwright baseline for route-by-route evidence across member and calendar phone-sized flows.
+- Added member-home quick action cards for schedule, groups, giving, and family so first mobile tasks are reachable from the top-level member route.
+- Added a focused calendar shell test to verify member-only bottom-nav continuity on `/app/calendar`.
+- Added member mobile check-in foundation controls on event registration settings, including enable toggle, start/end window fields, optional access code, and household check-in policy flag.
+- Added member-facing mobile check-in cards on member home for events where mobile member check-in is enabled.
+- Added `app/app/member-actions.ts` with `memberMobileCheckInAction` plus focused tests in `app/app/member-actions.test.ts` to enforce enabled-event gating, check-in windows, optional access code checks, duplicate prevention, and `mobile_member` attendance writes.
+- Added household-mode member check-in enforcement so the signed-in family can check in another household member when staff enables the option.
+- Added source-aware attendance filtering and source badges to the ChurchAdmin event attendance log so admins can isolate `mobile_member`, `staff`, `kiosk`, and import/manual flows quickly.
+- Added check-in method filter controls to the Events Reports dashboard so reporting review can focus on a single attendance source method.
+- Added optional mobile check-in geofence settings (latitude, longitude, radius meters) to event registration settings and enforced on-site distance checks in member mobile check-in actions.
+- Added browser geolocation capture in the member mobile check-in card for events that require location verification.
+- Added ADR `docs/adr/0005-member-mobile-checkin-policy-and-location-verification.md` to codify server-side household + geofence check-in policy rules.
+- Added `lib/member-mobile-checkin-data.ts` to load member-eligible check-in options with open/upcoming/checked-in/closed status derivation.
+- Added migration `supabase/migrations/20260527100000_member_mobile_checkin_foundation.sql` to store event-level mobile check-in configuration and extend attendance source metadata checks.
 - Split giving and finance readiness summary construction into a module-owned builder with focused coverage for missing giving page, failed donation, GL posting, draft journal, and ready states.
 - Split suggested workflow readiness summary construction into a module-owned builder with focused coverage for ready, triage, and blocked workflow backlog states.
 - Added first-class communications readiness summary coverage for pending sends, failed delivery, bounced logs, contact gaps, consent gaps, and ready state.
@@ -23,6 +39,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Changed
 
+- Marked Competitive Readiness Phase 2 as started in the roadmap via the member mobile PWA foundation audit run and linked the new baseline implementation brief.
+- Simplified member mobile bottom navigation to a phone-first primary action set (home, calendar, groups, schedule, family), increased touch-target sizing, and kept home active for auxiliary member routes.
+- Updated calendar shell behavior so member-role calendar views now render the member bottom navigation for consistent phone-first route layout.
+- Updated ChurchAdmin quick event check-in writes to use `staff` attendance source metadata and updated event reporting source labels to include `mobile_member`, `staff`, `kiosk`, and `import`.
 - Updated the public home page name and hero copy to use the friendlier Church Core positioning.
 - Marked Finding 1 in the competitive-readiness roadmap as complete for current readiness navigation, target-state evidence, browser traversal, denied-role coverage, and resolution-action audit.
 - Restricted the ChurchAdmin event list route to ChurchAdmin access so the weekly readiness event target is not reachable by pastor or ministry-leader roles.

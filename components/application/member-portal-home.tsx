@@ -3,13 +3,16 @@
 import Link from "next/link";
 import {
   AlertCircle,
+  CalendarCheck,
   CalendarRange,
   HeartHandshake,
   Home,
   Mail,
   MapPin,
   Phone,
+  Users,
   UsersRound,
+  Wallet,
 } from "lucide-react";
 import {
   Alert,
@@ -28,11 +31,13 @@ import {
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
 import { MemberBottomNav } from "@/components/application/member-bottom-nav";
+import { MemberMobileCheckInCard } from "@/components/application/member-mobile-checkin-card";
 import { MemberFamilyEdit } from "@/components/application/member-family-edit";
 import { NotificationPreferencesForm } from "@/components/application/notification-preferences-form";
 import { MemberProfileEdit } from "@/components/application/member-profile-edit";
 import { useI18n } from "@/components/i18n-provider";
 import type { ChurchAppSession } from "@/lib/auth";
+import type { MemberMobileCheckInOption } from "@/lib/member-mobile-checkin-data";
 import type { MemberPortalData } from "@/lib/member-portal-data";
 
 function formatEventDate(value: string, locale: string) {
@@ -61,9 +66,11 @@ function knownKey(value: string) {
 export function MemberPortalHome({
   session,
   data,
+  mobileCheckInOptions,
 }: {
   session: ChurchAppSession;
   data: MemberPortalData;
+  mobileCheckInOptions: MemberMobileCheckInOption[];
 }) {
   const profile = data.profile;
   const { locale, t } = useI18n();
@@ -136,6 +143,71 @@ export function MemberPortalHome({
             {translateMember("communicationPreferencesDescription")}
           </Alert>
         ) : null}
+
+        <Paper withBorder radius="xl" p="xl">
+          <Group justify="space-between" align="center" mb="lg">
+            <Title order={3} size="h4">
+              {translateMember("quickActions")}
+            </Title>
+          </Group>
+
+          <SimpleGrid cols={{ base: 2, md: 4 }} spacing="sm">
+            <Button
+              component={Link}
+              href="/app/member/schedule"
+              variant="light"
+              color="blue"
+              radius="xl"
+              size="md"
+              fullWidth
+              leftSection={<CalendarCheck size={16} />}
+            >
+              {translateMember("openSchedule")}
+            </Button>
+            <Button
+              component={Link}
+              href="/app/member/groups"
+              variant="light"
+              color="teal"
+              radius="xl"
+              size="md"
+              fullWidth
+              leftSection={<Users size={16} />}
+            >
+              {translateMember("openGroups")}
+            </Button>
+            <Button
+              component={Link}
+              href="/app/member/giving"
+              variant="light"
+              color="grape"
+              radius="xl"
+              size="md"
+              fullWidth
+              leftSection={<Wallet size={16} />}
+            >
+              {translateMember("openGiving")}
+            </Button>
+            <Button
+              component={Link}
+              href="/app/member/family"
+              variant="light"
+              color="gray"
+              radius="xl"
+              size="md"
+              fullWidth
+              leftSection={<Home size={16} />}
+            >
+              {translateMember("openFamily")}
+            </Button>
+          </SimpleGrid>
+        </Paper>
+
+        <MemberMobileCheckInCard
+          options={mobileCheckInOptions}
+          profileId={profile?.id ?? session.userId}
+          householdMembers={data.family?.members ?? []}
+        />
 
         <Paper withBorder radius="xl" p="xl">
           <Group justify="space-between" align="flex-start" gap="md">

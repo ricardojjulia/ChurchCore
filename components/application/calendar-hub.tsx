@@ -14,6 +14,7 @@ import {
 import { ApplicationShell } from "@/components/application/app-shell";
 import { CalendarLiveBoard } from "@/components/application/calendar-live-board";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
+import { MemberBottomNav } from "@/components/application/member-bottom-nav";
 import type { AuthSession } from "@/lib/auth";
 import type { ChurchCalendarData } from "@/lib/church-calendar-data";
 import { getPortalRole } from "@/lib/portal";
@@ -75,6 +76,7 @@ export function CalendarHub({
   const canOpenEventWorkspace =
     session.appContext.roleId === "church-admin" ||
     session.appContext.roleId === "pastor";
+  const isMemberRole = session.appContext.roleId === "member";
 
   return (
     <ApplicationShell
@@ -88,6 +90,7 @@ export function CalendarHub({
       sidebarDescription="Events and approvals"
       navLabel="Current role"
       navItems={navItems}
+      bottomNav={isMemberRole ? <MemberBottomNav /> : undefined}
     >
       <ChurchAppContextBanner session={session} />
 
