@@ -458,8 +458,30 @@ export function CcmServiceDetail({
               token {roster.service.checkinSessionToken.slice(0, 8)}...
             </Badge>
             <Text size="xs" c="dimmed">
-              Use this service session token for scoped parent link rollout in the next slice.
+              Use this service session token to drive day-scoped parent check-in and checkout links.
             </Text>
+          </Group>
+          <Group mt="xs" gap="xs">
+            <Button
+              component={Link}
+              href={`/portal/children/checkin/${roster.service.checkinSessionToken}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              size="xs"
+              variant="light"
+            >
+              Open parent check-in URL
+            </Button>
+            <Button
+              component={Link}
+              href={`/portal/children/checkout/${roster.service.checkinSessionToken}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              size="xs"
+              variant="light"
+            >
+              Open parent checkout URL
+            </Button>
           </Group>
         </Paper>
 

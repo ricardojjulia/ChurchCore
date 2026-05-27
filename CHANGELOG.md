@@ -27,6 +27,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added day-enabled children's check-in session lifecycle fields on `ccm_services` with migration `supabase/migrations/20260527143000_ccm_day_enabled_checkin_session.sql` (`draft`, `enabled`, `paused`, `closed`) plus session window and session token metadata.
 - Added `updateCheckinSessionLifecycleAction` in `app/app/ccm-actions.ts` so ChurchAdmin users can enable, pause, or close a children's day check-in session with optional start/end window constraints.
 - Added CCM action coverage in `app/app/ccm-actions.test.ts` for session lifecycle updates and rejection of child check-in when a session is not enabled.
+- Added public session-scoped parent children routes at `/portal/children/checkin/[token]` and `/portal/children/checkout/[token]` with safe unavailable states for invalid, draft, paused, closed, and out-of-window sessions.
+- Added `lib/ccm-public-data.ts` and `lib/ccm-public-data.test.ts` to load and evaluate token-scoped children session availability for public portal links.
 - Added migration `supabase/migrations/20260527100000_member_mobile_checkin_foundation.sql` to store event-level mobile check-in configuration and extend attendance source metadata checks.
 - Split giving and finance readiness summary construction into a module-owned builder with focused coverage for missing giving page, failed donation, GL posting, draft journal, and ready states.
 - Split suggested workflow readiness summary construction into a module-owned builder with focused coverage for ready, triage, and blocked workflow backlog states.
@@ -48,6 +50,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Expanded ChurchAdmin registration settings with an in-context mobile check-in policy audit summary in `components/application/church-admin-event-workspace.tsx` for enabled/window/code/household/geofence visibility.
 - Changed children check-in gating in `app/app/ccm-actions.ts` and `app/app/church-admin/children/checkin/page.tsx` so check-in only runs when the target service is open and its day session is explicitly enabled.
 - Updated Children Services UI in `components/application/ccm-service-manager.tsx` to show check-in session status and provide enable/pause controls plus optional session window inputs.
+- Updated Children Services detail controls in `components/application/ccm-service-manager.tsx` to expose direct parent check-in and checkout session URLs using the day session token.
 - Simplified member mobile bottom navigation to a phone-first primary action set (home, calendar, groups, schedule, family), increased touch-target sizing, and kept home active for auxiliary member routes.
 - Updated calendar shell behavior so member-role calendar views now render the member bottom navigation for consistent phone-first route layout.
 - Updated ChurchAdmin quick event check-in writes to use `staff` attendance source metadata and updated event reporting source labels to include `mobile_member`, `staff`, `kiosk`, and `import`.
