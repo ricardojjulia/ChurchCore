@@ -10,6 +10,16 @@
 
 Migrations and code changes must be deployed together in a single release. Some migrations drop columns that app code still reads; the app code changes restore those reads from new locations. Deploy them atomically.
 
+## Verification Evidence Refresh (2026-05-27)
+
+- Post-merge verification commands for the mobile/children safety closure slice passed on `main`:
+   - `npm run test -- app/app/ccm-actions.test.ts app/app/member-actions.test.ts app/portal/children/actions.test.ts lib/ccm-public-data.test.ts`
+   - `npx playwright test tests/e2e/member-mobile-foundation.spec.ts`
+   - `npm run lint`
+   - `npm run build`
+- Added targeted compliance coverage for member pending-review deletion behavior and cancellation in `lib/compliance/data-rights-actions.test.ts`.
+- Added Phase 3 communications adapter foundation test coverage in `lib/communications/provider-adapter.test.ts`.
+
 ---
 
 ## Phase 1 — Critical (Block on real data)

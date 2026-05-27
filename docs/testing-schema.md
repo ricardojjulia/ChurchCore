@@ -79,6 +79,7 @@ This document closes the current gap between the development plan and the reposi
 - PII masking and restricted-data redaction
 - audit-log creation for sensitive writes
 - consent and export/delete flows for data-rights routes
+- pending-review member data-rights behavior (deletion request + cancellation)
 
 ## Coverage Map
 
@@ -173,6 +174,8 @@ Status values:
 - `playwright.config.ts`
 - `tests/e2e/church-admin-readiness.spec.ts`
 - `tests/e2e/member-mobile-foundation.spec.ts`
+- `lib/compliance/data-rights-actions.test.ts`
+- `lib/communications/provider-adapter.test.ts`
 - `vitest.config.ts` and `vitest.setup.ts`
 - `package.json` test scripts
 

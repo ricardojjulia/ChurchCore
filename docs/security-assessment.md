@@ -14,6 +14,16 @@ No data is encrypted at rest beyond what Supabase provides at the storage layer.
 
 This is fixable. None of it requires a redesign. All of it should be fixed before real congregation data is loaded.
 
+## Recent Evidence Refresh (2026-05-27)
+
+- Branch-independent post-merge verification on `main` completed for the Phase 2 closure slice:
+	- `npm run test -- app/app/ccm-actions.test.ts app/app/member-actions.test.ts app/portal/children/actions.test.ts lib/ccm-public-data.test.ts`
+	- `npx playwright test tests/e2e/member-mobile-foundation.spec.ts`
+	- `npm run lint`
+	- `npm run build`
+- Additional compliance test coverage now includes pending-review member data-rights behavior in `lib/compliance/data-rights-actions.test.ts`.
+- Communications provider Phase 3 foundation started with adapter/retry/idempotency contract tests in `lib/communications/provider-adapter.test.ts`.
+
 ---
 
 ## Findings by Severity

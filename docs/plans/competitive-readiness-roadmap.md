@@ -367,6 +367,8 @@ These workstreams convert the competitive findings into implementation-ready ste
 
 **Goal:** Church communications can be sent, tracked, retried, unsubscribed, and audited through real providers.
 
+**Status update (2026-05-27):** Phase 3 foundation started with provider-adapter contracts and retry/idempotency helper coverage in `lib/communications/provider-adapter.ts` and `lib/communications/provider-adapter.test.ts`.
+
 ### Scope
 
 - Provider adapters for email and SMS.

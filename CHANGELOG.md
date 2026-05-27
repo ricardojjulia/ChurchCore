@@ -8,6 +8,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 
+- Added pending-review compliance coverage for member data-rights deletion lifecycle (`requestAccountDeletionAction` + cancellation + staff-role rejection) in `lib/compliance/data-rights-actions.test.ts`.
+- Added Phase 3 communications provider adapter contracts and helper coverage in `lib/communications/provider-adapter.ts` and `lib/communications/provider-adapter.test.ts`.
+- Added factory-run traceability for post-merge Phase 2 verification and Phase 3 kickoff in `docs/factory-runs/2026-05-27-phase2-postmerge-and-phase3-kickoff.md`.
 - Added session enablement readiness enforcement in `app/app/ccm-actions.ts` requiring active rooms and two-adult volunteer coverage before enabling a day children session, plus audited override reasons captured in `ccm_session_enablement_overrides` via migration `supabase/migrations/20260527213000_ccm_session_readiness_overrides.sql`.
 - Added stronger parent checkout verification in `app/portal/children/actions.ts` and `components/portal/children-session-actions.tsx`, including guardian-name verification and support for pickup-code verification in addition to PIN/QR token.
 - Added expanded mobile browser coverage in `tests/e2e/member-mobile-foundation.spec.ts` for children-admin denied-route checks and safe unavailable-state rendering for invalid parent session links.
@@ -52,6 +55,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Changed
 
+- Changed the competitive roadmap Phase 3 status to started with provider-adapter foundation evidence in `docs/plans/competitive-readiness-roadmap.md`.
+- Updated testing and security evidence docs with post-merge verification commands and new coverage references in `docs/testing-schema.md`, `docs/security-assessment.md`, and `docs/security-mitigation-plan.md`.
 - Changed local fallback query handling in `lib/ccm-public-data.ts` and `lib/member-mobile-checkin-data.ts` to be schema-aware, preventing mobile member and parent routes from failing with runtime 500 pages when local tenant DB snapshots are missing newer columns.
 - Updated Phase 2 evaluation and evidence mapping in `docs/plans/competitive-readiness-roadmap.md`, including closure status updates for Findings 2A/2B and explicit member-mobile testing evidence references.
 - Changed children session close behavior in `app/app/ccm-actions.ts` so closing a service/session rotates the public session token, preventing reuse of stale parent links.
