@@ -19,10 +19,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added readiness target-state coverage for the operations routes: account approvals, event roster review, volunteer service plans, and suggested workflows.
 - Added readiness target-state coverage for sensitive operations routes: children's ministry safety, finance draft journals, communications delivery/consent, and reports coverage.
 - Added focused sensitive-readiness component coverage for target-state derivation across children, finance journals, communications, and reports.
+- Added the readiness resolution-action audit for the current ChurchAdmin weekly operator path, including documented target routes, resolution actions, and remaining follow-up gaps.
 
 ### Changed
 
 - Updated the public home page name and hero copy to use the friendlier Church Core positioning.
+- Marked Finding 1 in the competitive-readiness roadmap as complete for current readiness navigation, target-state evidence, browser traversal, denied-role coverage, and resolution-action audit.
 - Restricted the ChurchAdmin event list route to ChurchAdmin access so the weekly readiness event target is not reachable by pastor or ministry-leader roles.
 - Expanded the readiness Playwright smoke to require target-state evidence across the standardized operations and sensitive-operations readiness target routes.
 - Disabled Markdown MD013 line-length enforcement so long documentation links, tables, diagrams, and factory logs do not produce noisy lint failures.
