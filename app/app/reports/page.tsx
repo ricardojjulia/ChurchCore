@@ -3,12 +3,14 @@ import { redirect } from "next/navigation";
 import { ReportsOverviewDashboard } from "@/components/application/reports-dashboards";
 import { ReportsShell } from "@/components/application/reports-shell";
 import { requireChurchSession } from "@/lib/auth";
+import { getChurchAdminReadinessData } from "@/lib/church-admin-readiness-data";
 import {
   getEventReportsData,
   getGivingReportsData,
   getMemberReportsData,
   normalizeReportTimeRange,
 } from "@/lib/reports-data";
+import { hasTenantBackendEnv } from "@/lib/supabase/tenant";
 
 export default async function ReportsOverviewPage({
   searchParams,
@@ -30,6 +32,11 @@ export default async function ReportsOverviewPage({
     getEventReportsData(session, range),
     getGivingReportsData(session, range),
   ]);
+  const readiness =
+    role === "church-admin" && range === "90d"
+      ? await getChurchAdminReadinessData(session)
+      : null;
+  const reportsReadiness = readiness?.items.find((item) => item.id === "reports") ?? null;
 
   return (
     <ReportsShell
@@ -39,7 +46,14 @@ export default async function ReportsOverviewPage({
       activePath="/app/reports"
       range={range}
     >
-      <ReportsOverviewDashboard members={members} events={events} giving={giving} />
+      <ReportsOverviewDashboard
+        members={members}
+        events={events}
+        giving={giving}
+        readinessView={role === "church-admin" && range === "90d"}
+        dataSource={hasTenantBackendEnv() && session.source === "supabase" ? "live" : "preview"}
+        readinessSummary={reportsReadiness}
+      />
     </ReportsShell>
   );
 }

@@ -45,7 +45,7 @@ describe("MemberBottomNav", () => {
     mockUsePathname.mockReturnValue("/app/member/groups");
     renderNav();
 
-    expect(screen.getByText("Groups")).toHaveStyle({ fontWeight: "700" });
-    expect(screen.getByText("Home")).toHaveStyle({ fontWeight: "400" });
+    expect(screen.getByText("groups")).toHaveStyle({ fontWeight: "700" });
+    expect(screen.getByText("home")).toHaveStyle({ fontWeight: "400" });
   });
 });

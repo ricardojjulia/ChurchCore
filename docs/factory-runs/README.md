@@ -33,3 +33,4 @@ Each run file should be committed with the change it describes. The goal is to m
 | 2026-05-26 | [Readiness denied-role Playwright](2026-05-26-readiness-denied-role-playwright.md) | Add tenant denied-role browser coverage for ChurchAdmin-only readiness targets | PR #31, squash merge `e4b363a` |
 | 2026-05-26 | [Readiness target states](2026-05-26-readiness-target-states.md) | Add shared target-state UI and first readiness target route slice | PR #33, squash merge `b311d2a` |
 | 2026-05-26 | [Readiness target states operations](2026-05-26-readiness-target-states-operations.md) | Roll target-state UI into accounts, events, volunteers, and workflows | PR #35, squash merge `668289a` |
+| 2026-05-27 | [Readiness target states sensitive ops](2026-05-27-readiness-target-states-sensitive-ops.md) | Roll target-state UI into children, finance journals, communications, and reports | PR #38 |

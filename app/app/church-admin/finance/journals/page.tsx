@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { FinanceJournalWorkspace } from "@/components/application/finance-journal-workspace";
 import { requireChurchSession } from "@/lib/auth";
 import { getFinanceJournals } from "@/lib/finance-data";
+import { hasTenantBackendEnv } from "@/lib/supabase/tenant";
 
 export default async function FinanceJournalsPage({
   searchParams = Promise.resolve({}),
@@ -19,6 +20,7 @@ export default async function FinanceJournalsPage({
       session={session}
       journals={journals}
       readinessView={view === "drafts"}
+      dataSource={hasTenantBackendEnv() && session.source === "supabase" ? "live" : "preview"}
     />
   );
 }
