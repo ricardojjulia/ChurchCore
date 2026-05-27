@@ -1,6 +1,9 @@
 import { Alert, Badge, Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
 
+import { ChildrenSessionActions } from "@/components/portal/children-session-actions";
 import type {
+  PublicCcmCheckoutSessionOption,
+  PublicCcmRoomOption,
   PublicCcmSessionAvailability,
   PublicCcmSessionMode,
   PublicCcmSessionRecord,
@@ -21,10 +24,16 @@ export function ChildrenSessionPage({
   mode,
   record,
   availability,
+  token,
+  rooms = [],
+  checkoutSessions = [],
 }: {
   mode: PublicCcmSessionMode;
   record: PublicCcmSessionRecord | null;
   availability: PublicCcmSessionAvailability;
+  token?: string;
+  rooms?: PublicCcmRoomOption[];
+  checkoutSessions?: PublicCcmCheckoutSessionOption[];
 }) {
   return (
     <main className="portal-page-bg min-h-screen grid place-items-center px-4 py-8">
@@ -65,9 +74,24 @@ export function ChildrenSessionPage({
           ) : null}
 
           {availability.state === "available" ? (
-            <Alert color="teal" radius="lg">
-              Parent {modeLabel(mode).toLowerCase()} is enabled for this service session. Continue with on-site staff instructions.
-            </Alert>
+            <>
+              <Alert color="teal" radius="lg">
+                Parent {modeLabel(mode).toLowerCase()} is enabled for this service session.
+              </Alert>
+              {token ? (
+                <Paper withBorder radius="lg" p="md">
+                  <Title order={4} size="h5" mb="sm">
+                    Parent {modeLabel(mode)}
+                  </Title>
+                  <ChildrenSessionActions
+                    mode={mode}
+                    token={token}
+                    rooms={rooms}
+                    checkoutSessions={checkoutSessions}
+                  />
+                </Paper>
+              ) : null}
+            </>
           ) : (
             <Alert color={stateColor(availability.state)} radius="lg">
               This link is intentionally safe-by-default and will not expose children workflows when the service session is unavailable.

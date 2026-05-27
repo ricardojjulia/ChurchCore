@@ -240,6 +240,8 @@ Children service detail now includes day check-in session controls (`draft`, `en
 
 Service detail now exposes session-scoped parent links for both check-in and checkout under `/portal/children/checkin/[token]` and `/portal/children/checkout/[token]`. These links are safe by default: invalid, draft, paused, closed, and out-of-window sessions return an explicit unavailable state instead of exposing active children workflows.
 
+When a day session is available, parents can submit self-service check-in (child + room + guardian details) and checkout (child session + PIN/claim token + release name) directly from those links. Submission actions remain token-scoped to the active service session and enforce room/session validity before writes.
+
 The readiness link `/app/church-admin/children/dashboard?view=readiness` opens a focused safety view for active service state, room ratios, two-adult coverage, open incidents, and background-check coverage. It links directly to volunteer assignment, service management, room setup, incident review, and safety settings so each readiness issue has a clear resolution path.
 
 ### Events And Attendance

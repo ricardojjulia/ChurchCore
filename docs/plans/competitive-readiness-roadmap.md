@@ -160,7 +160,7 @@ These workstreams convert the competitive findings into implementation-ready ste
 
 ### Finding 2B: Children's Check-In Needs A Day-Enabled Mobile Web Flow
 
-**Status:** Started. `ccm_services` now includes an explicit day check-in session lifecycle (`draft`, `enabled`, `paused`, `closed`) with optional start/end window and session token metadata. ChurchAdmin service detail supports session enable/pause controls and exposes session-scoped parent check-in/checkout URLs, child check-in actions are gated to open services with `enabled` day sessions, and portal parent links now return safe unavailable states when sessions are invalid, paused, closed, or outside the configured window.
+**Status:** Started. `ccm_services` now includes an explicit day check-in session lifecycle (`draft`, `enabled`, `paused`, `closed`) with optional start/end window and session token metadata. ChurchAdmin service detail supports session enable/pause controls and exposes session-scoped parent check-in/checkout URLs, child check-in actions are gated to open services with `enabled` day sessions, and portal parent links now return safe unavailable states when sessions are invalid, paused, closed, or outside the configured window. Parent links now also support direct self-service check-in and checkout submissions when the day session is available.
 
 **Problem:** Children's check-in should not be an always-available generic page. It should be a specially formatted, day-specific flow enabled by admin staff for that day's children's ministry service.
 

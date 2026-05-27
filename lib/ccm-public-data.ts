@@ -14,6 +14,9 @@ export type PublicCcmSessionStatus = "enabled" | "draft" | "paused" | "closed";
 export type PublicCcmSessionMode = "checkin" | "checkout";
 
 export type PublicCcmSessionRecord = {
+  churchId: string;
+  serviceId: string;
+  ministryId: string;
   churchName: string;
   serviceName: string;
   serviceDate: string;
@@ -37,6 +40,18 @@ export type PublicCcmSessionAvailability = {
     | "window-closed";
   title: string;
   detail: string;
+};
+
+export type PublicCcmRoomOption = {
+  id: string;
+  name: string;
+};
+
+export type PublicCcmCheckoutSessionOption = {
+  id: string;
+  childName: string;
+  checkedInAt: string;
+  status: "checked_in" | "late_pickup" | "transferred";
 };
 
 export function evaluatePublicCcmSessionAvailability(
@@ -129,6 +144,9 @@ export async function getPublicCcmSessionByToken(
 
   if (shouldUseLocalTenantFallback() || !hasTenantBackendEnv()) {
     const result = await queryTenantLocalDb<{
+      service_id: string;
+      church_id: string;
+      ministry_id: string;
       service_name: string;
       service_date: string;
       status: "open" | "closed" | "emergency";
@@ -139,6 +157,9 @@ export async function getPublicCcmSessionByToken(
       church_name: string;
     }>(
       `select
+        s.id as service_id,
+        s.church_id,
+        s.ministry_id,
          s.service_name,
          s.service_date::text,
          s.status,
@@ -158,6 +179,9 @@ export async function getPublicCcmSessionByToken(
     if (!row) return null;
 
     return {
+      churchId: String(row.church_id),
+      serviceId: String(row.service_id),
+      ministryId: String(row.ministry_id),
       churchName: row.church_name,
       serviceName: row.service_name,
       serviceDate: row.service_date,
@@ -177,7 +201,7 @@ export async function getPublicCcmSessionByToken(
   const { data, error } = await supabase
     .from("ccm_services")
     .select(
-      "service_name, service_date, status, checkin_session_status, checkin_session_starts_at, checkin_session_ends_at, checkin_session_token, churches!inner(name)",
+      "id, church_id, ministry_id, service_name, service_date, status, checkin_session_status, checkin_session_starts_at, checkin_session_ends_at, checkin_session_token, churches!inner(name)",
     )
     .eq("checkin_session_token", normalizedToken)
     .maybeSingle();
@@ -191,6 +215,9 @@ export async function getPublicCcmSessionByToken(
     : String((data.churches as { name?: unknown } | null)?.name ?? "");
 
   return {
+    churchId: String(data.church_id),
+    serviceId: String(data.id),
+    ministryId: String(data.ministry_id),
     churchName,
     serviceName: String(data.service_name),
     serviceDate: String(data.service_date),
@@ -200,4 +227,94 @@ export async function getPublicCcmSessionByToken(
     sessionEndsAt: data.checkin_session_ends_at ? String(data.checkin_session_ends_at) : null,
     token: String(data.checkin_session_token),
   };
+}
+
+export async function getPublicCcmSessionRooms(
+  record: PublicCcmSessionRecord,
+): Promise<PublicCcmRoomOption[]> {
+  if (shouldUseLocalTenantFallback() || !hasTenantBackendEnv()) {
+    const result = await queryTenantLocalDb<{ id: string; name: string }>(
+      `select id, name
+       from public.children_rooms
+       where church_id = $1
+         and ministry_id = $2
+         and is_active = true
+       order by age_min asc nulls last, name asc`,
+      [record.churchId, record.ministryId],
+    );
+
+    return result.rows.map((row) => ({ id: row.id, name: row.name }));
+  }
+
+  if (!hasTenantAdminBackendEnv()) {
+    return [];
+  }
+
+  const supabase = createTenantAdminClient();
+  const { data, error } = await supabase
+    .from("children_rooms")
+    .select("id, name")
+    .eq("church_id", record.churchId)
+    .eq("ministry_id", record.ministryId)
+    .eq("is_active", true)
+    .order("age_min", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((row) => ({ id: String(row.id), name: String(row.name) }));
+}
+
+export async function getPublicCcmCheckoutSessions(
+  record: PublicCcmSessionRecord,
+): Promise<PublicCcmCheckoutSessionOption[]> {
+  if (shouldUseLocalTenantFallback() || !hasTenantBackendEnv()) {
+    const result = await queryTenantLocalDb<{
+      id: string;
+      child_name: string;
+      checked_in_at: string;
+      status: "checked_in" | "late_pickup" | "transferred";
+    }>(
+      `select id, child_name, checked_in_at::text, status
+       from public.ccm_checkin_sessions
+       where church_id = $1
+         and service_id = $2
+         and status in ('checked_in', 'late_pickup', 'transferred')
+       order by checked_in_at desc`,
+      [record.churchId, record.serviceId],
+    );
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      childName: row.child_name,
+      checkedInAt: row.checked_in_at,
+      status: row.status,
+    }));
+  }
+
+  if (!hasTenantAdminBackendEnv()) {
+    return [];
+  }
+
+  const supabase = createTenantAdminClient();
+  const { data, error } = await supabase
+    .from("ccm_checkin_sessions")
+    .select("id, child_name, checked_in_at, status")
+    .eq("church_id", record.churchId)
+    .eq("service_id", record.serviceId)
+    .in("status", ["checked_in", "late_pickup", "transferred"])
+    .order("checked_in_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((row) => ({
+    id: String(row.id),
+    childName: String(row.child_name),
+    checkedInAt: String(row.checked_in_at),
+    status: row.status as PublicCcmCheckoutSessionOption["status"],
+  }));
 }

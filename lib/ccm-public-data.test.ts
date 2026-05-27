@@ -7,6 +7,9 @@ import {
 
 function baseRecord(overrides: Partial<PublicCcmSessionRecord> = {}): PublicCcmSessionRecord {
   return {
+    churchId: "church-1",
+    serviceId: "service-1",
+    ministryId: "ministry-1",
     churchName: "Grace Harbor Church",
     serviceName: "Sunday Children",
     serviceDate: "2026-05-27",

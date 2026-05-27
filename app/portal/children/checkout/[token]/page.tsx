@@ -1,6 +1,8 @@
 import { ChildrenSessionPage } from "@/components/portal/children-session-page";
 import {
   evaluatePublicCcmSessionAvailability,
+  getPublicCcmCheckoutSessions,
+  getPublicCcmSessionRooms,
   getPublicCcmSessionByToken,
 } from "@/lib/ccm-public-data";
 import { hasTenantBackendEnv } from "@/lib/supabase/tenant";
@@ -30,6 +32,23 @@ export default async function PortalChildrenCheckoutSessionPage({
 
   const record = await getPublicCcmSessionByToken(token);
   const availability = evaluatePublicCcmSessionAvailability(record, "checkout");
+  const rooms =
+    record && availability.state === "available"
+      ? await getPublicCcmSessionRooms(record)
+      : [];
+  const checkoutSessions =
+    record && availability.state === "available"
+      ? await getPublicCcmCheckoutSessions(record)
+      : [];
 
-  return <ChildrenSessionPage mode="checkout" record={record} availability={availability} />;
+  return (
+    <ChildrenSessionPage
+      mode="checkout"
+      record={record}
+      availability={availability}
+      token={token}
+      rooms={rooms}
+      checkoutSessions={checkoutSessions}
+    />
+  );
 }
