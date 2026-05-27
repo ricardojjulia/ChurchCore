@@ -36,6 +36,8 @@ export type PublicChildCheckoutInput = {
   sessionId: string;
   providedPin: string;
   releasedToName: string;
+  guardianName: string;
+  verificationMethod?: "pin_or_qr" | "pickup_code";
 };
 
 export type PublicChildCheckoutResult =
@@ -56,6 +58,10 @@ function namesMatch(left: string, right: string) {
 
 function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function normalizeClaimToken(value: string) {
+  return value.trim().toUpperCase().replace(/\s+/g, "");
 }
 
 async function requestFingerprintHash() {
@@ -326,9 +332,11 @@ export async function submitPublicChildCheckoutAction(
   const sessionId = input.sessionId.trim();
   const providedPin = input.providedPin.trim();
   const releasedToName = input.releasedToName.trim();
+  const guardianName = input.guardianName.trim();
+  const verificationMethod = input.verificationMethod ?? "pin_or_qr";
 
-  if (!token || !sessionId || !providedPin || !releasedToName) {
-    return { ok: false, error: "Checkout requires child, PIN, and release name." };
+  if (!token || !sessionId || !providedPin || !releasedToName || !guardianName) {
+    return { ok: false, error: "Checkout requires child, claim token, guardian name, and release name." };
   }
 
   const { record, error } = await resolveAvailableSession(token, "checkout");
@@ -355,11 +363,12 @@ export async function submitPublicChildCheckoutAction(
     const sessionResult = await queryTenantLocalDb<{
       child_name: string;
       child_profile_id: string | null;
+      guardian_name: string | null;
       status: string;
       pin_hash: string;
       qr_token: string;
     }>(
-      `select child_name, child_profile_id, status, pin_hash, qr_token
+      `select child_name, child_profile_id, guardian_name, status, pin_hash, qr_token
        from public.ccm_checkin_sessions
        where id = $1 and church_id = $2 and service_id = $3
        limit 1`,
@@ -385,6 +394,19 @@ export async function submitPublicChildCheckoutAction(
         false,
       );
       return { ok: false, error: "This child has already been checked out." };
+    }
+
+    if (session.guardian_name && !namesMatch(session.guardian_name, guardianName)) {
+      await recordSessionAttempt(
+        { churchId: record.churchId, serviceId: record.serviceId, tokenHash },
+        fingerprintHash,
+        "checkout",
+        false,
+      );
+      return {
+        ok: false,
+        error: "Guardian verification name does not match this active check-in session.",
+      };
     }
 
     if (session.child_profile_id) {
@@ -434,17 +456,52 @@ export async function submitPublicChildCheckoutAction(
       }
     }
 
-    const pinValid = await bcrypt.compare(providedPin, session.pin_hash);
-    const qrValid = providedPin === session.qr_token;
+    if (verificationMethod === "pickup_code") {
+      if (!session.child_profile_id) {
+        await recordSessionAttempt(
+          { churchId: record.churchId, serviceId: record.serviceId, tokenHash },
+          fingerprintHash,
+          "checkout",
+          false,
+        );
+        return {
+          ok: false,
+          error: "Pickup code verification is unavailable for this child session.",
+        };
+      }
 
-    if (!pinValid && !qrValid) {
-      await recordSessionAttempt(
-        { churchId: record.churchId, serviceId: record.serviceId, tokenHash },
-        fingerprintHash,
-        "checkout",
-        false,
+      const pickupCodeResult = await queryTenantLocalDb<{ pickup_code: string | null }>(
+        `select pickup_code
+         from public.children_sensitive_data
+         where church_id = $1 and child_profile_id = $2
+         limit 1`,
+        [record.churchId, session.child_profile_id],
       );
-      return { ok: false, error: "Incorrect PIN or claim token." };
+
+      const pickupCode = pickupCodeResult.rows[0]?.pickup_code?.trim();
+
+      if (!pickupCode || normalizeClaimToken(pickupCode) !== normalizeClaimToken(providedPin)) {
+        await recordSessionAttempt(
+          { churchId: record.churchId, serviceId: record.serviceId, tokenHash },
+          fingerprintHash,
+          "checkout",
+          false,
+        );
+        return { ok: false, error: "Incorrect pickup code." };
+      }
+    } else {
+      const pinValid = await bcrypt.compare(providedPin, session.pin_hash);
+      const qrValid = normalizeClaimToken(providedPin) === normalizeClaimToken(session.qr_token);
+
+      if (!pinValid && !qrValid) {
+        await recordSessionAttempt(
+          { churchId: record.churchId, serviceId: record.serviceId, tokenHash },
+          fingerprintHash,
+          "checkout",
+          false,
+        );
+        return { ok: false, error: "Incorrect PIN or claim token." };
+      }
     }
 
     await queryTenantLocalDb(
@@ -476,7 +533,7 @@ export async function submitPublicChildCheckoutAction(
   const supabase = createTenantAdminClient();
   const { data: session, error: sessionError } = await supabase
     .from("ccm_checkin_sessions")
-    .select("child_name, child_profile_id, status, pin_hash, qr_token")
+    .select("child_name, child_profile_id, guardian_name, status, pin_hash, qr_token")
     .eq("id", sessionId)
     .eq("church_id", record.churchId)
     .eq("service_id", record.serviceId)
@@ -500,6 +557,19 @@ export async function submitPublicChildCheckoutAction(
       false,
     );
     return { ok: false, error: "This child has already been checked out." };
+  }
+
+  if (session.guardian_name && !namesMatch(String(session.guardian_name), guardianName)) {
+    await recordSessionAttempt(
+      { churchId: record.churchId, serviceId: record.serviceId, tokenHash },
+      fingerprintHash,
+      "checkout",
+      false,
+    );
+    return {
+      ok: false,
+      error: "Guardian verification name does not match this active check-in session.",
+    };
   }
 
   if (session.child_profile_id) {
@@ -547,17 +617,60 @@ export async function submitPublicChildCheckoutAction(
     }
   }
 
-  const pinValid = await bcrypt.compare(providedPin, String(session.pin_hash));
-  const qrValid = providedPin === String(session.qr_token);
+  if (verificationMethod === "pickup_code") {
+    if (!session.child_profile_id) {
+      await recordSessionAttempt(
+        { churchId: record.churchId, serviceId: record.serviceId, tokenHash },
+        fingerprintHash,
+        "checkout",
+        false,
+      );
+      return {
+        ok: false,
+        error: "Pickup code verification is unavailable for this child session.",
+      };
+    }
 
-  if (!pinValid && !qrValid) {
-    await recordSessionAttempt(
-      { churchId: record.churchId, serviceId: record.serviceId, tokenHash },
-      fingerprintHash,
-      "checkout",
-      false,
-    );
-    return { ok: false, error: "Incorrect PIN or claim token." };
+    const { data: sensitiveRow, error: sensitiveError } = await supabase
+      .from("children_sensitive_data")
+      .select("pickup_code")
+      .eq("church_id", record.churchId)
+      .eq("child_profile_id", String(session.child_profile_id))
+      .maybeSingle();
+
+    if (sensitiveError) {
+      await recordSessionAttempt(
+        { churchId: record.churchId, serviceId: record.serviceId, tokenHash },
+        fingerprintHash,
+        "checkout",
+        false,
+      );
+      return { ok: false, error: sensitiveError.message };
+    }
+
+    const pickupCode = sensitiveRow?.pickup_code ? String(sensitiveRow.pickup_code).trim() : "";
+    if (!pickupCode || normalizeClaimToken(pickupCode) !== normalizeClaimToken(providedPin)) {
+      await recordSessionAttempt(
+        { churchId: record.churchId, serviceId: record.serviceId, tokenHash },
+        fingerprintHash,
+        "checkout",
+        false,
+      );
+      return { ok: false, error: "Incorrect pickup code." };
+    }
+  } else {
+    const pinValid = await bcrypt.compare(providedPin, String(session.pin_hash));
+    const qrValid = normalizeClaimToken(providedPin) === normalizeClaimToken(String(session.qr_token));
+
+    if (!pinValid && !qrValid) {
+      await recordSessionAttempt(
+        { churchId: record.churchId, serviceId: record.serviceId, tokenHash },
+        fingerprintHash,
+        "checkout",
+        false,
+      );
+      return { ok: false, error: "Incorrect PIN or claim token." };
+    }
   }
 
   const { error: updateError } = await supabase

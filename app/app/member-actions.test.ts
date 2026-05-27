@@ -57,6 +57,21 @@ describe("memberMobileCheckInAction", () => {
     expect(result).toEqual({ ok: true, previewMode: true });
   });
 
+  it("rejects non-member roles", async () => {
+    requireChurchSessionMock.mockResolvedValueOnce({
+      appContext: { roleId: "church-admin", church: { id: "church-1" } },
+      profile: { id: "profile-1" },
+      source: "supabase",
+    });
+
+    const result = await memberMobileCheckInAction({ eventId: "event-1" });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Member access is required.",
+    });
+  });
+
   it("blocks when event check-in is not enabled", async () => {
     queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [] });
 
@@ -187,6 +202,38 @@ describe("memberMobileCheckInAction", () => {
     const result = await memberMobileCheckInAction({
       eventId: "event-1",
       targetProfileId: "profile-3",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "You can only check in members from your own household.",
+    });
+  });
+
+  it("rejects household check-in when signed-in member has no family assignment", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            title: "Sunday Worship",
+            starts_at: "2000-01-01T00:00:00.000Z",
+            ends_at: "2999-01-01T00:00:00.000Z",
+            mobile_member_check_in_starts_at: null,
+            mobile_member_check_in_ends_at: null,
+            mobile_member_check_in_access_code: null,
+            mobile_member_check_in_allow_household: true,
+            mobile_member_check_in_location_lat: null,
+            mobile_member_check_in_location_lng: null,
+            mobile_member_check_in_location_radius_meters: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ id: "profile-1", family_id: null }] })
+      .mockResolvedValueOnce({ rows: [{ id: "profile-2", family_id: "family-2" }] });
+
+    const result = await memberMobileCheckInAction({
+      eventId: "event-1",
+      targetProfileId: "profile-2",
     });
 
     expect(result).toEqual({

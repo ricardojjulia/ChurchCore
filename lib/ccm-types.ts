@@ -31,6 +31,9 @@ export type CcmService = {
   checkinSessionToken: string;
   checkinSessionEnabledAt: string | null;
   checkinSessionClosedAt: string | null;
+  checkinSessionOverrideReason: string | null;
+  checkinSessionOverrideBy: string | null;
+  checkinSessionOverrideAt: string | null;
   createdBy: string | null;
   createdAt: string;
 };

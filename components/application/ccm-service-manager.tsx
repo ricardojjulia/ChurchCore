@@ -341,6 +341,25 @@ export function CcmServiceDetail({
   );
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [sessionPending, startSessionTransition] = useTransition();
+  const [overrideSafetyRequirements, setOverrideSafetyRequirements] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
+
+  const uncoveredRooms = Array.from(
+    new Map(
+      roster.sessions.map((sessionEntry) => [sessionEntry.roomId, sessionEntry.roomName]),
+    ).entries(),
+  )
+    .map(([roomId, roomName]) => {
+      const volunteerCount = roster.volunteerAssignments.filter(
+        (assignment) => assignment.roomId === roomId,
+      ).length;
+
+      return {
+        roomName,
+        volunteerCount,
+      };
+    })
+    .filter((room) => room.volunteerCount < 2);
 
   const handleClose = () => {
     startCloseTransition(async () => {
@@ -359,6 +378,8 @@ export function CcmServiceDetail({
           status,
           startsAt: windowStartsAt || undefined,
           endsAt: windowEndsAt || undefined,
+          overrideSafetyRequirements: status === "enabled" ? overrideSafetyRequirements : false,
+          overrideReason: status === "enabled" ? overrideReason : undefined,
         });
         setCheckinSessionStatus(status);
       } catch (error) {
@@ -434,6 +455,19 @@ export function CcmServiceDetail({
           <Text size="sm" c="dimmed" mt={4}>
             Enable or pause today&apos;s parent check-in session and optionally constrain the time window.
           </Text>
+
+          {uncoveredRooms.length > 0 ? (
+            <Alert color="yellow" mt="sm" icon={<AlertTriangle size={14} />}>
+              Two-adult room coverage is incomplete: {uncoveredRooms
+                .map((room) => `${room.roomName} (${room.volunteerCount}/2)`)
+                .join(", ")}
+            </Alert>
+          ) : (
+            <Alert color="teal" mt="sm" icon={<CheckCircle size={14} />}>
+              Room and volunteer coverage checks are currently meeting two-adult readiness.
+            </Alert>
+          )}
+
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm" mt="sm">
             <TextInput
               label="Session window start"
@@ -448,6 +482,25 @@ export function CcmServiceDetail({
               onChange={(event) => setWindowEndsAt(event.currentTarget.value)}
             />
           </SimpleGrid>
+
+          <Switch
+            mt="sm"
+            checked={overrideSafetyRequirements}
+            onChange={(event) => setOverrideSafetyRequirements(event.currentTarget.checked)}
+            label="Enable with audited safety override"
+            description="Requires a documented reason when room coverage is below two adults."
+          />
+
+          {overrideSafetyRequirements ? (
+            <TextInput
+              mt="xs"
+              label="Override reason"
+              placeholder="Document why this session is still safe to enable"
+              value={overrideReason}
+              onChange={(event) => setOverrideReason(event.currentTarget.value)}
+            />
+          ) : null}
+
           {sessionError ? (
             <Alert color="red" mt="sm" icon={<AlertTriangle size={14} />}>
               {sessionError}
@@ -462,27 +515,41 @@ export function CcmServiceDetail({
             </Text>
           </Group>
           <Group mt="xs" gap="xs">
-            <Button
-              component={Link}
-              href={`/portal/children/checkin/${roster.service.checkinSessionToken}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              size="xs"
-              variant="light"
-            >
-              Open parent check-in URL
-            </Button>
-            <Button
-              component={Link}
-              href={`/portal/children/checkout/${roster.service.checkinSessionToken}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              size="xs"
-              variant="light"
-            >
-              Open parent checkout URL
-            </Button>
+            {checkinSessionStatus === "enabled" || checkinSessionStatus === "paused" ? (
+              <>
+                <Button
+                  component={Link}
+                  href={`/portal/children/checkin/${roster.service.checkinSessionToken}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  size="xs"
+                  variant="light"
+                >
+                  Open parent check-in URL
+                </Button>
+                <Button
+                  component={Link}
+                  href={`/portal/children/checkout/${roster.service.checkinSessionToken}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  size="xs"
+                  variant="light"
+                >
+                  Open parent checkout URL
+                </Button>
+              </>
+            ) : (
+              <Text size="xs" c="dimmed">
+                Parent session links are available only after this day session is enabled.
+              </Text>
+            )}
           </Group>
+
+          {roster.service.checkinSessionOverrideReason ? (
+            <Alert color="orange" mt="sm" icon={<AlertTriangle size={14} />}>
+              Last enablement override: {roster.service.checkinSessionOverrideReason}
+            </Alert>
+          ) : null}
         </Paper>
 
         {closed && (

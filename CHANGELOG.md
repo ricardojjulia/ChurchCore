@@ -8,6 +8,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 
+- Added session enablement readiness enforcement in `app/app/ccm-actions.ts` requiring active rooms and two-adult volunteer coverage before enabling a day children session, plus audited override reasons captured in `ccm_session_enablement_overrides` via migration `supabase/migrations/20260527213000_ccm_session_readiness_overrides.sql`.
+- Added stronger parent checkout verification in `app/portal/children/actions.ts` and `components/portal/children-session-actions.tsx`, including guardian-name verification and support for pickup-code verification in addition to PIN/QR token.
+- Added expanded mobile browser coverage in `tests/e2e/member-mobile-foundation.spec.ts` for children-admin denied-route checks and safe unavailable-state rendering for invalid parent session links.
 - Added `docs/plans/member-mobile-pwa-foundation-audit.md` as the Phase 2 mobile-first baseline, including route-by-route phone viewport audit results, intended member workflow order, and first implementation slices for home, schedule, groups, directory/privacy, giving history, family/profile updates, notification preferences, and member self-check-in entry.
 - Added baseline phone-sized Playwright coverage in `tests/e2e/member-mobile-foundation.spec.ts` for member routes, `/app/calendar`, and member denied access to ChurchAdmin-only readiness at mobile viewport sizes.
 - Added mobile-view screenshot attachments to the member Playwright baseline for route-by-route evidence across member and calendar phone-sized flows.
@@ -49,6 +52,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Changed
 
+- Changed children session close behavior in `app/app/ccm-actions.ts` so closing a service/session rotates the public session token, preventing reuse of stale parent links.
+- Changed ChurchAdmin children service detail UI in `components/application/ccm-service-manager.tsx` to surface room coverage warnings, audited override controls, and parent URL visibility only after session enablement.
+- Changed ChurchAdmin event attendance workspace in `components/application/church-admin-event-workspace.tsx` and `lib/church-admin-events-data.ts` to expose mobile self-check-in household audit metrics.
 - Marked Competitive Readiness Phase 2 as started in the roadmap via the member mobile PWA foundation audit run and linked the new baseline implementation brief.
 - Hardened member mobile geofence enforcement in `app/app/member-actions.ts` to reject non-finite and out-of-range device coordinates before distance checks.
 - Expanded ChurchAdmin registration settings with an in-context mobile check-in policy audit summary in `components/application/church-admin-event-workspace.tsx` for enabled/window/code/household/geofence visibility.

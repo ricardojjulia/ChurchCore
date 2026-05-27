@@ -315,6 +315,8 @@ Public routes support church-facing entry points before a user is fully signed i
 
 The public portal can resolve a church from the request hostname, so a tenant hostname can route visitors toward the correct church context. Public giving does not expose private tenant data; it displays only live public giving-page configuration.
 
+Children ministry parent check-in and checkout links now use day-scoped session tokens generated from church-admin children service controls. Links are intentionally safe-by-default: invalid or closed tokens return unavailable states, and closed services rotate session tokens so old links cannot be reused. Parent checkout verification supports PIN/QR or pickup code and also validates guardian name, custody restrictions, and authorized pickup rules.
+
 ## 8. Pastor, Elder, And Ministry Leader Workflow
 
 Pastors, elders, and ministry leaders have narrower operational views than ChurchAdmin. Their surfaces focus on:

@@ -49,6 +49,7 @@ Priority 2: Finance and specialized modules
 
 - Finance dashboard, accounts, journals, budgets, imports, and reports
 - Children’s Ministry dashboard, check-in/checkout, services, rooms, incidents, volunteers, and settings
+- Public parent children session check-in/checkout routes, including guardian verification and pickup-code checkout labels
 - Ministry Forge index/detail pages and all specialized ministry track panels
 - Attendance and Small Groups
 - Calendar

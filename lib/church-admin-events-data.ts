@@ -36,6 +36,7 @@ export type ChurchAdminEventAttendanceEntry = {
   profileId: string;
   fullName: string;
   memberNumber: string | null;
+  familyName: string | null;
   checkedInAt: string;
   status: string;
   checkInMethod: string;
@@ -429,6 +430,7 @@ export async function getChurchAdminEventWorkspaceData(
           profile_id: string;
           full_name: string;
           member_number: string | null;
+          family_name: string | null;
           checked_in_at: string;
           status: string;
           check_in_method: string;
@@ -439,12 +441,15 @@ export async function getChurchAdminEventWorkspaceData(
               attendance.profile_id,
               profile.full_name,
               profile.member_number,
+              family.family_name,
               attendance.checked_in_at,
               attendance.status,
               attendance.check_in_method
             from public.attendance attendance
             join public.profiles profile
               on profile.id = attendance.profile_id
+            left join public.families family
+              on family.id = profile.family_id
             where attendance.event_id = $1
               and attendance.church_id = $2
             order by attendance.checked_in_at desc
@@ -520,6 +525,7 @@ export async function getChurchAdminEventWorkspaceData(
       profileId: row.profile_id,
       fullName: row.full_name,
       memberNumber: row.member_number,
+      familyName: row.family_name,
       checkedInAt: row.checked_in_at,
       status: row.status,
       checkInMethod: row.check_in_method,
@@ -601,7 +607,7 @@ export async function getChurchAdminEventWorkspaceData(
         .order("created_at", { ascending: true }),
       supabase
         .from("attendance")
-        .select("id, profile_id, checked_in_at, status, check_in_method, profiles!inner(full_name, member_number)")
+        .select("id, profile_id, checked_in_at, status, check_in_method, profiles!inner(full_name, member_number, family_id, families(family_name))")
         .eq("event_id", eventId)
         .eq("church_id", session.appContext.church.id)
         .order("checked_in_at", { ascending: false }),
@@ -671,6 +677,15 @@ export async function getChurchAdminEventWorkspaceData(
           "member_number" in (profile as Record<string, unknown>) &&
           (profile as { member_number: unknown }).member_number !== null
             ? String((profile as { member_number: unknown }).member_number)
+            : null,
+        familyName:
+          "families" in (profile as Record<string, unknown>)
+            ? (
+                Array.isArray((profile as { families?: Array<{ family_name?: unknown }> }).families)
+                  ? (profile as { families?: Array<{ family_name?: unknown }> }).families?.[0]
+                      ?.family_name
+                  : undefined
+              )?.toString() ?? null
             : null,
         checkedInAt: row.checked_in_at,
         status: row.status,

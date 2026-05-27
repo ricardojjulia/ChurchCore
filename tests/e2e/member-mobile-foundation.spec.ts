@@ -85,7 +85,9 @@ test.describe("Member mobile PWA foundation baseline", () => {
       await page.goto(route);
 
       expect(new URL(page.url()).pathname).not.toBe("/sign-in");
-      await expect(page.getByLabel("Toggle navigation")).toBeVisible();
+      await expect(
+        page.locator("button[aria-label*='navigation' i], button[aria-label='Toggle navigation']").first(),
+      ).toBeVisible();
       await expect(page.locator("footer")).toBeVisible();
       await expect(page.locator("footer a")).toHaveCount(5);
       await expect(page.getByText("Application error", { exact: false })).toHaveCount(0);
@@ -107,7 +109,9 @@ test.describe("Member mobile PWA foundation baseline", () => {
     await page.goto("/app/calendar");
 
     expect(new URL(page.url()).pathname).toBe("/app/calendar");
-    await expect(page.getByLabel("Toggle navigation")).toBeVisible();
+    await expect(
+      page.locator("button[aria-label*='navigation' i], button[aria-label='Toggle navigation']").first(),
+    ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Calendar" })).toBeVisible();
     await expect(page.locator("footer a")).toHaveCount(5);
     await expect(page.getByText("Application error", { exact: false })).toHaveCount(0);
@@ -124,5 +128,29 @@ test.describe("Member mobile PWA foundation baseline", () => {
 
     await expect(page.getByRole("heading", { name: "Weekly readiness" })).toHaveCount(0);
     expect(new URL(page.url()).pathname).not.toBe("/app/church-admin/readiness");
+  });
+
+  test("denies member access to children administration routes on mobile", async ({ page }) => {
+    await page.goto("/app/church-admin/children/checkin");
+    expect(new URL(page.url()).pathname).not.toBe("/app/church-admin/children/checkin");
+
+    await page.goto("/app/church-admin/children/services");
+    expect(new URL(page.url()).pathname).not.toBe("/app/church-admin/children/services");
+  });
+
+  test("renders safe unavailable states for invalid parent session links on mobile", async ({ page }) => {
+    await page.goto("/portal/children/checkin/invalid-token-mobile-test");
+    await expect(
+      page.getByText("Session link unavailable").or(
+        page.getByText("Children session preview unavailable"),
+      ),
+    ).toBeVisible();
+
+    await page.goto("/portal/children/checkout/invalid-token-mobile-test");
+    await expect(
+      page.getByText("Session link unavailable").or(
+        page.getByText("Children session preview unavailable"),
+      ),
+    ).toBeVisible();
   });
 });

@@ -73,6 +73,9 @@ function mapService(r: {
   checkin_session_token?: string | null;
   checkin_session_enabled_at?: string | null;
   checkin_session_closed_at?: string | null;
+  checkin_session_override_reason?: string | null;
+  checkin_session_override_by?: string | null;
+  checkin_session_override_at?: string | null;
   created_by: string | null; created_at: string;
 }): CcmService {
   return {
@@ -87,6 +90,9 @@ function mapService(r: {
     checkinSessionToken: r.checkin_session_token ?? "",
     checkinSessionEnabledAt: r.checkin_session_enabled_at ?? null,
     checkinSessionClosedAt: r.checkin_session_closed_at ?? null,
+    checkinSessionOverrideReason: r.checkin_session_override_reason ?? null,
+    checkinSessionOverrideBy: r.checkin_session_override_by ?? null,
+    checkinSessionOverrideAt: r.checkin_session_override_at ?? null,
     createdBy: r.created_by, createdAt: r.created_at,
   };
 }
@@ -226,6 +232,9 @@ export async function getCcmServiceList(
         checkin_session_token: string;
         checkin_session_enabled_at: string | null;
         checkin_session_closed_at: string | null;
+        checkin_session_override_reason: string | null;
+        checkin_session_override_by: string | null;
+        checkin_session_override_at: string | null;
         created_by: string | null; created_at: string;
       }>(
         `select id, church_id, ministry_id, service_name, service_date::text,
@@ -236,6 +245,9 @@ export async function getCcmServiceList(
                 checkin_session_token,
                 checkin_session_enabled_at::text,
                 checkin_session_closed_at::text,
+          checkin_session_override_reason,
+          checkin_session_override_by,
+          checkin_session_override_at::text,
                 created_by, created_at::text
          from public.ccm_services
          where church_id = $1
@@ -279,6 +291,9 @@ export async function getCcmDashboard(
             checkin_session_token: string;
             checkin_session_enabled_at: string | null;
             checkin_session_closed_at: string | null;
+                checkin_session_override_reason: string | null;
+                checkin_session_override_by: string | null;
+                checkin_session_override_at: string | null;
             created_by: string | null; created_at: string;
           }>(
             `select id, church_id, ministry_id, service_name, service_date::text,
@@ -289,6 +304,9 @@ export async function getCcmDashboard(
                     checkin_session_token,
                     checkin_session_enabled_at::text,
                     checkin_session_closed_at::text,
+                  checkin_session_override_reason,
+                  checkin_session_override_by,
+                  checkin_session_override_at::text,
                     created_by, created_at::text
              from public.ccm_services where id = $1 and church_id = $2`,
             [serviceId, churchId],

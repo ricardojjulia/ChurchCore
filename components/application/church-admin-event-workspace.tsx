@@ -154,6 +154,20 @@ export function ChurchAdminEventWorkspace({
     );
   }, [attendanceSourceFilter, data.attendanceEntries]);
 
+  const mobileMemberAudit = useMemo(() => {
+    const mobileEntries = data.attendanceEntries.filter(
+      (entry) => entry.checkInMethod === "mobile_member",
+    );
+    const uniqueHouseholds = new Set(
+      mobileEntries.map((entry) => entry.familyName ?? `profile:${entry.profileId}`),
+    );
+
+    return {
+      mobileEntries,
+      householdCount: uniqueHouseholds.size,
+    };
+  }, [data.attendanceEntries]);
+
   function formatCheckInSource(value: string) {
     if (value === "mobile_member") return "mobile member";
     if (value === "manual_admin") return "manual admin";
@@ -519,6 +533,28 @@ export function ChurchAdminEventWorkspace({
           <Title order={4} size="h5" mb="sm">
             Attendance log
           </Title>
+
+          <Paper withBorder radius="lg" p="md" mb="sm">
+            <Group justify="space-between" align="flex-start" gap="md">
+              <Stack gap={2}>
+                <Text fw={600} size="sm">
+                  Mobile member audit
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Tracks self-check-ins and household participation for policy review.
+                </Text>
+              </Stack>
+              <Group gap="xs">
+                <Badge color="indigo" variant="light">
+                  mobile self-check-ins {mobileMemberAudit.mobileEntries.length}
+                </Badge>
+                <Badge color="gray" variant="light">
+                  households {mobileMemberAudit.householdCount}
+                </Badge>
+              </Group>
+            </Group>
+          </Paper>
+
           <Group gap="xs" mb="sm">
             <Button
               size="xs"
