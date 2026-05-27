@@ -703,7 +703,7 @@ export async function quickCheckInEventMemberAction(
           status,
           check_in_method
         )
-        values ($1, $2, $3, 'present', 'manual_admin')
+        values ($1, $2, $3, 'present', 'staff')
         on conflict (event_id, profile_id)
         where status = 'present'
         do nothing
@@ -731,7 +731,7 @@ export async function quickCheckInEventMemberAction(
         event_id: input.eventId,
         profile_id: input.profileId,
         status: "present",
-        check_in_method: "manual_admin",
+        check_in_method: "staff",
       });
 
       if (error) {
@@ -808,7 +808,7 @@ export async function quickAddVisitorCheckInAction(
           status,
           check_in_method
         )
-        values ($1, $2, $3, 'present', 'manual_admin')
+        values ($1, $2, $3, 'present', 'staff')
         on conflict (event_id, profile_id)
         where status = 'present'
         do nothing
@@ -843,7 +843,7 @@ export async function quickAddVisitorCheckInAction(
       event_id: input.eventId,
       profile_id: profileRow.id,
       status: "present",
-      check_in_method: "manual_admin",
+      check_in_method: "staff",
     });
 
     if (attendanceError) {
@@ -1260,6 +1260,14 @@ export type UpsertRegistrationSettingsInput = {
   deadline?: string;
   confirmationMessage?: string;
   waitlistEnabled?: boolean;
+  mobileMemberCheckInEnabled?: boolean;
+  mobileMemberCheckInStartsAt?: string;
+  mobileMemberCheckInEndsAt?: string;
+  mobileMemberCheckInAccessCode?: string;
+  mobileMemberCheckInAllowHousehold?: boolean;
+  mobileMemberCheckInLocationLat?: number;
+  mobileMemberCheckInLocationLng?: number;
+  mobileMemberCheckInLocationRadiusMeters?: number;
 };
 
 export async function upsertRegistrationSettingsAction(
@@ -1270,24 +1278,95 @@ export async function upsertRegistrationSettingsAction(
   if (role !== "church-admin" && role !== "pastor") return { ok: false, error: "Unauthorized." };
   const churchId = session.appContext.church.id;
 
+  if (
+    input.mobileMemberCheckInEnabled &&
+    input.mobileMemberCheckInStartsAt &&
+    input.mobileMemberCheckInEndsAt
+  ) {
+    const startsAt = new Date(input.mobileMemberCheckInStartsAt).getTime();
+    const endsAt = new Date(input.mobileMemberCheckInEndsAt).getTime();
+
+    if (Number.isNaN(startsAt) || Number.isNaN(endsAt) || startsAt >= endsAt) {
+      return {
+        ok: false,
+        error:
+          "Mobile member check-in window is invalid. Start must be before end.",
+      };
+    }
+  }
+
+  const hasAnyLocationField =
+    input.mobileMemberCheckInLocationLat !== undefined ||
+    input.mobileMemberCheckInLocationLng !== undefined ||
+    input.mobileMemberCheckInLocationRadiusMeters !== undefined;
+
+  const hasAllLocationFields =
+    input.mobileMemberCheckInLocationLat !== undefined &&
+    input.mobileMemberCheckInLocationLng !== undefined &&
+    input.mobileMemberCheckInLocationRadiusMeters !== undefined;
+
+  if (hasAnyLocationField && !hasAllLocationFields) {
+    return {
+      ok: false,
+      error:
+        "Mobile member check-in location constraints require latitude, longitude, and radius.",
+    };
+  }
+
+  if (hasAllLocationFields) {
+    const lat = input.mobileMemberCheckInLocationLat as number;
+    const lng = input.mobileMemberCheckInLocationLng as number;
+    const radius = input.mobileMemberCheckInLocationRadiusMeters as number;
+
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180 || radius <= 0) {
+      return {
+        ok: false,
+        error:
+          "Mobile member check-in location constraints are invalid.",
+      };
+    }
+  }
+
   await assertEventBelongsToChurch(churchId, input.eventId);
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
       `insert into public.event_registration_settings
          (event_id, church_id, registration_open, capacity, price_cents,
-          deadline, confirmation_message, waitlist_enabled)
-       values ($1,$2,$3,$4,$5,$6,$7,$8)
+          deadline, confirmation_message, waitlist_enabled,
+          mobile_member_check_in_enabled, mobile_member_check_in_starts_at,
+          mobile_member_check_in_ends_at, mobile_member_check_in_access_code,
+           mobile_member_check_in_allow_household,
+           mobile_member_check_in_location_lat,
+           mobile_member_check_in_location_lng,
+           mobile_member_check_in_location_radius_meters)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        on conflict (event_id)
        do update set
          registration_open = $3, capacity = $4, price_cents = $5,
          deadline = $6, confirmation_message = $7, waitlist_enabled = $8,
+         mobile_member_check_in_enabled = $9,
+         mobile_member_check_in_starts_at = $10,
+         mobile_member_check_in_ends_at = $11,
+         mobile_member_check_in_access_code = $12,
+         mobile_member_check_in_allow_household = $13,
+         mobile_member_check_in_location_lat = $14,
+         mobile_member_check_in_location_lng = $15,
+         mobile_member_check_in_location_radius_meters = $16,
          updated_at = now()`,
       [
         input.eventId, churchId, input.registrationOpen,
         input.capacity ?? null, input.priceCents ?? 0,
         input.deadline ?? null, input.confirmationMessage ?? null,
         input.waitlistEnabled ?? false,
+        input.mobileMemberCheckInEnabled ?? false,
+        input.mobileMemberCheckInStartsAt ?? null,
+        input.mobileMemberCheckInEndsAt ?? null,
+        input.mobileMemberCheckInAccessCode ?? null,
+        input.mobileMemberCheckInAllowHousehold ?? false,
+        input.mobileMemberCheckInLocationLat ?? null,
+        input.mobileMemberCheckInLocationLng ?? null,
+        input.mobileMemberCheckInLocationRadiusMeters ?? null,
       ],
     );
     revalidatePath(`/app/church-admin/events/${input.eventId}`);
@@ -1302,6 +1381,15 @@ export async function upsertRegistrationSettingsAction(
       capacity: input.capacity ?? null, price_cents: input.priceCents ?? 0,
       deadline: input.deadline ?? null, confirmation_message: input.confirmationMessage ?? null,
       waitlist_enabled: input.waitlistEnabled ?? false,
+      mobile_member_check_in_enabled: input.mobileMemberCheckInEnabled ?? false,
+      mobile_member_check_in_starts_at: input.mobileMemberCheckInStartsAt ?? null,
+      mobile_member_check_in_ends_at: input.mobileMemberCheckInEndsAt ?? null,
+      mobile_member_check_in_access_code: input.mobileMemberCheckInAccessCode ?? null,
+      mobile_member_check_in_allow_household: input.mobileMemberCheckInAllowHousehold ?? false,
+      mobile_member_check_in_location_lat: input.mobileMemberCheckInLocationLat ?? null,
+      mobile_member_check_in_location_lng: input.mobileMemberCheckInLocationLng ?? null,
+      mobile_member_check_in_location_radius_meters:
+        input.mobileMemberCheckInLocationRadiusMeters ?? null,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "event_id" },

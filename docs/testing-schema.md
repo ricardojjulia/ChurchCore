@@ -172,6 +172,7 @@ Status values:
 - `app/app/church-admin/children/dashboard/page.test.tsx`
 - `playwright.config.ts`
 - `tests/e2e/church-admin-readiness.spec.ts`
+- `tests/e2e/member-mobile-foundation.spec.ts`
 - `vitest.config.ts` and `vitest.setup.ts`
 - `package.json` test scripts
 

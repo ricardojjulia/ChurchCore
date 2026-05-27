@@ -10,6 +10,12 @@ import type { ChildrenRoom } from "@/lib/ministry-forge-types";
 
 export type CcmServiceStatus = "open" | "closed" | "emergency";
 
+export type CcmCheckinSessionLifecycleStatus =
+  | "draft"
+  | "enabled"
+  | "paused"
+  | "closed";
+
 export type CcmService = {
   id: string;
   churchId: string;
@@ -19,6 +25,15 @@ export type CcmService = {
   startedAt: string;
   endedAt: string | null;
   status: CcmServiceStatus;
+  checkinSessionStatus: CcmCheckinSessionLifecycleStatus;
+  checkinSessionStartsAt: string | null;
+  checkinSessionEndsAt: string | null;
+  checkinSessionToken: string;
+  checkinSessionEnabledAt: string | null;
+  checkinSessionClosedAt: string | null;
+  checkinSessionOverrideReason: string | null;
+  checkinSessionOverrideBy: string | null;
+  checkinSessionOverrideAt: string | null;
   createdBy: string | null;
   createdAt: string;
 };

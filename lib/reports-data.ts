@@ -638,6 +638,14 @@ function buildEventReportsFromRaw(
     const methodLabel =
       row.check_in_method === "nfc_qr"
         ? "NFC / QR"
+        : row.check_in_method === "mobile_member"
+          ? "Mobile member"
+          : row.check_in_method === "kiosk"
+            ? "Kiosk"
+            : row.check_in_method === "staff"
+              ? "Staff"
+              : row.check_in_method === "import"
+                ? "Import"
         : row.check_in_method === "self_checkin"
           ? "Self check-in"
           : "Manual admin";

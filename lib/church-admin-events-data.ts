@@ -36,6 +36,7 @@ export type ChurchAdminEventAttendanceEntry = {
   profileId: string;
   fullName: string;
   memberNumber: string | null;
+  familyName: string | null;
   checkedInAt: string;
   status: string;
   checkInMethod: string;
@@ -137,6 +138,14 @@ export type EventRegistrationSettings = {
   deadline: string | null;
   confirmationMessage: string | null;
   waitlistEnabled: boolean;
+  mobileMemberCheckInEnabled: boolean;
+  mobileMemberCheckInStartsAt: string | null;
+  mobileMemberCheckInEndsAt: string | null;
+  mobileMemberCheckInAccessCode: string | null;
+  mobileMemberCheckInAllowHousehold: boolean;
+  mobileMemberCheckInLocationLat: number | null;
+  mobileMemberCheckInLocationLng: number | null;
+  mobileMemberCheckInLocationRadiusMeters: number | null;
   registrationCount: number;
   waitlistCount: number;
 };
@@ -172,9 +181,23 @@ export async function getEventRegistrations(
         id: string; event_id: string; registration_open: boolean;
         capacity: number | null; price_cents: number; deadline: string | null;
         confirmation_message: string | null; waitlist_enabled: boolean;
+        mobile_member_check_in_enabled: boolean;
+        mobile_member_check_in_starts_at: string | null;
+        mobile_member_check_in_ends_at: string | null;
+        mobile_member_check_in_access_code: string | null;
+        mobile_member_check_in_allow_household: boolean;
+        mobile_member_check_in_location_lat: number | null;
+        mobile_member_check_in_location_lng: number | null;
+        mobile_member_check_in_location_radius_meters: number | null;
       }>(
         `select id, event_id, registration_open, capacity, price_cents,
-                deadline, confirmation_message, waitlist_enabled
+                deadline, confirmation_message, waitlist_enabled,
+                mobile_member_check_in_enabled, mobile_member_check_in_starts_at,
+                mobile_member_check_in_ends_at, mobile_member_check_in_access_code,
+                  mobile_member_check_in_allow_household,
+                  mobile_member_check_in_location_lat,
+                  mobile_member_check_in_location_lng,
+                  mobile_member_check_in_location_radius_meters
          from public.event_registration_settings
          where event_id = $1`,
         [eventId],
@@ -194,6 +217,15 @@ export async function getEventRegistrations(
       id: s.id, eventId: s.event_id, registrationOpen: s.registration_open,
       capacity: s.capacity, priceCents: s.price_cents, deadline: s.deadline,
       confirmationMessage: s.confirmation_message, waitlistEnabled: s.waitlist_enabled,
+      mobileMemberCheckInEnabled: s.mobile_member_check_in_enabled,
+      mobileMemberCheckInStartsAt: s.mobile_member_check_in_starts_at,
+      mobileMemberCheckInEndsAt: s.mobile_member_check_in_ends_at,
+      mobileMemberCheckInAccessCode: s.mobile_member_check_in_access_code,
+      mobileMemberCheckInAllowHousehold: s.mobile_member_check_in_allow_household,
+      mobileMemberCheckInLocationLat: s.mobile_member_check_in_location_lat,
+      mobileMemberCheckInLocationLng: s.mobile_member_check_in_location_lng,
+      mobileMemberCheckInLocationRadiusMeters:
+        s.mobile_member_check_in_location_radius_meters,
       registrationCount: registrations.filter((r) => !r.isWaitlisted && r.status !== "cancelled").length,
       waitlistCount: registrations.filter((r) => r.isWaitlisted).length,
     } : null;
@@ -230,6 +262,15 @@ export async function getEventRegistrations(
     id: s.id, eventId: s.event_id, registrationOpen: s.registration_open,
     capacity: s.capacity, priceCents: s.price_cents, deadline: s.deadline,
     confirmationMessage: s.confirmation_message, waitlistEnabled: s.waitlist_enabled,
+    mobileMemberCheckInEnabled: s.mobile_member_check_in_enabled ?? false,
+    mobileMemberCheckInStartsAt: s.mobile_member_check_in_starts_at ?? null,
+    mobileMemberCheckInEndsAt: s.mobile_member_check_in_ends_at ?? null,
+    mobileMemberCheckInAccessCode: s.mobile_member_check_in_access_code ?? null,
+    mobileMemberCheckInAllowHousehold: s.mobile_member_check_in_allow_household ?? false,
+    mobileMemberCheckInLocationLat: s.mobile_member_check_in_location_lat ?? null,
+    mobileMemberCheckInLocationLng: s.mobile_member_check_in_location_lng ?? null,
+    mobileMemberCheckInLocationRadiusMeters:
+      s.mobile_member_check_in_location_radius_meters ?? null,
     registrationCount: registrations.filter((r) => !r.isWaitlisted && r.status !== "cancelled").length,
     waitlistCount: registrations.filter((r) => r.isWaitlisted).length,
   } : null;
@@ -389,6 +430,7 @@ export async function getChurchAdminEventWorkspaceData(
           profile_id: string;
           full_name: string;
           member_number: string | null;
+          family_name: string | null;
           checked_in_at: string;
           status: string;
           check_in_method: string;
@@ -399,12 +441,15 @@ export async function getChurchAdminEventWorkspaceData(
               attendance.profile_id,
               profile.full_name,
               profile.member_number,
+              family.family_name,
               attendance.checked_in_at,
               attendance.status,
               attendance.check_in_method
             from public.attendance attendance
             join public.profiles profile
               on profile.id = attendance.profile_id
+            left join public.families family
+              on family.id = profile.family_id
             where attendance.event_id = $1
               and attendance.church_id = $2
             order by attendance.checked_in_at desc
@@ -480,6 +525,7 @@ export async function getChurchAdminEventWorkspaceData(
       profileId: row.profile_id,
       fullName: row.full_name,
       memberNumber: row.member_number,
+      familyName: row.family_name,
       checkedInAt: row.checked_in_at,
       status: row.status,
       checkInMethod: row.check_in_method,
@@ -561,7 +607,7 @@ export async function getChurchAdminEventWorkspaceData(
         .order("created_at", { ascending: true }),
       supabase
         .from("attendance")
-        .select("id, profile_id, checked_in_at, status, check_in_method, profiles!inner(full_name, member_number)")
+        .select("id, profile_id, checked_in_at, status, check_in_method, profiles!inner(full_name, member_number, family_id, families(family_name))")
         .eq("event_id", eventId)
         .eq("church_id", session.appContext.church.id)
         .order("checked_in_at", { ascending: false }),
@@ -631,6 +677,15 @@ export async function getChurchAdminEventWorkspaceData(
           "member_number" in (profile as Record<string, unknown>) &&
           (profile as { member_number: unknown }).member_number !== null
             ? String((profile as { member_number: unknown }).member_number)
+            : null,
+        familyName:
+          "families" in (profile as Record<string, unknown>)
+            ? (
+                Array.isArray((profile as { families?: Array<{ family_name?: unknown }> }).families)
+                  ? (profile as { families?: Array<{ family_name?: unknown }> }).families?.[0]
+                      ?.family_name
+                  : undefined
+              )?.toString() ?? null
             : null,
         checkedInAt: row.checked_in_at,
         status: row.status,

@@ -41,6 +41,7 @@ These map directly to the church-facing role structure defined in `DEVELOPMENT_P
 - Member-home visibility into personal attendance history and upcoming serving assignments
 - Self-service editing for `preferred_contact_method` and `interests`
 - Communication preference capture inside the member portal with consent-log writes on change
+- Day-scoped parent children check-in/checkout links with safe unavailable states and stronger checkout verification (PIN/QR or pickup code, guardian verification, custody and authorized-pickup checks)
 - A live calendar slice backed by categorized `events`
 - A simplified church-admin operations board with lane-based preview state
 - A dedicated `/app/church-admin/people` route for tenant-backed people management

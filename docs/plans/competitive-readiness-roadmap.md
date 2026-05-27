@@ -119,6 +119,8 @@ These workstreams convert the competitive findings into implementation-ready ste
 
 ### Finding 2: Member Mobile Is Behind The Market
 
+**Status:** Phase 2 closure slice is implemented and validated for the current release scope, including phone-sized member route coverage, role-boundary checks, member mobile check-in policy enforcement, day-session children safety gates, stronger parent checkout verification, and closed-session link invalidation.
+
 **Problem:** Competitors have mature member-facing apps, member portals, or app-like experiences. ChurchCore Ops needs the member surface to be phone-first before it can compete, but the first implementation should be a smaller, polished mobile web/PWA version of the product rather than a native app.
 
 **Steps:**
@@ -140,6 +142,8 @@ These workstreams convert the competitive findings into implementation-ready ste
 
 ### Finding 2A: Member Check-In Should Be Mobile-Web Capable When Enabled
 
+**Status:** Phase 2 follow-ups delivered for the current scope. Event-level mobile member check-in enablement controls (window, optional access code, household mode, and optional geofence constraints) are implemented, member-home cards surface eligible check-ins, attendance writes include source metadata (`mobile_member` and `staff`), duplicate-present writes are blocked, and ChurchAdmin audit views include source-aware attendance filtering plus mobile-member household metrics. Household edge-case role tests are in place for member check-in.
+
 **Problem:** ChurchTrac and other competitors treat check-in and attendance as mobile-friendly operational workflows. ChurchCore Ops should let members check themselves in from the mobile web version when staff chooses to allow it.
 
 **Steps:**
@@ -157,6 +161,8 @@ These workstreams convert the competitive findings into implementation-ready ste
 **Done when:** Staff can enable mobile member check-in for a specific session, members can check in only during the approved window, and admins can audit who checked in, when, and by what source.
 
 ### Finding 2B: Children's Check-In Needs A Day-Enabled Mobile Web Flow
+
+**Status:** Phase 2 closure delivered for the current scope. `ccm_services` now runs day-session lifecycle states (`draft`, `enabled`, `paused`, `closed`) with room + volunteer readiness prerequisites and two-adult coverage enforcement before enablement, plus explicit audited override support when staff must bypass readiness. Parent check-in/checkout links are session-scoped, shown only after enablement, and invalidated after close via token rotation so links cannot be reused. Portal parent links return safe unavailable states for invalid, paused, closed, out-of-window, and expired sessions. Parent checkout supports PIN/QR or pickup-code verification with guardian-name verification, custody restriction checks, and authorized-pickup enforcement.
 
 **Problem:** Children's check-in should not be an always-available generic page. It should be a specially formatted, day-specific flow enabled by admin staff for that day's children's ministry service.
 
@@ -305,6 +311,23 @@ These workstreams convert the competitive findings into implementation-ready ste
 
 **Goal:** Members can manage their own church relationship from a phone-sized screen.
 
+**Status update (2026-05-27):** Phase 2 closure slice completed for the current release scope.
+
+**Evaluation summary:**
+
+- Remaining Finding 2B safety gates before session enablement are complete, including room readiness, volunteer readiness, two-adult coverage checks, and explicit audited override controls.
+- Remaining Finding 2B verification workflows are complete for current scope, including stronger checkout verification (pickup code or PIN/QR with guardian checks) and closed-session link invalidation.
+- Finding 2A follow-ups are complete for current scope, including broader ChurchAdmin mobile attendance audit context and household edge-case role coverage for member mobile check-in.
+- Phase 2 acceptance coverage is expanded with phone-sized browser checks, member/parent role-boundary checks, and invalid parent link unavailable-state checks.
+- Phase 2 documentation updates are complete for this slice across roadmap, application, portal, testing schema, Spanish UI notes, and factory-run evidence.
+
+**Validation evidence:**
+
+- `npm run test -- app/app/ccm-actions.test.ts app/app/member-actions.test.ts app/portal/children/actions.test.ts lib/ccm-public-data.test.ts`
+- `npx playwright test tests/e2e/member-mobile-foundation.spec.ts`
+- `npm run lint`
+- `npm run build`
+
 ### Scope
 
 - A polished mobile web/PWA surface for the initial mobile presence, intentionally smaller than the full desktop/admin product.
@@ -337,6 +360,8 @@ These workstreams convert the competitive findings into implementation-ready ste
 - Parent can access children's check-in/out only through an enabled day-specific session, and disabled or closed sessions show a safe unavailable state.
 - Member directory visibility honors opt-in and role policies.
 - Tests cover self-service access boundaries and pending-review behavior.
+
+**Current evidence:** `tests/e2e/member-mobile-foundation.spec.ts`, `app/app/member-actions.test.ts`, `app/app/ccm-actions.test.ts`, `app/portal/children/actions.test.ts`, and `lib/ccm-public-data.test.ts` cover the Phase 2 closure slice behaviors listed above.
 
 ## Phase 3: Complete Communications Delivery
 
@@ -479,7 +504,7 @@ Each phase must pass these gates before it is called complete:
 | Phase | Required documentation |
 | --- | --- |
 | Operator path | `docs/application-guide.md`, `docs/mvp-readiness-audit.md`, `docs/testing-schema.md` |
-| Member mobile | `docs/portal-foundation.md`, `docs/application-guide.md`, `docs/plans/spanish-ui-coverage.md` where UI text changes |
+| Member mobile | `docs/portal-foundation.md`, `docs/application-guide.md`, `docs/testing-schema.md`, `docs/plans/spanish-ui-coverage.md` where UI text changes, and Phase 2 run evidence in `docs/factory-runs/2026-05-27-phase2-closure-safety-and-mobile-coverage.md` |
 | Communications delivery | `docs/application-guide.md`, `docs/security-assessment.md`, provider setup docs under `docs/setup/` |
 | Service planning and registration | `docs/working-calendar.md`, `docs/application-guide.md`, `docs/testing-schema.md` |
 | Migration/import | New import guide under `docs/setup/`, `docs/security-assessment.md`, `docs/testing-schema.md` |

@@ -66,8 +66,10 @@ vi.mock("@/lib/ccm-runtime", () => ({
 import {
   addCustodyRestrictionAction,
   checkoutChildAction,
+  checkinChildAction,
   closeServiceAction,
   openServiceAction,
+  updateCheckinSessionLifecycleAction,
 } from "@/app/app/ccm-actions";
 
 describe("ccm actions", () => {
@@ -147,6 +149,118 @@ describe("ccm actions", () => {
     );
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/children/services/service-22");
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/children/dashboard");
+  });
+
+  it("updates check-in session lifecycle in local fallback mode", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ ministry_id: "ministry-1" }] })
+      .mockResolvedValueOnce({
+        rows: [{ room_id: "room-1", room_name: "Nursery", volunteer_count: 2 }],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await updateCheckinSessionLifecycleAction({
+      serviceId: "service-22",
+      status: "enabled",
+      startsAt: "2026-05-27T08:30",
+      endsAt: "2026-05-27T12:00",
+    });
+
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("update public.ccm_services"),
+      [
+        "service-22",
+        "church-1",
+        "enabled",
+        "2026-05-27T08:30",
+        "2026-05-27T12:00",
+        false,
+        "",
+      ],
+    );
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/children/services/service-22");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/children/checkin");
+  });
+
+  it("blocks session enablement when two-adult coverage is missing and no override is provided", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ ministry_id: "ministry-1" }] })
+      .mockResolvedValueOnce({
+        rows: [{ room_id: "room-1", room_name: "Nursery", volunteer_count: 1 }],
+      });
+
+    await expect(
+      updateCheckinSessionLifecycleAction({
+        serviceId: "service-22",
+        status: "enabled",
+      }),
+    ).rejects.toThrow("two-adult coverage");
+  });
+
+  it("requires a reason when safety override is requested", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ ministry_id: "ministry-1" }] })
+      .mockResolvedValueOnce({
+        rows: [{ room_id: "room-1", room_name: "Nursery", volunteer_count: 1 }],
+      });
+
+    await expect(
+      updateCheckinSessionLifecycleAction({
+        serviceId: "service-22",
+        status: "enabled",
+        overrideSafetyRequirements: true,
+        overrideReason: "short",
+      }),
+    ).rejects.toThrow("Override reason");
+  });
+
+  it("allows session enablement with audited override reason", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ ministry_id: "ministry-1" }] })
+      .mockResolvedValueOnce({
+        rows: [{ room_id: "room-1", room_name: "Nursery", volunteer_count: 1 }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await updateCheckinSessionLifecycleAction({
+      serviceId: "service-22",
+      status: "enabled",
+      overrideSafetyRequirements: true,
+      overrideReason: "Pastor and safety lead approved temporary room consolidation.",
+    });
+
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining("insert into public.ccm_session_enablement_overrides"),
+      [
+        "church-1",
+        "service-22",
+        "Pastor and safety lead approved temporary room consolidation.",
+        expect.any(String),
+      ],
+    );
+  });
+
+  it("rejects check-in when service session is not enabled", async () => {
+    queryTenantLocalDbMock.mockResolvedValueOnce({
+      rows: [
+        {
+          status: "open",
+          checkin_session_status: "paused",
+          checkin_session_starts_at: null,
+          checkin_session_ends_at: null,
+        },
+      ],
+    });
+
+    await expect(
+      checkinChildAction({
+        serviceId: "service-22",
+        roomId: "room-1",
+        childName: "Ada Child",
+      }),
+    ).rejects.toThrow("Check-in session is not enabled for this service.");
   });
 
   it("returns session not found when checkout session does not exist", async () => {

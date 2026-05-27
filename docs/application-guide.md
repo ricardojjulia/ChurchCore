@@ -236,6 +236,14 @@ The Children's Church Ministry module handles:
 
 The module is designed around child safety, custody restrictions, pickup verification, emergency workflows, and restricted access to sensitive child data.
 
+Children service detail now includes day check-in session controls (`draft`, `enabled`, `paused`, `closed`) with optional session start/end windows. Staff check-in only runs when the service is open and the day session is explicitly enabled, which prevents always-on check-in access outside an approved service session.
+
+Service detail now exposes session-scoped parent links for both check-in and checkout under `/portal/children/checkin/[token]` and `/portal/children/checkout/[token]`. These links are safe by default: invalid, draft, paused, closed, and out-of-window sessions return an explicit unavailable state instead of exposing active children workflows.
+
+When a day session is available, parents can submit self-service check-in (child + room + guardian details) and checkout (child session + PIN/claim token + release name) directly from those links. Submission actions remain token-scoped to the active service session and enforce room/session validity before writes.
+
+Parent self-service also applies guardrails: repeated failed attempts are rate-limited per link/fingerprint window, long-running enabled links without an end window expire automatically, custody-restricted release names are blocked during checkout, and authorized-pickup name matching is enforced when a child has an authorized pickup list.
+
 The readiness link `/app/church-admin/children/dashboard?view=readiness` opens a focused safety view for active service state, room ratios, two-adult coverage, open incidents, and background-check coverage. It links directly to volunteer assignment, service management, room setup, incident review, and safety settings so each readiness issue has a clear resolution path.
 
 ### Events And Attendance
@@ -276,13 +284,26 @@ Members enter through `/app` and see a member-focused mobile-friendly navigation
 
 - **Home:** personal church context and next actions.
 - **Calendar:** upcoming church events.
-- **Directory:** church directory visibility based on permissions.
-- **Ministries:** ministry participation and opportunities.
-- **Family:** household and family information.
 - **Groups:** open small groups and join requests.
 - **Schedule:** volunteer and event schedule.
+- **Family:** household and family information.
+
+Auxiliary member routes remain available from home cards and deep links:
+
+- **Directory:** church directory visibility based on permissions.
+- **Ministries:** ministry participation and opportunities.
+- **Giving:** donor history and receipts.
+- **My Data:** privacy and data-rights actions.
+
+Member home now includes an enabled-session mobile check-in card. Church admins can enable mobile member check-in per event from event registration settings, set a check-in window, and optionally require an access code. Member check-ins write attendance with `mobile_member` source metadata, while admin quick-check-in paths now record `staff` source metadata.
 
 Members can also manage giving, data rights, notification preferences, and communication preferences where those flows are enabled.
+
+When a church enables household check-in for an event, the member check-in card can also target another person in the same household. The action remains limited to the signed-in family and still honors the event's approved window and access code.
+
+Church admins can also configure optional check-in geofence constraints (latitude, longitude, radius meters) per event. When enabled, member mobile check-in requires browser location access and validates that the device is within the configured on-site radius.
+
+Church admins and pastors can review attendance source patterns in Events Reports using check-in method filters, and event-level attendance logs also support source filtering for operational audit review.
 
 ## 7. Public Portal Workflow
 
@@ -293,6 +314,8 @@ Public routes support church-facing entry points before a user is fully signed i
 - `/give/[churchSlug]`
 
 The public portal can resolve a church from the request hostname, so a tenant hostname can route visitors toward the correct church context. Public giving does not expose private tenant data; it displays only live public giving-page configuration.
+
+Children ministry parent check-in and checkout links now use day-scoped session tokens generated from church-admin children service controls. Links are intentionally safe-by-default: invalid or closed tokens return unavailable states, and closed services rotate session tokens so old links cannot be reused. Parent checkout verification supports PIN/QR or pickup code and also validates guardian name, custody restrictions, and authorized pickup rules.
 
 ## 8. Pastor, Elder, And Ministry Leader Workflow
 

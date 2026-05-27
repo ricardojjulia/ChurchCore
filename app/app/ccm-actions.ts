@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
+import { randomUUID } from "node:crypto";
 
 import { requireChurchSession } from "@/lib/auth";
 import {
@@ -28,6 +29,21 @@ import type {
 
 const CCM_PATH = "/app/church-admin/children";
 
+type CcmCheckinSessionLifecycleInput = {
+  serviceId: string;
+  status: "enabled" | "paused" | "closed";
+  startsAt?: string;
+  endsAt?: string;
+  overrideSafetyRequirements?: boolean;
+  overrideReason?: string;
+};
+
+type SessionEnablementReadiness = {
+  ministryId: string;
+  activeRoomCount: number;
+  uncoveredRooms: Array<{ roomId: string; roomName: string; volunteerCount: number }>;
+};
+
 // ── Guard helper ──────────────────────────────────────────────────────────────
 
 async function requireCcmSession() {
@@ -50,6 +66,142 @@ async function runLocalCcmMutation<T>(operation: () => Promise<T>) {
   }
 }
 
+async function getSessionEnablementReadiness(
+  serviceId: string,
+  churchId: string,
+): Promise<SessionEnablementReadiness> {
+  if (shouldUseLocalTenantFallback()) {
+    const serviceResult = await runLocalCcmMutation(() =>
+      queryTenantLocalDb<{ ministry_id: string }>(
+        `select ministry_id
+         from public.ccm_services
+         where id = $1 and church_id = $2
+         limit 1`,
+        [serviceId, churchId],
+      ),
+    );
+
+    const ministryId = serviceResult.rows[0]?.ministry_id;
+    if (!ministryId) {
+      throw new Error("Service could not be found for this church.");
+    }
+
+    const roomCoverage = await runLocalCcmMutation(() =>
+      queryTenantLocalDb<{ room_id: string; room_name: string; volunteer_count: number }>(
+        `select
+           room.id as room_id,
+           room.name as room_name,
+           coalesce(count(assign.id), 0)::int as volunteer_count
+         from public.children_rooms room
+         left join public.ccm_volunteer_assignments assign
+           on assign.room_id = room.id
+          and assign.service_id = $1
+          and assign.church_id = $2
+         where room.church_id = $2
+           and room.ministry_id = $3
+           and room.is_active = true
+         group by room.id, room.name
+         order by room.name asc`,
+        [serviceId, churchId, ministryId],
+      ),
+    );
+
+    const uncoveredRooms = roomCoverage.rows
+      .filter((room) => Number(room.volunteer_count) < 2)
+      .map((room) => ({
+        roomId: room.room_id,
+        roomName: room.room_name,
+        volunteerCount: Number(room.volunteer_count),
+      }));
+
+    return {
+      ministryId,
+      activeRoomCount: roomCoverage.rows.length,
+      uncoveredRooms,
+    };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data: service, error: serviceError } = await supabase
+    .from("ccm_services")
+    .select("ministry_id")
+    .eq("id", serviceId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  if (serviceError) {
+    throw new Error(serviceError.message);
+  }
+
+  const ministryId = service?.ministry_id ? String(service.ministry_id) : null;
+
+  if (!ministryId) {
+    throw new Error("Service could not be found for this church.");
+  }
+
+  const { data: rooms, error: roomError } = await supabase
+    .from("children_rooms")
+    .select("id, name")
+    .eq("church_id", churchId)
+    .eq("ministry_id", ministryId)
+    .eq("is_active", true);
+
+  if (roomError) {
+    throw new Error(roomError.message);
+  }
+
+  const roomIds = (rooms ?? []).map((room) => String(room.id));
+  const assignmentCounts = new Map<string, number>();
+
+  if (roomIds.length > 0) {
+    const { data: assignments, error: assignmentError } = await supabase
+      .from("ccm_volunteer_assignments")
+      .select("room_id")
+      .eq("church_id", churchId)
+      .eq("service_id", serviceId)
+      .in("room_id", roomIds);
+
+    if (assignmentError) {
+      throw new Error(assignmentError.message);
+    }
+
+    for (const assignment of assignments ?? []) {
+      const roomId = String(assignment.room_id);
+      assignmentCounts.set(roomId, (assignmentCounts.get(roomId) ?? 0) + 1);
+    }
+  }
+
+  const uncoveredRooms = (rooms ?? [])
+    .map((room) => ({
+      roomId: String(room.id),
+      roomName: String(room.name),
+      volunteerCount: assignmentCounts.get(String(room.id)) ?? 0,
+    }))
+    .filter((room) => room.volunteerCount < 2);
+
+  return {
+    ministryId,
+    activeRoomCount: (rooms ?? []).length,
+    uncoveredRooms,
+  };
+}
+
+function buildReadinessFailureMessage(readiness: SessionEnablementReadiness) {
+  if (readiness.activeRoomCount === 0) {
+    return "Add at least one active room before enabling this day session.";
+  }
+
+  if (!readiness.uncoveredRooms.length) {
+    return null;
+  }
+
+  const labels = readiness.uncoveredRooms
+    .map((room) => `${room.roomName} (${room.volunteerCount}/2)`)
+    .join(", ");
+
+  return `Session enablement requires two-adult coverage per room. Coverage gaps: ${labels}. Enable override with an audit reason to proceed.`;
+}
+
 // ── openServiceAction ─────────────────────────────────────────────────────────
 
 export async function openServiceAction(
@@ -62,8 +214,8 @@ export async function openServiceAction(
     const result = await runLocalCcmMutation(() =>
       queryTenantLocalDb<{ id: string }>(
         `insert into public.ccm_services
-           (church_id, ministry_id, service_name, service_date, created_by)
-         values ($1, $2, $3, $4, auth.uid())
+           (church_id, ministry_id, service_name, service_date, created_by, checkin_session_status)
+         values ($1, $2, $3, $4, auth.uid(), 'draft')
          returning id`,
         [churchId, input.ministryId, input.serviceName, input.serviceDate],
       ),
@@ -80,12 +232,134 @@ export async function openServiceAction(
       ministry_id: input.ministryId,
       service_name: input.serviceName,
       service_date: input.serviceDate,
+      checkin_session_status: "draft",
     })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
   revalidatePath(CCM_PATH);
   return { id: (data as { id: string }).id };
+}
+
+// ── updateCheckinSessionLifecycleAction ──────────────────────────────────────
+
+export async function updateCheckinSessionLifecycleAction(
+  input: CcmCheckinSessionLifecycleInput,
+): Promise<void> {
+  const session = await requireCcmSession();
+  const churchId = session.appContext.church.id;
+
+  const startsAt = input.startsAt?.trim() ? input.startsAt : null;
+  const endsAt = input.endsAt?.trim() ? input.endsAt : null;
+  const overrideEnabled = input.overrideSafetyRequirements === true;
+  const overrideReason = input.overrideReason?.trim() ?? "";
+
+  if ((startsAt && !endsAt) || (!startsAt && endsAt)) {
+    throw new Error("Check-in session start and end must be set together.");
+  }
+
+  if (startsAt && endsAt && new Date(startsAt).getTime() >= new Date(endsAt).getTime()) {
+    throw new Error("Check-in session start must be before end.");
+  }
+
+  let readiness: SessionEnablementReadiness | null = null;
+
+  if (input.status === "enabled") {
+    readiness = await getSessionEnablementReadiness(input.serviceId, churchId);
+    const failureMessage = buildReadinessFailureMessage(readiness);
+
+    if (failureMessage && !overrideEnabled) {
+      throw new Error(failureMessage);
+    }
+
+    if (failureMessage && overrideEnabled && overrideReason.length < 12) {
+      throw new Error("Override reason must include at least 12 characters.");
+    }
+  }
+
+  const enabledAt = input.status === "enabled" ? new Date().toISOString() : null;
+  const closedAt = input.status === "closed" ? new Date().toISOString() : null;
+
+  if (shouldUseLocalTenantFallback()) {
+    await runLocalCcmMutation(() =>
+      queryTenantLocalDb(
+        `update public.ccm_services
+         set checkin_session_status = $3,
+             checkin_session_starts_at = $4,
+             checkin_session_ends_at = $5,
+             checkin_session_enabled_at = case when $3 = 'enabled' then timezone('utc', now()) else checkin_session_enabled_at end,
+             checkin_session_closed_at = case when $3 = 'closed' then timezone('utc', now()) else checkin_session_closed_at end,
+             checkin_session_token = case when $3 = 'closed' then gen_random_uuid()::text else checkin_session_token end,
+             checkin_session_override_reason = case when $6 = true then $7 else null end,
+             checkin_session_override_by = case when $6 = true then auth.uid() else null end,
+             checkin_session_override_at = case when $6 = true then timezone('utc', now()) else null end
+         where id = $1 and church_id = $2`,
+        [input.serviceId, churchId, input.status, startsAt, endsAt, overrideEnabled, overrideReason],
+      ),
+    );
+
+    if (input.status === "enabled" && overrideEnabled && readiness) {
+      await runLocalCcmMutation(() =>
+        queryTenantLocalDb(
+          `insert into public.ccm_session_enablement_overrides
+             (church_id, service_id, override_reason, readiness_snapshot, created_by)
+           values ($1, $2, $3, $4::jsonb, auth.uid())`,
+          [
+            churchId,
+            input.serviceId,
+            overrideReason,
+            JSON.stringify({
+              activeRoomCount: readiness.activeRoomCount,
+              uncoveredRooms: readiness.uncoveredRooms,
+            }),
+          ],
+        ),
+      );
+    }
+  } else {
+    const supabase = await createTenantServerClient();
+    const { error } = await supabase
+      .from("ccm_services")
+      .update({
+        checkin_session_status: input.status,
+        checkin_session_starts_at: startsAt,
+        checkin_session_ends_at: endsAt,
+        checkin_session_enabled_at: input.status === "enabled" ? enabledAt : undefined,
+        checkin_session_closed_at: input.status === "closed" ? closedAt : undefined,
+        checkin_session_token: input.status === "closed" ? randomUUID() : undefined,
+        checkin_session_override_reason: overrideEnabled ? overrideReason : null,
+        checkin_session_override_by: overrideEnabled ? session.userId : null,
+        checkin_session_override_at: overrideEnabled ? enabledAt : null,
+      })
+      .eq("id", input.serviceId)
+      .eq("church_id", churchId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (input.status === "enabled" && overrideEnabled && readiness) {
+      const { error: overrideError } = await supabase
+        .from("ccm_session_enablement_overrides")
+        .insert({
+          church_id: churchId,
+          service_id: input.serviceId,
+          override_reason: overrideReason,
+          readiness_snapshot: {
+            activeRoomCount: readiness.activeRoomCount,
+            uncoveredRooms: readiness.uncoveredRooms,
+          },
+        });
+
+      if (overrideError) {
+        throw new Error(overrideError.message);
+      }
+    }
+  }
+
+  revalidatePath(`${CCM_PATH}/services/${input.serviceId}`);
+  revalidatePath(`${CCM_PATH}/services`);
+  revalidatePath(`${CCM_PATH}/checkin`);
 }
 
 // ── closeServiceAction ────────────────────────────────────────────────────────
@@ -100,7 +374,11 @@ export async function closeServiceAction(
     // Mark service closed
     await queryTenantLocalDb(
       `update public.ccm_services
-       set status = 'closed', ended_at = timezone('utc', now())
+       set status = 'closed',
+           ended_at = timezone('utc', now()),
+           checkin_session_status = 'closed',
+           checkin_session_closed_at = timezone('utc', now()),
+           checkin_session_token = gen_random_uuid()::text
        where id = $1 and church_id = $2`,
       [serviceId, churchId],
     );
@@ -120,7 +398,13 @@ export async function closeServiceAction(
   const supabase = await createTenantServerClient();
   await supabase
     .from("ccm_services")
-    .update({ status: "closed", ended_at: new Date().toISOString() })
+    .update({
+      status: "closed",
+      ended_at: new Date().toISOString(),
+      checkin_session_status: "closed",
+      checkin_session_closed_at: new Date().toISOString(),
+      checkin_session_token: randomUUID(),
+    })
     .eq("id", serviceId)
     .eq("church_id", churchId);
   await supabase
@@ -142,6 +426,76 @@ export async function checkinChildAction(
 ): Promise<CcmCheckinResult> {
   const session = await requireCcmSession();
   const churchId = session.appContext.church.id;
+
+  const now = Date.now();
+
+  if (shouldUseLocalTenantFallback()) {
+    const serviceGate = await runLocalCcmMutation(() =>
+      queryTenantLocalDb<{
+        status: string;
+        checkin_session_status: string;
+        checkin_session_starts_at: string | null;
+        checkin_session_ends_at: string | null;
+      }>(
+        `select status, checkin_session_status,
+                checkin_session_starts_at::text,
+                checkin_session_ends_at::text
+         from public.ccm_services
+         where id = $1 and church_id = $2
+         limit 1`,
+        [input.serviceId, churchId],
+      ),
+    );
+
+    const gate = serviceGate.rows[0];
+    if (!gate || gate.status !== "open") {
+      throw new Error("This service is not open for check-in.");
+    }
+    if (gate.checkin_session_status !== "enabled") {
+      throw new Error("Check-in session is not enabled for this service.");
+    }
+
+    if (gate.checkin_session_starts_at && gate.checkin_session_ends_at) {
+      const startsAt = new Date(gate.checkin_session_starts_at).getTime();
+      const endsAt = new Date(gate.checkin_session_ends_at).getTime();
+      if (!Number.isNaN(startsAt) && now < startsAt) {
+        throw new Error("Check-in session has not opened yet.");
+      }
+      if (!Number.isNaN(endsAt) && now > endsAt) {
+        throw new Error("Check-in session is closed for today.");
+      }
+    }
+  } else {
+    const supabase = await createTenantServerClient();
+    const { data: gate, error: gateError } = await supabase
+      .from("ccm_services")
+      .select("status, checkin_session_status, checkin_session_starts_at, checkin_session_ends_at")
+      .eq("id", input.serviceId)
+      .eq("church_id", churchId)
+      .maybeSingle();
+
+    if (gateError) {
+      throw new Error(gateError.message);
+    }
+
+    if (!gate || gate.status !== "open") {
+      throw new Error("This service is not open for check-in.");
+    }
+    if (gate.checkin_session_status !== "enabled") {
+      throw new Error("Check-in session is not enabled for this service.");
+    }
+
+    if (gate.checkin_session_starts_at && gate.checkin_session_ends_at) {
+      const startsAt = new Date(gate.checkin_session_starts_at).getTime();
+      const endsAt = new Date(gate.checkin_session_ends_at).getTime();
+      if (!Number.isNaN(startsAt) && now < startsAt) {
+        throw new Error("Check-in session has not opened yet.");
+      }
+      if (!Number.isNaN(endsAt) && now > endsAt) {
+        throw new Error("Check-in session is closed for today.");
+      }
+    }
+  }
 
   // Generate plaintext PIN via Postgres function, then hash it
   let plainPin: string;
