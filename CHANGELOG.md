@@ -22,6 +22,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added optional mobile check-in geofence settings (latitude, longitude, radius meters) to event registration settings and enforced on-site distance checks in member mobile check-in actions.
 - Added browser geolocation capture in the member mobile check-in card for events that require location verification.
 - Added ADR `docs/adr/0005-member-mobile-checkin-policy-and-location-verification.md` to codify server-side household + geofence check-in policy rules.
+- Added geofence regression coverage in `app/app/member-actions.test.ts` for invalid coordinate rejection, out-of-radius rejection, and explicit household-target rejection when household mode is disabled.
 - Added `lib/member-mobile-checkin-data.ts` to load member-eligible check-in options with open/upcoming/checked-in/closed status derivation.
 - Added migration `supabase/migrations/20260527100000_member_mobile_checkin_foundation.sql` to store event-level mobile check-in configuration and extend attendance source metadata checks.
 - Split giving and finance readiness summary construction into a module-owned builder with focused coverage for missing giving page, failed donation, GL posting, draft journal, and ready states.
@@ -40,6 +41,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ### Changed
 
 - Marked Competitive Readiness Phase 2 as started in the roadmap via the member mobile PWA foundation audit run and linked the new baseline implementation brief.
+- Hardened member mobile geofence enforcement in `app/app/member-actions.ts` to reject non-finite and out-of-range device coordinates before distance checks.
+- Expanded ChurchAdmin registration settings with an in-context mobile check-in policy audit summary in `components/application/church-admin-event-workspace.tsx` for enabled/window/code/household/geofence visibility.
 - Simplified member mobile bottom navigation to a phone-first primary action set (home, calendar, groups, schedule, family), increased touch-target sizing, and kept home active for auxiliary member routes.
 - Updated calendar shell behavior so member-role calendar views now render the member bottom navigation for consistent phone-first route layout.
 - Updated ChurchAdmin quick event check-in writes to use `staff` attendance source metadata and updated event reporting source labels to include `mobile_member`, `staff`, `kiosk`, and `import`.

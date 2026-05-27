@@ -1140,6 +1140,16 @@ export function EventRegistrationsPanel({
 
   const confirmed = registrations.filter((r) => !r.isWaitlisted && r.status !== "cancelled");
   const waitlisted = registrations.filter((r) => r.isWaitlisted);
+  const hasCheckInWindow =
+    Boolean(settingsForm.mobileMemberCheckInStartsAt) &&
+    Boolean(settingsForm.mobileMemberCheckInEndsAt);
+  const hasCheckInAccessCode =
+    Boolean(settingsForm.mobileMemberCheckInAccessCode) &&
+    String(settingsForm.mobileMemberCheckInAccessCode).trim().length > 0;
+  const hasCheckInGeofence =
+    settingsForm.mobileMemberCheckInLocationLat !== undefined &&
+    settingsForm.mobileMemberCheckInLocationLng !== undefined &&
+    settingsForm.mobileMemberCheckInLocationRadiusMeters !== undefined;
 
   const STATUS_COLOR: Record<string, string> = {
     confirmed: "blue", attended: "green", waitlisted: "yellow", cancelled: "gray",
@@ -1160,6 +1170,40 @@ export function EventRegistrationsPanel({
       {/* Settings panel */}
       <Paper withBorder p="md" radius="md">
         <Text fw={500} mb="sm">Registration Settings</Text>
+        <Paper withBorder p="sm" radius="md" mb="sm">
+          <Text size="sm" fw={500} mb="xs">
+            Mobile check-in audit policy
+          </Text>
+          <Group gap="xs" mb="xs">
+            <Badge
+              color={settingsForm.mobileMemberCheckInEnabled ? "teal" : "gray"}
+              variant="light"
+            >
+              {settingsForm.mobileMemberCheckInEnabled ? "enabled" : "disabled"}
+            </Badge>
+            <Badge color={hasCheckInWindow ? "teal" : "gray"} variant="light">
+              {hasCheckInWindow ? "window enforced" : "default event window"}
+            </Badge>
+            <Badge color={hasCheckInAccessCode ? "teal" : "gray"} variant="light">
+              {hasCheckInAccessCode ? "access code required" : "no access code"}
+            </Badge>
+            <Badge
+              color={settingsForm.mobileMemberCheckInAllowHousehold ? "teal" : "gray"}
+              variant="light"
+            >
+              {settingsForm.mobileMemberCheckInAllowHousehold
+                ? "household mode on"
+                : "self-only mode"}
+            </Badge>
+            <Badge color={hasCheckInGeofence ? "teal" : "gray"} variant="light">
+              {hasCheckInGeofence ? "geofence required" : "no geofence"}
+            </Badge>
+          </Group>
+          <Text size="xs" c="dimmed">
+            Use the Roster & Attendance tab source filters to review mobile-member check-ins
+            separately from staff, kiosk, and import attendance records.
+          </Text>
+        </Paper>
         <Stack gap="xs">
           <Switch
             label="Registration open"

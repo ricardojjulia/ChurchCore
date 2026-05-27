@@ -118,11 +118,26 @@ function assertLocation(
     throw new Error("Check-in location verification is required for this event.");
   }
 
+  const deviceLatitude = Number(payload.deviceLatitude);
+  const deviceLongitude = Number(payload.deviceLongitude);
+
+  if (!Number.isFinite(deviceLatitude) || !Number.isFinite(deviceLongitude)) {
+    throw new Error("Check-in location verification is required for this event.");
+  }
+
+  if (deviceLatitude < -90 || deviceLatitude > 90) {
+    throw new Error("Check-in location verification failed due to invalid latitude.");
+  }
+
+  if (deviceLongitude < -180 || deviceLongitude > 180) {
+    throw new Error("Check-in location verification failed due to invalid longitude.");
+  }
+
   const distance = haversineMeters(
     gateLat,
     gateLng,
-    payload.deviceLatitude,
-    payload.deviceLongitude,
+    deviceLatitude,
+    deviceLongitude,
   );
 
   if (distance > gateRadius) {

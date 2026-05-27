@@ -195,6 +195,38 @@ describe("memberMobileCheckInAction", () => {
     });
   });
 
+  it("rejects household target when household mode is disabled", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            title: "Sunday Worship",
+            starts_at: "2000-01-01T00:00:00.000Z",
+            ends_at: "2999-01-01T00:00:00.000Z",
+            mobile_member_check_in_starts_at: null,
+            mobile_member_check_in_ends_at: null,
+            mobile_member_check_in_access_code: null,
+            mobile_member_check_in_allow_household: false,
+            mobile_member_check_in_location_lat: null,
+            mobile_member_check_in_location_lng: null,
+            mobile_member_check_in_location_radius_meters: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ id: "profile-1", family_id: "family-1" }] })
+      .mockResolvedValueOnce({ rows: [{ id: "profile-2", family_id: "family-1" }] });
+
+    const result = await memberMobileCheckInAction({
+      eventId: "event-1",
+      targetProfileId: "profile-2",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Household check-in is not enabled for this event.",
+    });
+  });
+
   it("requires device location when geofence is configured", async () => {
     queryTenantLocalDbMock
       .mockResolvedValueOnce({
@@ -220,6 +252,70 @@ describe("memberMobileCheckInAction", () => {
     expect(result).toEqual({
       ok: false,
       error: "Check-in location verification is required for this event.",
+    });
+  });
+
+  it("rejects invalid geofence coordinates", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            title: "Sunday Worship",
+            starts_at: "2000-01-01T00:00:00.000Z",
+            ends_at: "2999-01-01T00:00:00.000Z",
+            mobile_member_check_in_starts_at: null,
+            mobile_member_check_in_ends_at: null,
+            mobile_member_check_in_access_code: null,
+            mobile_member_check_in_allow_household: false,
+            mobile_member_check_in_location_lat: 35.0,
+            mobile_member_check_in_location_lng: -78.0,
+            mobile_member_check_in_location_radius_meters: 150,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ id: "profile-1", family_id: null }] });
+
+    const result = await memberMobileCheckInAction({
+      eventId: "event-1",
+      deviceLatitude: 120,
+      deviceLongitude: -78,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Check-in location verification failed due to invalid latitude.",
+    });
+  });
+
+  it("rejects when device is outside geofence radius", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            title: "Sunday Worship",
+            starts_at: "2000-01-01T00:00:00.000Z",
+            ends_at: "2999-01-01T00:00:00.000Z",
+            mobile_member_check_in_starts_at: null,
+            mobile_member_check_in_ends_at: null,
+            mobile_member_check_in_access_code: null,
+            mobile_member_check_in_allow_household: false,
+            mobile_member_check_in_location_lat: 35.0,
+            mobile_member_check_in_location_lng: -78.0,
+            mobile_member_check_in_location_radius_meters: 100,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ id: "profile-1", family_id: null }] });
+
+    const result = await memberMobileCheckInAction({
+      eventId: "event-1",
+      deviceLatitude: 35.01,
+      deviceLongitude: -78.01,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "You must be on-site to check in for this event.",
     });
   });
 });
