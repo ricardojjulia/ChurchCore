@@ -66,13 +66,27 @@ async function withLocalCcmReadFallback<T>(
 function mapService(r: {
   id: string; church_id: string; ministry_id: string; service_name: string;
   service_date: string; started_at: string; ended_at: string | null;
-  status: string; created_by: string | null; created_at: string;
+  status: string;
+  checkin_session_status?: string | null;
+  checkin_session_starts_at?: string | null;
+  checkin_session_ends_at?: string | null;
+  checkin_session_token?: string | null;
+  checkin_session_enabled_at?: string | null;
+  checkin_session_closed_at?: string | null;
+  created_by: string | null; created_at: string;
 }): CcmService {
   return {
     id: r.id, churchId: r.church_id, ministryId: r.ministry_id,
     serviceName: r.service_name, serviceDate: r.service_date,
     startedAt: r.started_at, endedAt: r.ended_at,
     status: r.status as CcmService["status"],
+    checkinSessionStatus:
+      (r.checkin_session_status as CcmService["checkinSessionStatus"]) ?? "draft",
+    checkinSessionStartsAt: r.checkin_session_starts_at ?? null,
+    checkinSessionEndsAt: r.checkin_session_ends_at ?? null,
+    checkinSessionToken: r.checkin_session_token ?? "",
+    checkinSessionEnabledAt: r.checkin_session_enabled_at ?? null,
+    checkinSessionClosedAt: r.checkin_session_closed_at ?? null,
     createdBy: r.created_by, createdAt: r.created_at,
   };
 }
@@ -205,10 +219,24 @@ export async function getCcmServiceList(
       const result = await queryTenantLocalDb<{
         id: string; church_id: string; ministry_id: string; service_name: string;
         service_date: string; started_at: string; ended_at: string | null;
-        status: string; created_by: string | null; created_at: string;
+        status: string;
+        checkin_session_status: string;
+        checkin_session_starts_at: string | null;
+        checkin_session_ends_at: string | null;
+        checkin_session_token: string;
+        checkin_session_enabled_at: string | null;
+        checkin_session_closed_at: string | null;
+        created_by: string | null; created_at: string;
       }>(
         `select id, church_id, ministry_id, service_name, service_date::text,
-                started_at::text, ended_at::text, status, created_by, created_at::text
+                started_at::text, ended_at::text, status,
+                checkin_session_status,
+                checkin_session_starts_at::text,
+                checkin_session_ends_at::text,
+                checkin_session_token,
+                checkin_session_enabled_at::text,
+                checkin_session_closed_at::text,
+                created_by, created_at::text
          from public.ccm_services
          where church_id = $1
          order by service_date desc, started_at desc
@@ -244,10 +272,24 @@ export async function getCcmDashboard(
           queryTenantLocalDb<{
             id: string; church_id: string; ministry_id: string; service_name: string;
             service_date: string; started_at: string; ended_at: string | null;
-            status: string; created_by: string | null; created_at: string;
+            status: string;
+            checkin_session_status: string;
+            checkin_session_starts_at: string | null;
+            checkin_session_ends_at: string | null;
+            checkin_session_token: string;
+            checkin_session_enabled_at: string | null;
+            checkin_session_closed_at: string | null;
+            created_by: string | null; created_at: string;
           }>(
             `select id, church_id, ministry_id, service_name, service_date::text,
-                    started_at::text, ended_at::text, status, created_by, created_at::text
+                    started_at::text, ended_at::text, status,
+                    checkin_session_status,
+                    checkin_session_starts_at::text,
+                    checkin_session_ends_at::text,
+                    checkin_session_token,
+                    checkin_session_enabled_at::text,
+                    checkin_session_closed_at::text,
+                    created_by, created_at::text
              from public.ccm_services where id = $1 and church_id = $2`,
             [serviceId, churchId],
           ),
@@ -403,10 +445,24 @@ export async function getCcmRoster(
         queryTenantLocalDb<{
           id: string; church_id: string; ministry_id: string; service_name: string;
           service_date: string; started_at: string; ended_at: string | null;
-          status: string; created_by: string | null; created_at: string;
+          status: string;
+          checkin_session_status: string;
+          checkin_session_starts_at: string | null;
+          checkin_session_ends_at: string | null;
+          checkin_session_token: string;
+          checkin_session_enabled_at: string | null;
+          checkin_session_closed_at: string | null;
+          created_by: string | null; created_at: string;
         }>(
           `select id, church_id, ministry_id, service_name, service_date::text,
-                  started_at::text, ended_at::text, status, created_by, created_at::text
+                  started_at::text, ended_at::text, status,
+                  checkin_session_status,
+                  checkin_session_starts_at::text,
+                  checkin_session_ends_at::text,
+                  checkin_session_token,
+                  checkin_session_enabled_at::text,
+                  checkin_session_closed_at::text,
+                  created_by, created_at::text
            from public.ccm_services where id = $1 and church_id = $2`,
           [serviceId, churchId],
         ),
@@ -676,10 +732,24 @@ export async function getEmergencyRoster(
         queryTenantLocalDb<{
           id: string; church_id: string; ministry_id: string; service_name: string;
           service_date: string; started_at: string; ended_at: string | null;
-          status: string; created_by: string | null; created_at: string;
+          status: string;
+          checkin_session_status: string;
+          checkin_session_starts_at: string | null;
+          checkin_session_ends_at: string | null;
+          checkin_session_token: string;
+          checkin_session_enabled_at: string | null;
+          checkin_session_closed_at: string | null;
+          created_by: string | null; created_at: string;
         }>(
           `select id, church_id, ministry_id, service_name, service_date::text,
-                  started_at::text, ended_at::text, status, created_by, created_at::text
+                  started_at::text, ended_at::text, status,
+                  checkin_session_status,
+                  checkin_session_starts_at::text,
+                  checkin_session_ends_at::text,
+                  checkin_session_token,
+                  checkin_session_enabled_at::text,
+                  checkin_session_closed_at::text,
+                  created_by, created_at::text
            from public.ccm_services where id = $1 and church_id = $2`,
           [serviceId, churchId],
         ),

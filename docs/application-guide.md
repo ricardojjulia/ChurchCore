@@ -236,6 +236,8 @@ The Children's Church Ministry module handles:
 
 The module is designed around child safety, custody restrictions, pickup verification, emergency workflows, and restricted access to sensitive child data.
 
+Children service detail now includes day check-in session controls (`draft`, `enabled`, `paused`, `closed`) with optional session start/end windows. Staff check-in only runs when the service is open and the day session is explicitly enabled, which prevents always-on check-in access outside an approved service session.
+
 The readiness link `/app/church-admin/children/dashboard?view=readiness` opens a focused safety view for active service state, room ratios, two-adult coverage, open incidents, and background-check coverage. It links directly to volunteer assignment, service management, room setup, incident review, and safety settings so each readiness issue has a clear resolution path.
 
 ### Events And Attendance

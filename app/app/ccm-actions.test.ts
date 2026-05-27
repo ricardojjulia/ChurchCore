@@ -66,8 +66,10 @@ vi.mock("@/lib/ccm-runtime", () => ({
 import {
   addCustodyRestrictionAction,
   checkoutChildAction,
+  checkinChildAction,
   closeServiceAction,
   openServiceAction,
+  updateCheckinSessionLifecycleAction,
 } from "@/app/app/ccm-actions";
 
 describe("ccm actions", () => {
@@ -147,6 +149,45 @@ describe("ccm actions", () => {
     );
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/children/services/service-22");
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/children/dashboard");
+  });
+
+  it("updates check-in session lifecycle in local fallback mode", async () => {
+    queryTenantLocalDbMock.mockResolvedValue({ rows: [] });
+
+    await updateCheckinSessionLifecycleAction({
+      serviceId: "service-22",
+      status: "enabled",
+      startsAt: "2026-05-27T08:30",
+      endsAt: "2026-05-27T12:00",
+    });
+
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("update public.ccm_services"),
+      ["service-22", "church-1", "enabled", "2026-05-27T08:30", "2026-05-27T12:00"],
+    );
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/children/services/service-22");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/children/checkin");
+  });
+
+  it("rejects check-in when service session is not enabled", async () => {
+    queryTenantLocalDbMock.mockResolvedValueOnce({
+      rows: [
+        {
+          status: "open",
+          checkin_session_status: "paused",
+          checkin_session_starts_at: null,
+          checkin_session_ends_at: null,
+        },
+      ],
+    });
+
+    await expect(
+      checkinChildAction({
+        serviceId: "service-22",
+        roomId: "room-1",
+        childName: "Ada Child",
+      }),
+    ).rejects.toThrow("Check-in session is not enabled for this service.");
   });
 
   it("returns session not found when checkout session does not exist", async () => {

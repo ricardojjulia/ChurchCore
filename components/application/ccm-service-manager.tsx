@@ -31,10 +31,15 @@ import {
 
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ccmNavItems } from "@/components/application/ccm-nav";
-import { closeServiceAction, openServiceAction } from "@/app/app/ccm-actions";
+import {
+  closeServiceAction,
+  openServiceAction,
+  updateCheckinSessionLifecycleAction,
+} from "@/app/app/ccm-actions";
 import type { ChurchAppSession } from "@/lib/auth";
 import type {
   CcmIncident,
+  CcmCheckinSessionLifecycleStatus,
   CcmRosterData,
   CcmService,
   CcmServiceStatus,
@@ -45,6 +50,13 @@ const SERVICE_STATUS_COLOR: Record<CcmServiceStatus, string> = {
   open: "teal",
   closed: "gray",
   emergency: "red",
+};
+
+const CHECKIN_SESSION_STATUS_COLOR: Record<CcmCheckinSessionLifecycleStatus, string> = {
+  draft: "gray",
+  enabled: "teal",
+  paused: "yellow",
+  closed: "red",
 };
 
 // ── Service list ──────────────────────────────────────────────────────────────
@@ -112,6 +124,7 @@ export function CcmServiceList({
                   <Table.Th>Service Name</Table.Th>
                   <Table.Th>Date</Table.Th>
                   <Table.Th>Status</Table.Th>
+                  <Table.Th>Check-in Session</Table.Th>
                   <Table.Th>Started</Table.Th>
                   <Table.Th>Ended</Table.Th>
                   <Table.Th>Actions</Table.Th>
@@ -130,6 +143,11 @@ export function CcmServiceList({
                         size="xs"
                       >
                         {s.status}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge color={CHECKIN_SESSION_STATUS_COLOR[s.checkinSessionStatus]} size="xs">
+                        {s.checkinSessionStatus}
                       </Badge>
                     </Table.Td>
                     <Table.Td>
@@ -219,7 +237,7 @@ export function CcmOpenServiceForm({ session }: { session: ChurchAppSession }) {
             </ThemeIcon>
             <Title order={4}>Service Opened</Title>
             <Text size="sm" c="dimmed">
-              {serviceName} is now live. Staff can begin checking in children.
+              {serviceName} is open in draft mode. Enable the day check-in session from service detail before staff check-in starts.
             </Text>
             <Group justify="center" gap="sm">
               <Button
@@ -308,11 +326,44 @@ export function CcmServiceDetail({
 }) {
   const [closing, startCloseTransition] = useTransition();
   const [closed, setClosed] = useState(roster.service.status === "closed");
+  const [checkinSessionStatus, setCheckinSessionStatus] = useState(
+    roster.service.checkinSessionStatus,
+  );
+  const [windowStartsAt, setWindowStartsAt] = useState(
+    roster.service.checkinSessionStartsAt
+      ? new Date(roster.service.checkinSessionStartsAt).toISOString().slice(0, 16)
+      : "",
+  );
+  const [windowEndsAt, setWindowEndsAt] = useState(
+    roster.service.checkinSessionEndsAt
+      ? new Date(roster.service.checkinSessionEndsAt).toISOString().slice(0, 16)
+      : "",
+  );
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [sessionPending, startSessionTransition] = useTransition();
 
   const handleClose = () => {
     startCloseTransition(async () => {
       await closeServiceAction(roster.service.id);
       setClosed(true);
+      setCheckinSessionStatus("closed");
+    });
+  };
+
+  const handleSessionStatusUpdate = (status: "enabled" | "paused" | "closed") => {
+    setSessionError(null);
+    startSessionTransition(async () => {
+      try {
+        await updateCheckinSessionLifecycleAction({
+          serviceId: roster.service.id,
+          status,
+          startsAt: windowStartsAt || undefined,
+          endsAt: windowEndsAt || undefined,
+        });
+        setCheckinSessionStatus(status);
+      } catch (error) {
+        setSessionError(error instanceof Error ? error.message : "Failed to update session status.");
+      }
     });
   };
 
@@ -336,20 +387,81 @@ export function CcmServiceDetail({
             <Badge color={SERVICE_STATUS_COLOR[closed ? "closed" : roster.service.status]}>
               {closed ? "closed" : roster.service.status}
             </Badge>
+            <Badge color={CHECKIN_SESSION_STATUS_COLOR[checkinSessionStatus]}>
+              check-in {checkinSessionStatus}
+            </Badge>
             <Text size="sm" c="dimmed">{roster.service.serviceDate}</Text>
           </Group>
-          {!closed && roster.service.status === "open" && (
-            <Button
-              color="red"
-              variant="light"
-              size="sm"
-              loading={closing}
-              onClick={handleClose}
-            >
-              Close Service
-            </Button>
-          )}
+          <Group gap="xs">
+            {!closed && roster.service.status === "open" && (
+              <Button
+                color="teal"
+                variant="light"
+                size="sm"
+                loading={sessionPending}
+                onClick={() => handleSessionStatusUpdate("enabled")}
+              >
+                Enable Session
+              </Button>
+            )}
+            {!closed && checkinSessionStatus === "enabled" && (
+              <Button
+                color="yellow"
+                variant="light"
+                size="sm"
+                loading={sessionPending}
+                onClick={() => handleSessionStatusUpdate("paused")}
+              >
+                Pause Session
+              </Button>
+            )}
+            {!closed && roster.service.status === "open" && (
+              <Button
+                color="red"
+                variant="light"
+                size="sm"
+                loading={closing}
+                onClick={handleClose}
+              >
+                Close Service
+              </Button>
+            )}
+          </Group>
         </Group>
+
+        <Paper withBorder p="md" radius="md">
+          <Title order={6}>Day Check-In Session Controls</Title>
+          <Text size="sm" c="dimmed" mt={4}>
+            Enable or pause today&apos;s parent check-in session and optionally constrain the time window.
+          </Text>
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm" mt="sm">
+            <TextInput
+              label="Session window start"
+              type="datetime-local"
+              value={windowStartsAt}
+              onChange={(event) => setWindowStartsAt(event.currentTarget.value)}
+            />
+            <TextInput
+              label="Session window end"
+              type="datetime-local"
+              value={windowEndsAt}
+              onChange={(event) => setWindowEndsAt(event.currentTarget.value)}
+            />
+          </SimpleGrid>
+          {sessionError ? (
+            <Alert color="red" mt="sm" icon={<AlertTriangle size={14} />}>
+              {sessionError}
+            </Alert>
+          ) : null}
+          <Group mt="sm" gap="xs">
+            <Badge color="churchBlue" variant="light">
+              token {roster.service.checkinSessionToken.slice(0, 8)}...
+            </Badge>
+            <Text size="xs" c="dimmed">
+              Use this service session token for scoped parent link rollout in the next slice.
+            </Text>
+          </Group>
+        </Paper>
 
         {closed && (
           <Alert color="teal" icon={<CheckCircle size={14} />}>

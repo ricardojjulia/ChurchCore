@@ -9,7 +9,8 @@ export default async function CcmCheckinPage() {
   if (session.appContext.roleId !== "church-admin") redirect(session.homePath);
 
   const services = await getCcmServiceList(session);
-  const activeService = services.find((s) => s.status === "open") ?? null;
+  const activeService =
+    services.find((s) => s.status === "open" && s.checkinSessionStatus === "enabled") ?? null;
 
   return <CcmCheckinKiosk session={session} activeService={activeService} />;
 }

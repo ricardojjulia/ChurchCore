@@ -83,7 +83,7 @@ export function CcmCheckinKiosk({ session, activeService }: Props) {
       <Stack gap="lg" style={{ maxWidth: 520 }}>
         {!activeService && (
           <Alert color="orange" icon={<AlertTriangle size={16} />}>
-            No active service session. Open a service before checking in children.
+            No enabled day check-in session. Open a service and enable its session before checking in children.
           </Alert>
         )}
 
