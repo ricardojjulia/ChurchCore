@@ -49,16 +49,28 @@ const readinessTargets = [
     text: "Readiness view",
     hasTargetState: true,
   },
-  { route: "/app/church-admin/children/dashboard?view=readiness", text: "Volunteers" },
+  {
+    route: "/app/church-admin/children/dashboard?view=readiness",
+    text: "Volunteers",
+    hasTargetState: true,
+  },
   {
     route: "/app/church-admin/volunteers/schedules?view=unassigned",
     text: "Service Plans",
     hasTargetState: true,
   },
   { route: "/app/church-admin/giving?view=exceptions", text: "Post to GL", hasTargetState: true },
-  { route: "/app/church-admin/finance/journals?view=drafts", text: "Readiness view" },
-  { route: "/app/communications?view=readiness", text: "Communications Hub" },
-  { route: "/app/reports?range=90d", text: "Reports" },
+  {
+    route: "/app/church-admin/finance/journals?view=drafts",
+    text: "Readiness view",
+    hasTargetState: true,
+  },
+  {
+    route: "/app/communications?view=readiness",
+    text: "Communications Hub",
+    hasTargetState: true,
+  },
+  { route: "/app/reports?range=90d", text: "Reports", hasTargetState: true },
   {
     route: "/app/church-admin/workflows?status=open",
     text: "Readiness view",

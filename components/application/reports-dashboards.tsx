@@ -22,6 +22,8 @@ import {
   UsersRound,
 } from "lucide-react";
 
+import { ReadinessTargetState } from "@/components/application/readiness-target-state";
+import type { ReadinessSummary } from "@/lib/readiness-contract";
 import type {
   EventReportsData,
   FundBreakdownRow,
@@ -318,10 +320,16 @@ export function ReportsOverviewDashboard({
   members,
   events,
   giving,
+  readinessView = false,
+  dataSource = "live",
+  readinessSummary = null,
 }: {
   members: MemberReportsData;
   events: EventReportsData;
   giving: GivingReportsData;
+  readinessView?: boolean;
+  dataSource?: "preview" | "live";
+  readinessSummary?: ReadinessSummary | null;
 }) {
   const cards = [
     {
@@ -352,9 +360,51 @@ export function ReportsOverviewDashboard({
       secondary: `${formatInteger(giving.summary.firstTimeGiverCount)} first-time givers`,
     },
   ];
+  const hasAnyReportData =
+    members.summary.totalPeople > 0 ||
+    events.summary.totalEvents > 0 ||
+    giving.summary.giftCount > 0;
+  const readinessState =
+    dataSource === "preview"
+      ? {
+          state: "no-backend" as const,
+          title: "Reports target unavailable",
+          description:
+            "Reports can be previewed, but live member, event, giving, finance, and budget coverage checks need tenant data.",
+          detail: "Configure the tenant backend before using this target to clear readiness.",
+        }
+      : !hasAnyReportData
+        ? {
+            state: "empty" as const,
+            title: "Reports need live operating data",
+            description:
+              "Add people, events, giving, finance journals, and budgets before reports can support readiness decisions.",
+          }
+        : readinessSummary && readinessSummary.issueCount > 0
+          ? {
+              state: "validation-error" as const,
+              title: "Report inputs need attention",
+              description: readinessSummary.recommendedAction,
+              detail: readinessSummary.detail,
+            }
+          : {
+              state: "completed" as const,
+              title: "Reporting readiness is clear",
+              description:
+                "Member, event, giving, finance, and budget reporting inputs are present for the selected readiness window.",
+              detail: readinessSummary?.detail,
+            };
 
   return (
     <Stack gap="lg">
+      {readinessView ? (
+        <ReadinessTargetState
+          {...readinessState}
+          primaryAction={{ label: "Back to readiness", href: "/app/church-admin/readiness" }}
+          secondaryAction={{ label: "Member report", href: `/app/reports/members?range=${members.range}` }}
+        />
+      ) : null}
+
       <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
         {cards.map((card) => (
           <Paper

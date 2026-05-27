@@ -25,6 +25,7 @@ import {
 import { ApplicationShell } from "@/components/application/app-shell";
 import { CcmRoomCard } from "@/components/application/ccm-room-card";
 import { ccmNavItems } from "@/components/application/ccm-nav";
+import { ReadinessTargetState } from "@/components/application/readiness-target-state";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { CcmDashboardData, CcmService } from "@/lib/ccm-types";
 
@@ -34,6 +35,7 @@ interface Props {
   services: CcmService[];
   activeServiceId: string | null;
   readinessView?: boolean;
+  dataSource?: "preview" | "live";
 }
 
 export function CcmDashboardView({
@@ -42,6 +44,7 @@ export function CcmDashboardView({
   services,
   activeServiceId,
   readinessView = false,
+  dataSource = "live",
 }: Props) {
   const serviceOptions = services.map((s) => ({
     value: s.id,
@@ -59,6 +62,36 @@ export function CcmDashboardView({
     twoAdultViolations.length +
     expiredChecks.length +
     (dashboard?.openIncidents.length ?? 0);
+  const readinessState =
+    dataSource === "preview"
+      ? {
+          state: "no-backend" as const,
+          title: "Children's readiness target unavailable",
+          description:
+            "Children's ministry readiness can be previewed, but live service, room, volunteer, incident, and pickup checks need tenant data.",
+          detail: "Configure the tenant backend before using this target to clear readiness.",
+        }
+      : services.length === 0 || !dashboard
+        ? {
+            state: "empty" as const,
+            title: "No children's service is open",
+            description:
+              "Open a children's ministry service before check-in so room ratios, two-adult coverage, incidents, and volunteer safety can be verified.",
+          }
+        : readinessIssueCount === 0
+          ? {
+              state: "completed" as const,
+              title: "Children's ministry readiness is clear",
+              description:
+                "The active service has no open safety, ratio, two-adult, incident, or background-check gaps.",
+            }
+          : {
+              state: "validation-error" as const,
+              title: "Children's ministry safety needs attention",
+              description:
+                "Resolve the service, volunteer, incident, room-ratio, or background-check gaps before marking children readiness complete.",
+              detail: `${readinessIssueCount} item${readinessIssueCount === 1 ? "" : "s"} need review.`,
+            };
 
   return (
     <ApplicationShell
@@ -116,34 +149,41 @@ export function CcmDashboardView({
         </Group>
 
         {readinessView ? (
-          <Paper withBorder radius="lg" p="md" bg="#f8fbff">
-            <Group justify="space-between" gap="md" align="flex-start">
-              <div>
-                <Text fw={700} size="sm">
-                  Readiness view: children&apos;s ministry safety checks.
-                </Text>
-                <Text size="sm" c="dimmed" mt={4}>
-                  {readinessIssueCount > 0
-                    ? `${readinessIssueCount} item${readinessIssueCount === 1 ? "" : "s"} need review before check-in is ready.`
-                    : "Open service, room ratios, two-adult coverage, incidents, and background checks are clear."}
-                </Text>
-              </div>
-              <Group gap="md">
-                <Text component={Link} href="/app/church-admin/children/services" size="sm" fw={700} c="churchBlue">
-                  Services
-                </Text>
-                <Text component={Link} href="/app/church-admin/children/volunteers" size="sm" fw={700} c="churchBlue">
-                  Volunteers
-                </Text>
-                <Text component={Link} href="/app/church-admin/children/incidents" size="sm" fw={700} c="churchBlue">
-                  Incidents
-                </Text>
-                <Text component={Link} href="/app/church-admin/readiness" size="sm" fw={700} c="churchBlue">
-                  Back to readiness
-                </Text>
+          <>
+            <Paper withBorder radius="lg" p="md" bg="#f8fbff">
+              <Group justify="space-between" gap="md" align="flex-start">
+                <div>
+                  <Text fw={700} size="sm">
+                    Readiness view: children&apos;s ministry safety checks.
+                  </Text>
+                  <Text size="sm" c="dimmed" mt={4}>
+                    {readinessIssueCount > 0
+                      ? `${readinessIssueCount} item${readinessIssueCount === 1 ? "" : "s"} need review before check-in is ready.`
+                      : "Open service, room ratios, two-adult coverage, incidents, and background checks are clear."}
+                  </Text>
+                </div>
+                <Group gap="md">
+                  <Text component={Link} href="/app/church-admin/children/services" size="sm" fw={700} c="churchBlue">
+                    Services
+                  </Text>
+                  <Text component={Link} href="/app/church-admin/children/volunteers" size="sm" fw={700} c="churchBlue">
+                    Volunteers
+                  </Text>
+                  <Text component={Link} href="/app/church-admin/children/incidents" size="sm" fw={700} c="churchBlue">
+                    Incidents
+                  </Text>
+                  <Text component={Link} href="/app/church-admin/readiness" size="sm" fw={700} c="churchBlue">
+                    Back to readiness
+                  </Text>
+                </Group>
               </Group>
-            </Group>
-          </Paper>
+            </Paper>
+            <ReadinessTargetState
+              {...readinessState}
+              primaryAction={{ label: "Back to readiness", href: "/app/church-admin/readiness" }}
+              secondaryAction={{ label: "Open services", href: "/app/church-admin/children/services" }}
+            />
+          </>
         ) : null}
 
         {/* Safety alert banners */}

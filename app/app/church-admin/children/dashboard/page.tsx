@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { CcmDashboardView } from "@/components/application/ccm-dashboard";
 import { requireChurchSession } from "@/lib/auth";
 import { getCcmDashboard, getCcmServiceList } from "@/lib/ccm-data";
+import { hasTenantBackendEnv } from "@/lib/supabase/tenant";
 
 export default async function CcmDashboardPage({
   searchParams = Promise.resolve({}),
@@ -27,6 +28,7 @@ export default async function CcmDashboardPage({
       services={services}
       activeServiceId={activeService?.id ?? null}
       readinessView={view === "readiness"}
+      dataSource={hasTenantBackendEnv() && session.source === "supabase" ? "live" : "preview"}
     />
   );
 }

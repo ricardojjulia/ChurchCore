@@ -107,8 +107,8 @@ Status values:
 | App shell and role landing | `app/app/page.tsx`, `app/app/[role]/page.tsx`, `app/layout.tsx`, `components/application/app-shell.tsx`, `components/application/portal-workspace.tsx` | auth guard, role nav, active-path state, church-context rendering | Missing |
 | Member portal | `app/app/member/directory/page.tsx`, `app/app/member/family/page.tsx`, `app/app/member/data-rights/page.tsx`, `app/app/member/giving/page.tsx`, `app/app/member/schedule/page.tsx`, `app/app/member/ministries/page.tsx`, `app/app/member/groups/page.tsx` | render, empty state, hydrated state, permissions, action wiring | Missing |
 | Pastor and elders | `app/app/pastor/people/page.tsx`, `app/app/elders/discernment/page.tsx`, `app/app/elders/discernment/[sessionId]/page.tsx`, `app/app/elders-actions.ts` | role gate, render, discernment flow validation | Missing |
-| Communications | `app/app/communications/page.tsx`, `app/app/communications-actions.ts`, `components/application/communications-hub.tsx` | channel toggles, validation, preview-mode behavior | Missing |
-| Reports | `app/app/reports/page.tsx`, `app/app/reports/events/page.tsx`, `app/app/reports/giving/page.tsx`, `app/app/reports/members/page.tsx`, `components/application/reports-dashboards.tsx` | data rendering, chart fallbacks, role visibility | Missing |
+| Communications | `app/app/communications/page.tsx`, `app/app/communications-actions.ts`, `components/application/communications-hub.tsx` | channel toggles, validation, preview-mode behavior, readiness target-state evidence | Started |
+| Reports | `app/app/reports/page.tsx`, `app/app/reports/events/page.tsx`, `app/app/reports/giving/page.tsx`, `app/app/reports/members/page.tsx`, `components/application/reports-dashboards.tsx` | data rendering, chart fallbacks, role visibility, readiness target-state evidence | Started |
 | Council and ministry forge | `app/app/council/forge/page.tsx`, `app/app/church-admin/ministry/page.tsx`, `app/app/church-admin/ministry/[id]/page.tsx`, `components/application/ministry-forge-dashboard.tsx`, track components | dashboard aggregation, per-track rendering, disclaimer presence, metric derivation | Missing |
 
 ### Church Admin Operational Routes
@@ -139,7 +139,7 @@ Status values:
 | Component family | Examples | Required tests | Status |
 | --- | --- | --- | --- |
 | Navigation | `components/application/member-bottom-nav.tsx`, `components/application/portal-workspace.tsx`, `components/application/ccm-nav.ts` | visible items, active-path logic, role filtering | Foundation |
-| Workspace components | people, events, finance, ministry, reports, communications | render, empty state, hydrated state, CTA visibility | Started: shared readiness target-state component plus browser assertions for settings, accounts, people, events, volunteers, giving/finance, and workflows |
+| Workspace components | people, events, finance, ministry, reports, communications | render, empty state, hydrated state, CTA visibility | Started: shared readiness target-state component plus browser assertions for settings, accounts, people, events, children, volunteers, giving/finance, finance journals, communications, reports, and workflows |
 | Sensitive UI | CCM, finance import, data-rights, giving, pastoral care | masking, disclaimers, validation, confirmation states | Missing |
 
 ## Immediate Execution Order

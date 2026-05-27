@@ -31,6 +31,7 @@ import {
 
 import { broadcastMessageAction } from "@/app/app/communications-actions";
 import { ApplicationShell } from "@/components/application/app-shell";
+import { ReadinessTargetState } from "@/components/application/readiness-target-state";
 import type { ChurchAppSession } from "@/lib/auth";
 import type {
   CommunicationLogEntry,
@@ -104,9 +105,13 @@ function LogRow({ log }: { log: CommunicationLogEntry }) {
 export function CommunicationsHub({
   session,
   data,
+  readinessView = false,
+  dataSource = "live",
 }: {
   session: ChurchAppSession;
   data: CommunicationsHubData;
+  readinessView?: boolean;
+  dataSource?: "preview" | "live";
 }) {
   const { recentLogs, recipients } = data;
 
@@ -161,6 +166,45 @@ export function CommunicationsHub({
   const optedOutCount = selectedRecipients.filter(
     (r) => (channel === "email" ? !r.emailOptIn : !r.smsOptIn),
   ).length;
+  const pendingCount = recentLogs.filter((log) => log.status === "queued").length;
+  const failedCount = recentLogs.filter((log) => log.status === "failed").length;
+  const bouncedCount = recentLogs.filter((log) => log.status === "bounced").length;
+  const contactGapCount = recipients.filter((recipient) => !recipient.email && !recipient.phone).length;
+  const consentGapCount = recipients.filter(
+    (recipient) => !recipient.emailOptIn && !recipient.smsOptIn,
+  ).length;
+  const readinessIssueCount =
+    pendingCount + failedCount + bouncedCount + contactGapCount + consentGapCount;
+  const readinessState =
+    dataSource === "preview"
+      ? {
+          state: "no-backend" as const,
+          title: "Communications target unavailable",
+          description:
+            "Communications readiness can be previewed, but live sends, delivery failures, bounces, consent, and contact checks need tenant data.",
+          detail: "Configure the tenant backend before using this target to clear readiness.",
+        }
+      : recipients.length === 0 && recentLogs.length === 0
+        ? {
+            state: "empty" as const,
+            title: "No communications data yet",
+            description:
+              "Add recipients or send a message before using communications readiness as an operational signal.",
+          }
+        : readinessIssueCount === 0
+          ? {
+              state: "completed" as const,
+              title: "Communications readiness is clear",
+              description:
+                "No queued sends, failed delivery, bounced messages, missing contacts, or consent gaps need review.",
+            }
+          : {
+              state: "validation-error" as const,
+              title: "Communications readiness needs attention",
+              description:
+                "Resolve pending sends, delivery failures, bounces, missing contacts, or consent gaps before communications readiness is complete.",
+              detail: `${readinessIssueCount} item${readinessIssueCount === 1 ? "" : "s"} need review.`,
+            };
 
   function handleSelectAll() {
     setSelectedIds(filteredRecipients.map((r) => r.profileId));
@@ -229,6 +273,33 @@ export function CommunicationsHub({
         </Button>
       }
     >
+      {readinessView ? (
+        <Stack gap="md" mb="lg">
+          <Paper withBorder radius="lg" p="md" bg="#f8fbff">
+            <Group justify="space-between" gap="md" align="flex-start">
+              <div>
+                <Text fw={700} size="sm">
+                  Readiness view: communications delivery and consent.
+                </Text>
+                <Text size="sm" c="dimmed" mt={4}>
+                  {readinessIssueCount > 0
+                    ? `${readinessIssueCount} item${readinessIssueCount === 1 ? "" : "s"} need review across sends, bounces, contacts, and consent.`
+                    : "Queued sends, failed delivery, bounces, contact gaps, and consent gaps are clear."}
+                </Text>
+              </div>
+              <Text component="a" href="/app/church-admin/readiness" size="sm" fw={700} c="churchBlue">
+                Back to readiness
+              </Text>
+            </Group>
+          </Paper>
+          <ReadinessTargetState
+            {...readinessState}
+            primaryAction={{ label: "Back to readiness", href: "/app/church-admin/readiness" }}
+            secondaryAction={{ label: "Compose message", href: "/app/communications" }}
+          />
+        </Stack>
+      ) : null}
+
       <Tabs defaultValue="log" radius="xl">
         <Tabs.List>
           <Tabs.Tab value="log" leftSection={<Mail size={14} />}>

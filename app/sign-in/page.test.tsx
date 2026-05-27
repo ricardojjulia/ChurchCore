@@ -10,6 +10,7 @@ const {
   getPreferredSupabaseSurfaceForRedirectMock,
   hasSupabaseEnvForSurfaceMock,
   toFriendlySupabaseErrorMessageMock,
+  cookiesMock,
 } = vi.hoisted(() => ({
   redirectMock: vi.fn((url: string) => {
     throw { url };
@@ -23,10 +24,16 @@ const {
   ),
   hasSupabaseEnvForSurfaceMock: vi.fn(),
   toFriendlySupabaseErrorMessageMock: vi.fn((value: string) => value),
+  cookiesMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
   redirect: redirectMock,
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
+vi.mock("next/headers", () => ({
+  cookies: cookiesMock,
 }));
 
 vi.mock("next/link", () => ({
@@ -83,6 +90,9 @@ describe("sign-in page", () => {
         target?.startsWith("/control") ? "control-plane" : "tenant",
     );
     hasSupabaseEnvForSurfaceMock.mockReturnValue(false);
+    cookiesMock.mockResolvedValue({
+      get: vi.fn(() => undefined),
+    });
   });
 
   it("renders preview profile picker when the preferred surface is not configured", async () => {
