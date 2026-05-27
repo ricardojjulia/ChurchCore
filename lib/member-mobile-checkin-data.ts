@@ -22,6 +22,21 @@ export type MemberMobileCheckInOption = {
   status: "upcoming" | "open" | "checked_in" | "closed";
 };
 
+async function hasPublicColumn(table: string, column: string): Promise<boolean> {
+  const result = await queryTenantLocalDb<{ exists: boolean }>(
+    `select exists (
+       select 1
+       from information_schema.columns
+       where table_schema = 'public'
+         and table_name = $1
+         and column_name = $2
+     ) as exists`,
+    [table, column],
+  );
+
+  return Boolean(result.rows[0]?.exists);
+}
+
 function deriveStatus(option: {
   windowStartAt: string;
   windowEndAt: string;
@@ -53,56 +68,124 @@ export async function getMemberMobileCheckInOptions(
   const profileId = session.profile.id;
 
   if (shouldUseLocalTenantFallback()) {
-    const result = await queryTenantLocalDb<{
-      event_id: string;
-      title: string;
-      category: string;
-      starts_at: string;
-      ends_at: string;
-      window_start_at: string;
-      window_end_at: string;
-      access_code_required: boolean;
-      allow_household_check_in: boolean;
-      location_required: boolean;
-      checked_in: boolean;
-    }>(
-      `
-        select
-          event.id as event_id,
-          event.title,
-          event.category,
-          event.starts_at,
-          event.ends_at,
-          coalesce(settings.mobile_member_check_in_starts_at, event.starts_at) as window_start_at,
-          coalesce(settings.mobile_member_check_in_ends_at, event.ends_at) as window_end_at,
-          (settings.mobile_member_check_in_access_code is not null and length(trim(settings.mobile_member_check_in_access_code)) > 0) as access_code_required,
-          settings.mobile_member_check_in_allow_household as allow_household_check_in,
-          (
-            settings.mobile_member_check_in_location_lat is not null
-            and settings.mobile_member_check_in_location_lng is not null
-            and settings.mobile_member_check_in_location_radius_meters is not null
-          ) as location_required,
-          exists (
-            select 1
-            from public.attendance attendance
-            where attendance.church_id = event.church_id
-              and attendance.event_id = event.id
-              and attendance.profile_id = $2
-              and attendance.status = 'present'
-          ) as checked_in
-        from public.event_registration_settings settings
-        join public.events event
-          on event.id = settings.event_id
-        where event.church_id = $1
-          and settings.mobile_member_check_in_enabled = true
-          and event.visibility in ('public', 'members')
-          and event.starts_at >= timezone('utc', now()) - interval '1 day'
-          and event.starts_at <= timezone('utc', now()) + interval '21 days'
-        order by coalesce(settings.mobile_member_check_in_starts_at, event.starts_at) asc
-        limit 20
-      `,
-      [churchId, profileId],
+    const hasEnabledColumn = await hasPublicColumn(
+      "event_registration_settings",
+      "mobile_member_check_in_enabled",
     );
+
+    if (!hasEnabledColumn) {
+      return [];
+    }
+
+    const hasAdvancedColumns =
+      (await hasPublicColumn("event_registration_settings", "mobile_member_check_in_starts_at")) &&
+      (await hasPublicColumn("event_registration_settings", "mobile_member_check_in_ends_at")) &&
+      (await hasPublicColumn("event_registration_settings", "mobile_member_check_in_access_code")) &&
+      (await hasPublicColumn("event_registration_settings", "mobile_member_check_in_allow_household")) &&
+      (await hasPublicColumn("event_registration_settings", "mobile_member_check_in_location_lat")) &&
+      (await hasPublicColumn("event_registration_settings", "mobile_member_check_in_location_lng")) &&
+      (await hasPublicColumn(
+        "event_registration_settings",
+        "mobile_member_check_in_location_radius_meters",
+      ));
+
+    const result = hasAdvancedColumns
+      ? await queryTenantLocalDb<{
+          event_id: string;
+          title: string;
+          category: string;
+          starts_at: string;
+          ends_at: string;
+          window_start_at: string;
+          window_end_at: string;
+          access_code_required: boolean;
+          allow_household_check_in: boolean;
+          location_required: boolean;
+          checked_in: boolean;
+        }>(
+          `
+            select
+              event.id as event_id,
+              event.title,
+              event.category,
+              event.starts_at,
+              event.ends_at,
+              coalesce(settings.mobile_member_check_in_starts_at, event.starts_at) as window_start_at,
+              coalesce(settings.mobile_member_check_in_ends_at, event.ends_at) as window_end_at,
+              (settings.mobile_member_check_in_access_code is not null and length(trim(settings.mobile_member_check_in_access_code)) > 0) as access_code_required,
+              settings.mobile_member_check_in_allow_household as allow_household_check_in,
+              (
+                settings.mobile_member_check_in_location_lat is not null
+                and settings.mobile_member_check_in_location_lng is not null
+                and settings.mobile_member_check_in_location_radius_meters is not null
+              ) as location_required,
+              exists (
+                select 1
+                from public.attendance attendance
+                where attendance.church_id = event.church_id
+                  and attendance.event_id = event.id
+                  and attendance.profile_id = $2
+                  and attendance.status = 'present'
+              ) as checked_in
+            from public.event_registration_settings settings
+            join public.events event
+              on event.id = settings.event_id
+            where event.church_id = $1
+              and settings.mobile_member_check_in_enabled = true
+              and event.visibility in ('public', 'members')
+              and event.starts_at >= timezone('utc', now()) - interval '1 day'
+              and event.starts_at <= timezone('utc', now()) + interval '21 days'
+            order by coalesce(settings.mobile_member_check_in_starts_at, event.starts_at) asc
+            limit 20
+          `,
+          [churchId, profileId],
+        )
+      : await queryTenantLocalDb<{
+          event_id: string;
+          title: string;
+          category: string;
+          starts_at: string;
+          ends_at: string;
+          window_start_at: string;
+          window_end_at: string;
+          access_code_required: boolean;
+          allow_household_check_in: boolean;
+          location_required: boolean;
+          checked_in: boolean;
+        }>(
+          `
+            select
+              event.id as event_id,
+              event.title,
+              event.category,
+              event.starts_at,
+              event.ends_at,
+              event.starts_at as window_start_at,
+              event.ends_at as window_end_at,
+              false as access_code_required,
+              false as allow_household_check_in,
+              false as location_required,
+              exists (
+                select 1
+                from public.attendance attendance
+                where attendance.church_id = event.church_id
+                  and attendance.event_id = event.id
+                  and attendance.profile_id = $2
+                  and attendance.status = 'present'
+              ) as checked_in
+            from public.event_registration_settings settings
+            join public.events event
+              on event.id = settings.event_id
+            where event.church_id = $1
+              and settings.mobile_member_check_in_enabled = true
+              and event.visibility in ('public', 'members')
+              and event.starts_at >= timezone('utc', now()) - interval '1 day'
+              and event.starts_at <= timezone('utc', now()) + interval '21 days'
+            order by event.starts_at asc
+            limit 20
+          `,
+          [churchId, profileId],
+        );
 
     return result.rows.map((row) => ({
       eventId: row.event_id,

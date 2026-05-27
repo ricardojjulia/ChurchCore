@@ -56,6 +56,21 @@ export type PublicCcmCheckoutSessionOption = {
   status: "checked_in" | "late_pickup" | "transferred";
 };
 
+async function hasPublicColumn(table: string, column: string): Promise<boolean> {
+  const result = await queryTenantLocalDb<{ exists: boolean }>(
+    `select exists (
+       select 1
+       from information_schema.columns
+       where table_schema = 'public'
+         and table_name = $1
+         and column_name = $2
+     ) as exists`,
+    [table, column],
+  );
+
+  return Boolean(result.rows[0]?.exists);
+}
+
 export function evaluatePublicCcmSessionAvailability(
   record: PublicCcmSessionRecord | null,
   mode: PublicCcmSessionMode,
@@ -158,39 +173,84 @@ export async function getPublicCcmSessionByToken(
   }
 
   if (shouldUseLocalTenantFallback() || !hasTenantBackendEnv()) {
-    const result = await queryTenantLocalDb<{
-      service_id: string;
-      church_id: string;
-      ministry_id: string;
-      service_name: string;
-      service_date: string;
-      status: "open" | "closed" | "emergency";
-      checkin_session_status: PublicCcmSessionStatus;
-      checkin_session_starts_at: string | null;
-      checkin_session_ends_at: string | null;
-      checkin_session_enabled_at: string | null;
-      checkin_session_token: string;
-      church_name: string;
-    }>(
-      `select
-        s.id as service_id,
-        s.church_id,
-        s.ministry_id,
-         s.service_name,
-         s.service_date::text,
-         s.status,
-         s.checkin_session_status,
-         s.checkin_session_starts_at::text,
-         s.checkin_session_ends_at::text,
-         s.checkin_session_enabled_at::text,
-         s.checkin_session_token,
-         c.name as church_name
-       from public.ccm_services s
-       join public.churches c on c.id = s.church_id
-       where s.checkin_session_token = $1
-       limit 1`,
-      [normalizedToken],
-    );
+    const hasTokenColumn = await hasPublicColumn("ccm_services", "checkin_session_token");
+    if (!hasTokenColumn) {
+      return null;
+    }
+
+    const hasSessionColumns =
+      (await hasPublicColumn("ccm_services", "checkin_session_status")) &&
+      (await hasPublicColumn("ccm_services", "checkin_session_starts_at")) &&
+      (await hasPublicColumn("ccm_services", "checkin_session_ends_at")) &&
+      (await hasPublicColumn("ccm_services", "checkin_session_enabled_at"));
+
+    const result = hasSessionColumns
+      ? await queryTenantLocalDb<{
+          service_id: string;
+          church_id: string;
+          ministry_id: string;
+          service_name: string;
+          service_date: string;
+          status: "open" | "closed" | "emergency";
+          checkin_session_status: PublicCcmSessionStatus;
+          checkin_session_starts_at: string | null;
+          checkin_session_ends_at: string | null;
+          checkin_session_enabled_at: string | null;
+          checkin_session_token: string;
+          church_name: string;
+        }>(
+          `select
+            s.id as service_id,
+            s.church_id,
+            s.ministry_id,
+            s.service_name,
+            s.service_date::text,
+            s.status,
+            s.checkin_session_status,
+            s.checkin_session_starts_at::text,
+            s.checkin_session_ends_at::text,
+            s.checkin_session_enabled_at::text,
+            s.checkin_session_token,
+            c.name as church_name
+           from public.ccm_services s
+           join public.churches c on c.id = s.church_id
+           where s.checkin_session_token = $1
+           limit 1`,
+          [normalizedToken],
+        )
+      : await queryTenantLocalDb<{
+          service_id: string;
+          church_id: string;
+          ministry_id: string;
+          service_name: string;
+          service_date: string;
+          status: "open" | "closed" | "emergency";
+          checkin_session_status: PublicCcmSessionStatus;
+          checkin_session_starts_at: string | null;
+          checkin_session_ends_at: string | null;
+          checkin_session_enabled_at: string | null;
+          checkin_session_token: string;
+          church_name: string;
+        }>(
+          `select
+            s.id as service_id,
+            s.church_id,
+            s.ministry_id,
+            s.service_name,
+            s.service_date::text,
+            s.status,
+            'draft'::text as checkin_session_status,
+            null::text as checkin_session_starts_at,
+            null::text as checkin_session_ends_at,
+            null::text as checkin_session_enabled_at,
+            s.checkin_session_token,
+            c.name as church_name
+           from public.ccm_services s
+           join public.churches c on c.id = s.church_id
+           where s.checkin_session_token = $1
+           limit 1`,
+          [normalizedToken],
+        );
 
     const row = result.rows[0];
     if (!row) return null;
