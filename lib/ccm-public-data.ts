@@ -24,6 +24,7 @@ export type PublicCcmSessionRecord = {
   sessionStatus: PublicCcmSessionStatus;
   sessionStartsAt: string | null;
   sessionEndsAt: string | null;
+  sessionEnabledAt: string | null;
   token: string;
 };
 
@@ -36,6 +37,7 @@ export type PublicCcmSessionAvailability = {
     | "draft"
     | "paused"
     | "closed"
+    | "session-expired"
     | "window-not-open"
     | "window-closed";
   title: string;
@@ -99,6 +101,19 @@ export function evaluatePublicCcmSessionAvailability(
     };
   }
 
+  if (!record.sessionEndsAt && record.sessionEnabledAt) {
+    const enabledAt = new Date(record.sessionEnabledAt).getTime();
+    const maxDurationMs = 24 * 60 * 60 * 1000;
+
+    if (!Number.isNaN(enabledAt) && nowMs - enabledAt > maxDurationMs) {
+      return {
+        state: "session-expired",
+        title: "Session expired",
+        detail: "This day session link has expired and must be re-enabled by staff.",
+      };
+    }
+  }
+
   if (record.sessionStartsAt && record.sessionEndsAt) {
     const startsAt = new Date(record.sessionStartsAt).getTime();
     const endsAt = new Date(record.sessionEndsAt).getTime();
@@ -153,6 +168,7 @@ export async function getPublicCcmSessionByToken(
       checkin_session_status: PublicCcmSessionStatus;
       checkin_session_starts_at: string | null;
       checkin_session_ends_at: string | null;
+      checkin_session_enabled_at: string | null;
       checkin_session_token: string;
       church_name: string;
     }>(
@@ -166,6 +182,7 @@ export async function getPublicCcmSessionByToken(
          s.checkin_session_status,
          s.checkin_session_starts_at::text,
          s.checkin_session_ends_at::text,
+         s.checkin_session_enabled_at::text,
          s.checkin_session_token,
          c.name as church_name
        from public.ccm_services s
@@ -189,6 +206,7 @@ export async function getPublicCcmSessionByToken(
       sessionStatus: row.checkin_session_status,
       sessionStartsAt: row.checkin_session_starts_at,
       sessionEndsAt: row.checkin_session_ends_at,
+      sessionEnabledAt: row.checkin_session_enabled_at,
       token: row.checkin_session_token,
     };
   }
@@ -201,7 +219,7 @@ export async function getPublicCcmSessionByToken(
   const { data, error } = await supabase
     .from("ccm_services")
     .select(
-      "id, church_id, ministry_id, service_name, service_date, status, checkin_session_status, checkin_session_starts_at, checkin_session_ends_at, checkin_session_token, churches!inner(name)",
+      "id, church_id, ministry_id, service_name, service_date, status, checkin_session_status, checkin_session_starts_at, checkin_session_ends_at, checkin_session_enabled_at, checkin_session_token, churches!inner(name)",
     )
     .eq("checkin_session_token", normalizedToken)
     .maybeSingle();
@@ -225,6 +243,9 @@ export async function getPublicCcmSessionByToken(
     sessionStatus: data.checkin_session_status as PublicCcmSessionStatus,
     sessionStartsAt: data.checkin_session_starts_at ? String(data.checkin_session_starts_at) : null,
     sessionEndsAt: data.checkin_session_ends_at ? String(data.checkin_session_ends_at) : null,
+    sessionEnabledAt: data.checkin_session_enabled_at
+      ? String(data.checkin_session_enabled_at)
+      : null,
     token: String(data.checkin_session_token),
   };
 }

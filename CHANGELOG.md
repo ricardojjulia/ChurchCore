@@ -31,6 +31,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added `lib/ccm-public-data.ts` and `lib/ccm-public-data.test.ts` to load and evaluate token-scoped children session availability for public portal links.
 - Added public server actions in `app/portal/children/actions.ts` for parent self-service check-in and checkout submission flows using session token scoping, room/session validation, PIN verification, and safe availability guards.
 - Added parent self-service forms in `components/portal/children-session-actions.tsx` to submit check-in and checkout actions directly from available session links.
+- Added public children session anti-abuse controls with request fingerprinting and failed-attempt rate limiting backed by `ccm_public_session_attempts` (`supabase/migrations/20260527191000_ccm_public_session_attempts.sql`).
+- Added parent checkout child-safety enforcement in `app/portal/children/actions.ts` to block custody-restricted release names and require authorized-pickup name matches when a child profile has pickup records.
 - Added migration `supabase/migrations/20260527100000_member_mobile_checkin_foundation.sql` to store event-level mobile check-in configuration and extend attendance source metadata checks.
 - Split giving and finance readiness summary construction into a module-owned builder with focused coverage for missing giving page, failed donation, GL posting, draft journal, and ready states.
 - Split suggested workflow readiness summary construction into a module-owned builder with focused coverage for ready, triage, and blocked workflow backlog states.
@@ -54,6 +56,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Updated Children Services UI in `components/application/ccm-service-manager.tsx` to show check-in session status and provide enable/pause controls plus optional session window inputs.
 - Updated Children Services detail controls in `components/application/ccm-service-manager.tsx` to expose direct parent check-in and checkout session URLs using the day session token.
 - Updated portal children session pages to load live room/session options and render interactive parent self-service submissions when session availability is `available`.
+- Updated public session availability evaluation in `lib/ccm-public-data.ts` to expire long-running enabled sessions without an end window after 24 hours (`session-expired` state).
 - Simplified member mobile bottom navigation to a phone-first primary action set (home, calendar, groups, schedule, family), increased touch-target sizing, and kept home active for auxiliary member routes.
 - Updated calendar shell behavior so member-role calendar views now render the member bottom navigation for consistent phone-first route layout.
 - Updated ChurchAdmin quick event check-in writes to use `staff` attendance source metadata and updated event reporting source labels to include `mobile_member`, `staff`, `kiosk`, and `import`.

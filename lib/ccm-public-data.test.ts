@@ -17,6 +17,7 @@ function baseRecord(overrides: Partial<PublicCcmSessionRecord> = {}): PublicCcmS
     sessionStatus: "enabled",
     sessionStartsAt: null,
     sessionEndsAt: null,
+    sessionEnabledAt: null,
     token: "token-1",
     ...overrides,
   };
@@ -49,5 +50,19 @@ describe("evaluatePublicCcmSessionAvailability", () => {
     );
 
     expect(result.state).toBe("window-closed");
+  });
+
+  it("returns session-expired when enabled session has no end window and is older than 24h", () => {
+    const now = new Date("2026-05-28T12:00:00.000Z").getTime();
+    const result = evaluatePublicCcmSessionAvailability(
+      baseRecord({
+        sessionEnabledAt: "2026-05-27T09:00:00.000Z",
+        sessionEndsAt: null,
+      }),
+      "checkin",
+      now,
+    );
+
+    expect(result.state).toBe("session-expired");
   });
 });

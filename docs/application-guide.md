@@ -242,6 +242,8 @@ Service detail now exposes session-scoped parent links for both check-in and che
 
 When a day session is available, parents can submit self-service check-in (child + room + guardian details) and checkout (child session + PIN/claim token + release name) directly from those links. Submission actions remain token-scoped to the active service session and enforce room/session validity before writes.
 
+Parent self-service also applies guardrails: repeated failed attempts are rate-limited per link/fingerprint window, long-running enabled links without an end window expire automatically, custody-restricted release names are blocked during checkout, and authorized-pickup name matching is enforced when a child has an authorized pickup list.
+
 The readiness link `/app/church-admin/children/dashboard?view=readiness` opens a focused safety view for active service state, room ratios, two-adult coverage, open incidents, and background-check coverage. It links directly to volunteer assignment, service management, room setup, incident review, and safety settings so each readiness issue has a clear resolution path.
 
 ### Events And Attendance
