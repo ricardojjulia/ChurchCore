@@ -184,6 +184,35 @@ describe("church-admin actions", () => {
     expect(supabaseFromMock).toHaveBeenCalledWith("event_registration_settings");
   });
 
+  it("rejects partial mobile check-in location constraints", async () => {
+    const result = await upsertRegistrationSettingsAction({
+      eventId: "event-1",
+      registrationOpen: true,
+      mobileMemberCheckInLocationLat: 35.78,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error:
+        "Mobile member check-in location constraints require latitude, longitude, and radius.",
+    });
+  });
+
+  it("rejects invalid mobile check-in location constraints", async () => {
+    const result = await upsertRegistrationSettingsAction({
+      eventId: "event-1",
+      registrationOpen: true,
+      mobileMemberCheckInLocationLat: 91,
+      mobileMemberCheckInLocationLng: -78,
+      mobileMemberCheckInLocationRadiusMeters: 75,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Mobile member check-in location constraints are invalid.",
+    });
+  });
+
   it("validates required registrant name", async () => {
     const result = await registerForEventAction({
       eventId: "event-1",

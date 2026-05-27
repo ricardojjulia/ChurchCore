@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import {
   Badge,
+  Button,
   Group,
   Paper,
   Progress,
@@ -604,6 +606,18 @@ export function MembersReportsDashboard({ data }: { data: MemberReportsData }) {
 }
 
 export function EventsReportsDashboard({ data }: { data: EventReportsData }) {
+  const [checkInMethodFilter, setCheckInMethodFilter] = useState("all");
+
+  const filteredCheckInMethods = useMemo(() => {
+    if (checkInMethodFilter === "all") {
+      return data.checkInMethodBreakdown;
+    }
+
+    return data.checkInMethodBreakdown.filter(
+      (row) => row.label.toLowerCase() === checkInMethodFilter,
+    );
+  }, [checkInMethodFilter, data.checkInMethodBreakdown]);
+
   return (
     <Stack gap="lg">
       <SimpleGrid cols={{ base: 1, sm: 2, xl: 5 }} spacing="md">
@@ -657,11 +671,62 @@ export function EventsReportsDashboard({ data }: { data: EventReportsData }) {
           subtitle="Which days are carrying the event load."
           rows={data.weekdayBreakdown}
         />
-        <BreakdownCard
-          title="Check-In Methods"
-          subtitle="How attendance is being recorded in practice."
-          rows={data.checkInMethodBreakdown}
-        />
+        <Paper withBorder radius="xl" p="xl">
+          <Stack gap="lg">
+            <div>
+              <Title order={3} size="h4">
+                Check-In Methods
+              </Title>
+              <Text size="sm" c="dimmed">
+                How attendance is being recorded in practice.
+              </Text>
+            </div>
+
+            <Group gap="xs">
+              <Button
+                size="xs"
+                variant={checkInMethodFilter === "all" ? "filled" : "light"}
+                onClick={() => setCheckInMethodFilter("all")}
+              >
+                All
+              </Button>
+              {data.checkInMethodBreakdown.map((row) => (
+                <Button
+                  key={row.label}
+                  size="xs"
+                  variant={checkInMethodFilter === row.label.toLowerCase() ? "filled" : "light"}
+                  onClick={() => setCheckInMethodFilter(row.label.toLowerCase())}
+                >
+                  {row.label}
+                </Button>
+              ))}
+            </Group>
+
+            <Stack gap="md">
+              {filteredCheckInMethods.map((row) => {
+                const total = data.checkInMethodBreakdown.reduce(
+                  (sum, item) => sum + item.value,
+                  0,
+                );
+                const percent = total > 0 ? (row.value / total) * 100 : 0;
+
+                return (
+                  <Stack key={row.label} gap={6}>
+                    <Group justify="space-between" align="flex-end">
+                      <Text fw={600} size="sm">
+                        {row.label}
+                      </Text>
+                      <Text size="sm" fw={700}>
+                        {formatInteger(row.value)} ({Math.round(percent)}%)
+                      </Text>
+                    </Group>
+                    <Progress value={percent} color={row.tone} radius="xl" size="lg" />
+                  </Stack>
+                );
+              })}
+            </Stack>
+          </Stack>
+        </Paper>
       </SimpleGrid>
 
       <Paper withBorder radius="xl" p="xl">

@@ -74,6 +74,7 @@ export function ChurchAdminEventWorkspace({
 }) {
   const [rosterQuery, setRosterQuery] = useState("");
   const [attendanceQuery, setAttendanceQuery] = useState("");
+  const [attendanceSourceFilter, setAttendanceSourceFilter] = useState("all");
   const [roleTitle, setRoleTitle] = useState("Usher");
   const [opened, { open, close }] = useDisclosure(false);
   const [visitorName, setVisitorName] = useState("");
@@ -134,6 +135,40 @@ export function ChurchAdminEventWorkspace({
       })
       .slice(0, 16);
   }, [attendanceQuery, data.attendanceEntries, data.people]);
+
+  const attendanceSourceCounts = useMemo(() => {
+    return data.attendanceEntries.reduce((acc, entry) => {
+      const source = entry.checkInMethod || "unknown";
+      acc.set(source, (acc.get(source) ?? 0) + 1);
+      return acc;
+    }, new Map<string, number>());
+  }, [data.attendanceEntries]);
+
+  const attendanceLogEntries = useMemo(() => {
+    if (attendanceSourceFilter === "all") {
+      return data.attendanceEntries;
+    }
+
+    return data.attendanceEntries.filter(
+      (entry) => entry.checkInMethod === attendanceSourceFilter,
+    );
+  }, [attendanceSourceFilter, data.attendanceEntries]);
+
+  function formatCheckInSource(value: string) {
+    if (value === "mobile_member") return "mobile member";
+    if (value === "manual_admin") return "manual admin";
+    if (value === "self_checkin") return "self check-in";
+    if (value === "nfc_qr") return "nfc / qr";
+    return value.replaceAll("_", " ");
+  }
+
+  function sourceBadgeColor(value: string) {
+    if (value === "mobile_member") return "indigo";
+    if (value === "staff") return "blue";
+    if (value === "kiosk") return "teal";
+    if (value === "import") return "grape";
+    return "gray";
+  }
 
   function runTask(task: () => Promise<void>, successMessage: string, failureTitle: string) {
     startTransition(async () => {
@@ -484,9 +519,28 @@ export function ChurchAdminEventWorkspace({
           <Title order={4} size="h5" mb="sm">
             Attendance log
           </Title>
+          <Group gap="xs" mb="sm">
+            <Button
+              size="xs"
+              variant={attendanceSourceFilter === "all" ? "filled" : "light"}
+              onClick={() => setAttendanceSourceFilter("all")}
+            >
+              All ({data.attendanceEntries.length})
+            </Button>
+            {Array.from(attendanceSourceCounts.entries()).map(([source, count]) => (
+              <Button
+                key={source}
+                size="xs"
+                variant={attendanceSourceFilter === source ? "filled" : "light"}
+                onClick={() => setAttendanceSourceFilter(source)}
+              >
+                {formatCheckInSource(source)} ({count})
+              </Button>
+            ))}
+          </Group>
           <Stack gap="sm">
-            {data.attendanceEntries.length ? (
-              data.attendanceEntries.map((entry) => (
+            {attendanceLogEntries.length ? (
+              attendanceLogEntries.map((entry) => (
                 <Paper key={entry.id} withBorder radius="xl" p="lg">
                   <Group justify="space-between" align="flex-start" gap="md">
                     <Stack gap={4}>
@@ -499,18 +553,23 @@ export function ChurchAdminEventWorkspace({
                         ) : null}
                       </Group>
                       <Text size="sm" c="dimmed">
-                        {formatDateTime(entry.checkedInAt)} • {entry.checkInMethod.replaceAll("_", " ")}
+                        {formatDateTime(entry.checkedInAt)}
                       </Text>
                     </Stack>
-                    <Badge color="teal" variant="light">
-                      {entry.status}
-                    </Badge>
+                    <Group gap="xs">
+                      <Badge color={sourceBadgeColor(entry.checkInMethod)} variant="light">
+                        {formatCheckInSource(entry.checkInMethod)}
+                      </Badge>
+                      <Badge color="teal" variant="light">
+                        {entry.status}
+                      </Badge>
+                    </Group>
                   </Group>
                 </Paper>
               ))
             ) : (
               <Text size="sm" c="dimmed">
-                No one has been checked in yet.
+                No attendance entries match the current source filter.
               </Text>
             )}
           </Stack>
@@ -972,6 +1031,22 @@ export function EventRegistrationsPanel({
     capacity: initialSettings?.capacity ?? undefined,
     waitlistEnabled: initialSettings?.waitlistEnabled ?? false,
     confirmationMessage: initialSettings?.confirmationMessage ?? "",
+    mobileMemberCheckInEnabled:
+      initialSettings?.mobileMemberCheckInEnabled ?? false,
+    mobileMemberCheckInStartsAt:
+      initialSettings?.mobileMemberCheckInStartsAt ?? undefined,
+    mobileMemberCheckInEndsAt:
+      initialSettings?.mobileMemberCheckInEndsAt ?? undefined,
+    mobileMemberCheckInAccessCode:
+      initialSettings?.mobileMemberCheckInAccessCode ?? "",
+    mobileMemberCheckInAllowHousehold:
+      initialSettings?.mobileMemberCheckInAllowHousehold ?? false,
+    mobileMemberCheckInLocationLat:
+      initialSettings?.mobileMemberCheckInLocationLat ?? undefined,
+    mobileMemberCheckInLocationLng:
+      initialSettings?.mobileMemberCheckInLocationLng ?? undefined,
+    mobileMemberCheckInLocationRadiusMeters:
+      initialSettings?.mobileMemberCheckInLocationRadiusMeters ?? undefined,
   });
 
   function handleSaveSettings() {
@@ -982,6 +1057,22 @@ export function EventRegistrationsPanel({
         capacity: settingsForm.capacity,
         waitlistEnabled: settingsForm.waitlistEnabled,
         confirmationMessage: settingsForm.confirmationMessage,
+        mobileMemberCheckInEnabled:
+          settingsForm.mobileMemberCheckInEnabled ?? false,
+        mobileMemberCheckInStartsAt:
+          settingsForm.mobileMemberCheckInStartsAt || undefined,
+        mobileMemberCheckInEndsAt:
+          settingsForm.mobileMemberCheckInEndsAt || undefined,
+        mobileMemberCheckInAccessCode:
+          settingsForm.mobileMemberCheckInAccessCode || undefined,
+        mobileMemberCheckInAllowHousehold:
+          settingsForm.mobileMemberCheckInAllowHousehold ?? false,
+        mobileMemberCheckInLocationLat:
+          settingsForm.mobileMemberCheckInLocationLat,
+        mobileMemberCheckInLocationLng:
+          settingsForm.mobileMemberCheckInLocationLng,
+        mobileMemberCheckInLocationRadiusMeters:
+          settingsForm.mobileMemberCheckInLocationRadiusMeters,
       });
       if (res.ok) setMsg({ type: "success", text: "Settings saved." });
       else setMsg({ type: "error", text: res.error ?? "Failed to save." });
@@ -1089,6 +1180,105 @@ export function EventRegistrationsPanel({
               onChange={(e) => setSettingsForm((f) => ({ ...f, waitlistEnabled: e.target.checked }))}
             />
           </Group>
+          <Switch
+            label="Enable mobile member check-in"
+            checked={settingsForm.mobileMemberCheckInEnabled ?? false}
+            onChange={(e) =>
+              setSettingsForm((f) => ({
+                ...f,
+                mobileMemberCheckInEnabled: e.target.checked,
+              }))
+            }
+          />
+          <Group grow>
+            <TextInput
+              label="Mobile check-in window start"
+              type="datetime-local"
+              value={settingsForm.mobileMemberCheckInStartsAt ?? ""}
+              onChange={(e) =>
+                setSettingsForm((f) => ({
+                  ...f,
+                  mobileMemberCheckInStartsAt: e.target.value,
+                }))
+              }
+            />
+            <TextInput
+              label="Mobile check-in window end"
+              type="datetime-local"
+              value={settingsForm.mobileMemberCheckInEndsAt ?? ""}
+              onChange={(e) =>
+                setSettingsForm((f) => ({
+                  ...f,
+                  mobileMemberCheckInEndsAt: e.target.value,
+                }))
+              }
+            />
+          </Group>
+          <TextInput
+            label="Mobile check-in access code (optional)"
+            value={settingsForm.mobileMemberCheckInAccessCode ?? ""}
+            onChange={(e) =>
+              setSettingsForm((f) => ({
+                ...f,
+                mobileMemberCheckInAccessCode: e.target.value,
+              }))
+            }
+          />
+          <Switch
+            label="Allow household check-in with member session"
+            checked={settingsForm.mobileMemberCheckInAllowHousehold ?? false}
+            onChange={(e) =>
+              setSettingsForm((f) => ({
+                ...f,
+                mobileMemberCheckInAllowHousehold: e.target.checked,
+              }))
+            }
+          />
+          <Group grow>
+            <NumberInput
+              label="Check-in location latitude (optional)"
+              value={settingsForm.mobileMemberCheckInLocationLat ?? ""}
+              onChange={(value) =>
+                setSettingsForm((f) => ({
+                  ...f,
+                  mobileMemberCheckInLocationLat:
+                    value === "" || value === null ? undefined : Number(value),
+                }))
+              }
+              min={-90}
+              max={90}
+              decimalScale={6}
+            />
+            <NumberInput
+              label="Check-in location longitude (optional)"
+              value={settingsForm.mobileMemberCheckInLocationLng ?? ""}
+              onChange={(value) =>
+                setSettingsForm((f) => ({
+                  ...f,
+                  mobileMemberCheckInLocationLng:
+                    value === "" || value === null ? undefined : Number(value),
+                }))
+              }
+              min={-180}
+              max={180}
+              decimalScale={6}
+            />
+          </Group>
+          <NumberInput
+            label="Check-in location radius meters (optional)"
+            value={settingsForm.mobileMemberCheckInLocationRadiusMeters ?? ""}
+            onChange={(value) =>
+              setSettingsForm((f) => ({
+                ...f,
+                mobileMemberCheckInLocationRadiusMeters:
+                  value === "" || value === null ? undefined : Number(value),
+              }))
+            }
+            min={1}
+          />
+          <Text size="xs" c="dimmed">
+            Set latitude, longitude, and radius together to require on-site check-in.
+          </Text>
           <Group justify="flex-end">
             <Button size="xs" onClick={handleSaveSettings} loading={isPending}>Save Settings</Button>
           </Group>

@@ -73,6 +73,7 @@ That local setup now generates tenant demo users for ChurchAdmin, Secretary / Of
 | [docs/setup/local-supabase.md](docs/setup/local-supabase.md) | Full local Supabase setup, seed, reset, and smoke-test path. |
 | [docs/mvp-readiness-audit.md](docs/mvp-readiness-audit.md) | Current MVP verdict, navigation fit, verification gaps, and readiness queue. |
 | [docs/plans/competitive-readiness-roadmap.md](docs/plans/competitive-readiness-roadmap.md) | Next major-release roadmap for closing competitive gaps across operator, member, communications, service planning, import, and security proof workflows. |
+| [docs/plans/member-mobile-pwa-foundation-audit.md](docs/plans/member-mobile-pwa-foundation-audit.md) | Phase 2 mobile baseline audit for member routes and calendar, including route verdicts, workflow order, and first implementation slices. |
 | [docs/security-assessment.md](docs/security-assessment.md) | Security and privacy assessment for sensitive church data. |
 | [docs/adr/0002-control-plane-and-tenant-separation.md](docs/adr/0002-control-plane-and-tenant-separation.md) | Approved architecture for separated control-plane and tenant data boundaries. |
 | [docs/adr/0004-competitive-readiness-architecture.md](docs/adr/0004-competitive-readiness-architecture.md) | Architecture decision governing readiness contracts, mobile member workflows, communications adapters, import staging, and security evidence. |
@@ -87,6 +88,7 @@ That local setup now generates tenant demo users for ChurchAdmin, Secretary / Of
 - **Daily Desk:** `/app/daily-desk` for calls, notes, visits, calendar items, checkups, and operational signals.
 - **Secretary portal:** `/app/secretary` for office work without full church-admin authority.
 - **Member portal:** profile, family, directory, giving, schedule, groups, privacy/data rights, and preferences.
+- **Member mobile shell:** phone-first bottom navigation now prioritizes home, calendar, groups, schedule, and family; member home includes quick-action cards for top tasks, and member calendar keeps bottom-nav continuity.
 - **Public portal:** host-aware church resolution plus member account onboarding through `/portal/register`.
 - **ShepherdAI workflow queue:** `/app/church-admin/workflows` for suggested ministry workflows generated from deterministic signals.
 
@@ -147,7 +149,7 @@ See [docs/shepherd-ai-ops.md](docs/shepherd-ai-ops.md) for architecture and guar
 - License: [MIT](LICENSE)
 - Included demo scope: preview mode without a backend, or local Supabase with seeded Grace Harbor Church data
 - Local credential material is not committed; demo credentials are generated locally by the bootstrap script and saved to gitignored `.demo-credentials.local`
-- Evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, `npm run smoke:local`, and `npm run test:e2e:readiness`
+- Evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, `npm run smoke:local`, `npm run test:e2e:readiness`, and `npm run test:e2e -- tests/e2e/member-mobile-foundation.spec.ts`
 - Spanish UI support has started with cookie-backed English/Spanish selection; track rollout in [docs/plans/spanish-ui-coverage.md](docs/plans/spanish-ui-coverage.md)
 
 ## Release 3.0.0 Highlights
@@ -155,7 +157,7 @@ See [docs/shepherd-ai-ops.md](docs/shepherd-ai-ops.md) for architecture and guar
 Release 3.0.0 is the correct SemVer position for the accumulated work after the last tagged 2.11.1 snapshot. The scope moved beyond patch hardening and routine feature delivery: it added new operator workspaces, new role surfaces, ShepherdAI operational persistence, split-backend security posture, bilingual UI foundations, readiness contracts, and the documented Claude/Codex software factory. Under the `DEVELOPMENT_PLAN.md` rules, that combination is a major release because it includes major operational modules and significant AI/sensitive-workflow changes.
 
 - **Operator path:** ChurchAdmin weekly readiness, Daily Desk, live operations lanes, account onboarding, readiness resolution actions, and module-owned readiness builders now make the weekly church-admin path more explicit.
-- **Role and member surfaces:** Secretary / Office Admin, member portal refinements, public portal account requests, English/Spanish shell coverage, and mobile-friendly member workflow foundations are now documented and partially implemented.
+- **Role and member surfaces:** Secretary / Office Admin, member portal refinements, public portal account requests, English/Spanish shell coverage, member mobile baseline audit, and phone-first member shell/navigation hardening are now documented and partially implemented.
 - **AI and workflow operations:** ShepherdAI now has deterministic signal persistence, workflow recommendation/promotion services, scheduled evaluation, and guardrail documentation.
 - **Security and delivery posture:** control-plane and tenant backend separation is hardened, vulnerable dependencies were remediated, branch protection now enforces PR delivery, and factory runs are tracked as durable evidence.
 - **Software factory:** Claude Code and Codex workflows are documented with agents/skills, visual diagrams, approval gates, validation, and preferred transparent delivery steps.

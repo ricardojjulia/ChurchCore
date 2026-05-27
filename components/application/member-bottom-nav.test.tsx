@@ -39,6 +39,7 @@ describe("MemberBottomNav", () => {
     expect(screen.getByRole("link", { name: /calendar/i })).toHaveAttribute("href", "/app/calendar");
     expect(screen.getByRole("link", { name: /groups/i })).toHaveAttribute("href", "/app/member/groups");
     expect(screen.getByRole("link", { name: /schedule/i })).toHaveAttribute("href", "/app/member/schedule");
+    expect(screen.getByRole("link", { name: /family/i })).toHaveAttribute("href", "/app/member/family");
   });
 
   it("highlights the active route", () => {
@@ -47,5 +48,12 @@ describe("MemberBottomNav", () => {
 
     expect(screen.getByText("groups")).toHaveStyle({ fontWeight: "700" });
     expect(screen.getByText("home")).toHaveStyle({ fontWeight: "400" });
+  });
+
+  it("keeps home active for auxiliary member routes", () => {
+    mockUsePathname.mockReturnValue("/app/member/directory");
+    renderNav();
+
+    expect(screen.getByText("home")).toHaveStyle({ fontWeight: "700" });
   });
 });

@@ -35,3 +35,6 @@ Each run file should be committed with the change it describes. The goal is to m
 | 2026-05-26 | [Readiness target states operations](2026-05-26-readiness-target-states-operations.md) | Roll target-state UI into accounts, events, volunteers, and workflows | PR #35, squash merge `668289a` |
 | 2026-05-27 | [Readiness target states sensitive ops](2026-05-27-readiness-target-states-sensitive-ops.md) | Roll target-state UI into children, finance journals, communications, and reports | PR #38 |
 | 2026-05-27 | [Readiness resolution actions audit](2026-05-27-readiness-resolution-actions-audit.md) | Close Finding 1 with a target-route resolution audit and documented follow-ups | Pending |
+| 2026-05-27 | [Member mobile PWA foundation audit](2026-05-27-member-mobile-pwa-foundation-audit.md) | Audit member and calendar phone viewport readiness, define implementation slices, and add baseline mobile Playwright coverage | Pending |
+| 2026-05-27 | [Member mobile shell and navigation](2026-05-27-member-mobile-shell-and-navigation.md) | Harden member phone-first bottom navigation, quick actions, and member calendar shell continuity | Pending |
+| 2026-05-27 | [Member check-in foundation](2026-05-27-member-checkin-foundation.md) | Add event-level mobile check-in enablement, member check-in cards/actions, and source-metadata-aware attendance writes | Pending |

@@ -137,6 +137,14 @@ export type EventRegistrationSettings = {
   deadline: string | null;
   confirmationMessage: string | null;
   waitlistEnabled: boolean;
+  mobileMemberCheckInEnabled: boolean;
+  mobileMemberCheckInStartsAt: string | null;
+  mobileMemberCheckInEndsAt: string | null;
+  mobileMemberCheckInAccessCode: string | null;
+  mobileMemberCheckInAllowHousehold: boolean;
+  mobileMemberCheckInLocationLat: number | null;
+  mobileMemberCheckInLocationLng: number | null;
+  mobileMemberCheckInLocationRadiusMeters: number | null;
   registrationCount: number;
   waitlistCount: number;
 };
@@ -172,9 +180,23 @@ export async function getEventRegistrations(
         id: string; event_id: string; registration_open: boolean;
         capacity: number | null; price_cents: number; deadline: string | null;
         confirmation_message: string | null; waitlist_enabled: boolean;
+        mobile_member_check_in_enabled: boolean;
+        mobile_member_check_in_starts_at: string | null;
+        mobile_member_check_in_ends_at: string | null;
+        mobile_member_check_in_access_code: string | null;
+        mobile_member_check_in_allow_household: boolean;
+        mobile_member_check_in_location_lat: number | null;
+        mobile_member_check_in_location_lng: number | null;
+        mobile_member_check_in_location_radius_meters: number | null;
       }>(
         `select id, event_id, registration_open, capacity, price_cents,
-                deadline, confirmation_message, waitlist_enabled
+                deadline, confirmation_message, waitlist_enabled,
+                mobile_member_check_in_enabled, mobile_member_check_in_starts_at,
+                mobile_member_check_in_ends_at, mobile_member_check_in_access_code,
+                  mobile_member_check_in_allow_household,
+                  mobile_member_check_in_location_lat,
+                  mobile_member_check_in_location_lng,
+                  mobile_member_check_in_location_radius_meters
          from public.event_registration_settings
          where event_id = $1`,
         [eventId],
@@ -194,6 +216,15 @@ export async function getEventRegistrations(
       id: s.id, eventId: s.event_id, registrationOpen: s.registration_open,
       capacity: s.capacity, priceCents: s.price_cents, deadline: s.deadline,
       confirmationMessage: s.confirmation_message, waitlistEnabled: s.waitlist_enabled,
+      mobileMemberCheckInEnabled: s.mobile_member_check_in_enabled,
+      mobileMemberCheckInStartsAt: s.mobile_member_check_in_starts_at,
+      mobileMemberCheckInEndsAt: s.mobile_member_check_in_ends_at,
+      mobileMemberCheckInAccessCode: s.mobile_member_check_in_access_code,
+      mobileMemberCheckInAllowHousehold: s.mobile_member_check_in_allow_household,
+      mobileMemberCheckInLocationLat: s.mobile_member_check_in_location_lat,
+      mobileMemberCheckInLocationLng: s.mobile_member_check_in_location_lng,
+      mobileMemberCheckInLocationRadiusMeters:
+        s.mobile_member_check_in_location_radius_meters,
       registrationCount: registrations.filter((r) => !r.isWaitlisted && r.status !== "cancelled").length,
       waitlistCount: registrations.filter((r) => r.isWaitlisted).length,
     } : null;
@@ -230,6 +261,15 @@ export async function getEventRegistrations(
     id: s.id, eventId: s.event_id, registrationOpen: s.registration_open,
     capacity: s.capacity, priceCents: s.price_cents, deadline: s.deadline,
     confirmationMessage: s.confirmation_message, waitlistEnabled: s.waitlist_enabled,
+    mobileMemberCheckInEnabled: s.mobile_member_check_in_enabled ?? false,
+    mobileMemberCheckInStartsAt: s.mobile_member_check_in_starts_at ?? null,
+    mobileMemberCheckInEndsAt: s.mobile_member_check_in_ends_at ?? null,
+    mobileMemberCheckInAccessCode: s.mobile_member_check_in_access_code ?? null,
+    mobileMemberCheckInAllowHousehold: s.mobile_member_check_in_allow_household ?? false,
+    mobileMemberCheckInLocationLat: s.mobile_member_check_in_location_lat ?? null,
+    mobileMemberCheckInLocationLng: s.mobile_member_check_in_location_lng ?? null,
+    mobileMemberCheckInLocationRadiusMeters:
+      s.mobile_member_check_in_location_radius_meters ?? null,
     registrationCount: registrations.filter((r) => !r.isWaitlisted && r.status !== "cancelled").length,
     waitlistCount: registrations.filter((r) => r.isWaitlisted).length,
   } : null;

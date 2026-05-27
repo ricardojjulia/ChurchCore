@@ -276,13 +276,26 @@ Members enter through `/app` and see a member-focused mobile-friendly navigation
 
 - **Home:** personal church context and next actions.
 - **Calendar:** upcoming church events.
-- **Directory:** church directory visibility based on permissions.
-- **Ministries:** ministry participation and opportunities.
-- **Family:** household and family information.
 - **Groups:** open small groups and join requests.
 - **Schedule:** volunteer and event schedule.
+- **Family:** household and family information.
+
+Auxiliary member routes remain available from home cards and deep links:
+
+- **Directory:** church directory visibility based on permissions.
+- **Ministries:** ministry participation and opportunities.
+- **Giving:** donor history and receipts.
+- **My Data:** privacy and data-rights actions.
+
+Member home now includes an enabled-session mobile check-in card. Church admins can enable mobile member check-in per event from event registration settings, set a check-in window, and optionally require an access code. Member check-ins write attendance with `mobile_member` source metadata, while admin quick-check-in paths now record `staff` source metadata.
 
 Members can also manage giving, data rights, notification preferences, and communication preferences where those flows are enabled.
+
+When a church enables household check-in for an event, the member check-in card can also target another person in the same household. The action remains limited to the signed-in family and still honors the event's approved window and access code.
+
+Church admins can also configure optional check-in geofence constraints (latitude, longitude, radius meters) per event. When enabled, member mobile check-in requires browser location access and validates that the device is within the configured on-site radius.
+
+Church admins and pastors can review attendance source patterns in Events Reports using check-in method filters, and event-level attendance logs also support source filtering for operational audit review.
 
 ## 7. Public Portal Workflow
 

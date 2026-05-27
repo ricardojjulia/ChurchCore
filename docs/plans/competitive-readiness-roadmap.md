@@ -140,6 +140,8 @@ These workstreams convert the competitive findings into implementation-ready ste
 
 ### Finding 2A: Member Check-In Should Be Mobile-Web Capable When Enabled
 
+**Status:** Started. Event-level mobile member check-in enablement controls now exist in registration settings with window and optional access-code fields, member home now renders mobile check-in cards for eligible events, household-mode check-in is enforced against the signed-in family, optional geofence constraints (latitude/longitude/radius) are configurable and enforced during member check-in, attendance writes now include `mobile_member` and `staff` source metadata where applicable, duplicate-present attendance writes are prevented by existing unique constraints and explicit duplicate checks, the ChurchAdmin event attendance log supports source-specific filtering for quick audit review, and Events Reports include check-in method filter controls for source-specific analysis. Remaining Finding 2A work focuses on broader admin audit workflows and policy/RLS coverage for household-edge cases.
+
 **Problem:** ChurchTrac and other competitors treat check-in and attendance as mobile-friendly operational workflows. ChurchCore Ops should let members check themselves in from the mobile web version when staff chooses to allow it.
 
 **Steps:**
@@ -304,6 +306,8 @@ These workstreams convert the competitive findings into implementation-ready ste
 ## Phase 2: Harden Mobile Member Workflows
 
 **Goal:** Members can manage their own church relationship from a phone-sized screen.
+
+**Started:** `member-mobile-pwa-foundation-audit` established the phone-viewport route audit for `/app/member/*` and `/app/calendar`, documented workflow order and first implementation slices, and added baseline Playwright mobile coverage in `tests/e2e/member-mobile-foundation.spec.ts`. The follow-up `member-mobile-shell-and-navigation` run hardened phone-first bottom navigation, added member-home quick actions, and added member bottom-nav continuity on calendar for member role.
 
 ### Scope
 
