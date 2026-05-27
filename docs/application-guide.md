@@ -109,6 +109,25 @@ Readiness items now follow a shared `ReadinessSummary` contract with status, sev
 
 Supported readiness targets now include filtered or context-specific views for people records, events without roster coverage, children's ministry safety checks, volunteer scheduling, giving/finance exceptions, draft finance journals, communication readiness, reporting coverage, and suggested workflows.
 
+Current readiness target audit:
+
+| Readiness target | Route | Resolution path |
+| --- | --- | --- |
+| Church setup | `/app/church-admin/settings` | Review tenant profile, contact, website, address, and public-summary fields, then return to readiness. |
+| Account approvals | `/app/church-admin/accounts?status=pending` | Approve, reject, or match pending portal account requests. |
+| Incomplete people records | `/app/church-admin/people?view=incomplete-profiles` | Open filtered people records and complete missing profile details. |
+| Unassigned households | `/app/church-admin/people?view=unassigned-households&household=unassigned` | Use household controls to assign people to existing households or create household links. |
+| Event roster gaps | `/app/church-admin/events?view=needs-roster` | Open matching events and add roster assignments or attendance setup. |
+| Children's ministry safety | `/app/church-admin/children/dashboard?view=readiness` | Open services, volunteers, rooms, incidents, check-in, or pickup flows from the dashboard to resolve safety gaps. |
+| Volunteer service plans | `/app/church-admin/volunteers/schedules?view=unassigned` | Open service plans and fill or confirm volunteer positions. |
+| Giving/finance exceptions | `/app/church-admin/giving?view=exceptions` | Review failed gifts, publish giving pages, post mapped gifts to GL, queue receipt follow-up, or open draft journals. |
+| Draft finance journals | `/app/church-admin/finance/journals?view=drafts` | Open each draft journal and post, correct, or void it. |
+| Communications readiness | `/app/communications?view=readiness` | Review delivery/contact/consent signals and compose needed follow-up; provider retry and suppression handling remain part of the communications delivery roadmap. |
+| Reports coverage | `/app/reports?range=90d` | Review reporting coverage and drill into reports; richer remediation for missing finance journals or budgets remains a reporting follow-up. |
+| Suggested workflows | `/app/church-admin/workflows?status=open` | Review, accept, or dismiss open ShepherdAI workflow suggestions. |
+
+This completes the current operator-path navigation and state-evidence layer. The remaining Phase 1 work is to deepen partial target routes into richer one-click resolution flows where provider or reporting infrastructure is not yet complete.
+
 ### Daily Desk
 
 Path: `/app/daily-desk`

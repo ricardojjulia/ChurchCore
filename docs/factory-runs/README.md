@@ -34,3 +34,4 @@ Each run file should be committed with the change it describes. The goal is to m
 | 2026-05-26 | [Readiness target states](2026-05-26-readiness-target-states.md) | Add shared target-state UI and first readiness target route slice | PR #33, squash merge `b311d2a` |
 | 2026-05-26 | [Readiness target states operations](2026-05-26-readiness-target-states-operations.md) | Roll target-state UI into accounts, events, volunteers, and workflows | PR #35, squash merge `668289a` |
 | 2026-05-27 | [Readiness target states sensitive ops](2026-05-27-readiness-target-states-sensitive-ops.md) | Roll target-state UI into children, finance journals, communications, and reports | PR #38 |
+| 2026-05-27 | [Readiness resolution actions audit](2026-05-27-readiness-resolution-actions-audit.md) | Close Finding 1 with a target-route resolution audit and documented follow-ups | Pending |

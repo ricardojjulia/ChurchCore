@@ -94,6 +94,8 @@ These workstreams convert the competitive findings into implementation-ready ste
 
 ### Finding 1: The Operator Path Is The MVP Trust Test
 
+**Status:** Current readiness navigation, target-state evidence, browser traversal, denied-role coverage, and resolution-action audit are complete for the current weekly ChurchAdmin path. Remaining Finding 1 work is targeted follow-up, not foundational routing: deepen partial resolution on communications provider lifecycle, reports remediation, and richer inline settings edits.
+
 **Problem:** The product has broad module coverage, but evaluators need one clear weekly path that proves the system can run a church office.
 
 **Steps:**
@@ -105,9 +107,15 @@ These workstreams convert the competitive findings into implementation-ready ste
 5. Add filtered target views for every readiness issue type.
 6. Add empty, no-backend, permission-denied, validation-error, and completed states to every readiness target route. **Implemented for the current weekly path:** `components/application/readiness-target-state.tsx` defines the shared target-state pattern; settings, account approvals, people readiness filters, event roster review, children's ministry safety, volunteer service plans, giving/finance exceptions, finance draft journals, communications delivery/consent, reports coverage, and suggested workflows now show standardized target-state evidence and the Playwright readiness path requires it for those routes.
 7. Add route-level smoke coverage for the weekly path. **Started:** `npm run smoke:local` now checks the current readiness target routes after ChurchAdmin sign-in. **Browser coverage added:** `npm run test:e2e:readiness` uses Playwright to sign in through the browser, hydrate the ChurchAdmin church context, and visit the same current readiness target routes.
-8. Update `docs/application-guide.md` and `docs/mvp-readiness-audit.md` with the final operator path.
+8. Update `docs/application-guide.md` and `docs/mvp-readiness-audit.md` with the final operator path. **Completed for current path:** `docs/application-guide.md` now documents every current readiness target and its resolution action.
 
 **Done when:** A new evaluator can sign in as ChurchAdmin, open readiness, inspect every issue, follow every target link, and understand the next action without reading source code.
+
+**Follow-up items captured by the closing audit:**
+
+- Communications readiness has visible compose/log/member paths, but real provider retry, unsubscribe, suppression, bounce, and webhook resolution remain in Finding 3.
+- Reports readiness has coverage drilldowns, but missing finance-journal and budget remediation should become more direct as reporting matures.
+- Church setup readiness has clear state evidence and settings cards; richer inline editing remains a product-polish follow-up.
 
 ### Finding 2: Member Mobile Is Behind The Market
 
