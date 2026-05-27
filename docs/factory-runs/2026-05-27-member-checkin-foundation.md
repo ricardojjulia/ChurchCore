@@ -128,7 +128,7 @@ Commands executed:
 
 ## Delivery
 
-- Branch: current feature branch (local session)
-- Pull request: pending
-- Merge method: pending
-- Final commit hash: pending
+- Branch: `feature/member-checkin-location-policy`
+- Pull request: Not opened (local merge-commit flow used for this run batch)
+- Merge method: `git merge --no-ff`
+- Final commit hash: `d7a1969`

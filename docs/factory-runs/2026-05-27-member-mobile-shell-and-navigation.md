@@ -4,7 +4,7 @@
 **Factory surface:** Codex  
 **Workflow:** `churchcore-feature-factory` with `churchcore-build-with-tests` implementation discipline  
 **Roadmap phase:** Competitive Readiness Phase 2, Harden Mobile Member Workflows  
-**Status:** Ready for PR
+**Status:** Delivered
 
 ## Intent
 
@@ -70,6 +70,6 @@ Patterns reused:
 
 ## Delivery
 
-- Branch: `feature/member-mobile-shell-and-navigation`
-- Pull request: Pending
-- Merge: Pending
+- Branch: `feature/member-checkin-location-policy` (consolidated software-factory branch)
+- Pull request: Not opened (local merge-commit flow used for this run batch)
+- Merge: `d7a1969`
