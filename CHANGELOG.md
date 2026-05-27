@@ -52,6 +52,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Changed
 
+- Changed local fallback query handling in `lib/ccm-public-data.ts` and `lib/member-mobile-checkin-data.ts` to be schema-aware, preventing mobile member and parent routes from failing with runtime 500 pages when local tenant DB snapshots are missing newer columns.
+- Updated Phase 2 evaluation and evidence mapping in `docs/plans/competitive-readiness-roadmap.md`, including closure status updates for Findings 2A/2B and explicit member-mobile testing evidence references.
 - Changed children session close behavior in `app/app/ccm-actions.ts` so closing a service/session rotates the public session token, preventing reuse of stale parent links.
 - Changed ChurchAdmin children service detail UI in `components/application/ccm-service-manager.tsx` to surface room coverage warnings, audited override controls, and parent URL visibility only after session enablement.
 - Changed ChurchAdmin event attendance workspace in `components/application/church-admin-event-workspace.tsx` and `lib/church-admin-events-data.ts` to expose mobile self-check-in household audit metrics.
