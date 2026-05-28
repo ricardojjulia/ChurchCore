@@ -35,6 +35,8 @@ Compatibility redirect:
 - Local direct-Postgres fallback when local Supabase REST metadata is unavailable
 - Timezone-aware event display using church timezone setting
 - Broader calendar query window so month, week, day, and agenda views are less likely to look artificially incomplete
+- Linked ChurchAdmin event-registration operations for capacity/waitlist/approval and custom event intake fields through `/app/church-admin/events/[id]`
+- Linked volunteer service-plan execution with run-of-service blocks and serving assignments through `/app/church-admin/volunteers/schedules/[id]`
 
 ## What Is Still Missing
 

@@ -29,7 +29,10 @@ vi.mock("@/lib/supabase/tenant", () => ({
   shouldUseLocalTenantFallback: shouldUseLocalTenantFallbackMock,
 }));
 
-import { memberMobileCheckInAction } from "@/app/app/member-actions";
+import {
+  memberMobileCheckInAction,
+  memberRegisterForEventAction,
+} from "@/app/app/member-actions";
 
 describe("memberMobileCheckInAction", () => {
   beforeEach(() => {
@@ -364,5 +367,173 @@ describe("memberMobileCheckInAction", () => {
       ok: false,
       error: "You must be on-site to check in for this event.",
     });
+  });
+});
+
+describe("memberRegisterForEventAction", () => {
+  beforeEach(() => {
+    revalidatePathMock.mockReset();
+    requireChurchSessionMock.mockReset();
+    hasTenantBackendEnvMock.mockReset();
+    shouldUseLocalTenantFallbackMock.mockReset();
+    queryTenantLocalDbMock.mockReset();
+
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "member", church: { id: "church-1" } },
+      profile: { id: "profile-1" },
+      source: "supabase",
+    });
+
+    hasTenantBackendEnvMock.mockReturnValue(true);
+    shouldUseLocalTenantFallbackMock.mockReturnValue(true);
+  });
+
+  it("returns preview mode when backend is unavailable", async () => {
+    hasTenantBackendEnvMock.mockReturnValue(false);
+
+    const result = await memberRegisterForEventAction({ eventId: "event-1" });
+
+    expect(result).toEqual({ ok: true, previewMode: true });
+  });
+
+  it("creates pending approval registration when approval is required", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            event_title: "Sunday Worship",
+            starts_at: "2000-01-01T00:00:00.000Z",
+            ends_at: "2999-01-01T00:00:00.000Z",
+            registration_open: true,
+            capacity: null,
+            waitlist_enabled: false,
+            approval_required: true,
+            household_registration_enabled: false,
+            deadline: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "profile-1",
+            full_name: "Member One",
+            email: "member@example.com",
+            phone: "555-0100",
+            family_id: "family-1",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const result = await memberRegisterForEventAction({
+      eventId: "event-1",
+      customFields: { shirt_size: "M" },
+    });
+
+    expect(result).toEqual({ ok: true, status: "pending_approval" });
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining("insert into public.event_registrations"),
+      [
+        "event-1",
+        "church-1",
+        "profile-1",
+        "Member One",
+        "member@example.com",
+        "555-0100",
+        "pending_approval",
+        false,
+        null,
+        JSON.stringify({ shirt_size: "M" }),
+      ],
+    );
+  });
+
+  it("blocks household registration when policy is disabled", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            event_title: "Sunday Worship",
+            starts_at: "2000-01-01T00:00:00.000Z",
+            ends_at: "2999-01-01T00:00:00.000Z",
+            registration_open: true,
+            capacity: null,
+            waitlist_enabled: false,
+            approval_required: false,
+            household_registration_enabled: false,
+            deadline: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "profile-1",
+            full_name: "Member One",
+            email: "member@example.com",
+            phone: "555-0100",
+            family_id: "family-1",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "profile-2",
+            full_name: "Member Two",
+            email: "member2@example.com",
+            phone: "555-0101",
+            family_id: "family-1",
+          },
+        ],
+      });
+
+    const result = await memberRegisterForEventAction({
+      eventId: "event-1",
+      targetProfileId: "profile-2",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Household registration is not enabled for this event.",
+    });
+  });
+
+  it("returns alreadyRegistered when registration already exists", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            event_title: "Sunday Worship",
+            starts_at: "2000-01-01T00:00:00.000Z",
+            ends_at: "2999-01-01T00:00:00.000Z",
+            registration_open: true,
+            capacity: null,
+            waitlist_enabled: false,
+            approval_required: false,
+            household_registration_enabled: false,
+            deadline: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "profile-1",
+            full_name: "Member One",
+            email: "member@example.com",
+            phone: "555-0100",
+            family_id: "family-1",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ id: "existing-registration" }] });
+
+    const result = await memberRegisterForEventAction({ eventId: "event-1" });
+
+    expect(result).toEqual({ ok: true, alreadyRegistered: true });
   });
 });

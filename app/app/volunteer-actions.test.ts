@@ -48,10 +48,12 @@ vi.mock("@/lib/supabase/tenant", () => ({
 }));
 
 import {
+  addRunOfServiceItemAction,
   assignVolunteerAction,
   createServicePlanAction,
   respondToShiftAction,
   saveServicePlanTemplateAction,
+  updateServicePlanDetailsAction,
 } from "@/app/app/volunteer-actions";
 
 describe("volunteer actions", () => {
@@ -160,5 +162,70 @@ describe("volunteer actions", () => {
     expect(result).toEqual({ ok: false, error: "insert failed" });
     expect(createTenantServerClientMock).toHaveBeenCalled();
     expect(supabaseFromMock).toHaveBeenCalledWith("service_plan_templates");
+  });
+
+  it("updates service plan details in local fallback mode", async () => {
+    queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [] });
+
+    const result = await updateServicePlanDetailsAction({
+      planId: "plan-1",
+      name: "Sunday Worship",
+      serviceType: "worship",
+      serviceDate: "2026-04-21",
+      serviceTime: "09:00",
+      scriptureReference: "Romans 12:1-2",
+      sermonTitle: "Living Sacrifice",
+      sermonSpeaker: "Pastor Nate",
+      notes: "Focus on volunteer prayer team before service.",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("update public.service_plans"),
+      [
+        "plan-1",
+        "church-1",
+        "Sunday Worship",
+        "worship",
+        "2026-04-21",
+        "09:00",
+        "Romans 12:1-2",
+        "Living Sacrifice",
+        "Pastor Nate",
+        "Focus on volunteer prayer team before service.",
+      ],
+    );
+  });
+
+  it("adds a run-of-service item in local fallback mode", async () => {
+    queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [{ id: "item-1" }] });
+
+    const result = await addRunOfServiceItemAction({
+      planId: "plan-1",
+      title: "Welcome and prayer",
+      itemType: "prayer",
+      startsAt: "2026-04-21T09:00:00.000Z",
+      endsAt: "2026-04-21T09:05:00.000Z",
+      leaderName: "Deacon Sarah",
+      notes: "Invite congregation to stand.",
+      sortOrder: 0,
+    });
+
+    expect(result).toEqual({ ok: true, id: "item-1" });
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("insert into public.service_plan_items"),
+      [
+        "plan-1",
+        "church-1",
+        "2026-04-21T09:00:00.000Z",
+        "2026-04-21T09:05:00.000Z",
+        "Welcome and prayer",
+        "prayer",
+        "Deacon Sarah",
+        "Invite congregation to stand.",
+        null,
+        0,
+      ],
+    );
   });
 });

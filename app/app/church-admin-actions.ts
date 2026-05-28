@@ -1260,6 +1260,8 @@ export type UpsertRegistrationSettingsInput = {
   deadline?: string;
   confirmationMessage?: string;
   waitlistEnabled?: boolean;
+  approvalRequired?: boolean;
+  householdRegistrationEnabled?: boolean;
   mobileMemberCheckInEnabled?: boolean;
   mobileMemberCheckInStartsAt?: string;
   mobileMemberCheckInEndsAt?: string;
@@ -1334,31 +1336,36 @@ export async function upsertRegistrationSettingsAction(
       `insert into public.event_registration_settings
          (event_id, church_id, registration_open, capacity, price_cents,
           deadline, confirmation_message, waitlist_enabled,
+          approval_required, household_registration_enabled,
           mobile_member_check_in_enabled, mobile_member_check_in_starts_at,
           mobile_member_check_in_ends_at, mobile_member_check_in_access_code,
            mobile_member_check_in_allow_household,
            mobile_member_check_in_location_lat,
            mobile_member_check_in_location_lng,
            mobile_member_check_in_location_radius_meters)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
        on conflict (event_id)
        do update set
          registration_open = $3, capacity = $4, price_cents = $5,
          deadline = $6, confirmation_message = $7, waitlist_enabled = $8,
-         mobile_member_check_in_enabled = $9,
-         mobile_member_check_in_starts_at = $10,
-         mobile_member_check_in_ends_at = $11,
-         mobile_member_check_in_access_code = $12,
-         mobile_member_check_in_allow_household = $13,
-         mobile_member_check_in_location_lat = $14,
-         mobile_member_check_in_location_lng = $15,
-         mobile_member_check_in_location_radius_meters = $16,
+         approval_required = $9,
+         household_registration_enabled = $10,
+         mobile_member_check_in_enabled = $11,
+         mobile_member_check_in_starts_at = $12,
+         mobile_member_check_in_ends_at = $13,
+         mobile_member_check_in_access_code = $14,
+         mobile_member_check_in_allow_household = $15,
+         mobile_member_check_in_location_lat = $16,
+         mobile_member_check_in_location_lng = $17,
+         mobile_member_check_in_location_radius_meters = $18,
          updated_at = now()`,
       [
         input.eventId, churchId, input.registrationOpen,
         input.capacity ?? null, input.priceCents ?? 0,
         input.deadline ?? null, input.confirmationMessage ?? null,
         input.waitlistEnabled ?? false,
+        input.approvalRequired ?? false,
+        input.householdRegistrationEnabled ?? false,
         input.mobileMemberCheckInEnabled ?? false,
         input.mobileMemberCheckInStartsAt ?? null,
         input.mobileMemberCheckInEndsAt ?? null,
@@ -1381,6 +1388,8 @@ export async function upsertRegistrationSettingsAction(
       capacity: input.capacity ?? null, price_cents: input.priceCents ?? 0,
       deadline: input.deadline ?? null, confirmation_message: input.confirmationMessage ?? null,
       waitlist_enabled: input.waitlistEnabled ?? false,
+      approval_required: input.approvalRequired ?? false,
+      household_registration_enabled: input.householdRegistrationEnabled ?? false,
       mobile_member_check_in_enabled: input.mobileMemberCheckInEnabled ?? false,
       mobile_member_check_in_starts_at: input.mobileMemberCheckInStartsAt ?? null,
       mobile_member_check_in_ends_at: input.mobileMemberCheckInEndsAt ?? null,
@@ -1406,6 +1415,7 @@ export type RegisterForEventInput = {
   registrantEmail?: string;
   registrantPhone?: string;
   notes?: string;
+  customFields?: Record<string, unknown>;
 };
 
 export async function registerForEventAction(
@@ -1423,8 +1433,9 @@ export async function registerForEventAction(
     // Check capacity
     const settingsResult = await queryTenantLocalDb<{
       capacity: number | null; waitlist_enabled: boolean; registration_open: boolean;
+      approval_required: boolean;
     }>(
-      `select capacity, waitlist_enabled, registration_open
+      `select capacity, waitlist_enabled, registration_open, approval_required
        from public.event_registration_settings
        where event_id = $1`,
       [input.eventId],
@@ -1450,17 +1461,24 @@ export async function registerForEventAction(
       }
     }
 
+    const status = isWaitlisted
+      ? "waitlisted"
+      : settings?.approval_required
+        ? "pending_approval"
+        : "confirmed";
+
     const result = await queryTenantLocalDb<{ id: string }>(
       `insert into public.event_registrations
          (event_id, church_id, registrant_name, registrant_email, registrant_phone,
-          status, is_waitlisted, notes)
-       values ($1,$2,$3,$4,$5,$6,$7,$8)
+          status, is_waitlisted, notes, custom_fields)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        returning id`,
       [
         input.eventId, churchId, input.registrantName.trim(),
         input.registrantEmail ?? null, input.registrantPhone ?? null,
-        isWaitlisted ? "waitlisted" : "confirmed",
+        status,
         isWaitlisted, input.notes ?? null,
+        input.customFields ? JSON.stringify(input.customFields) : null,
       ],
     );
     revalidatePath(`/app/church-admin/events/${input.eventId}`);
@@ -1468,6 +1486,40 @@ export async function registerForEventAction(
   }
 
   const supabase = await createTenantServerClient();
+
+  const { data: settings } = await supabase
+    .from("event_registration_settings")
+    .select("capacity, waitlist_enabled, registration_open, approval_required")
+    .eq("event_id", input.eventId)
+    .maybeSingle();
+
+  if (settings && settings.registration_open === false) {
+    return { ok: false, error: "Registration is closed for this event." };
+  }
+
+  let isWaitlisted = false;
+  if (settings?.capacity) {
+    const { count } = await supabase
+      .from("event_registrations")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", input.eventId)
+      .eq("is_waitlisted", false)
+      .neq("status", "cancelled");
+
+    if ((count ?? 0) >= settings.capacity) {
+      if (!settings.waitlist_enabled) {
+        return { ok: false, error: "This event is full and does not have a waitlist." };
+      }
+      isWaitlisted = true;
+    }
+  }
+
+  const status = isWaitlisted
+    ? "waitlisted"
+    : settings?.approval_required
+      ? "pending_approval"
+      : "confirmed";
+
   const { data, error } = await supabase
     .from("event_registrations")
     .insert({
@@ -1475,14 +1527,135 @@ export async function registerForEventAction(
       registrant_name: input.registrantName.trim(),
       registrant_email: input.registrantEmail ?? null,
       registrant_phone: input.registrantPhone ?? null,
-      status: "confirmed", is_waitlisted: false,
+      status,
+      is_waitlisted: isWaitlisted,
+      custom_fields: input.customFields ?? null,
       notes: input.notes ?? null,
     })
     .select("id")
     .single();
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/app/church-admin/events/${input.eventId}`);
-  return { ok: true, registrationId: data.id, isWaitlisted: false };
+  return { ok: true, registrationId: data.id, isWaitlisted };
+}
+
+export async function approveRegistrationAction(
+  registrationId: string,
+  eventId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireChurchSession("/app/church-admin/events");
+  const role = session.appContext.roleId;
+  if (role !== "church-admin" && role !== "pastor") return { ok: false, error: "Unauthorized." };
+  const churchId = session.appContext.church.id;
+
+  await assertEventBelongsToChurch(churchId, eventId);
+  await assertRegistrationBelongsToEvent(churchId, eventId, registrationId);
+
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `update public.event_registrations
+       set status = 'confirmed'
+       where id = $1 and church_id = $2 and status = 'pending_approval'`,
+      [registrationId, churchId],
+    );
+    revalidatePath(`/app/church-admin/events/${eventId}`);
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { error } = await supabase
+    .from("event_registrations")
+    .update({ status: "confirmed" })
+    .eq("id", registrationId)
+    .eq("church_id", churchId)
+    .eq("status", "pending_approval");
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/app/church-admin/events/${eventId}`);
+  return { ok: true };
+}
+
+export type UpsertRegistrationFormFieldInput = {
+  eventId: string;
+  fields: Array<{
+    label: string;
+    fieldKey: string;
+    fieldType: "text" | "textarea" | "select" | "checkbox" | "number";
+    isRequired: boolean;
+    options?: string[];
+  }>;
+};
+
+export async function upsertRegistrationFormFieldsAction(
+  input: UpsertRegistrationFormFieldInput,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireChurchSession("/app/church-admin/events");
+  const role = session.appContext.roleId;
+  if (role !== "church-admin" && role !== "pastor") return { ok: false, error: "Unauthorized." };
+  const churchId = session.appContext.church.id;
+
+  await assertEventBelongsToChurch(churchId, input.eventId);
+
+  const normalized = input.fields
+    .map((field, index) => ({
+      label: field.label.trim(),
+      field_key: field.fieldKey.trim(),
+      field_type: field.fieldType,
+      is_required: field.isRequired,
+      options: field.options ?? null,
+      sort_order: index,
+    }))
+    .filter((field) => field.label.length > 0 && field.field_key.length > 0);
+
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `delete from public.event_registration_form_fields where event_id = $1 and church_id = $2`,
+      [input.eventId, churchId],
+    );
+
+    for (const field of normalized) {
+      await queryTenantLocalDb(
+        `insert into public.event_registration_form_fields
+           (event_id, church_id, label, field_key, field_type, is_required, options, sort_order)
+         values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)`,
+        [
+          input.eventId,
+          churchId,
+          field.label,
+          field.field_key,
+          field.field_type,
+          field.is_required,
+          field.options ? JSON.stringify(field.options) : null,
+          field.sort_order,
+        ],
+      );
+    }
+
+    revalidatePath(`/app/church-admin/events/${input.eventId}`);
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { error: deleteError } = await supabase
+    .from("event_registration_form_fields")
+    .delete()
+    .eq("event_id", input.eventId)
+    .eq("church_id", churchId);
+  if (deleteError) return { ok: false, error: deleteError.message };
+
+  if (normalized.length > 0) {
+    const { error: insertError } = await supabase.from("event_registration_form_fields").insert(
+      normalized.map((field) => ({
+        event_id: input.eventId,
+        church_id: churchId,
+        ...field,
+      })),
+    );
+    if (insertError) return { ok: false, error: insertError.message };
+  }
+
+  revalidatePath(`/app/church-admin/events/${input.eventId}`);
+  return { ok: true };
 }
 
 export async function cancelRegistrationAction(

@@ -8,10 +8,28 @@ export type ServicePlan = {
   name: string;
   serviceDate: string;
   serviceTime: string | null;
+  serviceType: "worship" | "prayer" | "youth" | "special_event" | "class" | "other";
+  scriptureReference: string | null;
+  sermonTitle: string | null;
+  sermonSpeaker: string | null;
   status: ServicePlanStatus;
   notes: string | null;
   createdBy: string | null;
   createdAt: string;
+};
+
+export type ServicePlanItem = {
+  id: string;
+  planId: string;
+  churchId: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  title: string;
+  itemType: "segment" | "song" | "reading" | "prayer" | "sermon" | "announcement" | "other";
+  leaderName: string | null;
+  notes: string | null;
+  attachmentUrl: string | null;
+  sortOrder: number;
 };
 
 export type ServicePlanPosition = {
@@ -47,6 +65,7 @@ export type VolunteerShift = {
 
 export type ServicePlanDetail = {
   plan: ServicePlan;
+  runOfService: ServicePlanItem[];
   positions: Array<ServicePlanPosition & {
     shifts: VolunteerShift[];
     filled: number;

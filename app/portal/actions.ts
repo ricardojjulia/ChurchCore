@@ -1,5 +1,7 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+
 import { getRequestedPublicChurch } from "@/lib/public-portal-data";
 import {
   createTenantServerClient,
@@ -15,6 +17,24 @@ export type SubmitPortalAccountRequestInput = {
   lastName: string;
   email: string;
   phone: string | null;
+};
+
+export type SubmitPublicEventRegistrationInput = {
+  churchId: string;
+  eventId: string;
+  registrantName: string;
+  registrantEmail: string;
+  registrantPhone?: string | null;
+  notes?: string | null;
+  customFields?: Record<string, unknown>;
+};
+
+export type SubmitPublicEventRegistrationResult = {
+  ok: boolean;
+  previewMode?: boolean;
+  alreadyRegistered?: boolean;
+  status?: "pending_approval" | "confirmed" | "waitlisted";
+  error?: string;
 };
 
 export async function submitPortalAccountRequestAction(
@@ -70,4 +90,201 @@ export async function submitPortalAccountRequestAction(
   }
 
   return { previewMode: false };
+}
+
+export async function submitPublicEventRegistrationAction(
+  input: SubmitPublicEventRegistrationInput,
+): Promise<SubmitPublicEventRegistrationResult> {
+  const churchId = input.churchId.trim();
+  const eventId = input.eventId.trim();
+  const registrantName = input.registrantName.trim();
+  const registrantEmail = input.registrantEmail.trim().toLowerCase();
+  const registrantPhone = input.registrantPhone?.trim() || null;
+  const notes = input.notes?.trim() || null;
+
+  if (!churchId || !eventId) {
+    return { ok: false, error: "A church and event are required." };
+  }
+
+  if (!registrantName) {
+    return { ok: false, error: "Name is required." };
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registrantEmail)) {
+    return { ok: false, error: "Enter a valid email address." };
+  }
+
+  if (!hasTenantBackendEnv() && !hasTenantDbUrl()) {
+    return { ok: true, previewMode: true };
+  }
+
+  if (shouldUseLocalTenantFallback() || !hasTenantBackendEnv()) {
+    const settingsResult = await queryTenantLocalDb<{
+      registration_open: boolean;
+      capacity: number | null;
+      waitlist_enabled: boolean;
+      approval_required: boolean;
+      deadline: string | null;
+    }>(
+      `select
+         settings.registration_open,
+         settings.capacity,
+         settings.waitlist_enabled,
+         coalesce(settings.approval_required, false) as approval_required,
+         settings.deadline
+       from public.event_registration_settings settings
+       join public.events event
+         on event.id = settings.event_id
+       where settings.church_id = $1
+         and settings.event_id = $2
+         and event.visibility = 'public'
+       limit 1`,
+      [churchId, eventId],
+    );
+
+    const settings = settingsResult.rows[0];
+    if (!settings || !settings.registration_open) {
+      return { ok: false, error: "Registration is closed for this event." };
+    }
+
+    if (settings.deadline && Date.now() > new Date(settings.deadline).getTime()) {
+      return { ok: false, error: "Registration deadline has passed." };
+    }
+
+    const existingResult = await queryTenantLocalDb<{ id: string }>(
+      `select id
+       from public.event_registrations
+       where church_id = $1
+         and event_id = $2
+         and lower(registrant_email) = $3
+         and status != 'cancelled'
+       limit 1`,
+      [churchId, eventId, registrantEmail],
+    );
+
+    if (existingResult.rows[0]?.id) {
+      return { ok: true, alreadyRegistered: true };
+    }
+
+    let isWaitlisted = false;
+    if (settings.capacity) {
+      const countResult = await queryTenantLocalDb<{ cnt: number }>(
+        `select count(*)::int as cnt
+         from public.event_registrations
+         where church_id = $1
+           and event_id = $2
+           and is_waitlisted = false
+           and status != 'cancelled'`,
+        [churchId, eventId],
+      );
+
+      if ((countResult.rows[0]?.cnt ?? 0) >= settings.capacity) {
+        if (!settings.waitlist_enabled) {
+          return { ok: false, error: "This event is full and does not have a waitlist." };
+        }
+        isWaitlisted = true;
+      }
+    }
+
+    const status: SubmitPublicEventRegistrationResult["status"] = isWaitlisted
+      ? "waitlisted"
+      : settings.approval_required
+        ? "pending_approval"
+        : "confirmed";
+
+    await queryTenantLocalDb(
+      `insert into public.event_registrations
+         (event_id, church_id, registrant_name, registrant_email, registrant_phone,
+          status, is_waitlisted, notes, custom_fields)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
+      [
+        eventId,
+        churchId,
+        registrantName,
+        registrantEmail,
+        registrantPhone,
+        status,
+        isWaitlisted,
+        notes,
+        input.customFields ? JSON.stringify(input.customFields) : null,
+      ],
+    );
+
+    revalidatePath(`/portal/events/register?church=${encodeURIComponent(churchId)}`);
+    return { ok: true, status };
+  }
+
+  const supabase = await createTenantServerClient();
+
+  const { data: settings } = await supabase
+    .from("event_registration_settings")
+    .select("registration_open, capacity, waitlist_enabled, approval_required, deadline, events!inner(id, visibility)")
+    .eq("church_id", churchId)
+    .eq("event_id", eventId)
+    .eq("events.visibility", "public")
+    .maybeSingle();
+
+  if (!settings || settings.registration_open === false) {
+    return { ok: false, error: "Registration is closed for this event." };
+  }
+
+  if (settings.deadline && Date.now() > new Date(settings.deadline).getTime()) {
+    return { ok: false, error: "Registration deadline has passed." };
+  }
+
+  const { data: existing } = await supabase
+    .from("event_registrations")
+    .select("id")
+    .eq("church_id", churchId)
+    .eq("event_id", eventId)
+    .ilike("registrant_email", registrantEmail)
+    .neq("status", "cancelled")
+    .maybeSingle();
+
+  if (existing?.id) {
+    return { ok: true, alreadyRegistered: true };
+  }
+
+  let isWaitlisted = false;
+  if (settings.capacity) {
+    const { count } = await supabase
+      .from("event_registrations")
+      .select("id", { count: "exact", head: true })
+      .eq("church_id", churchId)
+      .eq("event_id", eventId)
+      .eq("is_waitlisted", false)
+      .neq("status", "cancelled");
+
+    if ((count ?? 0) >= settings.capacity) {
+      if (!settings.waitlist_enabled) {
+        return { ok: false, error: "This event is full and does not have a waitlist." };
+      }
+      isWaitlisted = true;
+    }
+  }
+
+  const status: SubmitPublicEventRegistrationResult["status"] = isWaitlisted
+    ? "waitlisted"
+    : settings.approval_required
+      ? "pending_approval"
+      : "confirmed";
+
+  const { error } = await supabase.from("event_registrations").insert({
+    church_id: churchId,
+    event_id: eventId,
+    registrant_name: registrantName,
+    registrant_email: registrantEmail,
+    registrant_phone: registrantPhone,
+    status,
+    is_waitlisted: isWaitlisted,
+    notes,
+    custom_fields: input.customFields ?? null,
+  });
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath(`/portal/events/register?church=${encodeURIComponent(churchId)}`);
+  return { ok: true, status };
 }

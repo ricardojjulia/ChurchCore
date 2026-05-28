@@ -32,12 +32,14 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import { ChurchAppContextBanner } from "@/components/application/church-app-context-banner";
 import { MemberBottomNav } from "@/components/application/member-bottom-nav";
 import { MemberMobileCheckInCard } from "@/components/application/member-mobile-checkin-card";
+import { MemberEventRegistrationPanel } from "@/components/application/member-event-registration-panel";
 import { MemberFamilyEdit } from "@/components/application/member-family-edit";
 import { NotificationPreferencesForm } from "@/components/application/notification-preferences-form";
 import { MemberProfileEdit } from "@/components/application/member-profile-edit";
 import { useI18n } from "@/components/i18n-provider";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { MemberMobileCheckInOption } from "@/lib/member-mobile-checkin-data";
+import type { MemberEventRegistrationOption } from "@/lib/member-event-registration-data";
 import type { MemberPortalData } from "@/lib/member-portal-data";
 
 function formatEventDate(value: string, locale: string) {
@@ -67,10 +69,12 @@ export function MemberPortalHome({
   session,
   data,
   mobileCheckInOptions,
+  eventRegistrationOptions,
 }: {
   session: ChurchAppSession;
   data: MemberPortalData;
   mobileCheckInOptions: MemberMobileCheckInOption[];
+  eventRegistrationOptions: MemberEventRegistrationOption[];
 }) {
   const profile = data.profile;
   const { locale, t } = useI18n();
@@ -456,6 +460,11 @@ export function MemberPortalHome({
             )}
           </Stack>
         </Paper>
+
+        <MemberEventRegistrationPanel
+          options={eventRegistrationOptions}
+          familyMembers={data.family?.members ?? []}
+        />
 
         <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
           <Paper withBorder radius="xl" p="xl">
