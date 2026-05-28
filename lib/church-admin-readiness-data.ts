@@ -55,6 +55,7 @@ type ReadinessMetricRow = {
   pending_communications: number;
   failed_communications: number;
   bounced_communications: number;
+  suppressed_contacts: number;
   contact_gaps: number;
   consent_gaps: number;
   report_profiles: number;
@@ -239,6 +240,7 @@ export function buildChurchAdminReadinessItems(row: ReadinessMetricRow): ChurchA
       pendingCommunications: row.pending_communications,
       failedCommunications: row.failed_communications,
       bouncedCommunications: row.bounced_communications,
+      suppressedContacts: row.suppressed_contacts,
       contactGaps: row.contact_gaps,
       consentGaps: row.consent_gaps,
     }),
@@ -378,10 +380,17 @@ export async function getChurchAdminReadinessData(
             select
               count(*) filter (
                 where status = 'queued'
+                    or status = 'scheduled'
+                    or status = 'sending'
                    or (scheduled_for is not null and sent_at is null)
               )::int as pending_communications,
               count(*) filter (where status = 'failed')::int as failed_communications,
-              count(*) filter (where status = 'bounced')::int as bounced_communications
+              count(*) filter (where status = 'bounced')::int as bounced_communications,
+              coalesce((
+                select count(*)::int
+                from public.communication_suppressions suppression
+                where suppression.church_id = $1
+              ), 0) as suppressed_contacts
             from public.communication_logs
             where church_id = $1
           ),
@@ -491,6 +500,7 @@ export async function getChurchAdminReadinessData(
     journalsResult,
     givingPagesResult,
     communicationLogsResult,
+    suppressionsResult,
     communicationProfilesResult,
     notificationPreferencesResult,
     reportEventsResult,
@@ -548,6 +558,7 @@ export async function getChurchAdminReadinessData(
       .from("communication_logs")
       .select("id, status, scheduled_for, sent_at")
       .eq("church_id", churchId),
+    supabase.from("communication_suppressions").select("id").eq("church_id", churchId),
     supabase
       .from("profiles")
       .select("id, email, phone, contact_allowed, membership_status")
@@ -645,10 +656,15 @@ export async function getChurchAdminReadinessData(
       draft_journals: (journalsResult.data ?? []).filter((journal) => journal.status === "draft").length,
       live_giving_pages: (givingPagesResult.data ?? []).filter((page) => page.is_live).length,
       pending_communications: communicationLogs.filter(
-        (log) => log.status === "queued" || (log.scheduled_for && !log.sent_at),
+        (log) =>
+          log.status === "queued" ||
+          log.status === "scheduled" ||
+          log.status === "sending" ||
+          (log.scheduled_for && !log.sent_at),
       ).length,
       failed_communications: communicationLogs.filter((log) => log.status === "failed").length,
       bounced_communications: communicationLogs.filter((log) => log.status === "bounced").length,
+      suppressed_contacts: suppressionsResult.data?.length ?? 0,
       contact_gaps: communicationProfiles.filter(
         (profile) => !profile.email || !profile.phone || profile.contact_allowed === false,
       ).length,

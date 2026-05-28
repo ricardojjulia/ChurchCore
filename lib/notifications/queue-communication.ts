@@ -8,8 +8,8 @@ import {
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
-import { sendEmail } from "./send-email";
-import { sendSms } from "./send-sms";
+import { sendgridAdapter } from "@/lib/communications/sendgrid-adapter";
+import { twilioAdapter } from "@/lib/communications/twilio-adapter";
 
 /**
  * queueCommunicationAction
@@ -41,6 +41,7 @@ export interface QueueCommunicationInput {
   html?: string;
   /** ISO datetime string — if set, log is recorded but send is deferred. */
   scheduledFor?: string;
+  retryCount?: number;
 }
 
 export interface QueueCommunicationResult {
@@ -73,33 +74,39 @@ export async function queueCommunicationAction(
   // ── 2. Dispatch (unless scheduled for the future) ────────────
   let externalId: string | undefined;
   let sendError: string | undefined;
+  let errorCode: string | undefined;
+  let provider: "sendgrid" | "twilio" | undefined;
 
   const isScheduled =
     input.scheduledFor != null && new Date(input.scheduledFor) > new Date();
 
   if (!isScheduled) {
     if (input.channel === "email") {
-      const result = await sendEmail({
+      provider = "sendgrid";
+      const result = await sendgridAdapter.send({
         to: input.recipientContact,
-        subject: input.subject ?? "(no subject)",
-        text: input.body,
+        subject: input.subject,
+        body: input.body,
         html: input.html,
       });
-      externalId = result.messageId;
-      if (!result.accepted) sendError = result.error;
+      externalId = result.providerMessageId;
+      errorCode = result.errorCode;
+      if (!result.accepted) sendError = result.errorMessage;
     } else if (input.channel === "sms") {
-      const result = await sendSms({
+      provider = "twilio";
+      const result = await twilioAdapter.send({
         to: input.recipientContact,
         body: input.body,
       });
-      externalId = result.sid;
-      if (!result.accepted) sendError = result.error;
+      externalId = result.providerMessageId;
+      errorCode = result.errorCode;
+      if (!result.accepted) sendError = result.errorMessage;
     }
     // push and in_app: handled by in-app notification system (Phase 7)
   }
 
   const status = isScheduled
-    ? "queued"
+    ? "scheduled"
     : sendError
       ? "failed"
       : "sent";
@@ -113,10 +120,14 @@ export async function queueCommunicationAction(
     subject: input.subject,
     bodyPreview: input.body.slice(0, 500),
     externalId,
+    provider,
+    providerMessageId: externalId,
     status,
     errorMessage: sendError,
+    errorCode,
     scheduledFor: input.scheduledFor,
     sentAt: isScheduled || sendError ? undefined : new Date().toISOString(),
+    retryCount: input.retryCount,
   });
 
   revalidatePath("/app/communications");
@@ -180,10 +191,14 @@ interface LogInput {
   subject?: string;
   bodyPreview: string;
   externalId?: string;
+  provider?: "sendgrid" | "twilio";
+  providerMessageId?: string;
   status: string;
   errorMessage?: string;
+  errorCode?: string;
   scheduledFor?: string;
   sentAt?: string;
+  retryCount?: number;
 }
 
 async function writeLog(log: LogInput): Promise<string | undefined> {
@@ -191,8 +206,10 @@ async function writeLog(log: LogInput): Promise<string | undefined> {
     const result = await queryTenantLocalDb<{ id: string }>(
       `insert into public.communication_logs
          (church_id, sent_by, recipient_id, channel, subject, body_preview,
-          external_id, status, error_message, scheduled_for, sent_at)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+          external_id, provider, provider_message_id, status, error_message, error_code,
+          scheduled_for, sent_at, retry_count, last_retry_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+         case when $15 > 0 then now() else null end)
        returning id`,
       [
         log.churchId,
@@ -202,10 +219,14 @@ async function writeLog(log: LogInput): Promise<string | undefined> {
         log.subject ?? null,
         log.bodyPreview,
         log.externalId ?? null,
+        log.provider ?? null,
+        log.providerMessageId ?? null,
         log.status,
         log.errorMessage ?? null,
+        log.errorCode ?? null,
         log.scheduledFor ?? null,
         log.sentAt ?? null,
+        log.retryCount ?? 0,
       ],
     );
     return result.rows[0]?.id;
@@ -222,10 +243,15 @@ async function writeLog(log: LogInput): Promise<string | undefined> {
       subject: log.subject,
       body_preview: log.bodyPreview,
       external_id: log.externalId,
+      provider: log.provider,
+      provider_message_id: log.providerMessageId,
       status: log.status,
       error_message: log.errorMessage,
+      error_code: log.errorCode,
       scheduled_for: log.scheduledFor,
       sent_at: log.sentAt,
+      retry_count: log.retryCount ?? 0,
+      last_retry_at: (log.retryCount ?? 0) > 0 ? new Date().toISOString() : null,
     })
     .select("id")
     .single();

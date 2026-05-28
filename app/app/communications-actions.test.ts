@@ -8,6 +8,7 @@ const {
   hasTenantBackendEnvMock,
   createTenantServerClientMock,
   insertConsentLogEntriesMock,
+  sendWithSuppressionMock,
 } = vi.hoisted(() => {
   const revalidatePath = vi.fn();
   const requireChurchSession = vi.fn();
@@ -16,6 +17,7 @@ const {
   const hasTenantBackendEnv = vi.fn();
   const createTenantServerClient = vi.fn();
   const insertConsentLogEntries = vi.fn();
+  const sendWithSuppression = vi.fn();
 
   return {
     revalidatePathMock: revalidatePath,
@@ -25,6 +27,7 @@ const {
     hasTenantBackendEnvMock: hasTenantBackendEnv,
     createTenantServerClientMock: createTenantServerClient,
     insertConsentLogEntriesMock: insertConsentLogEntries,
+    sendWithSuppressionMock: sendWithSuppression,
   };
 });
 
@@ -47,7 +50,15 @@ vi.mock("@/lib/consent-log", () => ({
   insertConsentLogEntries: insertConsentLogEntriesMock,
 }));
 
-import { updateNotificationPreferencesAction } from "@/app/app/communications-actions";
+vi.mock("@/lib/communications/send-with-suppression", () => ({
+  sendWithSuppression: sendWithSuppressionMock,
+}));
+
+import {
+  retryCommunicationAction,
+  suppressContactAction,
+  updateNotificationPreferencesAction,
+} from "@/app/app/communications-actions";
 
 describe("communications actions", () => {
   beforeEach(() => {
@@ -135,5 +146,116 @@ describe("communications actions", () => {
     ).rejects.toThrow("You may only update your own notification preferences.");
 
     expect(insertConsentLogEntriesMock).not.toHaveBeenCalled();
+  });
+
+  it("denies secretary role from retry and suppression actions", async () => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "secretary", church: { id: "church-1" } },
+      profile: { id: "profile-1" },
+      source: "supabase",
+      userId: "user-1",
+    });
+
+    await expect(retryCommunicationAction({ logId: "log-1" })).rejects.toThrow(
+      "Only pastors and church administrators may retry communications.",
+    );
+
+    await expect(
+      suppressContactAction({
+        channel: "email",
+        contact: "member@example.com",
+        reason: "manual",
+      }),
+    ).rejects.toThrow("Only church administrators may suppress contacts.");
+  });
+
+  it("suppresses a contact and writes consent log when profile is found", async () => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "church-admin", church: { id: "church-1" } },
+      profile: { id: "profile-admin" },
+      source: "supabase",
+      userId: "admin-1",
+    });
+
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "profile-2" }] });
+
+    await suppressContactAction({
+      channel: "email",
+      contact: "member@example.com",
+      reason: "manual",
+      notes: "Manual suppression",
+    });
+
+    expect(insertConsentLogEntriesMock).toHaveBeenCalledWith([
+      {
+        churchId: "church-1",
+        profileId: "profile-2",
+        consentType: "communication_suppression",
+        consented: false,
+        communicationType: "email",
+      },
+    ]);
+  });
+
+  it("rejects retry when max retry count is reached", async () => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "pastor", church: { id: "church-1" } },
+      profile: { id: "profile-pastor" },
+      source: "supabase",
+      userId: "pastor-1",
+    });
+
+    queryTenantLocalDbMock.mockResolvedValueOnce({
+      rows: [
+        {
+          id: "log-1",
+          recipient_id: "profile-2",
+          channel: "email",
+          subject: "Subject",
+          body_preview: "Body",
+          status: "failed",
+          error_code: "timeout",
+          retry_count: 3,
+        },
+      ],
+    });
+
+    const result = await retryCommunicationAction({ logId: "log-1" });
+    expect(result).toEqual({ retried: false, reason: "Retry limit reached." });
+    expect(sendWithSuppressionMock).not.toHaveBeenCalled();
+  });
+
+  it("retries eligible failed communication", async () => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "pastor", church: { id: "church-1" } },
+      profile: { id: "profile-pastor" },
+      source: "supabase",
+      userId: "pastor-1",
+    });
+
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "log-1",
+            recipient_id: "profile-2",
+            channel: "email",
+            subject: "Subject",
+            body_preview: "Body",
+            status: "failed",
+            error_code: "timeout",
+            retry_count: 1,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ email: "member@example.com", phone: null }] });
+
+    sendWithSuppressionMock.mockResolvedValue({ sent: true, skipped: false });
+
+    const result = await retryCommunicationAction({ logId: "log-1" });
+    expect(result).toEqual({ retried: true });
+    expect(sendWithSuppressionMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -50,6 +50,7 @@ export type CommunicationsReadinessMetrics = {
   pendingCommunications: number;
   failedCommunications: number;
   bouncedCommunications: number;
+  suppressedContacts: number;
   contactGaps: number;
   consentGaps: number;
 };
@@ -300,10 +301,17 @@ export function buildCommunicationsReadinessSummary({
   pendingCommunications,
   failedCommunications,
   bouncedCommunications,
+  suppressedContacts,
   contactGaps,
   consentGaps,
 }: CommunicationsReadinessMetrics): ReadinessSummary {
-  const issueCount = pendingCommunications + failedCommunications + bouncedCommunications + contactGaps + consentGaps;
+  const issueCount =
+    pendingCommunications +
+    failedCommunications +
+    bouncedCommunications +
+    suppressedContacts +
+    contactGaps +
+    consentGaps;
   const status = readinessStatusFor(
     failedCommunications > 0 || bouncedCommunications > 0,
     pendingCommunications > 0 || contactGaps > 0 || consentGaps > 0,
@@ -323,7 +331,7 @@ export function buildCommunicationsReadinessSummary({
         ? "No action needed."
         : "Open communications and resolve pending sends, delivery failures, consent limits, or contact gaps.",
     target: { route: "/app/communications", query: { view: "readiness" } },
-    detail: `${pendingCommunications} pending send${pendingCommunications === 1 ? "" : "s"} · ${failedCommunications} failed · ${bouncedCommunications} bounced · ${contactGaps} contact gap${contactGaps === 1 ? "" : "s"} · ${consentGaps} consent gap${consentGaps === 1 ? "" : "s"}.`,
+    detail: `${pendingCommunications} pending send${pendingCommunications === 1 ? "" : "s"} · ${failedCommunications} failed · ${bouncedCommunications} bounced · ${suppressedContacts} suppressed contact${suppressedContacts === 1 ? "" : "s"} · ${contactGaps} contact gap${contactGaps === 1 ? "" : "s"} · ${consentGaps} consent gap${consentGaps === 1 ? "" : "s"}.`,
   });
 }
 

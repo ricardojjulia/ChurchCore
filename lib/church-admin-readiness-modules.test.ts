@@ -233,6 +233,7 @@ describe("church admin readiness module summaries", () => {
       pendingCommunications: 1,
       failedCommunications: 2,
       bouncedCommunications: 1,
+      suppressedContacts: 0,
       contactGaps: 0,
       consentGaps: 0,
     })).toMatchObject({
@@ -244,7 +245,7 @@ describe("church admin readiness module summaries", () => {
       completionState: "blocked",
       href: "/app/communications?view=readiness",
       recommendedAction: "Open communications and resolve pending sends, delivery failures, consent limits, or contact gaps.",
-      detail: "1 pending send · 2 failed · 1 bounced · 0 contact gaps · 0 consent gaps.",
+      detail: "1 pending send · 2 failed · 1 bounced · 0 suppressed contacts · 0 contact gaps · 0 consent gaps.",
     });
   });
 
@@ -253,14 +254,15 @@ describe("church admin readiness module summaries", () => {
       pendingCommunications: 3,
       failedCommunications: 0,
       bouncedCommunications: 0,
+      suppressedContacts: 1,
       contactGaps: 2,
       consentGaps: 4,
     })).toMatchObject({
       status: "attention",
       severity: "warning",
-      issueCount: 9,
+      issueCount: 10,
       completionState: "needs_review",
-      detail: "3 pending sends · 0 failed · 0 bounced · 2 contact gaps · 4 consent gaps.",
+      detail: "3 pending sends · 0 failed · 0 bounced · 1 suppressed contact · 2 contact gaps · 4 consent gaps.",
     });
   });
 
@@ -269,6 +271,7 @@ describe("church admin readiness module summaries", () => {
       pendingCommunications: 0,
       failedCommunications: 0,
       bouncedCommunications: 0,
+      suppressedContacts: 0,
       contactGaps: 0,
       consentGaps: 0,
     })).toMatchObject({

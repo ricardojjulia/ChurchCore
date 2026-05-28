@@ -4,9 +4,11 @@ export type CommunicationProviderChannel = "email" | "sms";
 
 export type CommunicationDeliveryStatus =
   | "draft"
+  | "queued"
   | "scheduled"
   | "sending"
   | "sent"
+  | "delivered"
   | "failed"
   | "bounced"
   | "suppressed"
@@ -62,7 +64,7 @@ export function shouldRetryDelivery(
   status: CommunicationDeliveryStatus,
   errorCode?: string,
 ): boolean {
-  if (status === "scheduled" || status === "sending") {
+  if (status === "queued" || status === "scheduled" || status === "sending") {
     return true;
   }
 
