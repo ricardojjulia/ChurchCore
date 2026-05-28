@@ -51,6 +51,20 @@ npm run test:e2e:readiness
 The Playwright readiness check starts the Next.js dev server automatically, but it still expects the local Supabase demo setup and generated `.demo-credentials.local` from `npm run setup:local`.
 That local setup now generates tenant demo users for ChurchAdmin, Secretary / Office Admin, Pastor / Elder, Ministry Leader, and Member role-access checks.
 
+### Startup Troubleshooting
+
+If `npm run dev` exits unexpectedly, use the fast recovery checklist in [docs/setup/dev-startup-troubleshooting.md](docs/setup/dev-startup-troubleshooting.md).
+
+Most common clean reset flow:
+
+```bash
+rm -rf node_modules .next
+npm cache clean --force
+npm cache verify
+npm ci
+npm run dev
+```
+
 ## Stack
 
 - Next.js 16 App Router with TypeScript
@@ -71,6 +85,7 @@ That local setup now generates tenant demo users for ChurchAdmin, Secretary / Of
 | [docs/software-factory.md](docs/software-factory.md) | How to use the Claude Code and Codex software-factory workflows, including agents, skills, hooks, role contracts, and diagrams. |
 | [docs/factory-runs](docs/factory-runs) | Durable tracker for meaningful software-factory runs, including story, brief, implementation, verification, residual risk, and commit evidence. |
 | [docs/setup/local-supabase.md](docs/setup/local-supabase.md) | Full local Supabase setup, seed, reset, and smoke-test path. |
+| [docs/setup/dev-startup-troubleshooting.md](docs/setup/dev-startup-troubleshooting.md) | Fast triage for local `npm run dev` startup failures and clean reset steps. |
 | [docs/mvp-readiness-audit.md](docs/mvp-readiness-audit.md) | Current MVP verdict, navigation fit, verification gaps, and readiness queue. |
 | [docs/plans/competitive-readiness-roadmap.md](docs/plans/competitive-readiness-roadmap.md) | Next major-release roadmap for closing competitive gaps across operator, member, communications, service planning, import, and security proof workflows. |
 | [docs/plans/member-mobile-pwa-foundation-audit.md](docs/plans/member-mobile-pwa-foundation-audit.md) | Phase 2 mobile baseline audit for member routes and calendar, including route verdicts, workflow order, and first implementation slices. |
