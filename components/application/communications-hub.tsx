@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   Alert,
   Badge,
@@ -25,15 +26,25 @@ import {
   CheckCircle,
   Mail,
   MessageSquare,
+  RefreshCcw,
   Send,
+  ShieldBan,
+  Timer,
   XCircle,
 } from "lucide-react";
 
-import { broadcastMessageAction } from "@/app/app/communications-actions";
+import {
+  broadcastMessageAction,
+  getCommunicationDeliveryEventsAction,
+  retryCommunicationAction,
+  suppressContactAction,
+} from "@/app/app/communications-actions";
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ReadinessTargetState } from "@/components/application/readiness-target-state";
 import type { ChurchAppSession } from "@/lib/auth";
+import { shouldRetryDelivery } from "@/lib/communications/provider-adapter";
 import type {
+  CommunicationDeliveryEvent,
   CommunicationLogEntry,
   CommunicationsHubData,
 } from "@/lib/communications-data";
@@ -63,43 +74,25 @@ const CHANNEL_COLORS: Record<CommunicationLogEntry["channel"], string> = {
 };
 
 const STATUS_COLORS: Record<CommunicationLogEntry["status"], string> = {
+  draft: "gray",
   queued: "yellow",
+  scheduled: "yellow",
+  sending: "yellow",
   sent: "blue",
   delivered: "green",
   failed: "red",
   bounced: "orange",
+  suppressed: "grape",
+  unsubscribed: "grape",
+  cancelled: "gray",
 };
 
-function LogRow({ log }: { log: CommunicationLogEntry }) {
-  return (
-    <Table.Tr>
-      <Table.Td>
-        <Badge color={CHANNEL_COLORS[log.channel]} size="xs" variant="light" radius="sm">
-          {CHANNEL_LABELS[log.channel]}
-        </Badge>
-      </Table.Td>
-      <Table.Td>
-        <Text fz="xs" lineClamp={1}>
-          {log.subject ?? log.bodyPreview ?? "—"}
-        </Text>
-      </Table.Td>
-      <Table.Td>
-        <Text fz="xs" c="dimmed">
-          {log.recipientName ?? "Broadcast"}
-        </Text>
-      </Table.Td>
-      <Table.Td>
-        <Badge color={STATUS_COLORS[log.status]} size="xs" variant="dot">
-          {log.status}
-        </Badge>
-      </Table.Td>
-      <Table.Td>
-        <Text fz="xs" c="dimmed">
-          {log.sentAt ? formatDate(log.sentAt) : log.scheduledFor ? `Scheduled ${formatDate(log.scheduledFor)}` : formatDate(log.createdAt)}
-        </Text>
-      </Table.Td>
-    </Table.Tr>
-  );
+function isRetryEligible(log: CommunicationLogEntry): boolean {
+  if (log.retryCount >= 3) {
+    return false;
+  }
+
+  return shouldRetryDelivery(log.status, log.errorCode ?? undefined);
 }
 
 export function CommunicationsHub({
@@ -113,9 +106,12 @@ export function CommunicationsHub({
   readinessView?: boolean;
   dataSource?: "preview" | "live";
 }) {
-  const { recentLogs, recipients } = data;
+  const router = useRouter();
+  const { recentLogs, recipients, suppressions } = data;
 
-  // Compose drawer
+  const [isPending, startTransition] = useTransition();
+
+  // Compose state
   const [composeOpen, compose] = useDisclosure(false);
   const [channel, setChannel] = useState<"email" | "sms">("email");
   const [subject, setSubject] = useState("");
@@ -124,7 +120,18 @@ export function CommunicationsHub({
   const [filterRole, setFilterRole] = useState<string | null>(null);
   const [scheduledFor, setScheduledFor] = useState("");
 
-  const [isPending, startTransition] = useTransition();
+  // Suppression drawer state
+  const [suppressionOpen, suppression] = useDisclosure(false);
+  const [suppressionChannel, setSuppressionChannel] = useState<"email" | "sms">("email");
+  const [suppressionContact, setSuppressionContact] = useState("");
+  const [suppressionNotes, setSuppressionNotes] = useState("");
+
+  // Delivery events drawer state
+  const [eventsOpen, events] = useDisclosure(false);
+  const [activeLog, setActiveLog] = useState<CommunicationLogEntry | null>(null);
+  const [activeEvents, setActiveEvents] = useState<CommunicationDeliveryEvent[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(false);
+  const [retryingLogId, setRetryingLogId] = useState<string | null>(null);
 
   const navItems = [
     {
@@ -148,40 +155,53 @@ export function CommunicationsHub({
     },
   ];
 
-  // Filter recipients by role if set
   const filteredRecipients = filterRole
-    ? recipients.filter((r) => r.role === filterRole)
+    ? recipients.filter((recipient) => recipient.role === filterRole)
     : recipients;
 
-  const recipientOptions = filteredRecipients.map((r) => ({
-    value: r.profileId,
-    label: `${r.name} (${r.email ?? r.phone ?? "no contact"})`,
-  }));
+  const recipientOptions = useMemo(
+    () =>
+      filteredRecipients.map((recipient) => ({
+        value: recipient.profileId,
+        label: `${recipient.name} (${recipient.email ?? recipient.phone ?? "no contact"})`,
+      })),
+    [filteredRecipients],
+  );
 
-  // Consent-warning counts
-  const selectedRecipients = recipients.filter((r) => selectedIds.includes(r.profileId));
+  const selectedRecipients = recipients.filter((recipient) => selectedIds.includes(recipient.profileId));
   const noContactCount = selectedRecipients.filter(
-    (r) => (channel === "email" ? !r.email : !r.phone),
+    (recipient) => (channel === "email" ? !recipient.email : !recipient.phone),
   ).length;
   const optedOutCount = selectedRecipients.filter(
-    (r) => (channel === "email" ? !r.emailOptIn : !r.smsOptIn),
+    (recipient) => (channel === "email" ? !recipient.emailOptIn : !recipient.smsOptIn),
   ).length;
-  const pendingCount = recentLogs.filter((log) => log.status === "queued").length;
+
+  const pendingCount = recentLogs.filter(
+    (log) => log.status === "queued" || log.status === "scheduled" || log.status === "sending",
+  ).length;
   const failedCount = recentLogs.filter((log) => log.status === "failed").length;
   const bouncedCount = recentLogs.filter((log) => log.status === "bounced").length;
+  const suppressedContacts = suppressions.length;
   const contactGapCount = recipients.filter((recipient) => !recipient.email && !recipient.phone).length;
   const consentGapCount = recipients.filter(
     (recipient) => !recipient.emailOptIn && !recipient.smsOptIn,
   ).length;
+
   const readinessIssueCount =
-    pendingCount + failedCount + bouncedCount + contactGapCount + consentGapCount;
+    pendingCount +
+    failedCount +
+    bouncedCount +
+    suppressedContacts +
+    contactGapCount +
+    consentGapCount;
+
   const readinessState =
     dataSource === "preview"
       ? {
           state: "no-backend" as const,
           title: "Communications target unavailable",
           description:
-            "Communications readiness can be previewed, but live sends, delivery failures, bounces, consent, and contact checks need tenant data.",
+            "Communications readiness can be previewed, but live sends, delivery failures, suppressions, consent, and contact checks need tenant data.",
           detail: "Configure the tenant backend before using this target to clear readiness.",
         }
       : recipients.length === 0 && recentLogs.length === 0
@@ -196,18 +216,18 @@ export function CommunicationsHub({
               state: "completed" as const,
               title: "Communications readiness is clear",
               description:
-                "No queued sends, failed delivery, bounced messages, missing contacts, or consent gaps need review.",
+                "No queued sends, failed delivery, bounced messages, suppressions, missing contacts, or consent gaps need review.",
             }
           : {
               state: "validation-error" as const,
               title: "Communications readiness needs attention",
               description:
-                "Resolve pending sends, delivery failures, bounces, missing contacts, or consent gaps before communications readiness is complete.",
+                "Resolve pending sends, delivery failures, bounces, suppressions, missing contacts, or consent gaps before communications readiness is complete.",
               detail: `${readinessIssueCount} item${readinessIssueCount === 1 ? "" : "s"} need review.`,
             };
 
   function handleSelectAll() {
-    setSelectedIds(filteredRecipients.map((r) => r.profileId));
+    setSelectedIds(filteredRecipients.map((recipient) => recipient.profileId));
   }
 
   function handleClearSelection() {
@@ -215,7 +235,9 @@ export function CommunicationsHub({
   }
 
   function handleSend() {
-    if (!body.trim() || selectedIds.length === 0) return;
+    if (!body.trim() || selectedIds.length === 0) {
+      return;
+    }
 
     startTransition(async () => {
       try {
@@ -229,7 +251,7 @@ export function CommunicationsHub({
 
         notifications.show({
           title: "Message dispatched",
-          message: `Sent: ${result.sent} · Skipped (consent): ${result.skipped} · Errors: ${result.errors}`,
+          message: `Sent: ${result.sent} · Skipped: ${result.skipped} · Errors: ${result.errors}`,
           color: result.errors > 0 ? "orange" : "teal",
         });
 
@@ -238,10 +260,106 @@ export function CommunicationsHub({
         setSelectedIds([]);
         setScheduledFor("");
         compose.close();
-      } catch (err) {
+        router.refresh();
+      } catch (error) {
         notifications.show({
           title: "Error",
-          message: err instanceof Error ? err.message : "Something went wrong.",
+          message: error instanceof Error ? error.message : "Something went wrong.",
+          color: "red",
+        });
+      }
+    });
+  }
+
+  function handleRetry(log: CommunicationLogEntry) {
+    setRetryingLogId(log.id);
+
+    startTransition(async () => {
+      try {
+        const result = await retryCommunicationAction({ logId: log.id });
+
+        if (!result.retried) {
+          notifications.show({
+            title: "Retry skipped",
+            message: result.reason ?? "This communication cannot be retried.",
+            color: "yellow",
+          });
+        } else {
+          notifications.show({
+            title: "Retry queued",
+            message: "A new delivery attempt has been logged.",
+            color: "teal",
+          });
+        }
+
+        router.refresh();
+      } catch (error) {
+        notifications.show({
+          title: "Retry failed",
+          message: error instanceof Error ? error.message : "Unable to retry this communication.",
+          color: "red",
+        });
+      } finally {
+        setRetryingLogId(null);
+      }
+    });
+  }
+
+  function handleOpenEvents(log: CommunicationLogEntry) {
+    setActiveLog(log);
+    setActiveEvents([]);
+    setIsLoadingEvents(true);
+    events.open();
+
+    startTransition(async () => {
+      try {
+        const deliveryEvents = await getCommunicationDeliveryEventsAction({ logId: log.id });
+        setActiveEvents(deliveryEvents);
+      } catch (error) {
+        notifications.show({
+          title: "Unable to load events",
+          message: error instanceof Error ? error.message : "Could not load delivery events.",
+          color: "red",
+        });
+      } finally {
+        setIsLoadingEvents(false);
+      }
+    });
+  }
+
+  function handleAddSuppression() {
+    if (!suppressionContact.trim()) {
+      notifications.show({
+        title: "Missing contact",
+        message: "Provide an email address or phone number.",
+        color: "yellow",
+      });
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        await suppressContactAction({
+          channel: suppressionChannel,
+          contact: suppressionContact.trim(),
+          reason: "manual",
+          notes: suppressionNotes.trim() || undefined,
+        });
+
+        notifications.show({
+          title: "Suppression saved",
+          message: `${suppressionChannel.toUpperCase()} contact is now suppressed for this church.`,
+          color: "teal",
+        });
+
+        setSuppressionContact("");
+        setSuppressionNotes("");
+        suppression.close();
+        router.refresh();
+      } catch (error) {
+        notifications.show({
+          title: "Suppression failed",
+          message: error instanceof Error ? error.message : "Unable to save suppression.",
           color: "red",
         });
       }
@@ -283,8 +401,8 @@ export function CommunicationsHub({
                 </Text>
                 <Text size="sm" c="dimmed" mt={4}>
                   {readinessIssueCount > 0
-                    ? `${readinessIssueCount} item${readinessIssueCount === 1 ? "" : "s"} need review across sends, bounces, contacts, and consent.`
-                    : "Queued sends, failed delivery, bounces, contact gaps, and consent gaps are clear."}
+                    ? `${readinessIssueCount} item${readinessIssueCount === 1 ? "" : "s"} need review across sends, bounces, suppressions, contacts, and consent.`
+                    : "Queued sends, failed delivery, bounces, suppressions, contact gaps, and consent gaps are clear."}
                 </Text>
               </div>
               <Text component="a" href="/app/church-admin/readiness" size="sm" fw={700} c="churchBlue">
@@ -313,9 +431,16 @@ export function CommunicationsHub({
           <Tabs.Tab value="members" leftSection={<MessageSquare size={14} />}>
             Members
           </Tabs.Tab>
+          <Tabs.Tab value="suppressions" leftSection={<ShieldBan size={14} />}>
+            Suppressions
+            {suppressions.length > 0 ? (
+              <Badge color="grape" size="xs" variant="filled" ml="xs">
+                {suppressions.length}
+              </Badge>
+            ) : null}
+          </Tabs.Tab>
         </Tabs.List>
 
-        {/* Message log tab */}
         <Tabs.Panel value="log" pt="lg">
           {recentLogs.length === 0 ? (
             <Alert color="blue" variant="light" radius="md">
@@ -332,40 +457,105 @@ export function CommunicationsHub({
                     <Table.Th>Message</Table.Th>
                     <Table.Th>Recipient</Table.Th>
                     <Table.Th>Status</Table.Th>
+                    <Table.Th>Retry</Table.Th>
                     <Table.Th>Date</Table.Th>
+                    <Table.Th>Actions</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {recentLogs.map((log) => (
-                    <LogRow key={log.id} log={log} />
-                  ))}
+                  {recentLogs.map((log) => {
+                    const canRetry = isRetryEligible(log);
+                    const retryLabel = `${Math.min(log.retryCount, 3)}/3`;
+
+                    return (
+                      <Table.Tr key={log.id}>
+                        <Table.Td>
+                          <Badge color={CHANNEL_COLORS[log.channel]} size="xs" variant="light" radius="sm">
+                            {CHANNEL_LABELS[log.channel]}
+                          </Badge>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text fz="xs" lineClamp={1}>
+                            {log.subject ?? log.bodyPreview ?? "-"}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text fz="xs" c="dimmed">
+                            {log.recipientName ?? "Broadcast"}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Badge color={STATUS_COLORS[log.status]} size="xs" variant="dot">
+                            {log.status}
+                          </Badge>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text fz="xs" c={log.retryCount >= 3 ? "red" : "dimmed"}>
+                            {retryLabel}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text fz="xs" c="dimmed">
+                            {log.sentAt
+                              ? formatDate(log.sentAt)
+                              : log.scheduledFor
+                                ? `Scheduled ${formatDate(log.scheduledFor)}`
+                                : formatDate(log.createdAt)}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Group gap="xs" wrap="nowrap">
+                            <Button
+                              size="compact-xs"
+                              variant="light"
+                              color="blue"
+                              onClick={() => handleOpenEvents(log)}
+                              leftSection={<Timer size={12} />}
+                            >
+                              Events
+                            </Button>
+                            <Button
+                              size="compact-xs"
+                              variant="light"
+                              color="teal"
+                              leftSection={<RefreshCcw size={12} />}
+                              loading={retryingLogId === log.id}
+                              disabled={!canRetry || isPending}
+                              onClick={() => handleRetry(log)}
+                            >
+                              Retry
+                            </Button>
+                          </Group>
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
                 </Table.Tbody>
               </Table>
             </Paper>
           )}
         </Tabs.Panel>
 
-        {/* Members tab */}
         <Tabs.Panel value="members" pt="lg">
           <Stack gap="sm">
-            {recipients.map((r) => (
-              <Paper key={r.profileId} withBorder p="sm" radius="md">
+            {recipients.map((recipient) => (
+              <Paper key={recipient.profileId} withBorder p="sm" radius="md">
                 <Group justify="space-between">
                   <Stack gap={2}>
                     <Text fz="sm" fw={600}>
-                      {r.name}
+                      {recipient.name}
                     </Text>
                     <Text fz="xs" c="dimmed">
-                      {r.email ?? r.phone ?? "No contact info"} · {r.role}
+                      {recipient.email ?? recipient.phone ?? "No contact info"} · {recipient.role}
                     </Text>
-                    {r.ministries.length > 0 ? (
+                    {recipient.ministries.length > 0 ? (
                       <Text fz="xs" c="dimmed">
-                        {r.ministries.join(", ")}
+                        {recipient.ministries.join(", ")}
                       </Text>
                     ) : null}
                   </Stack>
                   <Group gap="xs">
-                    {r.emailOptIn ? (
+                    {recipient.emailOptIn ? (
                       <Badge size="xs" color="blue" variant="light" leftSection={<CheckCircle size={10} />}>
                         Email
                       </Badge>
@@ -374,7 +564,7 @@ export function CommunicationsHub({
                         No email
                       </Badge>
                     )}
-                    {r.smsOptIn ? (
+                    {recipient.smsOptIn ? (
                       <Badge size="xs" color="teal" variant="light" leftSection={<CheckCircle size={10} />}>
                         SMS
                       </Badge>
@@ -389,9 +579,85 @@ export function CommunicationsHub({
             ))}
           </Stack>
         </Tabs.Panel>
+
+        <Tabs.Panel value="suppressions" pt="lg">
+          <Stack gap="md">
+            <Group justify="space-between">
+              <Text fw={600} size="sm">
+                Suppressed Contacts
+              </Text>
+              <Button
+                size="xs"
+                radius="xl"
+                variant="light"
+                color="grape"
+                leftSection={<ShieldBan size={12} />}
+                onClick={suppression.open}
+              >
+                Add Suppression
+              </Button>
+            </Group>
+
+            {suppressions.length === 0 ? (
+              <Alert color="grape" variant="light" radius="md">
+                <Text fz="sm" c="dimmed">
+                  No contacts are suppressed yet.
+                </Text>
+              </Alert>
+            ) : (
+              <Paper withBorder radius="md" style={{ overflow: "hidden" }}>
+                <Table striped highlightOnHover>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Channel</Table.Th>
+                      <Table.Th>Contact</Table.Th>
+                      <Table.Th>Reason</Table.Th>
+                      <Table.Th>Notes</Table.Th>
+                      <Table.Th>By</Table.Th>
+                      <Table.Th>Date</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {suppressions.map((suppressionRow) => (
+                      <Table.Tr key={suppressionRow.id}>
+                        <Table.Td>
+                          <Badge size="xs" color={suppressionRow.channel === "email" ? "blue" : "teal"}>
+                            {suppressionRow.channel.toUpperCase()}
+                          </Badge>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text fz="xs">{suppressionRow.contact}</Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Badge size="xs" variant="dot" color="grape">
+                            {suppressionRow.reason}
+                          </Badge>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text fz="xs" c="dimmed" lineClamp={1}>
+                            {suppressionRow.notes ?? "-"}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text fz="xs" c="dimmed">
+                            {suppressionRow.suppressedByName ?? "System"}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text fz="xs" c="dimmed">
+                            {formatDate(suppressionRow.createdAt)}
+                          </Text>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </Paper>
+            )}
+          </Stack>
+        </Tabs.Panel>
       </Tabs>
 
-      {/* Compose drawer */}
       <Drawer
         opened={composeOpen}
         onClose={compose.close}
@@ -404,7 +670,7 @@ export function CommunicationsHub({
           <Select
             label="Channel"
             value={channel}
-            onChange={(v) => setChannel((v ?? "email") as "email" | "sms")}
+            onChange={(value) => setChannel((value ?? "email") as "email" | "sms")}
             data={[
               { value: "email", label: "Email" },
               { value: "sms", label: "SMS" },
@@ -412,7 +678,6 @@ export function CommunicationsHub({
             radius="md"
           />
 
-          {/* Recipient filter + picker */}
           <Select
             label="Filter by role (optional)"
             value={filterRole}
@@ -426,10 +691,11 @@ export function CommunicationsHub({
             ]}
             radius="md"
           />
+
           <Group gap="xs" align="flex-end">
             <MultiSelect
               label="Recipients"
-              placeholder="Search members…"
+              placeholder="Search members..."
               data={recipientOptions}
               value={selectedIds}
               onChange={setSelectedIds}
@@ -438,6 +704,7 @@ export function CommunicationsHub({
               style={{ flex: 1 }}
             />
           </Group>
+
           <Group gap="xs">
             <Button size="xs" variant="light" radius="xl" onClick={handleSelectAll}>
               Select all ({filteredRecipients.length})
@@ -452,8 +719,12 @@ export function CommunicationsHub({
           {selectedIds.length > 0 && (noContactCount > 0 || optedOutCount > 0) ? (
             <Alert color="orange" variant="light" radius="md">
               <Text fz="xs">
-                {noContactCount > 0 ? `${noContactCount} recipient(s) have no ${channel} address and will be skipped. ` : ""}
-                {optedOutCount > 0 ? `${optedOutCount} recipient(s) have opted out of ${channel} and will be skipped.` : ""}
+                {noContactCount > 0
+                  ? `${noContactCount} recipient(s) have no ${channel} address and will be skipped. `
+                  : ""}
+                {optedOutCount > 0
+                  ? `${optedOutCount} recipient(s) have opted out of ${channel} and will be skipped.`
+                  : ""}
               </Text>
             </Alert>
           ) : null}
@@ -463,16 +734,16 @@ export function CommunicationsHub({
               label="Subject"
               placeholder="e.g. Sunday Service Reminder"
               value={subject}
-              onChange={(e) => setSubject(e.currentTarget.value)}
+              onChange={(event) => setSubject(event.currentTarget.value)}
               radius="md"
             />
           ) : null}
 
           <Textarea
             label="Message"
-            placeholder="Write your message here…"
+            placeholder="Write your message here..."
             value={body}
-            onChange={(e) => setBody(e.currentTarget.value)}
+            onChange={(event) => setBody(event.currentTarget.value)}
             minRows={5}
             autosize
             radius="md"
@@ -482,7 +753,7 @@ export function CommunicationsHub({
             label="Schedule for (optional)"
             type="datetime-local"
             value={scheduledFor}
-            onChange={(e) => setScheduledFor(e.currentTarget.value)}
+            onChange={(event) => setScheduledFor(event.currentTarget.value)}
             radius="md"
           />
 
@@ -502,6 +773,114 @@ export function CommunicationsHub({
               Send to {selectedIds.length} recipient{selectedIds.length !== 1 ? "s" : ""}
             </Button>
           </Group>
+        </Stack>
+      </Drawer>
+
+      <Drawer
+        opened={suppressionOpen}
+        onClose={suppression.close}
+        title="Add Suppression"
+        position="right"
+        size="md"
+        radius="lg"
+      >
+        <Stack gap="md" p="md">
+          <Select
+            label="Channel"
+            value={suppressionChannel}
+            onChange={(value) => setSuppressionChannel((value ?? "email") as "email" | "sms")}
+            data={[
+              { value: "email", label: "Email" },
+              { value: "sms", label: "SMS" },
+            ]}
+          />
+
+          <TextInput
+            label={suppressionChannel === "email" ? "Email address" : "Phone number"}
+            placeholder={suppressionChannel === "email" ? "member@example.com" : "+15555550100"}
+            value={suppressionContact}
+            onChange={(event) => setSuppressionContact(event.currentTarget.value)}
+          />
+
+          <Textarea
+            label="Notes (optional)"
+            placeholder="Reason for manual suppression"
+            value={suppressionNotes}
+            onChange={(event) => setSuppressionNotes(event.currentTarget.value)}
+            autosize
+            minRows={3}
+          />
+
+          <Group justify="flex-end">
+            <Button variant="default" onClick={suppression.close}>
+              Cancel
+            </Button>
+            <Button color="grape" loading={isPending} onClick={handleAddSuppression}>
+              Save suppression
+            </Button>
+          </Group>
+        </Stack>
+      </Drawer>
+
+      <Drawer
+        opened={eventsOpen}
+        onClose={events.close}
+        title={activeLog ? `Delivery events: ${activeLog.subject ?? activeLog.id}` : "Delivery events"}
+        position="right"
+        size="lg"
+        radius="lg"
+      >
+        <Stack gap="md" p="md">
+          {isLoadingEvents ? (
+            <Alert color="blue" variant="light">
+              <Text fz="sm">Loading delivery events...</Text>
+            </Alert>
+          ) : activeEvents.length === 0 ? (
+            <Alert color="gray" variant="light">
+              <Text fz="sm">No delivery events found for this log yet.</Text>
+            </Alert>
+          ) : (
+            <Paper withBorder radius="md" style={{ overflow: "hidden" }}>
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>When</Table.Th>
+                    <Table.Th>Status</Table.Th>
+                    <Table.Th>Provider</Table.Th>
+                    <Table.Th>Type</Table.Th>
+                    <Table.Th>Reason</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {activeEvents.map((event) => (
+                    <Table.Tr key={event.id}>
+                      <Table.Td>
+                        <Text fz="xs" c="dimmed">
+                          {formatDate(event.occurredAt)}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Badge size="xs" color={STATUS_COLORS[event.status]} variant="dot">
+                          {event.status}
+                        </Badge>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text fz="xs">{event.provider}</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text fz="xs">{event.eventType}</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text fz="xs" c="dimmed" lineClamp={1}>
+                          {event.reason ?? "-"}
+                        </Text>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Paper>
+          )}
         </Stack>
       </Drawer>
     </ApplicationShell>
