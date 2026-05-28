@@ -62,6 +62,17 @@ export type ChurchAdminPeopleSummary = {
   unassignedHouseholdCount: number;
   incompleteProfiles: number;
   pendingAccountRequests: number;
+  pendingMemberChangeRequests: number;
+};
+
+export type ChurchAdminMemberChangeRequestEntry = {
+  id: string;
+  targetProfileId: string;
+  targetProfileName: string;
+  requestedByProfileId: string | null;
+  requestedByProfileName: string | null;
+  changeType: "profile" | "family";
+  createdAt: string;
 };
 
 export type ChurchAdminPeopleData = {
@@ -69,6 +80,7 @@ export type ChurchAdminPeopleData = {
   summary: ChurchAdminPeopleSummary;
   people: ChurchAdminPersonEntry[];
   families: ChurchAdminFamilyOption[];
+  pendingMemberChangeRequests: ChurchAdminMemberChangeRequestEntry[];
 };
 
 function buildPreviewChurchAdminPeopleData(): ChurchAdminPeopleData {
@@ -81,9 +93,11 @@ function buildPreviewChurchAdminPeopleData(): ChurchAdminPeopleData {
       unassignedHouseholdCount: 0,
       incompleteProfiles: 0,
       pendingAccountRequests: 0,
+      pendingMemberChangeRequests: 0,
     },
     people: [],
     families: [],
+    pendingMemberChangeRequests: [],
   };
 }
 
@@ -266,6 +280,7 @@ export async function getChurchAdminPeopleData(
   }
 
   if (shouldUseLocalTenantFallback()) {
+    const churchId = session.appContext.church.id;
     const peopleResult = await queryTenantLocalDb<{
       id: string;
       full_name: string;
@@ -314,7 +329,7 @@ export async function getChurchAdminPeopleData(
         order by profile.full_name
         limit 500
       `,
-      [session.appContext.church.id],
+      [churchId],
     );
 
     const familiesResult = await queryTenantLocalDb<{
@@ -327,7 +342,7 @@ export async function getChurchAdminPeopleData(
         where church_id = $1
         order by family_name
       `,
-      [session.appContext.church.id],
+      [churchId],
     );
     const accountRequestsResult = await queryTenantLocalDb<{
       id: string;
@@ -342,8 +357,53 @@ export async function getChurchAdminPeopleData(
           and status = 'pending'
         order by created_at asc
       `,
-      [session.appContext.church.id],
+      [churchId],
     );
+
+    let pendingMemberChangeRequests: ChurchAdminMemberChangeRequestEntry[] = [];
+    try {
+      const memberChangeRequestsResult = await queryTenantLocalDb<{
+        id: string;
+        target_profile_id: string;
+        target_profile_name: string | null;
+        requested_by_profile_id: string | null;
+        requested_by_profile_name: string | null;
+        change_type: "profile" | "family";
+        created_at: string;
+      }>(
+        `
+          select
+            request.id,
+            request.target_profile_id,
+            target_profile.full_name as target_profile_name,
+            request.requested_by_profile_id,
+            requester_profile.full_name as requested_by_profile_name,
+            request.change_type,
+            request.created_at
+          from public.member_change_requests request
+          join public.profiles target_profile
+            on target_profile.id = request.target_profile_id
+          left join public.profiles requester_profile
+            on requester_profile.id = request.requested_by_profile_id
+          where request.church_id = $1
+            and request.status = 'pending'
+          order by request.created_at asc
+        `,
+        [churchId],
+      );
+
+      pendingMemberChangeRequests = memberChangeRequestsResult.rows.map((row) => ({
+        id: row.id,
+        targetProfileId: row.target_profile_id,
+        targetProfileName: row.target_profile_name ?? "Unknown member",
+        requestedByProfileId: row.requested_by_profile_id,
+        requestedByProfileName: row.requested_by_profile_name,
+        changeType: row.change_type,
+        createdAt: row.created_at,
+      }));
+    } catch {
+      pendingMemberChangeRequests = [];
+    }
 
     const peopleRows = peopleResult.rows;
     const duplicateMap = buildDuplicateMap(peopleRows);
@@ -430,30 +490,33 @@ export async function getChurchAdminPeopleData(
           (person) => !person.phone || !person.emergencyContactName,
         ).length,
         pendingAccountRequests: pendingAccountRequests.length,
+        pendingMemberChangeRequests: pendingMemberChangeRequests.length,
       },
       people,
       families: familiesResult.rows.map((row) => ({
         id: row.id,
         familyName: row.family_name,
       })),
+      pendingMemberChangeRequests,
     };
   }
 
   const supabase = await createTenantServerClient();
+  const churchId = session.appContext.church.id;
   const [{ data: peopleRows }, { data: familyRowsAll }] = await Promise.all([
     supabase
       .from("profiles")
       .select(
         "id, full_name, email, phone, address, display_title, role, membership_status, member_number, account_status, directory_visible, contact_allowed, preferred_contact_method, family_id, profile_sensitive_fields(emergency_contact_name, emergency_contact_phone)",
       )
-      .eq("church_id", session.appContext.church.id)
+      .eq("church_id", churchId)
       .is("merged_at", null)
       .order("full_name")
       .limit(500),
     supabase
       .from("families")
       .select("id, family_name")
-      .eq("church_id", session.appContext.church.id)
+      .eq("church_id", churchId)
       .order("family_name"),
   ]);
 
@@ -523,9 +586,65 @@ export async function getChurchAdminPeopleData(
   const { data: accountRequestRows } = await supabase
     .from("account_requests")
     .select("id, profile_id, email, created_at")
-    .eq("church_id", session.appContext.church.id)
+    .eq("church_id", churchId)
     .eq("status", "pending")
     .order("created_at", { ascending: true });
+
+  let pendingMemberChangeRequests: ChurchAdminMemberChangeRequestEntry[] = [];
+  const { data: memberChangeRows, error: memberChangeError } = await supabase
+    .from("member_change_requests")
+    .select(
+      "id, target_profile_id, requested_by_profile_id, change_type, created_at",
+    )
+    .eq("church_id", churchId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
+
+  if (memberChangeError) {
+    const message = memberChangeError.message.toLowerCase();
+    if (
+      message.includes("member_change_requests") &&
+      (message.includes("does not exist") || message.includes("relation"))
+    ) {
+      pendingMemberChangeRequests = [];
+    } else {
+      throw new Error(memberChangeError.message);
+    }
+  } else {
+    const pendingRows = memberChangeRows ?? [];
+    const relatedProfileIds = Array.from(
+      new Set(
+        pendingRows.flatMap((row) => [
+          row.target_profile_id,
+          row.requested_by_profile_id,
+        ]),
+      ),
+    ).filter((value): value is string => Boolean(value));
+
+    const { data: relatedProfiles } = relatedProfileIds.length
+      ? await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .eq("church_id", churchId)
+          .in("id", relatedProfileIds)
+      : { data: [] as Array<{ id: string; full_name: string | null }> };
+
+    const profileNameMap = new Map(
+      (relatedProfiles ?? []).map((row) => [row.id, row.full_name]),
+    );
+
+    pendingMemberChangeRequests = pendingRows.map((row) => ({
+      id: row.id,
+      targetProfileId: row.target_profile_id,
+      targetProfileName: profileNameMap.get(row.target_profile_id) ?? "Unknown member",
+      requestedByProfileId: row.requested_by_profile_id,
+      requestedByProfileName: row.requested_by_profile_id
+        ? profileNameMap.get(row.requested_by_profile_id) ?? null
+        : null,
+      changeType: row.change_type,
+      createdAt: row.created_at,
+    }));
+  }
 
   const pendingAccountRequests = accountRequestRows ?? [];
   const peopleEntries = applyPendingAccountRequests(
@@ -578,6 +697,7 @@ export async function getChurchAdminPeopleData(
         (person) => !person.phone || !person.emergencyContactName,
       ).length,
       pendingAccountRequests: pendingAccountRequests.length,
+      pendingMemberChangeRequests: pendingMemberChangeRequests.length,
     },
     people: normalizedPeople,
     families:
@@ -585,5 +705,6 @@ export async function getChurchAdminPeopleData(
         id: row.id,
         familyName: row.family_name,
       })) ?? [],
+    pendingMemberChangeRequests,
   };
 }

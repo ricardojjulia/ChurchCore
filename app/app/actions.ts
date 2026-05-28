@@ -35,6 +35,20 @@ export type UpdateFamilyInput = {
   homePhone: string | null;
 };
 
+export type MemberSelfServiceUpdateResult = {
+  status: "saved" | "pending_review";
+  requestId?: string;
+};
+
+type MemberChangeRequestType = "profile" | "family";
+type MemberChangeRequestStatus = "pending" | "approved" | "rejected";
+
+type ReviewMemberChangeRequestInput = {
+  requestId: string;
+  decision: "approved" | "rejected";
+  reviewerNote?: string | null;
+};
+
 export type CreatePastoralNoteInput = {
   profileId: string;
   content: string;
@@ -386,7 +400,499 @@ async function requireChurchAdminProfileContext(redirectPath: string) {
   return { session, profileId: profile?.id ?? null };
 }
 
-export async function updateMemberProfileAction(input: UpdateProfileInput) {
+async function resolveSessionProfileId(session: Awaited<ReturnType<typeof requireChurchSession>>) {
+  if (shouldUseLocalTenantFallback()) {
+    const profileResult = await queryTenantLocalDb<{ id: string }>(
+      `
+        select id
+        from public.profiles
+        where user_id = $1
+          and church_id = $2
+          and merged_at is null
+        limit 1
+      `,
+      [session.userId, session.appContext.church.id],
+    );
+
+    return profileResult.rows[0]?.id ?? null;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("user_id", session.userId)
+    .eq("church_id", session.appContext.church.id)
+    .is("merged_at", null)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return profile?.id ?? null;
+}
+
+async function queueMemberChangeRequest(
+  session: Awaited<ReturnType<typeof requireChurchSession>>,
+  params: {
+    targetProfileId: string;
+    changeType: MemberChangeRequestType;
+    proposedChanges: Record<string, unknown>;
+  },
+) {
+  if (shouldUseLocalTenantFallback()) {
+    const requestResult = await queryTenantLocalDb<{ id: string }>(
+      `
+        insert into public.member_change_requests (
+          church_id,
+          target_profile_id,
+          requested_by_profile_id,
+          change_type,
+          status,
+          proposed_changes
+        )
+        values ($1, $2, $2, $3, 'pending', $4::jsonb)
+        on conflict (church_id, target_profile_id, change_type)
+        where status = 'pending'
+        do update
+          set
+            proposed_changes = excluded.proposed_changes,
+            reviewer_note = null,
+            reviewer_profile_id = null,
+            reviewed_at = null,
+            updated_at = timezone('utc', now())
+        returning id
+      `,
+      [
+        session.appContext.church.id,
+        params.targetProfileId,
+        params.changeType,
+        JSON.stringify(params.proposedChanges),
+      ],
+    );
+
+    return requestResult.rows[0]?.id ?? null;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data: existingRequest, error: existingRequestError } = await supabase
+    .from("member_change_requests")
+    .select("id")
+    .eq("church_id", session.appContext.church.id)
+    .eq("target_profile_id", params.targetProfileId)
+    .eq("change_type", params.changeType)
+    .eq("status", "pending")
+    .maybeSingle();
+
+  if (existingRequestError) throw new Error(existingRequestError.message);
+
+  if (existingRequest?.id) {
+    const { error: updateError } = await supabase
+      .from("member_change_requests")
+      .update({
+        proposed_changes: params.proposedChanges,
+        reviewer_note: null,
+        reviewer_profile_id: null,
+        reviewed_at: null,
+      })
+      .eq("id", existingRequest.id)
+      .eq("church_id", session.appContext.church.id);
+
+    if (updateError) throw new Error(updateError.message);
+    return existingRequest.id;
+  }
+
+  const { data: insertedRequest, error: insertError } = await supabase
+    .from("member_change_requests")
+    .insert({
+      church_id: session.appContext.church.id,
+      target_profile_id: params.targetProfileId,
+      requested_by_profile_id: params.targetProfileId,
+      change_type: params.changeType,
+      status: "pending",
+      proposed_changes: params.proposedChanges,
+    })
+    .select("id")
+    .single();
+
+  if (insertError) throw new Error(insertError.message);
+  return insertedRequest.id;
+}
+
+async function applyApprovedProfileChanges(
+  churchId: string,
+  profileId: string,
+  proposedChanges: UpdateProfileInput,
+) {
+  const fullName = proposedChanges.fullName.trim();
+  const phone = proposedChanges.phone?.trim() || null;
+  const address = proposedChanges.address?.trim() || null;
+  const interests = proposedChanges.interests
+    .map((interest) => interest.trim())
+    .filter(Boolean)
+    .slice(0, 12);
+  const emergencyContactName = proposedChanges.emergencyContactName?.trim() || null;
+  const emergencyContactPhone = proposedChanges.emergencyContactPhone?.trim() || null;
+
+  if (shouldUseLocalTenantFallback()) {
+    const existingProfileResult = await queryTenantLocalDb<{
+      id: string;
+      directory_visible: boolean | null;
+      contact_allowed: boolean | null;
+      preferred_contact_method: string | null;
+    }>(
+      `
+        select id, directory_visible, contact_allowed, preferred_contact_method
+        from public.profiles
+        where id = $1
+          and church_id = $2
+          and merged_at is null
+        limit 1
+      `,
+      [profileId, churchId],
+    );
+
+    const existingProfile = existingProfileResult.rows[0] ?? null;
+    if (!existingProfile) throw new Error("No church profile was found for this request.");
+
+    await queryTenantLocalDb(
+      `
+        update public.profiles
+        set
+          full_name                = $1,
+          phone                    = $2,
+          address                  = $3,
+          preferred_contact_method = $4,
+          interests                = $5,
+          directory_visible        = $6,
+          contact_allowed          = $7,
+          updated_at               = timezone('utc', now())
+        where id = $8
+          and church_id = $9
+      `,
+      [
+        fullName,
+        phone,
+        address,
+        proposedChanges.preferredContactMethod,
+        interests,
+        proposedChanges.directoryVisible,
+        proposedChanges.contactAllowed,
+        profileId,
+        churchId,
+      ],
+    );
+
+    await queryTenantLocalDb(
+      `
+        insert into public.profile_sensitive_fields (profile_id, church_id, emergency_contact_name, emergency_contact_phone)
+        values ($1, $2, $3, $4)
+        on conflict (profile_id) do update
+          set emergency_contact_name  = excluded.emergency_contact_name,
+              emergency_contact_phone = excluded.emergency_contact_phone,
+              updated_at              = timezone('utc', now())
+      `,
+      [profileId, churchId, emergencyContactName, emergencyContactPhone],
+    );
+
+    const consentEntries = [
+      {
+        changed: (existingProfile.directory_visible ?? true) !== proposedChanges.directoryVisible,
+        consentType: "directory_visibility",
+        consented: proposedChanges.directoryVisible,
+        communicationType: null,
+      },
+      {
+        changed: (existingProfile.contact_allowed ?? true) !== proposedChanges.contactAllowed,
+        consentType: "member_contact",
+        consented: proposedChanges.contactAllowed,
+        communicationType: null,
+      },
+      {
+        changed:
+          (existingProfile.preferred_contact_method ?? null) !==
+          (proposedChanges.preferredContactMethod ?? null),
+        consentType: "preferred_contact_method",
+        consented: proposedChanges.preferredContactMethod !== null,
+        communicationType: mapPreferredContactMethodToConsentCommunicationType(
+          proposedChanges.preferredContactMethod,
+        ),
+      },
+    ]
+      .filter((entry) => entry.changed)
+      .map((entry) => ({
+        churchId,
+        profileId: existingProfile.id,
+        consentType: entry.consentType,
+        consented: entry.consented,
+        communicationType: entry.communicationType,
+      }));
+
+    await insertConsentLogEntries(consentEntries);
+    return;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data: existingProfile, error: existingProfileError } = await supabase
+    .from("profiles")
+    .select("id, directory_visible, contact_allowed, preferred_contact_method")
+    .eq("id", profileId)
+    .eq("church_id", churchId)
+    .is("merged_at", null)
+    .maybeSingle();
+
+  if (existingProfileError) throw new Error(existingProfileError.message);
+  if (!existingProfile) throw new Error("No church profile was found for this request.");
+
+  const { data: updatedProfile, error: profileError } = await supabase
+    .from("profiles")
+    .update({
+      full_name: fullName,
+      phone,
+      address,
+      preferred_contact_method: proposedChanges.preferredContactMethod,
+      interests,
+      directory_visible: proposedChanges.directoryVisible,
+      contact_allowed: proposedChanges.contactAllowed,
+    })
+    .eq("id", profileId)
+    .eq("church_id", churchId)
+    .select("id, church_id")
+    .single();
+
+  if (profileError) throw new Error(profileError.message);
+
+  const { error: sensitiveError } = await supabase
+    .from("profile_sensitive_fields")
+    .upsert(
+      {
+        profile_id: updatedProfile.id,
+        church_id: updatedProfile.church_id,
+        emergency_contact_name: emergencyContactName,
+        emergency_contact_phone: emergencyContactPhone,
+      },
+      { onConflict: "profile_id" },
+    );
+
+  if (sensitiveError) throw new Error(sensitiveError.message);
+
+  const consentEntries = [
+    {
+      changed: (existingProfile.directory_visible ?? true) !== proposedChanges.directoryVisible,
+      consentType: "directory_visibility",
+      consented: proposedChanges.directoryVisible,
+      communicationType: null,
+    },
+    {
+      changed: (existingProfile.contact_allowed ?? true) !== proposedChanges.contactAllowed,
+      consentType: "member_contact",
+      consented: proposedChanges.contactAllowed,
+      communicationType: null,
+    },
+    {
+      changed:
+        (existingProfile.preferred_contact_method ?? null) !==
+        (proposedChanges.preferredContactMethod ?? null),
+      consentType: "preferred_contact_method",
+      consented: proposedChanges.preferredContactMethod !== null,
+      communicationType: mapPreferredContactMethodToConsentCommunicationType(
+        proposedChanges.preferredContactMethod,
+      ),
+    },
+  ]
+    .filter((entry) => entry.changed)
+    .map((entry) => ({
+      churchId,
+      profileId: updatedProfile.id,
+      consentType: entry.consentType,
+      consented: entry.consented,
+      communicationType: entry.communicationType,
+    }));
+
+  await insertConsentLogEntries(consentEntries);
+}
+
+async function applyApprovedFamilyChanges(
+  churchId: string,
+  profileId: string,
+  proposedChanges: UpdateFamilyInput,
+) {
+  const familyName = proposedChanges.familyName.trim();
+  const address = proposedChanges.address?.trim() || null;
+  const homePhone = proposedChanges.homePhone?.trim() || null;
+
+  if (shouldUseLocalTenantFallback()) {
+    const profileResult = await queryTenantLocalDb<{ family_id: string | null }>(
+      `
+        select family_id
+        from public.profiles
+        where id = $1
+          and church_id = $2
+        limit 1
+      `,
+      [profileId, churchId],
+    );
+
+    const profile = profileResult.rows[0];
+    if (!profile) throw new Error("No church profile was found for this request.");
+
+    if (profile.family_id) {
+      await queryTenantLocalDb(
+        `
+          update public.families
+          set
+            family_name = $1,
+            address = $2,
+            home_phone = $3,
+            updated_at = timezone('utc', now())
+          where id = $4
+            and church_id = $5
+        `,
+        [familyName, address, homePhone, profile.family_id, churchId],
+      );
+
+      return;
+    }
+
+    const familyInsertResult = await queryTenantLocalDb<{ id: string }>(
+      `
+        insert into public.families (church_id, family_name, address, home_phone)
+        values ($1, $2, $3, $4)
+        returning id
+      `,
+      [churchId, familyName, address, homePhone],
+    );
+
+    const familyId = familyInsertResult.rows[0]?.id;
+    if (!familyId) throw new Error("Family could not be created.");
+
+    await queryTenantLocalDb(
+      `
+        update public.profiles
+        set
+          family_id = $1,
+          updated_at = timezone('utc', now())
+        where id = $2
+          and church_id = $3
+      `,
+      [familyId, profileId, churchId],
+    );
+
+    return;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, family_id")
+    .eq("id", profileId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  if (profileError) throw new Error(profileError.message);
+  if (!profile) throw new Error("No church profile was found for this request.");
+
+  if (profile.family_id) {
+    const { error: familyError } = await supabase
+      .from("families")
+      .update({
+        family_name: familyName,
+        address,
+        home_phone: homePhone,
+      })
+      .eq("id", profile.family_id)
+      .eq("church_id", churchId);
+
+    if (familyError) throw new Error(familyError.message);
+    return;
+  }
+
+  const { data: familyRow, error: familyInsertError } = await supabase
+    .from("families")
+    .insert({
+      church_id: churchId,
+      family_name: familyName,
+      address,
+      home_phone: homePhone,
+    })
+    .select("id")
+    .single();
+
+  if (familyInsertError) throw new Error(familyInsertError.message);
+
+  const { error: profileUpdateError } = await supabase
+    .from("profiles")
+    .update({ family_id: familyRow.id })
+    .eq("id", profileId)
+    .eq("church_id", churchId);
+
+  if (profileUpdateError) throw new Error(profileUpdateError.message);
+}
+
+function parseProfileChangePayload(payload: unknown): UpdateProfileInput {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Profile request payload is invalid.");
+  }
+
+  const candidate = payload as Partial<UpdateProfileInput>;
+  const normalized: UpdateProfileInput = {
+    fullName: typeof candidate.fullName === "string" ? candidate.fullName : "",
+    phone: typeof candidate.phone === "string" || candidate.phone === null ? candidate.phone : null,
+    address:
+      typeof candidate.address === "string" || candidate.address === null
+        ? candidate.address
+        : null,
+    preferredContactMethod:
+      typeof candidate.preferredContactMethod === "string" ||
+      candidate.preferredContactMethod === null
+        ? candidate.preferredContactMethod
+        : null,
+    interests: Array.isArray(candidate.interests)
+      ? candidate.interests.filter((value): value is string => typeof value === "string")
+      : [],
+    emergencyContactName:
+      typeof candidate.emergencyContactName === "string" ||
+      candidate.emergencyContactName === null
+        ? candidate.emergencyContactName
+        : null,
+    emergencyContactPhone:
+      typeof candidate.emergencyContactPhone === "string" ||
+      candidate.emergencyContactPhone === null
+        ? candidate.emergencyContactPhone
+        : null,
+    directoryVisible: Boolean(candidate.directoryVisible),
+    contactAllowed: Boolean(candidate.contactAllowed),
+  };
+
+  const error = validateInput(normalized);
+  if (error) throw new Error(error);
+  return normalized;
+}
+
+function parseFamilyChangePayload(payload: unknown): UpdateFamilyInput {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Family request payload is invalid.");
+  }
+
+  const candidate = payload as Partial<UpdateFamilyInput>;
+  const normalized: UpdateFamilyInput = {
+    familyName: typeof candidate.familyName === "string" ? candidate.familyName : "",
+    address:
+      typeof candidate.address === "string" || candidate.address === null
+        ? candidate.address
+        : null,
+    homePhone:
+      typeof candidate.homePhone === "string" || candidate.homePhone === null
+        ? candidate.homePhone
+        : null,
+  };
+
+  const error = validateFamilyInput(normalized);
+  if (error) throw new Error(error);
+  return normalized;
+}
+
+export async function updateMemberProfileAction(
+  input: UpdateProfileInput,
+): Promise<MemberSelfServiceUpdateResult> {
   const session = await requireChurchSession("/app/member");
 
   const error = validateInput(input);
@@ -406,196 +912,40 @@ export async function updateMemberProfileAction(input: UpdateProfileInput) {
     // Preview / dev mode — nothing to persist.
     revalidatePath("/app/member");
     revalidatePath("/portal");
-    return;
+    return { status: "saved" };
   }
 
-  if (shouldUseLocalTenantFallback()) {
-    const existingProfileResult = await queryTenantLocalDb<{
-      id: string;
-      directory_visible: boolean | null;
-      contact_allowed: boolean | null;
-      preferred_contact_method: string | null;
-    }>(
-      `
-        select id, directory_visible, contact_allowed, preferred_contact_method
-        from public.profiles
-        where user_id = $1
-          and church_id = $2
-          and merged_at is null
-        limit 1
-      `,
-      [session.userId, session.appContext.church.id],
-    );
-    const existingProfile = existingProfileResult.rows[0] ?? null;
-
-    await queryTenantLocalDb(
-      `
-        update public.profiles
-        set
-          full_name                = $1,
-          phone                    = $2,
-          address                  = $3,
-          preferred_contact_method = $4,
-          interests                = $5,
-          directory_visible        = $6,
-          contact_allowed          = $7,
-          updated_at               = timezone('utc', now())
-        where user_id   = $8
-          and church_id = $9
-      `,
-      [
-        fullName,
-        phone,
-        address,
-        input.preferredContactMethod,
-        interests,
-        input.directoryVisible,
-        input.contactAllowed,
-        session.userId,
-        session.appContext.church.id,
-      ],
-    );
-    // Emergency contacts live in profile_sensitive_fields
-    await queryTenantLocalDb(
-      `
-        insert into public.profile_sensitive_fields (profile_id, church_id, emergency_contact_name, emergency_contact_phone)
-        select p.id, p.church_id, $1, $2
-        from public.profiles p
-        where p.user_id   = $3
-          and p.church_id = $4
-        on conflict (profile_id) do update
-          set emergency_contact_name  = excluded.emergency_contact_name,
-              emergency_contact_phone = excluded.emergency_contact_phone,
-              updated_at              = timezone('utc', now())
-      `,
-      [emergencyContactName, emergencyContactPhone, session.userId, session.appContext.church.id],
-    );
-
-    if (existingProfile) {
-      const consentEntries = [
-        {
-          changed: (existingProfile.directory_visible ?? true) !== input.directoryVisible,
-          consentType: "directory_visibility",
-          consented: input.directoryVisible,
-          communicationType: null,
-        },
-        {
-          changed: (existingProfile.contact_allowed ?? true) !== input.contactAllowed,
-          consentType: "member_contact",
-          consented: input.contactAllowed,
-          communicationType: null,
-        },
-        {
-          changed:
-            (existingProfile.preferred_contact_method ?? null) !==
-            (input.preferredContactMethod ?? null),
-          consentType: "preferred_contact_method",
-          consented: input.preferredContactMethod !== null,
-          communicationType: mapPreferredContactMethodToConsentCommunicationType(
-            input.preferredContactMethod,
-          ),
-        },
-      ]
-        .filter((entry) => entry.changed)
-        .map((entry) => ({
-          churchId: session.appContext.church.id,
-          profileId: existingProfile.id,
-          consentType: entry.consentType,
-          consented: entry.consented,
-          communicationType: entry.communicationType,
-        }));
-
-      await insertConsentLogEntries(consentEntries);
-    }
-  } else {
-    const supabase = await createTenantServerClient();
-    const { data: existingProfile, error: existingProfileError } = await supabase
-      .from("profiles")
-      .select("id, directory_visible, contact_allowed, preferred_contact_method")
-      .eq("user_id", session.userId)
-      .eq("church_id", session.appContext.church.id)
-      .is("merged_at", null)
-      .maybeSingle();
-
-    if (existingProfileError) throw new Error(existingProfileError.message);
-
-    const { data: updatedProfile, error: dbError } = await supabase
-      .from("profiles")
-      .update({
-        full_name: fullName,
-        phone,
-        address,
-        preferred_contact_method: input.preferredContactMethod,
-        interests,
-        directory_visible: input.directoryVisible,
-        contact_allowed: input.contactAllowed,
-      })
-      .eq("user_id", session.userId)
-      .eq("church_id", session.appContext.church.id)
-      .select("id, church_id")
-      .maybeSingle();
-
-    if (dbError) throw new Error(dbError.message);
-
-    if (updatedProfile) {
-      const { error: sensitiveError } = await supabase
-        .from("profile_sensitive_fields")
-        .upsert(
-          {
-            profile_id: updatedProfile.id,
-            church_id: updatedProfile.church_id,
-            emergency_contact_name: emergencyContactName,
-            emergency_contact_phone: emergencyContactPhone,
-          },
-          { onConflict: "profile_id" },
-        );
-
-      if (sensitiveError) throw new Error(sensitiveError.message);
-    }
-
-    if (updatedProfile && existingProfile) {
-      const consentEntries = [
-        {
-          changed: (existingProfile.directory_visible ?? true) !== input.directoryVisible,
-          consentType: "directory_visibility",
-          consented: input.directoryVisible,
-          communicationType: null,
-        },
-        {
-          changed: (existingProfile.contact_allowed ?? true) !== input.contactAllowed,
-          consentType: "member_contact",
-          consented: input.contactAllowed,
-          communicationType: null,
-        },
-        {
-          changed:
-            (existingProfile.preferred_contact_method ?? null) !==
-            (input.preferredContactMethod ?? null),
-          consentType: "preferred_contact_method",
-          consented: input.preferredContactMethod !== null,
-          communicationType: mapPreferredContactMethodToConsentCommunicationType(
-            input.preferredContactMethod,
-          ),
-        },
-      ]
-        .filter((entry) => entry.changed)
-        .map((entry) => ({
-          churchId: session.appContext.church.id,
-          profileId: updatedProfile.id,
-          consentType: entry.consentType,
-          consented: entry.consented,
-          communicationType: entry.communicationType,
-        }));
-
-      await insertConsentLogEntries(consentEntries);
-    }
+  const activeProfileId = await resolveSessionProfileId(session);
+  if (!activeProfileId) {
+    throw new Error("No church profile was found for this account.");
   }
+
+  const requestId = await queueMemberChangeRequest(session, {
+    targetProfileId: activeProfileId,
+    changeType: "profile",
+    proposedChanges: {
+      fullName,
+      phone,
+      address,
+      preferredContactMethod: input.preferredContactMethod,
+      interests,
+      emergencyContactName,
+      emergencyContactPhone,
+      directoryVisible: input.directoryVisible,
+      contactAllowed: input.contactAllowed,
+    },
+  });
 
   revalidatePath("/app/member");
   revalidatePath("/app/member/directory");
   revalidatePath("/portal");
   revalidatePath("/app/pastor");
   revalidatePath("/app/pastor/people");
+
+  return {
+    status: "pending_review",
+    requestId: requestId ?? undefined,
+  };
 }
 
 export async function createPastoralNoteAction(input: CreatePastoralNoteInput) {
@@ -2455,7 +2805,9 @@ export async function acknowledgeBurnoutAlertAction(input: AcknowledgeBurnoutAle
   revalidatePath("/app/church-admin");
 }
 
-export async function upsertMemberFamilyAction(input: UpdateFamilyInput) {
+export async function upsertMemberFamilyAction(
+  input: UpdateFamilyInput,
+): Promise<MemberSelfServiceUpdateResult> {
   const session = await requireChurchSession("/app/member/family");
 
   const error = validateFamilyInput(input);
@@ -2469,121 +2821,159 @@ export async function upsertMemberFamilyAction(input: UpdateFamilyInput) {
     revalidatePath("/app/member");
     revalidatePath("/app/member/family");
     revalidatePath("/portal");
+    return { status: "saved" };
+  }
+
+  const activeProfileId = await resolveSessionProfileId(session);
+  if (!activeProfileId) {
+    throw new Error("No church profile was found for this account.");
+  }
+
+  const requestId = await queueMemberChangeRequest(session, {
+    targetProfileId: activeProfileId,
+    changeType: "family",
+    proposedChanges: {
+      familyName,
+      address,
+      homePhone,
+    },
+  });
+
+  revalidatePath("/app/member");
+  revalidatePath("/app/member/family");
+  revalidatePath("/app/member/directory");
+  revalidatePath("/portal");
+  revalidatePath("/app/pastor");
+  revalidatePath("/app/pastor/people");
+
+  return {
+    status: "pending_review",
+    requestId: requestId ?? undefined,
+  };
+}
+
+export async function reviewMemberChangeRequestAction(
+  input: ReviewMemberChangeRequestInput,
+) {
+  const reviewerContext = await requireChurchAdminProfileContext(
+    "/app/church-admin/people",
+  );
+  const churchId = reviewerContext.session.appContext.church.id;
+
+  const requestId = input.requestId.trim();
+  if (!requestId) throw new Error("A request id is required.");
+  if (input.decision !== "approved" && input.decision !== "rejected") {
+    throw new Error("Decision must be approved or rejected.");
+  }
+
+  const reviewerNote = input.reviewerNote?.trim() || null;
+  const reviewerProfileId = reviewerContext.profileId;
+
+  if (!hasTenantBackendEnv() || reviewerContext.session.source !== "supabase") {
+    revalidatePath("/app/church-admin/people");
     return;
   }
 
   if (shouldUseLocalTenantFallback()) {
-    const profileResult = await queryTenantLocalDb<{
-      family_id: string | null;
+    const requestResult = await queryTenantLocalDb<{
+      id: string;
+      target_profile_id: string;
+      change_type: MemberChangeRequestType;
+      proposed_changes: unknown;
+      status: MemberChangeRequestStatus;
     }>(
       `
-        select family_id
-        from public.profiles
-        where user_id = $1
+        select id, target_profile_id, change_type, proposed_changes, status
+        from public.member_change_requests
+        where id = $1
           and church_id = $2
         limit 1
       `,
-      [session.userId, session.appContext.church.id],
+      [requestId, churchId],
     );
 
-    const profile = profileResult.rows[0];
-
-    if (!profile) {
-      throw new Error("No church profile was found for this account.");
+    const requestRow = requestResult.rows[0];
+    if (!requestRow) throw new Error("Change request not found.");
+    if (requestRow.status !== "pending") {
+      throw new Error("Only pending requests can be reviewed.");
     }
 
-    if (profile.family_id) {
-      await queryTenantLocalDb(
-        `
-          update public.families
-          set
-            family_name = $1,
-            address = $2,
-            home_phone = $3,
-            updated_at = timezone('utc', now())
-          where id = $4
-            and church_id = $5
-        `,
-        [familyName, address, homePhone, profile.family_id, session.appContext.church.id],
-      );
-    } else {
-      const familyInsertResult = await queryTenantLocalDb<{ id: string }>(
-        `
-          insert into public.families (church_id, family_name, address, home_phone)
-          values ($1, $2, $3, $4)
-          returning id
-        `,
-        [session.appContext.church.id, familyName, address, homePhone],
-      );
-
-      const familyId = familyInsertResult.rows[0]?.id;
-
-      if (!familyId) {
-        throw new Error("Family could not be created.");
+    if (input.decision === "approved") {
+      if (requestRow.change_type === "profile") {
+        await applyApprovedProfileChanges(
+          churchId,
+          requestRow.target_profile_id,
+          parseProfileChangePayload(requestRow.proposed_changes),
+        );
+      } else {
+        await applyApprovedFamilyChanges(
+          churchId,
+          requestRow.target_profile_id,
+          parseFamilyChangePayload(requestRow.proposed_changes),
+        );
       }
-
-      await queryTenantLocalDb(
-        `
-          update public.profiles
-          set
-            family_id = $1,
-            updated_at = timezone('utc', now())
-          where user_id = $2
-            and church_id = $3
-        `,
-        [familyId, session.userId, session.appContext.church.id],
-      );
     }
+
+    await queryTenantLocalDb(
+      `
+        update public.member_change_requests
+        set
+          status = $1,
+          reviewer_profile_id = $2,
+          reviewer_note = $3,
+          reviewed_at = timezone('utc', now()),
+          updated_at = timezone('utc', now())
+        where id = $4
+          and church_id = $5
+      `,
+      [input.decision, reviewerProfileId, reviewerNote, requestId, churchId],
+    );
   } else {
     const supabase = await createTenantServerClient();
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("id, family_id")
-      .eq("user_id", session.userId)
-      .eq("church_id", session.appContext.church.id)
+    const { data: requestRow, error: requestError } = await supabase
+      .from("member_change_requests")
+      .select("id, target_profile_id, change_type, proposed_changes, status")
+      .eq("id", requestId)
+      .eq("church_id", churchId)
       .maybeSingle();
 
-    if (profileError) throw new Error(profileError.message);
-    if (!profile) throw new Error("No church profile was found for this account.");
-
-    if (profile.family_id) {
-      const { error: familyError } = await supabase
-        .from("families")
-        .update({
-          family_name: familyName,
-          address,
-          home_phone: homePhone,
-        })
-        .eq("id", profile.family_id)
-        .eq("church_id", session.appContext.church.id);
-
-      if (familyError) throw new Error(familyError.message);
-    } else {
-      const { data: familyRow, error: familyInsertError } = await supabase
-        .from("families")
-        .insert({
-          church_id: session.appContext.church.id,
-          family_name: familyName,
-          address,
-          home_phone: homePhone,
-        })
-        .select("id")
-        .single();
-
-      if (familyInsertError) throw new Error(familyInsertError.message);
-
-      const { error: profileUpdateError } = await supabase
-        .from("profiles")
-        .update({
-          family_id: familyRow.id,
-        })
-        .eq("user_id", session.userId)
-        .eq("church_id", session.appContext.church.id);
-
-      if (profileUpdateError) throw new Error(profileUpdateError.message);
+    if (requestError) throw new Error(requestError.message);
+    if (!requestRow) throw new Error("Change request not found.");
+    if (requestRow.status !== "pending") {
+      throw new Error("Only pending requests can be reviewed.");
     }
+
+    if (input.decision === "approved") {
+      if (requestRow.change_type === "profile") {
+        await applyApprovedProfileChanges(
+          churchId,
+          requestRow.target_profile_id,
+          parseProfileChangePayload(requestRow.proposed_changes),
+        );
+      } else {
+        await applyApprovedFamilyChanges(
+          churchId,
+          requestRow.target_profile_id,
+          parseFamilyChangePayload(requestRow.proposed_changes),
+        );
+      }
+    }
+
+    const { error: updateError } = await supabase
+      .from("member_change_requests")
+      .update({
+        status: input.decision,
+        reviewer_profile_id: reviewerProfileId,
+        reviewer_note: reviewerNote,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq("id", requestId)
+      .eq("church_id", churchId);
+
+    if (updateError) throw new Error(updateError.message);
   }
 
+  revalidatePath("/app/church-admin/people");
   revalidatePath("/app/member");
   revalidatePath("/app/member/family");
   revalidatePath("/app/member/directory");

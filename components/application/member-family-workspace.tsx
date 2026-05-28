@@ -1,7 +1,8 @@
 "use client";
 
-import { HeartHandshake, Home, UsersRound } from "lucide-react";
+import { AlertCircle, HeartHandshake, Home, UsersRound } from "lucide-react";
 import {
+  Alert,
   Badge,
   Box,
   Group,
@@ -74,6 +75,27 @@ export function MemberFamilyWorkspace({
       bottomNav={<MemberBottomNav />}
     >
       <ChurchAppContextBanner session={session} />
+
+      {data.familyChangeStatus === "pending" ? (
+        <Alert icon={<AlertCircle size={16} />} color="blue" radius="xl">
+          {translateMember("familyUpdatePendingReview")}
+        </Alert>
+      ) : null}
+
+      {data.familyChangeStatus === "rejected" ? (
+        <Alert icon={<AlertCircle size={16} />} color="orange" radius="xl">
+          <Stack gap={4}>
+            <Text>{translateMember("familyUpdateRejected")}</Text>
+            {data.familyChangeReviewerNote ? (
+              <Text size="sm" c="dimmed">
+                {translateMember("reviewerNote", {
+                  value: data.familyChangeReviewerNote,
+                })}
+              </Text>
+            ) : null}
+          </Stack>
+        </Alert>
+      ) : null}
 
       <Paper withBorder radius="xl" p="xl">
         <Group justify="space-between" align="flex-start" gap="md">

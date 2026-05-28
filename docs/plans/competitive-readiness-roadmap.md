@@ -318,6 +318,7 @@ These workstreams convert the competitive findings into implementation-ready ste
 - Remaining Finding 2B safety gates before session enablement are complete, including room readiness, volunteer readiness, two-adult coverage checks, and explicit audited override controls.
 - Remaining Finding 2B verification workflows are complete for current scope, including stronger checkout verification (pickup code or PIN/QR with guardian checks) and closed-session link invalidation.
 - Finding 2A follow-ups are complete for current scope, including broader ChurchAdmin mobile attendance audit context and household edge-case role coverage for member mobile check-in.
+- The pending-review workflow closure is complete for current scope, including ChurchAdmin member-change review queue UX, approve/reject action wiring, and server-action/data-loader tests.
 - Phase 2 acceptance coverage is expanded with phone-sized browser checks, member/parent role-boundary checks, and invalid parent link unavailable-state checks.
 - Phase 2 documentation updates are complete for this slice across roadmap, application, portal, testing schema, Spanish UI notes, and factory-run evidence.
 
@@ -361,7 +362,9 @@ These workstreams convert the competitive findings into implementation-ready ste
 - Member directory visibility honors opt-in and role policies.
 - Tests cover self-service access boundaries and pending-review behavior.
 
-**Current evidence:** `tests/e2e/member-mobile-foundation.spec.ts`, `app/app/member-actions.test.ts`, `app/app/ccm-actions.test.ts`, `app/portal/children/actions.test.ts`, and `lib/ccm-public-data.test.ts` cover the Phase 2 closure slice behaviors listed above.
+**Current evidence:** `tests/e2e/member-mobile-foundation.spec.ts`, `app/app/member-actions.test.ts`, `app/app/ccm-actions.test.ts`, `app/portal/children/actions.test.ts`, `lib/ccm-public-data.test.ts`, `app/app/actions.test.ts`, `lib/church-admin-people-data.test.ts`, and `lib/member-portal-data.test.ts` cover the Phase 2 closure slice behaviors listed above.
+
+**Pending-review follow-on (2026-05-27):** Member profile/family self-service writes now submit `member_change_requests` records for staff review instead of directly overwriting canonical profile/family records, member mobile screens surface pending/rejected review states (including reviewer notes), and ChurchAdmin review queue UX is now wired for approve/reject decisions in People management (`app/app/actions.ts`, `lib/member-portal-data.ts`, `lib/church-admin-people-data.ts`, `components/application/church-admin-people-workspace.tsx`, `components/application/member-portal-home.tsx`, `components/application/member-family-workspace.tsx`, `supabase/migrations/20260527234500_member_change_requests_pending_review.sql`).
 
 ## Phase 3: Complete Communications Delivery
 

@@ -116,7 +116,7 @@ Status values:
 
 | Surface | Route files | Required tests | Status |
 | --- | --- | --- | --- |
-| People and accounts | `app/app/church-admin/people/page.tsx`, `app/app/church-admin/accounts/page.tsx`, `app/app/church-admin-actions.ts`, people/account components | invite flow, edit validation, member number generation, preview fallback | Missing |
+| People and accounts | `app/app/church-admin/people/page.tsx`, `app/app/church-admin/accounts/page.tsx`, `app/app/church-admin-actions.ts`, people/account components | invite flow, edit validation, member number generation, preview fallback | Started: member pending-change review queue wiring plus local-fallback action/data tests |
 | Weekly readiness path | `app/app/church-admin/readiness/page.tsx`, readiness target route pages, `tests/e2e/church-admin-readiness.spec.ts` | browser sign-in, church-context hydration, readiness route traversal, target text assertions, tenant denied-role assertions | Foundation |
 | Events | `app/app/church-admin/events/page.tsx`, `app/app/church-admin/events/[id]/page.tsx`, `components/application/church-admin-event-workspace.tsx`, `app/app/church-admin-actions.ts` | event list, create action, roster assignment, quick check-in, visitor add | Foundation |
 | Attendance and volunteers | `app/app/church-admin/attendance/page.tsx`, `app/app/church-admin/volunteers/page.tsx`, `app/app/church-admin/volunteers/schedules/page.tsx`, `app/app/church-admin/volunteers/schedules/[id]/page.tsx`, `app/app/volunteer-actions.ts` | headcount logging, scheduling rules, volunteer matching, duplicate handling | Foundation |
@@ -163,6 +163,7 @@ Status values:
 - `app/app/groups-actions.test.ts`
 - `app/app/finance-actions.test.ts`
 - `app/app/church-admin-actions.test.ts`
+- `app/app/actions.test.ts`
 - `app/app/ccm-actions.test.ts`
 - `app/app/donations-actions.test.ts`
 - `app/app/volunteer-actions.test.ts`
@@ -176,6 +177,8 @@ Status values:
 - `tests/e2e/member-mobile-foundation.spec.ts`
 - `lib/compliance/data-rights-actions.test.ts`
 - `lib/communications/provider-adapter.test.ts`
+- `lib/church-admin-people-data.test.ts`
+- `lib/member-portal-data.test.ts`
 - `vitest.config.ts` and `vitest.setup.ts`
 - `package.json` test scripts
 
