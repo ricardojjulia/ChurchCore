@@ -6,6 +6,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Added
+
+- Added member self-service pending-review workflow foundations for profile and family updates: members now submit `member_change_requests` records, mobile member surfaces show pending/rejected review states with reviewer-note context, and ChurchAdmin review action plumbing can approve/reject and apply approved requests (`app/app/actions.ts`, `lib/member-portal-data.ts`, `components/application/member-portal-home.tsx`, `components/application/member-family-workspace.tsx`, `supabase/migrations/20260527234500_member_change_requests_pending_review.sql`).
+- Added ChurchAdmin people management review queue UX for pending member profile/family updates with inline approve/reject controls wired to `reviewMemberChangeRequestAction` (`components/application/church-admin-people-workspace.tsx`, `lib/church-admin-people-data.ts`).
+- Added focused review-state mapping coverage in `lib/member-portal-data.test.ts` for pending/rejected change-state rendering and pre-migration fallback safety.
+- Added pending-review workflow coverage in `app/app/actions.test.ts` and `lib/church-admin-people-data.test.ts` for review decisions, canonical-write gating, and queue summary mapping.
+
 ## [3.1.0] - 2026-05-27
 
 ### Release Rationale

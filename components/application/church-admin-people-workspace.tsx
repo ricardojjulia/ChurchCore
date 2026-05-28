@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import {
   BarChart2,
   CheckSquare,
@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import {
   Badge,
+  Button,
   Checkbox,
   Group,
   Paper,
@@ -29,7 +30,9 @@ import {
   ThemeIcon,
   Title,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 
+import { reviewMemberChangeRequestAction } from "@/app/app/actions";
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ChurchAdminAddPerson } from "@/components/application/church-admin-add-person";
 import { ChurchAdminInviteUser } from "@/components/application/church-admin-invite-user";
@@ -49,6 +52,15 @@ function normalizeMessageKey(value: string) {
   return value.toLowerCase().replaceAll("-", "_").replaceAll(" ", "_");
 }
 
+function formatRequestedDate(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale === "es" ? "es-US" : "en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 export function ChurchAdminPeopleWorkspace({
   session,
   data,
@@ -66,13 +78,14 @@ export function ChurchAdminPeopleWorkspace({
   const initialHousehold =
     searchParams.get("household") ??
     (initialView === "unassigned-households" ? "unassigned" : "all");
+  const [isPending, startTransition] = useTransition();
   const [query, setQuery] = useState(initialQuery);
   const [status, setStatus] = useState(initialStatus);
   const [role, setRole] = useState(searchParams.get("role") ?? "all");
   const [accountFilter, setAccountFilter] = useState(initialAccount);
   const [householdFilter, setHouseholdFilter] = useState(initialHousehold);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const translatePeople = (
     key: string,
     values?: Record<string, string | number>,
@@ -219,6 +232,34 @@ export function ChurchAdminPeopleWorkspace({
         }
       : null;
 
+  function handleReviewRequest(
+    requestId: string,
+    decision: "approved" | "rejected",
+  ) {
+    startTransition(async () => {
+      try {
+        await reviewMemberChangeRequestAction({ requestId, decision });
+        notifications.show({
+          title:
+            decision === "approved"
+              ? translatePeople("memberChangeRequestApproved")
+              : translatePeople("memberChangeRequestRejected"),
+          message: translatePeople("memberChangeRequestReviewSaved"),
+          color: decision === "approved" ? "teal" : "gray",
+        });
+      } catch (error) {
+        notifications.show({
+          title: translatePeople("memberChangeRequestReviewError"),
+          message:
+            error instanceof Error
+              ? error.message
+              : translatePeople("memberChangeRequestReviewErrorMessage"),
+          color: "red",
+        });
+      }
+    });
+  }
+
   function toggleSelected(id: string, checked: boolean) {
     setSelectedIds((current) =>
       checked ? Array.from(new Set([...current, id])) : current.filter((value) => value !== id),
@@ -307,7 +348,7 @@ export function ChurchAdminPeopleWorkspace({
     >
       <ChurchAppContextBanner session={session} />
 
-      <SimpleGrid cols={{ base: 1, sm: 2, xl: 6 }} spacing="md">
+      <SimpleGrid cols={{ base: 1, sm: 2, xl: 7 }} spacing="md">
         <Paper withBorder radius="xl" p="lg">
           <Text size="xs" tt="uppercase" fw={700} c="dimmed">
             {t("portalNav", "people")}
@@ -356,7 +397,87 @@ export function ChurchAdminPeopleWorkspace({
             {data.summary.pendingAccountRequests}
           </Title>
         </Paper>
+        <Paper withBorder radius="xl" p="lg">
+          <Text size="xs" tt="uppercase" fw={700} c="dimmed">
+            {translatePeople("pendingMemberProfileReviews")}
+          </Text>
+          <Title order={3} mt="xs">
+            {data.summary.pendingMemberChangeRequests}
+          </Title>
+        </Paper>
       </SimpleGrid>
+
+      <Paper withBorder radius="xl" p="xl">
+        <Group gap="sm" mb="lg">
+          <ThemeIcon color="gray" variant="light" radius="xl" size="lg">
+            <MailCheck size={18} />
+          </ThemeIcon>
+          <div>
+            <Title order={3} size="h4">
+              {translatePeople("memberProfileReviewQueue")}
+            </Title>
+            <Text size="sm" c="dimmed">
+              {translatePeople("memberProfileReviewQueueDescription")}
+            </Text>
+          </div>
+        </Group>
+
+        <Stack gap="sm">
+          {data.pendingMemberChangeRequests.length ? (
+            data.pendingMemberChangeRequests.map((request) => (
+              <Paper key={request.id} withBorder radius="xl" p="lg">
+                <Group justify="space-between" align="flex-start" gap="md">
+                  <Stack gap={6}>
+                    <Group gap="xs" wrap="wrap">
+                      <Text fw={600}>{request.targetProfileName}</Text>
+                      <Badge color="yellow" variant="light">
+                        {request.changeType === "profile"
+                          ? translatePeople("profileUpdateReview")
+                          : translatePeople("familyUpdateReview")}
+                      </Badge>
+                    </Group>
+                    <Text size="sm" c="dimmed">
+                      {translatePeople("requestedAt", {
+                        value: formatRequestedDate(request.createdAt, locale),
+                      })}
+                    </Text>
+                    {request.requestedByProfileName ? (
+                      <Text size="sm" c="dimmed">
+                        {translatePeople("requestedBy", {
+                          value: request.requestedByProfileName,
+                        })}
+                      </Text>
+                    ) : null}
+                  </Stack>
+
+                  <Group gap="xs">
+                    <Button
+                      variant="default"
+                      radius="xl"
+                      onClick={() => handleReviewRequest(request.id, "rejected")}
+                      loading={isPending}
+                    >
+                      {translatePeople("reject")}
+                    </Button>
+                    <Button
+                      radius="xl"
+                      color="teal"
+                      onClick={() => handleReviewRequest(request.id, "approved")}
+                      loading={isPending}
+                    >
+                      {translatePeople("approve")}
+                    </Button>
+                  </Group>
+                </Group>
+              </Paper>
+            ))
+          ) : (
+            <Paper withBorder radius="lg" p="lg" bg="#f8fbff">
+              <Text fw={700}>{translatePeople("noPendingMemberProfileReviews")}</Text>
+            </Paper>
+          )}
+        </Stack>
+      </Paper>
 
       <Paper withBorder radius="xl" p="xl">
         <Group gap="sm" mb="lg">

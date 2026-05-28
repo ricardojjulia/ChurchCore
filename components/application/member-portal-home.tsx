@@ -144,6 +144,48 @@ export function MemberPortalHome({
           </Alert>
         ) : null}
 
+          {data.profileChangeStatus === "pending" ? (
+            <Alert icon={<AlertCircle size={16} />} color="blue" radius="xl">
+              {translateMember("profileUpdatePendingReview")}
+            </Alert>
+          ) : null}
+
+          {data.profileChangeStatus === "rejected" ? (
+            <Alert icon={<AlertCircle size={16} />} color="orange" radius="xl">
+              <Stack gap={4}>
+                <Text>{translateMember("profileUpdateRejected")}</Text>
+                {data.profileChangeReviewerNote ? (
+                  <Text size="sm" c="dimmed">
+                    {translateMember("reviewerNote", {
+                      value: data.profileChangeReviewerNote,
+                    })}
+                  </Text>
+                ) : null}
+              </Stack>
+            </Alert>
+          ) : null}
+
+          {data.familyChangeStatus === "pending" ? (
+            <Alert icon={<AlertCircle size={16} />} color="blue" radius="xl">
+              {translateMember("familyUpdatePendingReview")}
+            </Alert>
+          ) : null}
+
+          {data.familyChangeStatus === "rejected" ? (
+            <Alert icon={<AlertCircle size={16} />} color="orange" radius="xl">
+              <Stack gap={4}>
+                <Text>{translateMember("familyUpdateRejected")}</Text>
+                {data.familyChangeReviewerNote ? (
+                  <Text size="sm" c="dimmed">
+                    {translateMember("reviewerNote", {
+                      value: data.familyChangeReviewerNote,
+                    })}
+                  </Text>
+                ) : null}
+              </Stack>
+            </Alert>
+          ) : null}
+
         <Paper withBorder radius="xl" p="xl">
           <Group justify="space-between" align="center" mb="lg">
             <Title order={3} size="h4">

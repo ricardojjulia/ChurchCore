@@ -100,6 +100,8 @@ export type MemberNotificationPreferences = {
   inAppOptIn: boolean;
 };
 
+export type MemberSelfServiceReviewStatus = "none" | "pending" | "rejected";
+
 export type MemberPortalData = {
   profile: MemberPortalProfile | null;
   ministries: MemberPortalMinistry[];
@@ -110,6 +112,10 @@ export type MemberPortalData = {
   directory: MemberDirectoryEntry[];
   notificationPreferences: MemberNotificationPreferences | null;
   needsCommunicationPreferencesSetup: boolean;
+  profileChangeStatus: MemberSelfServiceReviewStatus;
+  profileChangeReviewerNote: string | null;
+  familyChangeStatus: MemberSelfServiceReviewStatus;
+  familyChangeReviewerNote: string | null;
 };
 
 function buildPreviewMemberPortalData(session: ChurchAppSession): MemberPortalData {
@@ -155,6 +161,10 @@ function buildPreviewMemberPortalData(session: ChurchAppSession): MemberPortalDa
     directory: [],
     notificationPreferences: null,
     needsCommunicationPreferencesSetup: true,
+    profileChangeStatus: "none",
+    profileChangeReviewerNote: null,
+    familyChangeStatus: "none",
+    familyChangeReviewerNote: null,
   };
 }
 
@@ -505,6 +515,50 @@ export async function getMemberPortalData(
           }> };
     const notificationPreferencesRow = notificationPreferencesResult.rows[0] ?? null;
 
+    let latestChangeRequestsResult:
+      | {
+          rows: Array<{
+            change_type: "profile" | "family";
+            status: "pending" | "approved" | "rejected";
+            reviewer_note: string | null;
+          }>;
+        }
+      | undefined;
+
+    if (profileRow) {
+      try {
+        latestChangeRequestsResult = await queryTenantLocalDb<{
+          change_type: "profile" | "family";
+          status: "pending" | "approved" | "rejected";
+          reviewer_note: string | null;
+        }>(
+          `
+            select distinct on (change_type)
+              change_type,
+              status,
+              reviewer_note
+            from public.member_change_requests
+            where church_id = $1
+              and target_profile_id = $2
+              and change_type in ('profile', 'family')
+            order by change_type, created_at desc
+          `,
+          [churchId, profileRow.id],
+        );
+      } catch {
+        latestChangeRequestsResult = { rows: [] };
+      }
+    } else {
+      latestChangeRequestsResult = { rows: [] };
+    }
+
+    const profileRequest = latestChangeRequestsResult.rows.find(
+      (row) => row.change_type === "profile",
+    );
+    const familyRequest = latestChangeRequestsResult.rows.find(
+      (row) => row.change_type === "family",
+    );
+
     return {
       profile: profileRow
         ? {
@@ -594,6 +648,20 @@ export async function getMemberPortalData(
         : null,
       needsCommunicationPreferencesSetup:
         !notificationPreferencesRow || profileRow?.preferred_contact_method === null,
+      profileChangeStatus:
+        profileRequest?.status === "pending"
+          ? "pending"
+          : profileRequest?.status === "rejected"
+            ? "rejected"
+            : "none",
+      profileChangeReviewerNote: profileRequest?.reviewer_note ?? null,
+      familyChangeStatus:
+        familyRequest?.status === "pending"
+          ? "pending"
+          : familyRequest?.status === "rejected"
+            ? "rejected"
+            : "none",
+      familyChangeReviewerNote: familyRequest?.reviewer_note ?? null,
     };
   }
 
@@ -696,6 +764,42 @@ export async function getMemberPortalData(
           .maybeSingle()
       : { data: null };
   const notificationPreferencesRow = notificationPreferencesResult.data;
+
+  const changeRequestsResult =
+    profileRow
+      ? await supabase
+          .from("member_change_requests")
+          .select("change_type, status, reviewer_note, created_at")
+          .eq("church_id", churchId)
+          .eq("target_profile_id", profileRow.id)
+          .in("change_type", ["profile", "family"])
+          .order("created_at", { ascending: false })
+      : { data: [] as Array<{
+          change_type: "profile" | "family";
+          status: "pending" | "approved" | "rejected";
+          reviewer_note: string | null;
+          created_at: string;
+        }> };
+
+  const latestChangeRequests = (changeRequestsResult.data ?? []).reduce(
+    (map, row) => {
+      if (!map.has(row.change_type)) {
+        map.set(row.change_type, row);
+      }
+      return map;
+    },
+    new Map<
+      "profile" | "family",
+      {
+        change_type: "profile" | "family";
+        status: "pending" | "approved" | "rejected";
+        reviewer_note: string | null;
+        created_at: string;
+      }
+    >(),
+  );
+  const latestProfileRequest = latestChangeRequests.get("profile");
+  const latestFamilyRequest = latestChangeRequests.get("family");
 
   const directoryProfiles = directoryProfilesResult.data ?? [];
   const directoryIds = directoryProfiles.map((row) => row.id);
@@ -898,5 +1002,19 @@ export async function getMemberPortalData(
       : null,
     needsCommunicationPreferencesSetup:
       !notificationPreferencesRow || profileRow?.preferred_contact_method === null,
+    profileChangeStatus:
+      latestProfileRequest?.status === "pending"
+        ? "pending"
+        : latestProfileRequest?.status === "rejected"
+          ? "rejected"
+          : "none",
+    profileChangeReviewerNote: latestProfileRequest?.reviewer_note ?? null,
+    familyChangeStatus:
+      latestFamilyRequest?.status === "pending"
+        ? "pending"
+        : latestFamilyRequest?.status === "rejected"
+          ? "rejected"
+          : "none",
+    familyChangeReviewerNote: latestFamilyRequest?.reviewer_note ?? null,
   };
 }

@@ -24,6 +24,7 @@ export function MemberFamilyEdit({ family }: Props) {
   const [opened, { open, close }] = useDisclosure(false);
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [reviewMessage, setReviewMessage] = useState<string | null>(null);
 
   const [familyName, setFamilyName] = useState(family?.familyName ?? "");
   const [address, setAddress] = useState(family?.address ?? "");
@@ -43,11 +44,16 @@ export function MemberFamilyEdit({ family }: Props) {
     setServerError(null);
     startTransition(async () => {
       try {
-        await upsertMemberFamilyAction({
+        const result = await upsertMemberFamilyAction({
           familyName,
           address: address || null,
           homePhone: homePhone || null,
         });
+        setReviewMessage(
+          result.status === "pending_review"
+            ? translateMember("updateSubmittedForReview")
+            : null,
+        );
         close();
       } catch (error) {
         setServerError(
@@ -59,14 +65,21 @@ export function MemberFamilyEdit({ family }: Props) {
 
   return (
     <>
-      <Button
-        variant={family ? "default" : "filled"}
-        radius="xl"
-        leftSection={family ? <Pencil size={15} /> : <Home size={15} />}
-        onClick={handleOpen}
-      >
-        {family ? translateMember("editFamily") : translateMember("addFamily")}
-      </Button>
+      <Stack gap={4}>
+        <Button
+          variant={family ? "default" : "filled"}
+          radius="xl"
+          leftSection={family ? <Pencil size={15} /> : <Home size={15} />}
+          onClick={handleOpen}
+        >
+          {family ? translateMember("editFamily") : translateMember("addFamily")}
+        </Button>
+        {reviewMessage ? (
+          <Text size="xs" c="dimmed">
+            {reviewMessage}
+          </Text>
+        ) : null}
+      </Stack>
 
       <Modal
         opened={opened}

@@ -18,6 +18,7 @@ Migrations and code changes must be deployed together in a single release. Some 
    - `npm run lint`
    - `npm run build`
 - Added targeted compliance coverage for member pending-review deletion behavior and cancellation in `lib/compliance/data-rights-actions.test.ts`.
+- Added targeted pending-review workflow verification for profile/family change requests and ChurchAdmin review approvals/rejections in `app/app/actions.test.ts`, `lib/church-admin-people-data.test.ts`, and `lib/member-portal-data.test.ts`.
 - Added Phase 3 communications adapter foundation test coverage in `lib/communications/provider-adapter.test.ts`.
 
 ---

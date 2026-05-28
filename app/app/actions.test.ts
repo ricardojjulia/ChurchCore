@@ -53,6 +53,7 @@ vi.mock("@/lib/supabase/tenant", () => ({
 }));
 
 import {
+  reviewMemberChangeRequestAction,
   updateChurchAdminPersonAction,
   updateChurchAdminPeopleBulkAction,
   updateMinistryAction,
@@ -254,5 +255,120 @@ describe("app actions", () => {
 
     expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
     expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("approves a pending member profile change request", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "admin-profile-1" }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "request-1",
+            target_profile_id: "profile-2",
+            change_type: "profile",
+            proposed_changes: {
+              fullName: "Ada Lovelace",
+              phone: "555-0100",
+              address: "123 Main",
+              preferredContactMethod: "email",
+              interests: ["hospitality"],
+              emergencyContactName: "Grace Hopper",
+              emergencyContactPhone: "555-0101",
+              directoryVisible: true,
+              contactAllowed: true,
+            },
+            status: "pending",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "profile-2",
+            directory_visible: false,
+            contact_allowed: false,
+            preferred_contact_method: "sms",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await reviewMemberChangeRequestAction({
+      requestId: "request-1",
+      decision: "approved",
+      reviewerNote: "Looks good.",
+    });
+
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("from public.member_change_requests"),
+      ["request-1", "church-1"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining("update public.profiles"),
+      [
+        "Ada Lovelace",
+        "555-0100",
+        "123 Main",
+        "email",
+        ["hospitality"],
+        true,
+        true,
+        "profile-2",
+        "church-1",
+      ],
+    );
+    expect(
+      queryTenantLocalDbMock.mock.calls.some(
+        ([sql, params]) =>
+          typeof sql === "string" &&
+          sql.includes("update public.member_change_requests") &&
+          Array.isArray(params) &&
+          params[0] === "approved" &&
+          params[1] === "admin-profile-1" &&
+          params[2] === "Looks good." &&
+          params[3] === "request-1" &&
+          params[4] === "church-1",
+      ),
+    ).toBe(true);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/people");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/member");
+  });
+
+  it("rejects a pending member family change request without applying canonical writes", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "admin-profile-1" }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "request-2",
+            target_profile_id: "profile-3",
+            change_type: "family",
+            proposed_changes: {
+              familyName: "Lovelace",
+              address: "123 Main",
+              homePhone: "555-0100",
+            },
+            status: "pending",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await reviewMemberChangeRequestAction({
+      requestId: "request-2",
+      decision: "rejected",
+      reviewerNote: "Needs guardian details.",
+    });
+
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining("update public.member_change_requests"),
+      ["rejected", "admin-profile-1", "Needs guardian details.", "request-2", "church-1"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(3);
   });
 });

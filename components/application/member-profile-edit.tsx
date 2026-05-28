@@ -27,6 +27,7 @@ export function MemberProfileEdit({ profile }: Props) {
   const [opened, { open, close }] = useDisclosure(false);
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [reviewMessage, setReviewMessage] = useState<string | null>(null);
 
   const [fullName, setFullName] = useState(profile.fullName);
   const [phone, setPhone] = useState(profile.phone ?? "");
@@ -67,7 +68,7 @@ export function MemberProfileEdit({ profile }: Props) {
     setServerError(null);
     startTransition(async () => {
       try {
-        await updateMemberProfileAction({
+        const result = await updateMemberProfileAction({
           fullName,
           phone: phone || null,
           address: address || null,
@@ -81,6 +82,11 @@ export function MemberProfileEdit({ profile }: Props) {
           directoryVisible,
           contactAllowed,
         });
+        setReviewMessage(
+          result.status === "pending_review"
+            ? translateMember("updateSubmittedForReview")
+            : null,
+        );
         close();
       } catch (err) {
         setServerError(
@@ -92,14 +98,21 @@ export function MemberProfileEdit({ profile }: Props) {
 
   return (
     <>
-      <Button
-        variant="default"
-        radius="xl"
-        leftSection={<Pencil size={15} />}
-        onClick={handleOpen}
-      >
-        {translateMember("editProfile")}
-      </Button>
+      <Stack gap={4}>
+        <Button
+          variant="default"
+          radius="xl"
+          leftSection={<Pencil size={15} />}
+          onClick={handleOpen}
+        >
+          {translateMember("editProfile")}
+        </Button>
+        {reviewMessage ? (
+          <Text size="xs" c="dimmed">
+            {reviewMessage}
+          </Text>
+        ) : null}
+      </Stack>
 
       <Modal
         opened={opened}

@@ -105,13 +105,34 @@ describe("getChurchAdminPeopleData", () => {
           },
         ],
       })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "change-1",
+            target_profile_id: "profile-1",
+            target_profile_name: "Ada Lovelace",
+            requested_by_profile_id: "profile-1",
+            requested_by_profile_name: "Ada Lovelace",
+            change_type: "profile",
+            created_at: "2026-05-09T09:30:00.000Z",
+          },
+        ],
+      })
       .mockResolvedValueOnce({ rows: [] });
 
     const data = await getChurchAdminPeopleData(session);
 
     expect(data.summary.pendingAccountRequests).toBe(1);
+    expect(data.summary.pendingMemberChangeRequests).toBe(1);
     expect(data.summary.familyCount).toBe(1);
     expect(data.summary.unassignedHouseholdCount).toBe(1);
+    expect(data.pendingMemberChangeRequests[0]).toMatchObject({
+      id: "change-1",
+      targetProfileId: "profile-1",
+      targetProfileName: "Ada Lovelace",
+      requestedByProfileName: "Ada Lovelace",
+      changeType: "profile",
+    });
     expect(data.people[0]).toMatchObject({
       id: "profile-1",
       familyId: "family-1",

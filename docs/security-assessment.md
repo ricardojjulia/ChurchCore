@@ -22,6 +22,8 @@ This is fixable. None of it requires a redesign. All of it should be fixed befor
 	- `npm run lint`
 	- `npm run build`
 - Additional compliance test coverage now includes pending-review member data-rights behavior in `lib/compliance/data-rights-actions.test.ts`.
+- Member profile/family pending-review hardening now enforces staff gatekeeping via `member_change_requests` and ChurchAdmin queue review actions, reducing direct self-service overwrite risk on canonical profile/family records.
+- Focused verification for pending-review workflows now includes `app/app/actions.test.ts`, `lib/church-admin-people-data.test.ts`, and `lib/member-portal-data.test.ts`.
 - Communications provider Phase 3 foundation started with adapter/retry/idempotency contract tests in `lib/communications/provider-adapter.test.ts`.
 
 ---
