@@ -25,6 +25,10 @@ export type CreateServicePlanInput = {
   name: string;
   serviceDate: string;
   serviceTime?: string;
+  serviceType?: "worship" | "prayer" | "youth" | "special_event" | "class" | "other";
+  scriptureReference?: string;
+  sermonTitle?: string;
+  sermonSpeaker?: string;
   notes?: string;
   templateId?: string;
 };
@@ -42,10 +46,23 @@ export async function createServicePlanAction(
 
   if (shouldUseLocalTenantFallback()) {
     const result = await queryTenantLocalDb<{ id: string }>(
-      `insert into public.service_plans (church_id, name, service_date, service_time, notes, created_by)
-       values ($1, $2, $3, $4, $5, $6)
+      `insert into public.service_plans
+         (church_id, name, service_date, service_time, service_type,
+          scripture_reference, sermon_title, sermon_speaker, notes, created_by)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        returning id`,
-      [churchId, input.name.trim(), input.serviceDate, input.serviceTime ?? null, input.notes ?? null, profileId],
+      [
+        churchId,
+        input.name.trim(),
+        input.serviceDate,
+        input.serviceTime ?? null,
+        input.serviceType ?? "worship",
+        input.scriptureReference ?? null,
+        input.sermonTitle ?? null,
+        input.sermonSpeaker ?? null,
+        input.notes ?? null,
+        profileId,
+      ],
     );
     const planId = result.rows[0]?.id;
     if (!planId) return { ok: false, error: "Failed to create plan." };
@@ -77,12 +94,162 @@ export async function createServicePlanAction(
   const supabase = await createTenantServerClient();
   const { data: plan, error } = await supabase.from("service_plans").insert({
     church_id: churchId, name: input.name.trim(), service_date: input.serviceDate,
-    service_time: input.serviceTime ?? null, notes: input.notes ?? null, created_by: profileId,
+    service_time: input.serviceTime ?? null,
+    service_type: input.serviceType ?? "worship",
+    scripture_reference: input.scriptureReference ?? null,
+    sermon_title: input.sermonTitle ?? null,
+    sermon_speaker: input.sermonSpeaker ?? null,
+    notes: input.notes ?? null,
+    created_by: profileId,
   }).select("id").single();
 
   if (error || !plan) return { ok: false, error: error?.message ?? "Failed." };
   revalidatePath(SCHEDULES_PATH);
   return { ok: true, id: plan.id };
+}
+
+export type UpdateServicePlanDetailsInput = {
+  planId: string;
+  name: string;
+  serviceType: "worship" | "prayer" | "youth" | "special_event" | "class" | "other";
+  serviceDate: string;
+  serviceTime?: string;
+  scriptureReference?: string;
+  sermonTitle?: string;
+  sermonSpeaker?: string;
+  notes?: string;
+};
+
+export async function updateServicePlanDetailsAction(
+  input: UpdateServicePlanDetailsInput,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireAdminSession();
+  const churchId = session.appContext.church.id;
+
+  if (!input.name.trim() || !input.serviceDate) {
+    return { ok: false, error: "Name and service date are required." };
+  }
+
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `update public.service_plans
+       set name = $3,
+           service_type = $4,
+           service_date = $5,
+           service_time = $6,
+           scripture_reference = $7,
+           sermon_title = $8,
+           sermon_speaker = $9,
+           notes = $10,
+           updated_at = now()
+       where id = $1 and church_id = $2`,
+      [
+        input.planId,
+        churchId,
+        input.name.trim(),
+        input.serviceType,
+        input.serviceDate,
+        input.serviceTime ?? null,
+        input.scriptureReference ?? null,
+        input.sermonTitle ?? null,
+        input.sermonSpeaker ?? null,
+        input.notes ?? null,
+      ],
+    );
+    revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+    revalidatePath(SCHEDULES_PATH);
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { error } = await supabase
+    .from("service_plans")
+    .update({
+      name: input.name.trim(),
+      service_type: input.serviceType,
+      service_date: input.serviceDate,
+      service_time: input.serviceTime ?? null,
+      scripture_reference: input.scriptureReference ?? null,
+      sermon_title: input.sermonTitle ?? null,
+      sermon_speaker: input.sermonSpeaker ?? null,
+      notes: input.notes ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.planId)
+    .eq("church_id", churchId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+  revalidatePath(SCHEDULES_PATH);
+  return { ok: true };
+}
+
+export type AddRunOfServiceItemInput = {
+  planId: string;
+  title: string;
+  itemType?: "segment" | "song" | "reading" | "prayer" | "sermon" | "announcement" | "other";
+  startsAt?: string;
+  endsAt?: string;
+  leaderName?: string;
+  notes?: string;
+  attachmentUrl?: string;
+  sortOrder?: number;
+};
+
+export async function addRunOfServiceItemAction(
+  input: AddRunOfServiceItemInput,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const session = await requireAdminSession();
+  const churchId = session.appContext.church.id;
+
+  if (!input.title.trim()) {
+    return { ok: false, error: "Run-of-service item title is required." };
+  }
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `insert into public.service_plan_items
+         (plan_id, church_id, starts_at, ends_at, title, item_type, leader_name, notes, attachment_url, sort_order)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       returning id`,
+      [
+        input.planId,
+        churchId,
+        input.startsAt ?? null,
+        input.endsAt ?? null,
+        input.title.trim(),
+        input.itemType ?? "segment",
+        input.leaderName ?? null,
+        input.notes ?? null,
+        input.attachmentUrl ?? null,
+        input.sortOrder ?? 0,
+      ],
+    );
+    revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+    return { ok: true, id: result.rows[0]?.id };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("service_plan_items")
+    .insert({
+      plan_id: input.planId,
+      church_id: churchId,
+      starts_at: input.startsAt ?? null,
+      ends_at: input.endsAt ?? null,
+      title: input.title.trim(),
+      item_type: input.itemType ?? "segment",
+      leader_name: input.leaderName ?? null,
+      notes: input.notes ?? null,
+      attachment_url: input.attachmentUrl ?? null,
+      sort_order: input.sortOrder ?? 0,
+    })
+    .select("id")
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+  return { ok: true, id: data?.id };
 }
 
 // ── Publish / complete plan ──────────────────────────────────

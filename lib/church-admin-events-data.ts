@@ -120,7 +120,7 @@ export type EventRegistration = {
   registrantName: string;
   registrantEmail: string | null;
   registrantPhone: string | null;
-  status: "confirmed" | "cancelled" | "waitlisted" | "attended";
+  status: "pending_approval" | "confirmed" | "cancelled" | "waitlisted" | "attended";
   isWaitlisted: boolean;
   amountPaidCents: number;
   customFields: Record<string, unknown> | null;
@@ -138,6 +138,8 @@ export type EventRegistrationSettings = {
   deadline: string | null;
   confirmationMessage: string | null;
   waitlistEnabled: boolean;
+  approvalRequired: boolean;
+  householdRegistrationEnabled: boolean;
   mobileMemberCheckInEnabled: boolean;
   mobileMemberCheckInStartsAt: string | null;
   mobileMemberCheckInEndsAt: string | null;
@@ -150,18 +152,33 @@ export type EventRegistrationSettings = {
   waitlistCount: number;
 };
 
+export type EventRegistrationFormField = {
+  id: string;
+  eventId: string;
+  label: string;
+  fieldKey: string;
+  fieldType: "text" | "textarea" | "select" | "checkbox" | "number";
+  isRequired: boolean;
+  options: string[];
+  sortOrder: number;
+};
+
 export async function getEventRegistrations(
   session: ChurchAppSession,
   eventId: string,
-): Promise<{ registrations: EventRegistration[]; settings: EventRegistrationSettings | null }> {
+): Promise<{
+  registrations: EventRegistration[];
+  settings: EventRegistrationSettings | null;
+  formFields: EventRegistrationFormField[];
+}> {
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
-    return { registrations: [], settings: null };
+    return { registrations: [], settings: null, formFields: [] };
   }
 
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {
-    const [regRows, settingsRows] = await Promise.all([
+    const [regRows, settingsRows, fieldRows] = await Promise.all([
       queryTenantLocalDb<{
         id: string; event_id: string; registrant_name: string;
         registrant_email: string | null; registrant_phone: string | null;
@@ -181,6 +198,7 @@ export async function getEventRegistrations(
         id: string; event_id: string; registration_open: boolean;
         capacity: number | null; price_cents: number; deadline: string | null;
         confirmation_message: string | null; waitlist_enabled: boolean;
+        approval_required: boolean; household_registration_enabled: boolean;
         mobile_member_check_in_enabled: boolean;
         mobile_member_check_in_starts_at: string | null;
         mobile_member_check_in_ends_at: string | null;
@@ -192,6 +210,7 @@ export async function getEventRegistrations(
       }>(
         `select id, event_id, registration_open, capacity, price_cents,
                 deadline, confirmation_message, waitlist_enabled,
+                approval_required, household_registration_enabled,
                 mobile_member_check_in_enabled, mobile_member_check_in_starts_at,
                 mobile_member_check_in_ends_at, mobile_member_check_in_access_code,
                   mobile_member_check_in_allow_household,
@@ -201,6 +220,16 @@ export async function getEventRegistrations(
          from public.event_registration_settings
          where event_id = $1`,
         [eventId],
+      ),
+      queryTenantLocalDb<{
+        id: string; event_id: string; label: string; field_key: string;
+        field_type: string; is_required: boolean; options: string[] | null; sort_order: number;
+      }>(
+        `select id, event_id, label, field_key, field_type, is_required, options, sort_order
+         from public.event_registration_form_fields
+         where event_id = $1 and church_id = $2
+         order by sort_order, created_at`,
+        [eventId, churchId],
       ),
     ]);
 
@@ -217,6 +246,8 @@ export async function getEventRegistrations(
       id: s.id, eventId: s.event_id, registrationOpen: s.registration_open,
       capacity: s.capacity, priceCents: s.price_cents, deadline: s.deadline,
       confirmationMessage: s.confirmation_message, waitlistEnabled: s.waitlist_enabled,
+      approvalRequired: s.approval_required,
+      householdRegistrationEnabled: s.household_registration_enabled,
       mobileMemberCheckInEnabled: s.mobile_member_check_in_enabled,
       mobileMemberCheckInStartsAt: s.mobile_member_check_in_starts_at,
       mobileMemberCheckInEndsAt: s.mobile_member_check_in_ends_at,
@@ -230,11 +261,22 @@ export async function getEventRegistrations(
       waitlistCount: registrations.filter((r) => r.isWaitlisted).length,
     } : null;
 
-    return { registrations, settings };
+    const formFields: EventRegistrationFormField[] = fieldRows.rows.map((row) => ({
+      id: row.id,
+      eventId: row.event_id,
+      label: row.label,
+      fieldKey: row.field_key,
+      fieldType: (row.field_type as EventRegistrationFormField["fieldType"]) ?? "text",
+      isRequired: row.is_required,
+      options: row.options ?? [],
+      sortOrder: row.sort_order,
+    }));
+
+    return { registrations, settings, formFields };
   }
 
   const supabase = await createTenantServerClient();
-  const [{ data: regData }, { data: settingsData }] = await Promise.all([
+  const [{ data: regData }, { data: settingsData }, { data: formFieldData }] = await Promise.all([
     supabase
       .from("event_registrations")
       .select("*")
@@ -246,6 +288,12 @@ export async function getEventRegistrations(
       .select("*")
       .eq("event_id", eventId)
       .maybeSingle(),
+    supabase
+      .from("event_registration_form_fields")
+      .select("*")
+      .eq("event_id", eventId)
+      .eq("church_id", churchId)
+      .order("sort_order"),
   ]);
 
   const registrations: EventRegistration[] = (regData ?? []).map((r) => ({
@@ -262,6 +310,8 @@ export async function getEventRegistrations(
     id: s.id, eventId: s.event_id, registrationOpen: s.registration_open,
     capacity: s.capacity, priceCents: s.price_cents, deadline: s.deadline,
     confirmationMessage: s.confirmation_message, waitlistEnabled: s.waitlist_enabled,
+    approvalRequired: s.approval_required ?? false,
+    householdRegistrationEnabled: s.household_registration_enabled ?? false,
     mobileMemberCheckInEnabled: s.mobile_member_check_in_enabled ?? false,
     mobileMemberCheckInStartsAt: s.mobile_member_check_in_starts_at ?? null,
     mobileMemberCheckInEndsAt: s.mobile_member_check_in_ends_at ?? null,
@@ -275,7 +325,18 @@ export async function getEventRegistrations(
     waitlistCount: registrations.filter((r) => r.isWaitlisted).length,
   } : null;
 
-  return { registrations, settings };
+  const formFields: EventRegistrationFormField[] = (formFieldData ?? []).map((field) => ({
+    id: field.id,
+    eventId: field.event_id,
+    label: field.label,
+    fieldKey: field.field_key,
+    fieldType: (field.field_type as EventRegistrationFormField["fieldType"]) ?? "text",
+    isRequired: field.is_required,
+    options: (field.options as string[] | null) ?? [],
+    sortOrder: field.sort_order,
+  }));
+
+  return { registrations, settings, formFields };
 }
 
 export type ChurchAdminEventsListEntry = {

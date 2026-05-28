@@ -37,9 +37,11 @@ import { ReadinessTargetState } from "@/components/application/readiness-target-
 import type { ServicePlanDetail, ServicePlanListEntry, ServicePlanTemplate, VolunteerPoolEntry } from "@/lib/volunteer-types";
 import {
   addPlanPositionAction,
+  addRunOfServiceItemAction,
   assignVolunteerAction,
   createServicePlanAction,
   removeAssignmentAction,
+  updateServicePlanDetailsAction,
   updateServicePlanStatusAction,
 } from "@/app/app/volunteer-actions";
 
@@ -267,7 +269,27 @@ export function ServicePlanBuilder({
   const [isPending, startTransition] = useTransition();
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showAddPosition, setShowAddPosition] = useState(false);
+  const [showRunItemForm, setShowRunItemForm] = useState(false);
   const [posForm, setPosForm] = useState({ roleName: "", quantityNeeded: 1 });
+  const [detailsForm, setDetailsForm] = useState({
+    name: initialDetail.plan.name,
+    serviceType: initialDetail.plan.serviceType,
+    serviceDate: initialDetail.plan.serviceDate,
+    serviceTime: initialDetail.plan.serviceTime ?? "",
+    scriptureReference: initialDetail.plan.scriptureReference ?? "",
+    sermonTitle: initialDetail.plan.sermonTitle ?? "",
+    sermonSpeaker: initialDetail.plan.sermonSpeaker ?? "",
+    notes: initialDetail.plan.notes ?? "",
+  });
+  const [runItemForm, setRunItemForm] = useState({
+    title: "",
+    itemType: "segment",
+    startsAt: "",
+    endsAt: "",
+    leaderName: "",
+    notes: "",
+    attachmentUrl: "",
+  });
   const [assignTarget, setAssignTarget] = useState<{ positionId: string; roleName: string } | null>(null);
   const [volunteerSearch, setVolunteerSearch] = useState("");
 
@@ -275,6 +297,119 @@ export function ServicePlanBuilder({
     !volunteerSearch ||
     [v.fullName, v.email].filter(Boolean).join(" ").toLowerCase().includes(volunteerSearch.toLowerCase())
   );
+
+  function handleSaveDetails() {
+    startTransition(async () => {
+      const res = await updateServicePlanDetailsAction({
+        planId: detail.plan.id,
+        name: detailsForm.name,
+        serviceType: detailsForm.serviceType as
+          | "worship"
+          | "prayer"
+          | "youth"
+          | "special_event"
+          | "class"
+          | "other",
+        serviceDate: detailsForm.serviceDate,
+        serviceTime: detailsForm.serviceTime || undefined,
+        scriptureReference: detailsForm.scriptureReference || undefined,
+        sermonTitle: detailsForm.sermonTitle || undefined,
+        sermonSpeaker: detailsForm.sermonSpeaker || undefined,
+        notes: detailsForm.notes || undefined,
+      });
+
+      if (!res.ok) {
+        setMsg({ type: "error", text: res.error ?? "Failed to save plan details." });
+        return;
+      }
+
+      setDetail((d) => ({
+        ...d,
+        plan: {
+          ...d.plan,
+          name: detailsForm.name,
+          serviceType: detailsForm.serviceType as typeof d.plan.serviceType,
+          serviceDate: detailsForm.serviceDate,
+          serviceTime: detailsForm.serviceTime || null,
+          scriptureReference: detailsForm.scriptureReference || null,
+          sermonTitle: detailsForm.sermonTitle || null,
+          sermonSpeaker: detailsForm.sermonSpeaker || null,
+          notes: detailsForm.notes || null,
+        },
+      }));
+      setMsg({ type: "success", text: "Service plan details updated." });
+    });
+  }
+
+  function handleAddRunItem() {
+    if (!runItemForm.title.trim()) return;
+
+    startTransition(async () => {
+      const res = await addRunOfServiceItemAction({
+        planId: detail.plan.id,
+        title: runItemForm.title,
+        itemType: runItemForm.itemType as
+          | "segment"
+          | "song"
+          | "reading"
+          | "prayer"
+          | "sermon"
+          | "announcement"
+          | "other",
+        startsAt: runItemForm.startsAt || undefined,
+        endsAt: runItemForm.endsAt || undefined,
+        leaderName: runItemForm.leaderName || undefined,
+        notes: runItemForm.notes || undefined,
+        attachmentUrl: runItemForm.attachmentUrl || undefined,
+        sortOrder: detail.runOfService.length,
+      });
+
+      if (!res.ok || !res.id) {
+        setMsg({ type: "error", text: res.error ?? "Failed to add run-of-service item." });
+        return;
+      }
+
+      const newItemId = res.id;
+      setDetail((d) => ({
+        ...d,
+        runOfService: [
+          ...d.runOfService,
+          {
+            id: newItemId,
+            planId: d.plan.id,
+            churchId: d.plan.churchId,
+            startsAt: runItemForm.startsAt || null,
+            endsAt: runItemForm.endsAt || null,
+            title: runItemForm.title,
+            itemType: runItemForm.itemType as
+              | "segment"
+              | "song"
+              | "reading"
+              | "prayer"
+              | "sermon"
+              | "announcement"
+              | "other",
+            leaderName: runItemForm.leaderName || null,
+            notes: runItemForm.notes || null,
+            attachmentUrl: runItemForm.attachmentUrl || null,
+            sortOrder: d.runOfService.length,
+          },
+        ],
+      }));
+
+      setShowRunItemForm(false);
+      setRunItemForm({
+        title: "",
+        itemType: "segment",
+        startsAt: "",
+        endsAt: "",
+        leaderName: "",
+        notes: "",
+        attachmentUrl: "",
+      });
+      setMsg({ type: "success", text: "Run-of-service item added." });
+    });
+  }
 
   function handlePublish(status: "published" | "complete" | "cancelled") {
     startTransition(async () => {
@@ -433,6 +568,174 @@ export function ServicePlanBuilder({
             <Text fz="lg" fw={700} c="teal">{detail.confirmedCount}</Text>
           </Paper>
         </SimpleGrid>
+
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm" mt="md">
+          <TextInput
+            label="Service type"
+            value={detailsForm.serviceType}
+            onChange={(event) =>
+              setDetailsForm((form) => ({
+                ...form,
+                serviceType: event.currentTarget.value as typeof form.serviceType,
+              }))
+            }
+          />
+          <TextInput
+            label="Sermon speaker"
+            value={detailsForm.sermonSpeaker}
+            onChange={(event) =>
+              setDetailsForm((form) => ({ ...form, sermonSpeaker: event.currentTarget.value }))
+            }
+          />
+          <TextInput
+            label="Sermon title"
+            value={detailsForm.sermonTitle}
+            onChange={(event) =>
+              setDetailsForm((form) => ({ ...form, sermonTitle: event.currentTarget.value }))
+            }
+          />
+          <TextInput
+            label="Scripture reference"
+            value={detailsForm.scriptureReference}
+            onChange={(event) =>
+              setDetailsForm((form) => ({ ...form, scriptureReference: event.currentTarget.value }))
+            }
+          />
+        </SimpleGrid>
+        <Textarea
+          label="Planning notes"
+          mt="sm"
+          minRows={2}
+          value={detailsForm.notes}
+          onChange={(event) =>
+            setDetailsForm((form) => ({ ...form, notes: event.currentTarget.value }))
+          }
+        />
+        <Group justify="flex-end" mt="sm">
+          <Button size="xs" variant="default" onClick={handleSaveDetails} loading={isPending}>
+            Save service details
+          </Button>
+        </Group>
+      </Paper>
+
+      <Paper withBorder radius="md" p="md">
+        <Group justify="space-between" mb="sm">
+          <Title order={4} size="h5">Run of service</Title>
+          <Button
+            size="xs"
+            leftSection={<Plus size={13} />}
+            variant="default"
+            onClick={() => setShowRunItemForm((value) => !value)}
+          >
+            Add item
+          </Button>
+        </Group>
+
+        {showRunItemForm ? (
+          <Paper withBorder p="sm" radius="sm" mb="sm">
+            <Stack gap="xs">
+              <TextInput
+                label="Title"
+                required
+                value={runItemForm.title}
+                onChange={(event) =>
+                  setRunItemForm((form) => ({ ...form, title: event.currentTarget.value }))
+                }
+              />
+              <Group grow>
+                <TextInput
+                  label="Item type"
+                  value={runItemForm.itemType}
+                  onChange={(event) =>
+                    setRunItemForm((form) => ({
+                      ...form,
+                      itemType: event.currentTarget.value as typeof form.itemType,
+                    }))
+                  }
+                />
+                <TextInput
+                  label="Leader"
+                  value={runItemForm.leaderName}
+                  onChange={(event) =>
+                    setRunItemForm((form) => ({ ...form, leaderName: event.currentTarget.value }))
+                  }
+                />
+              </Group>
+              <Group grow>
+                <TextInput
+                  label="Starts at"
+                  type="datetime-local"
+                  value={runItemForm.startsAt}
+                  onChange={(event) =>
+                    setRunItemForm((form) => ({ ...form, startsAt: event.currentTarget.value }))
+                  }
+                />
+                <TextInput
+                  label="Ends at"
+                  type="datetime-local"
+                  value={runItemForm.endsAt}
+                  onChange={(event) =>
+                    setRunItemForm((form) => ({ ...form, endsAt: event.currentTarget.value }))
+                  }
+                />
+              </Group>
+              <TextInput
+                label="Attachment URL"
+                value={runItemForm.attachmentUrl}
+                onChange={(event) =>
+                  setRunItemForm((form) => ({ ...form, attachmentUrl: event.currentTarget.value }))
+                }
+              />
+              <Textarea
+                label="Notes"
+                minRows={2}
+                value={runItemForm.notes}
+                onChange={(event) =>
+                  setRunItemForm((form) => ({ ...form, notes: event.currentTarget.value }))
+                }
+              />
+              <Group justify="flex-end">
+                <Button size="xs" variant="default" onClick={() => setShowRunItemForm(false)}>
+                  Cancel
+                </Button>
+                <Button size="xs" onClick={handleAddRunItem} loading={isPending}>
+                  Add item
+                </Button>
+              </Group>
+            </Stack>
+          </Paper>
+        ) : null}
+
+        {detail.runOfService.length === 0 ? (
+          <Text size="sm" c="dimmed">No run-of-service items yet.</Text>
+        ) : (
+          <Stack gap="xs">
+            {detail.runOfService.map((item) => (
+              <Paper key={item.id} withBorder p="sm" radius="sm">
+                <Group justify="space-between" align="flex-start">
+                  <Stack gap={2}>
+                    <Group gap="xs">
+                      <Text fw={600} size="sm">{item.title}</Text>
+                      <Badge size="xs" variant="light" color="gray">{item.itemType}</Badge>
+                    </Group>
+                    {item.leaderName ? <Text size="xs" c="dimmed">Leader: {item.leaderName}</Text> : null}
+                    {item.startsAt || item.endsAt ? (
+                      <Text size="xs" c="dimmed">
+                        {item.startsAt ? new Date(item.startsAt).toLocaleTimeString() : ""}
+                        {item.startsAt && item.endsAt ? " - " : ""}
+                        {item.endsAt ? new Date(item.endsAt).toLocaleTimeString() : ""}
+                      </Text>
+                    ) : null}
+                    {item.notes ? <Text size="xs">{item.notes}</Text> : null}
+                    {item.attachmentUrl ? (
+                      <Text size="xs" c="churchBlue">{item.attachmentUrl}</Text>
+                    ) : null}
+                  </Stack>
+                </Group>
+              </Paper>
+            ))}
+          </Stack>
+        )}
       </Paper>
 
       {msg && (

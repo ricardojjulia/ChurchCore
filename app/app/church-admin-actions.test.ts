@@ -93,11 +93,13 @@ vi.mock("@/lib/supabase/tenant", () => ({
 
 import {
   addRosterAssignmentAction,
+  approveRegistrationAction,
   approveAccountRequestAction,
   createEventAction,
   rejectAccountRequestAction,
   registerForEventAction,
   updateChurchSettingsAction,
+  upsertRegistrationFormFieldsAction,
   upsertRegistrationSettingsAction,
 } from "@/app/app/church-admin-actions";
 
@@ -255,6 +257,94 @@ describe("church-admin actions", () => {
 
     expect(result).toEqual({ ok: true, registrationId: "reg-1", isWaitlisted: true });
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/events/event-1");
+  });
+
+  it("creates pending-approval registration when approval is required", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ church_id: "church-1" }] })
+      .mockResolvedValueOnce({ rows: [{ capacity: null, waitlist_enabled: false, registration_open: true, approval_required: true }] })
+      .mockResolvedValueOnce({ rows: [{ id: "reg-approval-1" }] });
+
+    const result = await registerForEventAction({
+      eventId: "event-1",
+      churchId: "church-1",
+      registrantName: "Approval Needed",
+      customFields: { tshirt_size: "L" },
+    });
+
+    expect(result).toEqual({ ok: true, registrationId: "reg-approval-1", isWaitlisted: false });
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining("insert into public.event_registrations"),
+      [
+        "event-1",
+        "church-1",
+        "Approval Needed",
+        null,
+        null,
+        "pending_approval",
+        false,
+        null,
+        JSON.stringify({ tshirt_size: "L" }),
+      ],
+    );
+  });
+
+  it("approves a pending registration in local fallback mode", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "event-1" }] })
+      .mockResolvedValueOnce({ rows: [{ id: "reg-1" }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const result = await approveRegistrationAction("reg-1", "event-1");
+
+    expect(result).toEqual({ ok: true });
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining("set status = 'confirmed'"),
+      ["reg-1", "church-1"],
+    );
+  });
+
+  it("replaces registration form fields in local fallback mode", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "event-1" }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const result = await upsertRegistrationFormFieldsAction({
+      eventId: "event-1",
+      fields: [
+        {
+          label: "Shirt size",
+          fieldKey: "shirt_size",
+          fieldType: "select",
+          isRequired: true,
+          options: ["S", "M", "L"],
+        },
+      ],
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("delete from public.event_registration_form_fields"),
+      ["event-1", "church-1"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining("insert into public.event_registration_form_fields"),
+      [
+        "event-1",
+        "church-1",
+        "Shirt size",
+        "shirt_size",
+        "select",
+        true,
+        JSON.stringify(["S", "M", "L"]),
+        0,
+      ],
+    );
   });
 
   it("returns preview mode for roster assignment when tenant backend is unavailable", async () => {

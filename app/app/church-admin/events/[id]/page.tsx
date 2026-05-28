@@ -24,7 +24,7 @@ export default async function ChurchAdminEventPage({
     redirect(session.homePath);
   }
 
-  const [data, { registrations, settings }] = await Promise.all([
+  const [data, { registrations, settings, formFields }] = await Promise.all([
     getChurchAdminEventWorkspaceData(session, id),
     getEventRegistrations(session, id),
   ]);
@@ -40,6 +40,7 @@ export default async function ChurchAdminEventPage({
       data={data}
       registrations={registrations}
       settings={settings}
+      formFields={formFields}
     />
   );
 }

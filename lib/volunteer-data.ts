@@ -10,6 +10,7 @@ import type { ChurchAppSession } from "@/lib/auth";
 import type {
   MemberScheduleEntry,
   ServicePlanDetail,
+  ServicePlanItem,
   ServicePlanListEntry,
   ServicePlanTemplate,
   VolunteerDirectoryEntry,
@@ -29,6 +30,8 @@ export async function getServicePlanList(
     const result = await queryTenantLocalDb<{
       id: string; church_id: string; event_id: string | null;
       name: string; service_date: string; service_time: string | null;
+      service_type: string; scripture_reference: string | null;
+      sermon_title: string | null; sermon_speaker: string | null;
       status: string; notes: string | null; created_by: string | null; created_at: string;
       position_count: number; filled_count: number; confirmed_count: number;
     }>(
@@ -65,6 +68,10 @@ export async function getServicePlanList(
     return {
       id: r.id, churchId: r.church_id, eventId: r.event_id,
       name: r.name, serviceDate: r.service_date, serviceTime: r.service_time,
+      serviceType: (r.service_type as ServicePlanListEntry["serviceType"]) ?? "worship",
+      scriptureReference: r.scripture_reference,
+      sermonTitle: r.sermon_title,
+      sermonSpeaker: r.sermon_speaker,
       status: r.status as ServicePlanListEntry["status"], notes: r.notes,
       createdBy: r.created_by, createdAt: r.created_at,
       positionCount: (r.service_plan_positions ?? []).length,
@@ -77,12 +84,18 @@ export async function getServicePlanList(
 function mapPlanListRow(r: {
   id: string; church_id: string; event_id: string | null;
   name: string; service_date: string; service_time: string | null;
+  service_type: string; scripture_reference: string | null;
+  sermon_title: string | null; sermon_speaker: string | null;
   status: string; notes: string | null; created_by: string | null; created_at: string;
   position_count: number; filled_count: number; confirmed_count: number;
 }): ServicePlanListEntry {
   return {
     id: r.id, churchId: r.church_id, eventId: r.event_id,
     name: r.name, serviceDate: r.service_date, serviceTime: r.service_time,
+    serviceType: (r.service_type as ServicePlanListEntry["serviceType"]) ?? "worship",
+    scriptureReference: r.scripture_reference,
+    sermonTitle: r.sermon_title,
+    sermonSpeaker: r.sermon_speaker,
     status: r.status as ServicePlanListEntry["status"], notes: r.notes,
     createdBy: r.created_by, createdAt: r.created_at,
     positionCount: r.position_count, filledCount: r.filled_count, confirmedCount: r.confirmed_count,
@@ -99,13 +112,16 @@ export async function getServicePlanDetail(
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {
-    const [planResult, posResult, shiftResult] = await Promise.all([
+    const [planResult, posResult, shiftResult, runItemsResult] = await Promise.all([
       queryTenantLocalDb<{
         id: string; church_id: string; event_id: string | null;
         name: string; service_date: string; service_time: string | null;
+        service_type: string; scripture_reference: string | null;
+        sermon_title: string | null; sermon_speaker: string | null;
         status: string; notes: string | null; created_by: string | null; created_at: string;
       }>(
         `select id, church_id, event_id, name, service_date, service_time,
+                service_type, scripture_reference, sermon_title, sermon_speaker,
                 status, notes, created_by, created_at
          from public.service_plans
          where id = $1 and church_id = $2`,
@@ -139,6 +155,19 @@ export async function getServicePlanDetail(
          order by vs.starts_at`,
         [planId],
       ),
+      queryTenantLocalDb<{
+        id: string; plan_id: string; church_id: string;
+        starts_at: string | null; ends_at: string | null;
+        title: string; item_type: string; leader_name: string | null;
+        notes: string | null; attachment_url: string | null; sort_order: number;
+      }>(
+        `select id, plan_id, church_id, starts_at, ends_at, title, item_type,
+                leader_name, notes, attachment_url, sort_order
+         from public.service_plan_items
+         where plan_id = $1
+         order by sort_order, starts_at nulls last`,
+        [planId],
+      ),
     ]);
 
     const plan = planResult.rows[0];
@@ -152,6 +181,20 @@ export async function getServicePlanDetail(
       declineReason: s.decline_reason, respondedAt: s.responded_at,
       volunteerNotes: s.volunteer_notes,
       volunteerName: s.full_name, volunteerEmail: s.email, volunteerPhone: s.phone,
+    }));
+
+    const runOfService: ServicePlanItem[] = runItemsResult.rows.map((item) => ({
+      id: item.id,
+      planId: item.plan_id,
+      churchId: item.church_id,
+      startsAt: item.starts_at,
+      endsAt: item.ends_at,
+      title: item.title,
+      itemType: (item.item_type as ServicePlanItem["itemType"]) ?? "segment",
+      leaderName: item.leader_name,
+      notes: item.notes,
+      attachmentUrl: item.attachment_url,
+      sortOrder: item.sort_order,
     }));
 
     const positions = posResult.rows.map((pos) => {
@@ -170,9 +213,14 @@ export async function getServicePlanDetail(
       plan: {
         id: plan.id, churchId: plan.church_id, eventId: plan.event_id,
         name: plan.name, serviceDate: plan.service_date, serviceTime: plan.service_time,
+        serviceType: (plan.service_type as ServicePlanDetail["plan"]["serviceType"]) ?? "worship",
+        scriptureReference: plan.scripture_reference,
+        sermonTitle: plan.sermon_title,
+        sermonSpeaker: plan.sermon_speaker,
         status: plan.status as ServicePlanDetail["plan"]["status"],
         notes: plan.notes, createdBy: plan.created_by, createdAt: plan.created_at,
       },
+      runOfService,
       positions,
       unfilledCount: positions.reduce((sum, p) => sum + Math.max(0, p.quantityNeeded - p.filled), 0),
       confirmedCount: positions.reduce((sum, p) => sum + p.shifts.filter((s) => s.confirmationStatus === "confirmed").length, 0),
@@ -186,10 +234,11 @@ export async function getServicePlanDetail(
     .from("service_plans").select("*").eq("id", planId).eq("church_id", churchId).single();
   if (!plan) return null;
 
-  const [{ data: positions }, { data: shifts }] = await Promise.all([
+  const [{ data: positions }, { data: shifts }, { data: runItems }] = await Promise.all([
     supabase.from("service_plan_positions").select("*").eq("plan_id", planId).order("sort_order"),
     supabase.from("volunteer_shifts").select("*, profiles(full_name, email, phone)")
       .eq("plan_id", planId).order("starts_at"),
+    supabase.from("service_plan_items").select("*").eq("plan_id", planId).order("sort_order"),
   ]);
 
   const mappedShifts = (shifts ?? []).map((s) => {
@@ -217,13 +266,32 @@ export async function getServicePlanDetail(
     };
   });
 
+  const runOfService: ServicePlanItem[] = (runItems ?? []).map((item) => ({
+    id: item.id,
+    planId: item.plan_id,
+    churchId: item.church_id,
+    startsAt: item.starts_at ?? null,
+    endsAt: item.ends_at ?? null,
+    title: item.title,
+    itemType: (item.item_type as ServicePlanItem["itemType"]) ?? "segment",
+    leaderName: item.leader_name ?? null,
+    notes: item.notes ?? null,
+    attachmentUrl: item.attachment_url ?? null,
+    sortOrder: item.sort_order,
+  }));
+
   return {
     plan: {
       id: plan.id, churchId: plan.church_id, eventId: plan.event_id,
       name: plan.name, serviceDate: plan.service_date, serviceTime: plan.service_time,
+      serviceType: (plan.service_type as ServicePlanDetail["plan"]["serviceType"]) ?? "worship",
+      scriptureReference: plan.scripture_reference ?? null,
+      sermonTitle: plan.sermon_title ?? null,
+      sermonSpeaker: plan.sermon_speaker ?? null,
       status: plan.status as ServicePlanDetail["plan"]["status"],
       notes: plan.notes, createdBy: plan.created_by, createdAt: plan.created_at,
     },
+    runOfService,
     positions: mappedPositions,
     unfilledCount: mappedPositions.reduce((sum, p) => sum + Math.max(0, p.quantityNeeded - p.filled), 0),
     confirmedCount: mappedPositions.reduce((sum, p) => sum + p.shifts.filter((s) => s.confirmationStatus === "confirmed").length, 0),

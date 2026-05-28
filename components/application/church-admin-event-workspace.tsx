@@ -972,17 +972,20 @@ export function EventsListWorkspace({
 
 import type {
   EventRegistration,
+  EventRegistrationFormField,
   EventRegistrationSettings,
 } from "@/lib/church-admin-events-data";
 import {
+  approveRegistrationAction,
   upsertRegistrationSettingsAction,
+  upsertRegistrationFormFieldsAction,
   registerForEventAction,
   cancelRegistrationAction,
   checkInRegistrantAction,
   type UpsertRegistrationSettingsInput,
 } from "@/app/app/church-admin-actions";
 import { NumberInput, Switch } from "@mantine/core";
-import { UserCheck, UserX, Download } from "lucide-react";
+import { Check, UserCheck, UserX, Download } from "lucide-react";
 
 export function ChurchAdminEventDetailWorkspace({
   session,
@@ -990,12 +993,14 @@ export function ChurchAdminEventDetailWorkspace({
   data,
   registrations,
   settings,
+  formFields,
 }: {
   session: import("@/lib/auth").ChurchAppSession;
   eventId: string;
   data: ChurchAdminEventWorkspaceData;
   registrations: EventRegistration[];
   settings: EventRegistrationSettings | null;
+  formFields: EventRegistrationFormField[];
 }) {
   return (
     <ApplicationShell
@@ -1038,6 +1043,7 @@ export function ChurchAdminEventDetailWorkspace({
             eventId={eventId}
             registrations={registrations}
             settings={settings}
+            formFields={formFields}
           />
         </Tabs.Panel>
       </Tabs>
@@ -1050,14 +1056,17 @@ export function EventRegistrationsPanel({
   eventId,
   registrations: initialRegistrations,
   settings: initialSettings,
+  formFields: initialFormFields,
 }: {
   session: import("@/lib/auth").ChurchAppSession;
   eventId: string;
   registrations: EventRegistration[];
   settings: EventRegistrationSettings | null;
+  formFields: EventRegistrationFormField[];
 }) {
   const [registrations, setRegistrations] = useState(initialRegistrations);
   const [settings] = useState(initialSettings);
+  const [formFields, setFormFields] = useState(initialFormFields);
   const [isPending, startTransition] = useTransition();
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -1066,6 +1075,9 @@ export function EventRegistrationsPanel({
     registrationOpen: initialSettings?.registrationOpen ?? false,
     capacity: initialSettings?.capacity ?? undefined,
     waitlistEnabled: initialSettings?.waitlistEnabled ?? false,
+    approvalRequired: initialSettings?.approvalRequired ?? false,
+    householdRegistrationEnabled:
+      initialSettings?.householdRegistrationEnabled ?? false,
     confirmationMessage: initialSettings?.confirmationMessage ?? "",
     mobileMemberCheckInEnabled:
       initialSettings?.mobileMemberCheckInEnabled ?? false,
@@ -1092,6 +1104,8 @@ export function EventRegistrationsPanel({
         registrationOpen: settingsForm.registrationOpen ?? false,
         capacity: settingsForm.capacity,
         waitlistEnabled: settingsForm.waitlistEnabled,
+        approvalRequired: settingsForm.approvalRequired,
+        householdRegistrationEnabled: settingsForm.householdRegistrationEnabled,
         confirmationMessage: settingsForm.confirmationMessage,
         mobileMemberCheckInEnabled:
           settingsForm.mobileMemberCheckInEnabled ?? false,
@@ -1112,6 +1126,27 @@ export function EventRegistrationsPanel({
       });
       if (res.ok) setMsg({ type: "success", text: "Settings saved." });
       else setMsg({ type: "error", text: res.error ?? "Failed to save." });
+    });
+  }
+
+  function handleSaveFormFields() {
+    startTransition(async () => {
+      const res = await upsertRegistrationFormFieldsAction({
+        eventId,
+        fields: formFields.map((field) => ({
+          label: field.label,
+          fieldKey: field.fieldKey,
+          fieldType: field.fieldType,
+          isRequired: field.isRequired,
+          options: field.options,
+        })),
+      });
+
+      if (res.ok) {
+        setMsg({ type: "success", text: "Registration form fields saved." });
+      } else {
+        setMsg({ type: "error", text: res.error ?? "Failed to save registration form fields." });
+      }
     });
   }
 
@@ -1143,6 +1178,19 @@ export function EventRegistrationsPanel({
         setRegistrations((r) => r.map((reg) => reg.id === id ? { ...reg, status: "cancelled" } : reg));
       } else {
         setMsg({ type: "error", text: res.error ?? "Failed to cancel." });
+      }
+    });
+  }
+
+  function handleApprove(id: string) {
+    startTransition(async () => {
+      const res = await approveRegistrationAction(id, eventId);
+      if (res.ok) {
+        setRegistrations((rows) =>
+          rows.map((row) => (row.id === id ? { ...row, status: "confirmed" } : row)),
+        );
+      } else {
+        setMsg({ type: "error", text: res.error ?? "Failed to approve registration." });
       }
     });
   }
@@ -1188,6 +1236,7 @@ export function EventRegistrationsPanel({
     settingsForm.mobileMemberCheckInLocationRadiusMeters !== undefined;
 
   const STATUS_COLOR: Record<string, string> = {
+    pending_approval: "orange",
     confirmed: "blue", attended: "green", waitlisted: "yellow", cancelled: "gray",
   };
 
@@ -1258,6 +1307,20 @@ export function EventRegistrationsPanel({
               label="Enable waitlist when full"
               checked={settingsForm.waitlistEnabled ?? false}
               onChange={(e) => setSettingsForm((f) => ({ ...f, waitlistEnabled: e.target.checked }))}
+            />
+            <Switch
+              label="Require approval before confirmation"
+              checked={settingsForm.approvalRequired ?? false}
+              onChange={(e) =>
+                setSettingsForm((f) => ({ ...f, approvalRequired: e.target.checked }))
+              }
+            />
+            <Switch
+              label="Allow household registrations"
+              checked={settingsForm.householdRegistrationEnabled ?? false}
+              onChange={(e) =>
+                setSettingsForm((f) => ({ ...f, householdRegistrationEnabled: e.target.checked }))
+              }
             />
           </Group>
           <Switch
@@ -1365,6 +1428,112 @@ export function EventRegistrationsPanel({
         </Stack>
       </Paper>
 
+      <Paper withBorder p="md" radius="md">
+        <Group justify="space-between" align="center" mb="sm">
+          <Text fw={500}>Registration form fields</Text>
+          <Button
+            size="xs"
+            variant="default"
+            onClick={() =>
+              setFormFields((rows) => [
+                ...rows,
+                {
+                  id: `new-${rows.length + 1}`,
+                  eventId,
+                  label: "",
+                  fieldKey: "",
+                  fieldType: "text",
+                  isRequired: false,
+                  options: [],
+                  sortOrder: rows.length,
+                },
+              ])
+            }
+          >
+            Add field
+          </Button>
+        </Group>
+
+        <Stack gap="xs">
+          {formFields.length === 0 ? (
+            <Text size="sm" c="dimmed">No custom registration fields configured.</Text>
+          ) : (
+            formFields.map((field, index) => (
+              <Paper key={field.id} withBorder p="sm" radius="sm">
+                <Group grow align="flex-end">
+                  <TextInput
+                    label="Label"
+                    value={field.label}
+                    onChange={(event) =>
+                      setFormFields((rows) =>
+                        rows.map((row, rowIndex) =>
+                          rowIndex === index ? { ...row, label: event.currentTarget.value } : row,
+                        ),
+                      )
+                    }
+                  />
+                  <TextInput
+                    label="Field key"
+                    value={field.fieldKey}
+                    onChange={(event) =>
+                      setFormFields((rows) =>
+                        rows.map((row, rowIndex) =>
+                          rowIndex === index ? { ...row, fieldKey: event.currentTarget.value } : row,
+                        ),
+                      )
+                    }
+                  />
+                  <TextInput
+                    label="Type"
+                    value={field.fieldType}
+                    onChange={(event) =>
+                      setFormFields((rows) =>
+                        rows.map((row, rowIndex) =>
+                          rowIndex === index
+                            ? {
+                                ...row,
+                                fieldType: event.currentTarget.value as EventRegistrationFormField["fieldType"],
+                              }
+                            : row,
+                        ),
+                      )
+                    }
+                  />
+                </Group>
+                <Group justify="space-between" mt="sm">
+                  <Switch
+                    label="Required"
+                    checked={field.isRequired}
+                    onChange={(event) =>
+                      setFormFields((rows) =>
+                        rows.map((row, rowIndex) =>
+                          rowIndex === index ? { ...row, isRequired: event.target.checked } : row,
+                        ),
+                      )
+                    }
+                  />
+                  <Button
+                    size="xs"
+                    color="red"
+                    variant="subtle"
+                    onClick={() =>
+                      setFormFields((rows) => rows.filter((_, rowIndex) => rowIndex !== index))
+                    }
+                  >
+                    Remove
+                  </Button>
+                </Group>
+              </Paper>
+            ))
+          )}
+          <Group justify="flex-end">
+            <Button size="xs" onClick={handleSaveFormFields} loading={isPending}>
+              Save form fields
+            </Button>
+          </Group>
+        </Stack>
+      </Paper>
+
       {/* Stats */}
       <Group gap="md">
         <Paper withBorder p="sm" radius="md" style={{ flex: 1 }}>
@@ -1450,12 +1619,24 @@ export function EventRegistrationsPanel({
                   </Table.Td>
                   <Table.Td>
                     <Group gap={4} justify="flex-end">
+                      {r.status === "pending_approval" && (
+                        <ActionIcon
+                          size="sm"
+                          variant="subtle"
+                          color="blue"
+                          title="Approve"
+                          onClick={() => handleApprove(r.id)}
+                          disabled={isPending}
+                        >
+                          <Check size={13} />
+                        </ActionIcon>
+                      )}
                       {r.status === "confirmed" && (
                         <ActionIcon size="sm" variant="subtle" color="green" title="Check in" onClick={() => handleCheckIn(r.id)} disabled={isPending}>
                           <UserCheck size={13} />
                         </ActionIcon>
                       )}
-                      {(r.status === "confirmed" || r.status === "waitlisted") && (
+                      {(r.status === "pending_approval" || r.status === "confirmed" || r.status === "waitlisted") && (
                         <ActionIcon size="sm" variant="subtle" color="red" title="Cancel" onClick={() => handleCancel(r.id)} disabled={isPending}>
                           <UserX size={13} />
                         </ActionIcon>
