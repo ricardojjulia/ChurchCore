@@ -17,8 +17,17 @@ vi.mock("@/components/application/app-shell", () => ({
   ApplicationShell: applicationShellMock,
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    refresh: vi.fn(),
+  }),
+}));
+
 vi.mock("@/app/app/communications-actions", () => ({
   broadcastMessageAction: vi.fn(),
+  retryCommunicationAction: vi.fn(),
+  suppressContactAction: vi.fn(),
+  getCommunicationDeliveryEventsAction: vi.fn(),
 }));
 
 import { CcmDashboardView } from "@/components/application/ccm-dashboard";
@@ -79,6 +88,8 @@ function log(overrides: Partial<CommunicationLogEntry> = {}): CommunicationLogEn
     scheduledFor: null,
     sentAt: null,
     createdAt: "2026-05-27T10:00:00.000Z",
+    retryCount: 0,
+    errorCode: null,
     ...overrides,
   };
 }
@@ -191,6 +202,8 @@ describe("sensitive readiness target states", () => {
           smsOptIn: false,
         },
       ],
+      deliveryEvents: [],
+      suppressions: [],
     };
 
     renderWithMantine(
