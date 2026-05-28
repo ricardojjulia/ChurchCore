@@ -184,6 +184,8 @@ These workstreams convert the competitive findings into implementation-ready ste
 
 ### Finding 3: Communications Need Real Delivery Infrastructure
 
+**Status:** Phase 3 communications delivery foundations and operator UI slice are merged on `main` (backend foundation via PR #43; stacked UI branch was rebased and merged as replacement PR #45 after PR #44 auto-closed during base-branch cleanup).
+
 **Problem:** Communications are not competitive until email/SMS delivery, consent, unsubscribe, bounces, retries, and audit history work with real providers.
 
 **Steps:**
