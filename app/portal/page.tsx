@@ -73,6 +73,17 @@ export default async function PortalPage() {
             >
               {translate("requestAccess")}
             </Button>
+            <Button
+              component="a"
+              href={
+                requestedChurch
+                  ? `/portal/events/register?church=${encodeURIComponent(requestedChurch.slug)}`
+                  : "/portal/events/register"
+              }
+              variant="light"
+            >
+              Register for events
+            </Button>
           </Group>
         </Stack>
       </Paper>

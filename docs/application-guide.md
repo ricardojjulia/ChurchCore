@@ -252,11 +252,15 @@ Paths: `/app/church-admin/events`, `/app/church-admin/attendance`, `/app/calenda
 
 Admins create and manage church events, view categorized calendar data, track rosters, and log service attendance headcounts. The shared calendar is available from the tenant app and supports categorized event visibility.
 
+Event registration operations now support approval-gated intake (`pending_approval` before confirmation), optional household registration policy toggles, and configurable per-event registration form fields for custom intake data.
+
 ### Volunteers
 
 Paths: `/app/church-admin/volunteers`, `/app/church-admin/volunteers/schedules`
 
 Volunteer workflows cover scheduling, member responses, hours, conflicts, and coverage needs. The roadmap includes deeper burnout guardrails and rotation suggestions.
+
+Service plan detail now includes editable service metadata (service type, scripture reference, sermon title, sermon speaker) and run-of-service item planning with schedule blocks, leader, notes, and attachment links.
 
 ### Small Groups
 
@@ -297,6 +301,8 @@ Auxiliary member routes remain available from home cards and deep links:
 
 Member home now includes an enabled-session mobile check-in card. Church admins can enable mobile member check-in per event from event registration settings, set a check-in window, and optionally require an access code. Member check-ins write attendance with `mobile_member` source metadata, while admin quick-check-in paths now record `staff` source metadata.
 
+Member home also includes event self-registration cards for events with open registration. The registration modal renders dynamic per-event form fields configured by ChurchAdmin, supports household-target registration when enabled, and returns registration status as confirmed, waitlisted, or pending approval.
+
 Members can also manage giving, data rights, notification preferences, and communication preferences where those flows are enabled.
 
 When a church enables household check-in for an event, the member check-in card can also target another person in the same household. The action remains limited to the signed-in family and still honors the event's approved window and access code.
@@ -311,9 +317,12 @@ Public routes support church-facing entry points before a user is fully signed i
 
 - `/portal`
 - `/portal/register`
+- `/portal/events/register`
 - `/give/[churchSlug]`
 
 The public portal can resolve a church from the request hostname, so a tenant hostname can route visitors toward the correct church context. Public giving does not expose private tenant data; it displays only live public giving-page configuration.
+
+Public event registration now supports dynamic intake fields configured by ChurchAdmin event settings. Guests can register through `/portal/events/register` for events marked as public with open registration, and submitted registrations follow the same approval and waitlist lifecycle used by member registrations.
 
 Children ministry parent check-in and checkout links now use day-scoped session tokens generated from church-admin children service controls. Links are intentionally safe-by-default: invalid or closed tokens return unavailable states, and closed services rotate session tokens so old links cannot be reused. Parent checkout verification supports PIN/QR or pickup code and also validates guardian name, custody restrictions, and authorized pickup rules.
 

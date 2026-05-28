@@ -10,6 +10,7 @@ import { getChurchAdminDashboardSummary } from "@/lib/church-admin-dashboard-dat
 import { getChurchAdminOperationsData } from "@/lib/church-admin-operations-data";
 import { getMemberPortalData } from "@/lib/member-portal-data";
 import { getMemberMobileCheckInOptions } from "@/lib/member-mobile-checkin-data";
+import { getMemberEventRegistrationOptions } from "@/lib/member-event-registration-data";
 import { getPastorPortalData } from "@/lib/pastor-portal-data";
 import { churchPortalRoles, getPortalRole } from "@/lib/portal";
 import { siteConfig } from "@/lib/site";
@@ -77,6 +78,10 @@ export default async function ChurchAppRolePage({
     portalRole.id === "member"
       ? await getMemberMobileCheckInOptions(session)
       : [];
+  const memberEventRegistrationOptions =
+    portalRole.id === "member"
+      ? await getMemberEventRegistrationOptions(session)
+      : [];
   const pastorPortalData =
     portalRole.id === "pastor" ? await getPastorPortalData(session) : null;
 
@@ -86,6 +91,7 @@ export default async function ChurchAppRolePage({
         session={session}
         data={memberPortalData}
         mobileCheckInOptions={memberMobileCheckInOptions}
+        eventRegistrationOptions={memberEventRegistrationOptions}
       />
     );
   }

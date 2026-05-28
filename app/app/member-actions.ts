@@ -41,6 +41,21 @@ type CheckInProfile = {
   family_id: string | null;
 };
 
+export type MemberRegisterForEventInput = {
+  eventId: string;
+  targetProfileId?: string | null;
+  notes?: string | null;
+  customFields?: Record<string, unknown>;
+};
+
+export type MemberRegisterForEventResult = {
+  ok: boolean;
+  previewMode?: boolean;
+  alreadyRegistered?: boolean;
+  status?: "pending_approval" | "confirmed" | "waitlisted";
+  error?: string;
+};
+
 function assertWindowOpen(gate: CheckInGate) {
   const now = Date.now();
   const startsAt = new Date(gate.windowStartAt).getTime();
@@ -432,4 +447,287 @@ export async function memberMobileCheckInAction(
   revalidatePath("/app/reports/events");
 
   return { ok: true, alreadyCheckedIn: false };
+}
+
+export async function memberRegisterForEventAction(
+  input: MemberRegisterForEventInput,
+): Promise<MemberRegisterForEventResult> {
+  if (!input.eventId.trim()) {
+    return { ok: false, error: "An event is required." };
+  }
+
+  const session = await requireChurchSession("/app/member");
+
+  if (session.appContext.roleId !== "member") {
+    return { ok: false, error: "Member access is required." };
+  }
+
+  if (!hasTenantBackendEnv() || session.source !== "supabase") {
+    return { ok: true, previewMode: true };
+  }
+
+  const churchId = session.appContext.church.id;
+  const profileId = session.profile.id;
+  const targetProfileId = input.targetProfileId?.trim() || profileId;
+
+  if (shouldUseLocalTenantFallback()) {
+    const settingsResult = await queryTenantLocalDb<{
+      event_title: string;
+      starts_at: string;
+      ends_at: string;
+      registration_open: boolean;
+      capacity: number | null;
+      waitlist_enabled: boolean;
+      approval_required: boolean;
+      household_registration_enabled: boolean;
+      deadline: string | null;
+    }>(
+      `select
+         event.title as event_title,
+         event.starts_at,
+         event.ends_at,
+         settings.registration_open,
+         settings.capacity,
+         settings.waitlist_enabled,
+         coalesce(settings.approval_required, false) as approval_required,
+         coalesce(settings.household_registration_enabled, false) as household_registration_enabled,
+         settings.deadline
+       from public.event_registration_settings settings
+       join public.events event
+         on event.id = settings.event_id
+       where settings.event_id = $1
+         and settings.church_id = $2
+         and event.visibility in ('public', 'members')
+       limit 1`,
+      [input.eventId, churchId],
+    );
+
+    const settings = settingsResult.rows[0];
+    if (!settings || !settings.registration_open) {
+      return { ok: false, error: "Registration is closed for this event." };
+    }
+
+    if (settings.deadline && Date.now() > new Date(settings.deadline).getTime()) {
+      return { ok: false, error: "Registration deadline has passed." };
+    }
+
+    const currentProfileResult = await queryTenantLocalDb<{
+      id: string;
+      full_name: string;
+      email: string | null;
+      phone: string | null;
+      family_id: string | null;
+    }>(
+      `select id, full_name, email, phone, family_id
+       from public.profiles
+       where id = $1 and church_id = $2 and merged_at is null
+       limit 1`,
+      [profileId, churchId],
+    );
+
+    const targetProfileResult =
+      targetProfileId === profileId
+        ? currentProfileResult
+        : await queryTenantLocalDb<{
+            id: string;
+            full_name: string;
+            email: string | null;
+            phone: string | null;
+            family_id: string | null;
+          }>(
+            `select id, full_name, email, phone, family_id
+             from public.profiles
+             where id = $1 and church_id = $2 and merged_at is null
+             limit 1`,
+            [targetProfileId, churchId],
+          );
+
+    const currentProfile = currentProfileResult.rows[0];
+    const targetProfile = targetProfileResult.rows[0];
+    if (!currentProfile || !targetProfile) {
+      return { ok: false, error: "A valid household member could not be found." };
+    }
+
+    if (targetProfile.id !== currentProfile.id) {
+      if (!settings.household_registration_enabled) {
+        return { ok: false, error: "Household registration is not enabled for this event." };
+      }
+
+      if (!currentProfile.family_id || currentProfile.family_id !== targetProfile.family_id) {
+        return { ok: false, error: "You can only register members from your own household." };
+      }
+    }
+
+    const existingResult = await queryTenantLocalDb<{ id: string }>(
+      `select id
+       from public.event_registrations
+       where event_id = $1
+         and church_id = $2
+         and profile_id = $3
+         and status != 'cancelled'
+       limit 1`,
+      [input.eventId, churchId, targetProfile.id],
+    );
+
+    if (existingResult.rows[0]?.id) {
+      return { ok: true, alreadyRegistered: true };
+    }
+
+    let isWaitlisted = false;
+    if (settings.capacity) {
+      const countResult = await queryTenantLocalDb<{ cnt: number }>(
+        `select count(*)::int as cnt
+         from public.event_registrations
+         where event_id = $1
+           and church_id = $2
+           and is_waitlisted = false
+           and status != 'cancelled'`,
+        [input.eventId, churchId],
+      );
+
+      const count = countResult.rows[0]?.cnt ?? 0;
+      if (count >= settings.capacity) {
+        if (!settings.waitlist_enabled) {
+          return { ok: false, error: "This event is full and does not have a waitlist." };
+        }
+        isWaitlisted = true;
+      }
+    }
+
+    const status: MemberRegisterForEventResult["status"] = isWaitlisted
+      ? "waitlisted"
+      : settings.approval_required
+        ? "pending_approval"
+        : "confirmed";
+
+    await queryTenantLocalDb(
+      `insert into public.event_registrations
+         (event_id, church_id, profile_id, registrant_name, registrant_email, registrant_phone,
+          status, is_waitlisted, notes, custom_fields)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)`,
+      [
+        input.eventId,
+        churchId,
+        targetProfile.id,
+        targetProfile.full_name,
+        targetProfile.email,
+        targetProfile.phone,
+        status,
+        isWaitlisted,
+        input.notes ?? null,
+        input.customFields ? JSON.stringify(input.customFields) : null,
+      ],
+    );
+
+    revalidatePath("/app/member");
+    revalidatePath(`/app/church-admin/events/${input.eventId}`);
+    return { ok: true, status };
+  }
+
+  const supabase = await createTenantServerClient();
+
+  const { data: settings } = await supabase
+    .from("event_registration_settings")
+    .select("registration_open, capacity, waitlist_enabled, approval_required, household_registration_enabled, deadline, events!inner(id, visibility)")
+    .eq("event_id", input.eventId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  if (!settings || settings.registration_open === false) {
+    return { ok: false, error: "Registration is closed for this event." };
+  }
+
+  if (settings.deadline && Date.now() > new Date(settings.deadline).getTime()) {
+    return { ok: false, error: "Registration deadline has passed." };
+  }
+
+  const { data: currentProfile } = await supabase
+    .from("profiles")
+    .select("id, full_name, email, phone, family_id")
+    .eq("id", profileId)
+    .eq("church_id", churchId)
+    .is("merged_at", null)
+    .maybeSingle();
+
+  const { data: targetProfile } = targetProfileId === profileId
+    ? { data: currentProfile }
+    : await supabase
+        .from("profiles")
+        .select("id, full_name, email, phone, family_id")
+        .eq("id", targetProfileId)
+        .eq("church_id", churchId)
+        .is("merged_at", null)
+        .maybeSingle();
+
+  if (!currentProfile || !targetProfile) {
+    return { ok: false, error: "A valid household member could not be found." };
+  }
+
+  if (targetProfile.id !== currentProfile.id) {
+    if (!settings.household_registration_enabled) {
+      return { ok: false, error: "Household registration is not enabled for this event." };
+    }
+
+    if (!currentProfile.family_id || currentProfile.family_id !== targetProfile.family_id) {
+      return { ok: false, error: "You can only register members from your own household." };
+    }
+  }
+
+  const { data: existing } = await supabase
+    .from("event_registrations")
+    .select("id")
+    .eq("event_id", input.eventId)
+    .eq("church_id", churchId)
+    .eq("profile_id", targetProfile.id)
+    .neq("status", "cancelled")
+    .maybeSingle();
+
+  if (existing?.id) {
+    return { ok: true, alreadyRegistered: true };
+  }
+
+  let isWaitlisted = false;
+  if (settings.capacity) {
+    const { count } = await supabase
+      .from("event_registrations")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", input.eventId)
+      .eq("church_id", churchId)
+      .eq("is_waitlisted", false)
+      .neq("status", "cancelled");
+
+    if ((count ?? 0) >= settings.capacity) {
+      if (!settings.waitlist_enabled) {
+        return { ok: false, error: "This event is full and does not have a waitlist." };
+      }
+      isWaitlisted = true;
+    }
+  }
+
+  const status: MemberRegisterForEventResult["status"] = isWaitlisted
+    ? "waitlisted"
+    : settings.approval_required
+      ? "pending_approval"
+      : "confirmed";
+
+  const { error } = await supabase.from("event_registrations").insert({
+    event_id: input.eventId,
+    church_id: churchId,
+    profile_id: targetProfile.id,
+    registrant_name: targetProfile.full_name,
+    registrant_email: targetProfile.email,
+    registrant_phone: targetProfile.phone,
+    status,
+    is_waitlisted: isWaitlisted,
+    notes: input.notes ?? null,
+    custom_fields: input.customFields ?? null,
+  });
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/app/member");
+  revalidatePath(`/app/church-admin/events/${input.eventId}`);
+  return { ok: true, status };
 }
