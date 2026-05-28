@@ -242,7 +242,8 @@ function buildCommunicationItems(
 ): ChurchAdminCommunicationOperationItem[] {
   const logItems = logs.flatMap((log) => {
     const isFailure = log.status === "failed" || log.status === "bounced";
-    const isQueued = log.status === "queued";
+    const isQueued =
+      log.status === "queued" || log.status === "scheduled" || log.status === "sending";
     const isScheduled = Boolean(log.scheduled_for);
 
     if (!isFailure && !isQueued && !isScheduled) {
@@ -459,7 +460,7 @@ export async function getChurchAdminOperationsData(
           from public.communication_logs
           where church_id = $1
             and (
-              status in ('queued', 'failed', 'bounced')
+              status in ('queued', 'scheduled', 'sending', 'failed', 'bounced')
               or scheduled_for is not null
             )
           order by coalesce(scheduled_for, created_at) asc
@@ -594,7 +595,7 @@ export async function getChurchAdminOperationsData(
       .from("communication_logs")
       .select("id, channel, subject, status, scheduled_for, created_at")
       .eq("church_id", churchId)
-      .or("status.in.(queued,failed,bounced),scheduled_for.not.is.null")
+      .or("status.in.(queued,scheduled,sending,failed,bounced),scheduled_for.not.is.null")
       .order("created_at", { ascending: false })
       .limit(20),
     supabase

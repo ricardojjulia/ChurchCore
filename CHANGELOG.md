@@ -8,10 +8,18 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 
+- Added Phase 3 communications delivery backend foundation: suppression-aware send orchestration, retry action guards, manual suppression action, provider webhook endpoints, and delivery event persistence wiring (`app/app/communications-actions.ts`, `lib/communications/send-with-suppression.ts`, `lib/notifications/queue-communication.ts`, `app/api/webhooks/sendgrid/route.ts`, `app/api/webhooks/twilio/route.ts`, `lib/communications/webhook-events.ts`).
+- Added communications provider adapter implementations for SendGrid email and Twilio SMS webhook/signature normalization flows with focused adapter tests (`lib/communications/sendgrid-adapter.ts`, `lib/communications/twilio-adapter.ts`, `lib/communications/sendgrid-adapter.test.ts`, `lib/communications/twilio-adapter.test.ts`, `lib/communications/webhook-signature-verification.test.ts`).
+- Added migration `supabase/migrations/20260528101500_phase3_communications_delivery_foundation.sql` introducing `communication_delivery_events`, `communication_suppressions`, and retry/suppression/provider metadata columns on `communication_logs`.
+- Added webhook route coverage and action-layer safety tests for retry and suppression behavior (`app/api/webhooks/communications-webhook-flow.test.ts`, `app/app/communications-actions.test.ts`, `lib/communications/send-with-suppression.test.ts`).
 - Added member self-service pending-review workflow foundations for profile and family updates: members now submit `member_change_requests` records, mobile member surfaces show pending/rejected review states with reviewer-note context, and ChurchAdmin review action plumbing can approve/reject and apply approved requests (`app/app/actions.ts`, `lib/member-portal-data.ts`, `components/application/member-portal-home.tsx`, `components/application/member-family-workspace.tsx`, `supabase/migrations/20260527234500_member_change_requests_pending_review.sql`).
 - Added ChurchAdmin people management review queue UX for pending member profile/family updates with inline approve/reject controls wired to `reviewMemberChangeRequestAction` (`components/application/church-admin-people-workspace.tsx`, `lib/church-admin-people-data.ts`).
 - Added focused review-state mapping coverage in `lib/member-portal-data.test.ts` for pending/rejected change-state rendering and pre-migration fallback safety.
 - Added pending-review workflow coverage in `app/app/actions.test.ts` and `lib/church-admin-people-data.test.ts` for review decisions, canonical-write gating, and queue summary mapping.
+
+### Changed
+
+- Changed communications readiness and operations summaries to account for new delivery lifecycle statuses (`scheduled`, `sending`) and suppressed-contact signals (`lib/church-admin-readiness-data.ts`, `lib/church-admin-readiness-modules.ts`, `lib/church-admin-operations-data.ts`, `components/application/communications-hub.tsx`).
 
 ## [3.1.0] - 2026-05-27
 
