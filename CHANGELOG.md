@@ -6,6 +6,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-05-27
+
+### Release Rationale
+
+Release 3.1.0 captures the post-3.0 competitive-readiness execution batch: Phase 2 mobile and children-safety closure slices, post-merge verification evidence on `main`, pending-review compliance test expansion, and the Phase 3 communications adapter foundation kickoff.
+
 ### Added
 
 - Added pending-review compliance coverage for member data-rights deletion lifecycle (`requestAccountDeletionAction` + cancellation + staff-role rejection) in `lib/compliance/data-rights-actions.test.ts`.
