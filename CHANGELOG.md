@@ -21,6 +21,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ### Changed
 
 - Changed communications readiness and operations summaries to account for new delivery lifecycle statuses (`scheduled`, `sending`) and suppressed-contact signals (`lib/church-admin-readiness-data.ts`, `lib/church-admin-readiness-modules.ts`, `lib/church-admin-operations-data.ts`, `components/application/communications-hub.tsx`).
+- Changed Phase 3 communications merge traceability: backend foundation merged as PR #43, and stacked UI PR #44 was superseded by rebased replacement PR #45 before merge to `main`.
 
 ## [3.1.0] - 2026-05-27
 
