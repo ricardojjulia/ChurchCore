@@ -1065,6 +1065,9 @@ export function EventRegistrationsPanel({
   formFields: EventRegistrationFormField[];
 }) {
   const [registrations, setRegistrations] = useState(initialRegistrations);
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<
+    "all" | EventRegistration["paymentStatus"]
+  >("all");
   const [settings] = useState(initialSettings);
   const [formFields, setFormFields] = useState(initialFormFields);
   const [isPending, startTransition] = useTransition();
@@ -1164,7 +1167,14 @@ export function EventRegistrationsPanel({
       if (res.ok) {
         setShowAdd(false);
         setForm({ name: "", email: "", phone: "", notes: "" });
-        setMsg({ type: "success", text: res.isWaitlisted ? "Added to waitlist." : "Registered." });
+        setMsg({
+          type: "success",
+          text: res.isWaitlisted
+            ? "Added to waitlist."
+            : res.paymentRequired
+              ? "Registered. Payment pending."
+              : "Registered.",
+        });
       } else {
         setMsg({ type: "error", text: res.error ?? "Failed to register." });
       }
@@ -1208,10 +1218,13 @@ export function EventRegistrationsPanel({
 
   function exportCsv() {
     const rows = [
-      ["Name", "Email", "Phone", "Status", "Registered At"],
+      ["Name", "Email", "Phone", "Status", "Payment Status", "Amount Paid", "Registered At"],
       ...registrations.map((r) => [
         r.registrantName, r.registrantEmail ?? "", r.registrantPhone ?? "",
-        r.status, new Date(r.registeredAt).toLocaleDateString(),
+        r.status,
+        r.paymentStatus,
+        (r.amountPaidCents / 100).toFixed(2),
+        new Date(r.registeredAt).toLocaleDateString(),
       ]),
     ];
     const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
@@ -1224,6 +1237,12 @@ export function EventRegistrationsPanel({
 
   const confirmed = registrations.filter((r) => !r.isWaitlisted && r.status !== "cancelled");
   const waitlisted = registrations.filter((r) => r.isWaitlisted);
+  const paymentPending = registrations.filter((r) => r.paymentStatus === "pending");
+  const paymentPaid = registrations.filter((r) => r.paymentStatus === "paid");
+  const filteredRegistrations =
+    paymentStatusFilter === "all"
+      ? registrations
+      : registrations.filter((registration) => registration.paymentStatus === paymentStatusFilter);
   const hasCheckInWindow =
     Boolean(settingsForm.mobileMemberCheckInStartsAt) &&
     Boolean(settingsForm.mobileMemberCheckInEndsAt);
@@ -1239,6 +1258,18 @@ export function EventRegistrationsPanel({
     pending_approval: "orange",
     confirmed: "blue", attended: "green", waitlisted: "yellow", cancelled: "gray",
   };
+  const PAYMENT_STATUS_COLOR: Record<EventRegistration["paymentStatus"], string> = {
+    not_required: "gray",
+    pending: "yellow",
+    paid: "teal",
+    failed: "red",
+    refunded: "violet",
+  };
+
+  function formatPaymentStatus(value: EventRegistration["paymentStatus"]) {
+    if (value === "not_required") return "not required";
+    return value;
+  }
 
   return (
     <Stack gap="md">
@@ -1551,6 +1582,14 @@ export function EventRegistrationsPanel({
           <Text size="xs" c="dimmed">Attended</Text>
           <Text fw={700} size="xl">{registrations.filter((r) => r.status === "attended").length}</Text>
         </Paper>
+        <Paper withBorder p="sm" radius="md" style={{ flex: 1 }}>
+          <Text size="xs" c="dimmed">Payment pending</Text>
+          <Text fw={700} size="xl">{paymentPending.length}</Text>
+        </Paper>
+        <Paper withBorder p="sm" radius="md" style={{ flex: 1 }}>
+          <Text size="xs" c="dimmed">Paid</Text>
+          <Text fw={700} size="xl">{paymentPaid.length}</Text>
+        </Paper>
       </Group>
 
       {/* Actions */}
@@ -1564,6 +1603,35 @@ export function EventRegistrationsPanel({
             Add Registrant
           </Button>
         </Group>
+      </Group>
+
+      <Group gap="xs">
+        <Button
+          size="xs"
+          variant={paymentStatusFilter === "all" ? "filled" : "light"}
+          onClick={() => setPaymentStatusFilter("all")}
+        >
+          All ({registrations.length})
+        </Button>
+        {([
+          "pending",
+          "paid",
+          "failed",
+          "refunded",
+          "not_required",
+        ] as const).map((status) => {
+          const count = registrations.filter((registration) => registration.paymentStatus === status).length;
+          return (
+            <Button
+              key={status}
+              size="xs"
+              variant={paymentStatusFilter === status ? "filled" : "light"}
+              onClick={() => setPaymentStatusFilter(status)}
+            >
+              {formatPaymentStatus(status)} ({count})
+            </Button>
+          );
+        })}
       </Group>
 
       {showAdd && (
@@ -1591,19 +1659,20 @@ export function EventRegistrationsPanel({
               <Table.Th>Name</Table.Th>
               <Table.Th>Contact</Table.Th>
               <Table.Th>Status</Table.Th>
+              <Table.Th>Payment</Table.Th>
               <Table.Th>Registered</Table.Th>
               <Table.Th />
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {registrations.length === 0 ? (
+            {filteredRegistrations.length === 0 ? (
               <Table.Tr>
-                <Table.Td colSpan={5} ta="center" py="xl">
-                  <Text c="dimmed" size="sm">No registrations yet.</Text>
+                <Table.Td colSpan={6} ta="center" py="xl">
+                  <Text c="dimmed" size="sm">No registrations match this payment filter.</Text>
                 </Table.Td>
               </Table.Tr>
             ) : (
-              registrations.map((r) => (
+              filteredRegistrations.map((r) => (
                 <Table.Tr key={r.id} style={{ opacity: r.status === "cancelled" ? 0.5 : 1 }}>
                   <Table.Td fw={500}>{r.registrantName}</Table.Td>
                   <Table.Td>
@@ -1613,6 +1682,27 @@ export function EventRegistrationsPanel({
                     <Badge size="sm" color={STATUS_COLOR[r.status] ?? "gray"} variant="light">
                       {r.status}
                     </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <Stack gap={2}>
+                      <Badge
+                        size="sm"
+                        color={PAYMENT_STATUS_COLOR[r.paymentStatus]}
+                        variant="light"
+                      >
+                        {formatPaymentStatus(r.paymentStatus)}
+                      </Badge>
+                      {r.amountPaidCents > 0 ? (
+                        <Text size="xs" c="dimmed">
+                          ${(r.amountPaidCents / 100).toFixed(2)} paid
+                        </Text>
+                      ) : null}
+                      {r.stripePaymentIntentId ? (
+                        <Text size="xs" c="dimmed">
+                          PI {r.stripePaymentIntentId.slice(0, 12)}...
+                        </Text>
+                      ) : null}
+                    </Stack>
                   </Table.Td>
                   <Table.Td>
                     <Text size="xs" c="dimmed">{new Date(r.registeredAt).toLocaleDateString()}</Text>
