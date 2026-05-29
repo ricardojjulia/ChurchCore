@@ -6,6 +6,10 @@ import {
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
+import {
+  normalizePeopleImportSourceRow,
+  type ImportSourceSystem,
+} from "@/lib/people-import-source-adapters";
 
 export type PeopleImportDryRunCounts = {
   create: number;
@@ -30,6 +34,14 @@ export type PeopleImportDryRunResult = {
   counts: PeopleImportDryRunCounts;
   householdCreates: number;
   rows: PeopleImportDryRunRow[];
+};
+
+export type PeopleImportCommitResult = {
+  batchId: string;
+  status: "committed" | "failed";
+  created: number;
+  updated: number;
+  failed: number;
 };
 
 type ExistingPeopleIndex = {
@@ -78,31 +90,35 @@ function isValidEmail(value: string | null) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function parseImportRows(csvRows: Record<string, string>[]) {
+function parseImportRows(
+  csvRows: Record<string, string>[],
+  sourceSystem: ImportSourceSystem,
+) {
   const rows: ParsedImportRow[] = [];
 
   for (let index = 0; index < csvRows.length; index += 1) {
     const row = csvRows[index];
-    const fullName = normalizeName(row.full_name ?? row.name);
+    const normalizedRow = normalizePeopleImportSourceRow(row, sourceSystem);
+    const fullName = normalizeName(normalizedRow.fullName);
     if (!fullName) {
       rows.push({
         rowNumber: index + 2,
         householdName: null,
         fullName: "",
-        email: normalizeEmail(row.email),
-        phone: normalizePhone(row.phone),
-        memberNumber: normalize(row.member_number),
+        email: normalizeEmail(normalizedRow.email),
+        phone: normalizePhone(normalizedRow.phone),
+        memberNumber: normalize(normalizedRow.memberNumber),
       });
       continue;
     }
 
     rows.push({
       rowNumber: index + 2,
-      householdName: normalizeFamilyName(row.household_name ?? row.family_name),
+      householdName: normalizeFamilyName(normalizedRow.householdName),
       fullName,
-      email: normalizeEmail(row.email),
-      phone: normalizePhone(row.phone),
-      memberNumber: normalize(row.member_number),
+      email: normalizeEmail(normalizedRow.email),
+      phone: normalizePhone(normalizedRow.phone),
+      memberNumber: normalize(normalizedRow.memberNumber),
     });
   }
 
@@ -296,6 +312,7 @@ function buildIndexFromRows(
 async function insertDryRunBatchAndRows(
   churchId: string,
   actorProfileId: string | null,
+  sourceSystem: ImportSourceSystem,
   sourceFilename: string,
   rows: PeopleImportDryRunRow[],
   counts: PeopleImportDryRunCounts,
@@ -305,9 +322,9 @@ async function insertDryRunBatchAndRows(
       `insert into public.import_batches
          (church_id, import_type, source_system, source_filename, created_by_profile_id,
           status, dry_run, summary)
-       values ($1, 'people_households_csv', 'generic_csv', $2, $3, 'dry_run_completed', true, $4::jsonb)
+       values ($1, 'people_households_csv', $2, $3, $4, 'dry_run_completed', true, $5::jsonb)
        returning id`,
-      [churchId, sourceFilename, actorProfileId, JSON.stringify(counts)],
+      [churchId, sourceSystem, sourceFilename, actorProfileId, JSON.stringify(counts)],
     );
 
     const batchId = batch.rows[0]?.id;
@@ -341,7 +358,7 @@ async function insertDryRunBatchAndRows(
     .insert({
       church_id: churchId,
       import_type: "people_households_csv",
-      source_system: "generic_csv",
+      source_system: sourceSystem,
       source_filename: sourceFilename,
       created_by_profile_id: actorProfileId,
       status: "dry_run_completed",
@@ -377,6 +394,7 @@ async function insertDryRunBatchAndRows(
 export async function runPeopleHouseholdImportDryRun(input: {
   churchId: string;
   actorProfileId: string | null;
+  sourceSystem?: ImportSourceSystem;
   sourceFilename: string;
   csvText: string;
 }): Promise<PeopleImportDryRunResult> {
@@ -389,13 +407,16 @@ export async function runPeopleHouseholdImportDryRun(input: {
     throw new Error("CSV file has no data rows.");
   }
 
+  const sourceSystem = input.sourceSystem ?? "generic_csv";
+
   const existing = await loadExistingPeopleIndex(input.churchId);
-  const parsedRows = parseImportRows(csv.rows);
+  const parsedRows = parseImportRows(csv.rows, sourceSystem);
   const classification = classifyPeopleImportRows(parsedRows, existing);
 
   const batchId = await insertDryRunBatchAndRows(
     input.churchId,
     input.actorProfileId,
+    sourceSystem,
     input.sourceFilename,
     classification.rows,
     classification.counts,
@@ -406,5 +427,347 @@ export async function runPeopleHouseholdImportDryRun(input: {
     counts: classification.counts,
     householdCreates: classification.householdCreates,
     rows: classification.rows,
+  };
+}
+
+function normalizeBatchRowPayload(payload: unknown): PeopleImportDryRunRow | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const row = payload as Partial<PeopleImportDryRunRow>;
+  if (typeof row.fullName !== "string") {
+    return null;
+  }
+
+  return {
+    rowNumber: typeof row.rowNumber === "number" ? row.rowNumber : 0,
+    householdName: typeof row.householdName === "string" ? row.householdName : null,
+    fullName: row.fullName,
+    email: typeof row.email === "string" ? row.email : null,
+    phone: typeof row.phone === "string" ? row.phone : null,
+    memberNumber: typeof row.memberNumber === "string" ? row.memberNumber : null,
+    action:
+      row.action === "create" ||
+      row.action === "update" ||
+      row.action === "skip" ||
+      row.action === "reject"
+        ? row.action
+        : "reject",
+    reason: typeof row.reason === "string" ? row.reason : null,
+  };
+}
+
+async function ensureFamilyId(
+  churchId: string,
+  householdName: string,
+): Promise<string | null> {
+  if (shouldUseLocalTenantFallback()) {
+    const existingFamily = await queryTenantLocalDb<{ id: string }>(
+      `select id
+       from public.families
+       where church_id = $1 and lower(family_name) = lower($2)
+       limit 1`,
+      [churchId, householdName],
+    );
+
+    const foundId = existingFamily.rows[0]?.id;
+    if (foundId) {
+      return foundId;
+    }
+
+    const insertedFamily = await queryTenantLocalDb<{ id: string }>(
+      `insert into public.families (church_id, family_name)
+       values ($1, $2)
+       returning id`,
+      [churchId, householdName],
+    );
+    return insertedFamily.rows[0]?.id ?? null;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data: existingFamily } = await supabase
+    .from("families")
+    .select("id")
+    .eq("church_id", churchId)
+    .ilike("family_name", householdName)
+    .maybeSingle();
+
+  if (existingFamily?.id) {
+    return existingFamily.id;
+  }
+
+  const { data: insertedFamily, error } = await supabase
+    .from("families")
+    .insert({ church_id: churchId, family_name: householdName })
+    .select("id")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return insertedFamily.id;
+}
+
+async function upsertProfileFromImportRow(
+  churchId: string,
+  row: PeopleImportDryRunRow,
+  existing: ExistingPeopleIndex,
+): Promise<{ kind: "created" | "updated"; profileId: string }> {
+  const familyId = row.householdName
+    ? await ensureFamilyId(churchId, row.householdName)
+    : null;
+
+  const normalizedEmailValue = normalizeEmail(row.email);
+  const normalizedPhoneValue = normalizePhone(row.phone);
+  const normalizedNameValue = normalizeName(row.fullName);
+  const normalizedMemberNumber = normalize(row.memberNumber);
+
+  const existingProfileId =
+    (normalizedMemberNumber
+      ? existing.byMemberNumber.get(normalizedMemberNumber)
+      : undefined) ??
+    (normalizedEmailValue ? existing.byEmail.get(normalizedEmailValue) : undefined) ??
+    (normalizedNameValue
+      ? existing.byNamePhone.get(
+          `${normalizedNameValue.toLowerCase()}|${normalizedPhoneValue ?? ""}`,
+        )
+      : undefined);
+
+  if (shouldUseLocalTenantFallback()) {
+    if (existingProfileId) {
+      await queryTenantLocalDb(
+        `update public.profiles
+         set full_name = $3,
+             email = $4,
+             phone = $5,
+             member_number = $6,
+             family_id = $7,
+             updated_at = now()
+         where church_id = $1 and id = $2`,
+        [
+          churchId,
+          existingProfileId,
+          row.fullName,
+          normalizedEmailValue,
+          normalizedPhoneValue,
+          normalizedMemberNumber,
+          familyId,
+        ],
+      );
+      return { kind: "updated", profileId: existingProfileId };
+    }
+
+    const insertedProfile = await queryTenantLocalDb<{ id: string }>(
+      `insert into public.profiles
+         (church_id, full_name, email, phone, member_number, family_id,
+          role, membership_status, account_status, joined_date)
+       values ($1, $2, $3, $4, $5, $6, 'member_volunteer', 'active', 'pending', current_date)
+       returning id`,
+      [
+        churchId,
+        row.fullName,
+        normalizedEmailValue,
+        normalizedPhoneValue,
+        normalizedMemberNumber,
+        familyId,
+      ],
+    );
+    return { kind: "created", profileId: insertedProfile.rows[0]?.id ?? "" };
+  }
+
+  const supabase = await createTenantServerClient();
+
+  if (existingProfileId) {
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        full_name: row.fullName,
+        email: normalizedEmailValue,
+        phone: normalizedPhoneValue,
+        member_number: normalizedMemberNumber,
+        family_id: familyId,
+      })
+      .eq("church_id", churchId)
+      .eq("id", existingProfileId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return { kind: "updated", profileId: existingProfileId };
+  }
+
+  const { data: insertedProfile, error } = await supabase.from("profiles").insert({
+    church_id: churchId,
+    full_name: row.fullName,
+    email: normalizedEmailValue,
+    phone: normalizedPhoneValue,
+    member_number: normalizedMemberNumber,
+    family_id: familyId,
+    role: "member_volunteer",
+    membership_status: "active",
+    account_status: "pending",
+    joined_date: new Date().toISOString().slice(0, 10),
+  }).select("id").single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return { kind: "created", profileId: insertedProfile?.id ?? "" };
+}
+
+export async function commitPeopleHouseholdImportBatch(input: {
+  churchId: string;
+  actorProfileId: string | null;
+  batchId: string;
+}): Promise<PeopleImportCommitResult> {
+  const existing = await loadExistingPeopleIndex(input.churchId);
+
+  let batchStatus: string | null = null;
+  let dryRun = true;
+  let normalizedRows: PeopleImportDryRunRow[] = [];
+
+  if (shouldUseLocalTenantFallback()) {
+    const batchResult = await queryTenantLocalDb<{ status: string; dry_run: boolean }>(
+      `select status, dry_run
+       from public.import_batches
+       where id = $1 and church_id = $2
+       limit 1`,
+      [input.batchId, input.churchId],
+    );
+
+    const batch = batchResult.rows[0];
+    if (!batch) {
+      throw new Error("Import batch not found.");
+    }
+
+    batchStatus = batch.status;
+    dryRun = batch.dry_run;
+
+    const rowsResult = await queryTenantLocalDb<{ normalized_payload: unknown }>(
+      `select normalized_payload
+       from public.import_batch_rows
+       where batch_id = $1 and church_id = $2 and classification in ('create', 'update')
+       order by row_number asc`,
+      [input.batchId, input.churchId],
+    );
+
+    normalizedRows = rowsResult.rows
+      .map((row) => normalizeBatchRowPayload(row.normalized_payload))
+      .filter((row): row is PeopleImportDryRunRow => Boolean(row));
+  } else {
+    const supabase = await createTenantServerClient();
+
+    const { data: batch } = await supabase
+      .from("import_batches")
+      .select("status, dry_run")
+      .eq("id", input.batchId)
+      .eq("church_id", input.churchId)
+      .maybeSingle();
+
+    if (!batch) {
+      throw new Error("Import batch not found.");
+    }
+
+    batchStatus = batch.status;
+    dryRun = batch.dry_run;
+
+    const { data: rows } = await supabase
+      .from("import_batch_rows")
+      .select("normalized_payload")
+      .eq("batch_id", input.batchId)
+      .eq("church_id", input.churchId)
+      .in("classification", ["create", "update"])
+      .order("row_number", { ascending: true });
+
+    normalizedRows = (rows ?? [])
+      .map((row) => normalizeBatchRowPayload((row as { normalized_payload: unknown }).normalized_payload))
+      .filter((row): row is PeopleImportDryRunRow => Boolean(row));
+  }
+
+  if (batchStatus !== "dry_run_completed" || !dryRun) {
+    throw new Error("Only dry-run-completed batches can be committed.");
+  }
+
+  let created = 0;
+  let updated = 0;
+  let failed = 0;
+
+  for (const row of normalizedRows) {
+    try {
+      const result = await upsertProfileFromImportRow(input.churchId, row, existing);
+      if (result.kind === "created") {
+        created += 1;
+      } else {
+        updated += 1;
+      }
+
+      const memberNumber = normalize(row.memberNumber);
+      const email = normalizeEmail(row.email);
+      const phone = normalizePhone(row.phone);
+      const name = normalizeName(row.fullName);
+
+      if (memberNumber) {
+        existing.byMemberNumber.set(memberNumber, result.profileId);
+      }
+      if (email) {
+        existing.byEmail.set(email, result.profileId);
+      }
+      if (name) {
+        existing.byNamePhone.set(`${name.toLowerCase()}|${phone ?? ""}`, result.profileId);
+      }
+    } catch {
+      failed += 1;
+    }
+  }
+
+  const status: PeopleImportCommitResult["status"] = failed > 0 ? "failed" : "committed";
+  const summary = {
+    committedByProfileId: input.actorProfileId,
+    committedAt: new Date().toISOString(),
+    created,
+    updated,
+    failed,
+  };
+
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `update public.import_batches
+       set status = $3,
+           dry_run = false,
+           summary = coalesce(summary, '{}'::jsonb) || $4::jsonb,
+           committed_at = case when $3 = 'committed' then now() else committed_at end,
+           failed_at = case when $3 = 'failed' then now() else failed_at end
+       where id = $1 and church_id = $2`,
+      [input.batchId, input.churchId, status, JSON.stringify(summary)],
+    );
+  } else {
+    const supabase = await createTenantServerClient();
+    const { error } = await supabase
+      .from("import_batches")
+      .update({
+        status,
+        dry_run: false,
+        summary,
+        committed_at: status === "committed" ? new Date().toISOString() : null,
+        failed_at: status === "failed" ? new Date().toISOString() : null,
+      })
+      .eq("id", input.batchId)
+      .eq("church_id", input.churchId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  return {
+    batchId: input.batchId,
+    status,
+    created,
+    updated,
+    failed,
   };
 }

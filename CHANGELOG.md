@@ -27,6 +27,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added Slice 5 factory-run evidence record in `docs/factory-runs/2026-05-29-slice5-security-evidence-closure.md`.
 - Added Slice 6 communications dispatch guardrails with server-side body/subject/schedule validation, compose-side schedule/subject checks, and focused broadcast action coverage (`app/app/communications-actions.ts`, `components/application/communications-hub.tsx`, `app/app/communications-actions.test.ts`).
 - Added Slice 6 factory-run evidence record in `docs/factory-runs/2026-05-29-slice6-communications-guardrails.md`.
+- Added a phased MVP/competitiveness execution gate checklist for weekly go/no-go decisions across MVP now, MVP +2 weeks, and competitive 30/60-day milestones (`docs/plans/mvp-competitive-go-no-go-checklist.md`).
+- Added first operational weekly scorecard entry (2026-05-29) plus a planned 2026-06-05 checkpoint stub with target gate movements in the MVP/competitive go-no-go checklist (`docs/plans/mvp-competitive-go-no-go-checklist.md`).
+- Added an actionable 2026-06-05 execution brief with named workstreams, owners, deliverables, and verification commands aligned to the weekly go/no-go checkpoint (`docs/plans/2026-06-05-execution-brief.md`).
+- Added import source-system adapter support for people/household migration dry runs (`generic_csv`, `planning_center`, `breeze`, `pushpay_ccb`) with focused adapter tests (`lib/people-import-source-adapters.ts`, `lib/people-import-source-adapters.test.ts`, `lib/people-import-dry-run.ts`).
+- Added ChurchAdmin import commit workflow for dry-run-completed people/household batches, including role/backend-gated commit action coverage and workspace commit controls (`app/app/church-admin/people/import/actions.ts`, `app/app/church-admin/people/import/actions.test.ts`, `components/application/church-admin-people-import-workspace.tsx`, `lib/people-import-dry-run.ts`).
+- Added a security role-access matrix evidence index for sensitive route/action verification (`docs/security-role-access-matrix.md`).
+- Added factory-run evidence record for Finding 4/5/6 depth implementation in `docs/factory-runs/2026-05-29-findings4-5-6-depth-batch.md`.
 
 ### Changed
 
@@ -43,6 +50,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Changed remaining hardcoded English UI text in finance journal editing and member volunteer schedule views to use shared i18n translations, including locale-aware currency/date rendering and translated toast/status labels (`components/application/finance-journal-editor.tsx`, `components/application/member-schedule.tsx`, `lib/i18n.ts`).
 - Changed the finance import wizard and public giving page to use shared i18n translations for workflow labels, validation text, progress states, donor messaging, and locale-aware amount formatting (`components/application/finance-import-wizard.tsx`, `components/application/public-giving-page.tsx`, `lib/i18n.ts`).
 - Changed competitive-readiness execution tracking to mark Slice 6 communications dispatch guardrails completed in the 30-day execution plan (`docs/plans/competitive-readiness-30-day-execution.md`).
+- Changed event registration writes in ChurchAdmin/member/public actions to persist deterministic payment lifecycle defaults (`pending` for paid non-waitlisted registrations, `not_required` for free/waitlisted registrations) (`app/app/church-admin-actions.ts`, `app/app/member-actions.ts`, `app/portal/actions.ts`).
+- Changed competitive-readiness execution tracking to include and mark complete new depth slices for Finding 4 paid-registration lifecycle, Finding 5 import commit/adapters, and Finding 6 security matrix evidence expansion (`docs/plans/competitive-readiness-30-day-execution.md`).
+- Changed security and testing evidence docs to reference the new import commit gates, paid-registration lifecycle verification, and role-access matrix (`docs/security-assessment.md`, `docs/security-mitigation-plan.md`, `docs/testing-schema.md`).
 
 ## [3.1.0] - 2026-05-27
 

@@ -29,6 +29,22 @@ Migrations and code changes must be deployed together in a single release. Some 
 - Expanded event registration boundary tests in `app/app/church-admin-actions.test.ts` for church mismatch and non-scoped approval/settings updates.
 - Expanded communications boundary tests in `app/app/communications-actions.test.ts` for out-of-scope retry attempts and suppression-consent scoping.
 
+## Verification Evidence Refresh (2026-05-29, Finding 4/5/6 depth batch)
+
+- Added paid-registration lifecycle default verification for ChurchAdmin/member/public registration write paths:
+   - `app/app/church-admin-actions.ts`
+   - `app/app/member-actions.ts`
+   - `app/portal/actions.ts`
+- Added focused paid-registration regression tests:
+   - `app/app/church-admin-actions.test.ts`
+   - `app/app/member-actions.test.ts`
+- Added import commit role-gate and backend-gate verification in:
+   - `app/app/church-admin/people/import/actions.test.ts`
+- Added source-adapter mapping coverage for vendor import aliases in:
+   - `lib/people-import-source-adapters.test.ts`
+- Added security role-access matrix evidence index:
+   - `docs/security-role-access-matrix.md`
+
 ---
 
 ## Phase 1 — Critical (Block on real data)

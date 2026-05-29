@@ -410,6 +410,7 @@ describe("memberRegisterForEventAction", () => {
             approval_required: true,
             household_registration_enabled: false,
             deadline: null,
+            price_cents: 0,
           },
         ],
       })
@@ -445,6 +446,7 @@ describe("memberRegisterForEventAction", () => {
         "555-0100",
         "pending_approval",
         false,
+        "not_required",
         null,
         JSON.stringify({ shirt_size: "M" }),
       ],
@@ -465,6 +467,7 @@ describe("memberRegisterForEventAction", () => {
             approval_required: false,
             household_registration_enabled: false,
             deadline: null,
+            price_cents: 0,
           },
         ],
       })
@@ -516,6 +519,7 @@ describe("memberRegisterForEventAction", () => {
             approval_required: false,
             household_registration_enabled: false,
             deadline: null,
+            price_cents: 0,
           },
         ],
       })
@@ -535,5 +539,59 @@ describe("memberRegisterForEventAction", () => {
     const result = await memberRegisterForEventAction({ eventId: "event-1" });
 
     expect(result).toEqual({ ok: true, alreadyRegistered: true });
+  });
+
+  it("sets pending payment status for paid non-waitlisted member registrations", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            event_title: "Paid Workshop",
+            starts_at: "2000-01-01T00:00:00.000Z",
+            ends_at: "2999-01-01T00:00:00.000Z",
+            registration_open: true,
+            capacity: null,
+            waitlist_enabled: false,
+            approval_required: false,
+            household_registration_enabled: false,
+            deadline: null,
+            price_cents: 3500,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "profile-1",
+            full_name: "Member One",
+            email: "member@example.com",
+            phone: "555-0100",
+            family_id: "family-1",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const result = await memberRegisterForEventAction({ eventId: "event-1" });
+
+    expect(result).toEqual({ ok: true, status: "confirmed" });
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining("payment_status"),
+      [
+        "event-1",
+        "church-1",
+        "profile-1",
+        "Member One",
+        "member@example.com",
+        "555-0100",
+        "confirmed",
+        false,
+        "pending",
+        null,
+        null,
+      ],
+    );
   });
 });

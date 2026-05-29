@@ -34,6 +34,20 @@ This is fixable. None of it requires a redesign. All of it should be fixed befor
 - Added cross-tenant negative coverage for event registration and approval boundaries in `app/app/church-admin-actions.test.ts`.
 - Added cross-tenant negative coverage for communications retry/suppression workflows in `app/app/communications-actions.test.ts`.
 
+## Recent Evidence Refresh (2026-05-29, Finding 4/5/6 depth batch)
+
+- Added paid-registration lifecycle default persistence coverage so ChurchAdmin/member/public registrations now write deterministic `payment_status` values (`pending` for paid non-waitlisted registrations, `not_required` otherwise):
+	- `app/app/church-admin-actions.ts`
+	- `app/app/member-actions.ts`
+	- `app/portal/actions.ts`
+- Expanded regression evidence for paid-registration lifecycle defaults in:
+	- `app/app/church-admin-actions.test.ts`
+	- `app/app/member-actions.test.ts`
+- Added migration-tooling security boundary evidence for import commit role/backend gates in:
+	- `app/app/church-admin/people/import/actions.test.ts`
+- Added explicit role-access matrix reference document for sensitive route/action verification:
+	- `docs/security-role-access-matrix.md`
+
 ---
 
 ## Findings by Severity

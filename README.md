@@ -88,8 +88,11 @@ npm run dev
 | [docs/setup/dev-startup-troubleshooting.md](docs/setup/dev-startup-troubleshooting.md) | Fast triage for local `npm run dev` startup failures and clean reset steps. |
 | [docs/mvp-readiness-audit.md](docs/mvp-readiness-audit.md) | Current MVP verdict, navigation fit, verification gaps, and readiness queue. |
 | [docs/plans/competitive-readiness-roadmap.md](docs/plans/competitive-readiness-roadmap.md) | Next major-release roadmap for closing competitive gaps across operator, member, communications, service planning, import, and security proof workflows. |
+| [docs/plans/mvp-competitive-go-no-go-checklist.md](docs/plans/mvp-competitive-go-no-go-checklist.md) | Weekly go/no-go gates for MVP today, MVP +2 weeks, and competitive 30/60-day execution. |
+| [docs/plans/2026-06-05-execution-brief.md](docs/plans/2026-06-05-execution-brief.md) | Weekly execution brief assigning owners, deliverables, and verification commands for the 2026-06-05 checkpoint. |
 | [docs/plans/member-mobile-pwa-foundation-audit.md](docs/plans/member-mobile-pwa-foundation-audit.md) | Phase 2 mobile baseline audit for member routes and calendar, including route verdicts, workflow order, and first implementation slices. |
 | [docs/security-assessment.md](docs/security-assessment.md) | Security and privacy assessment for sensitive church data. |
+| [docs/security-role-access-matrix.md](docs/security-role-access-matrix.md) | Living role-access matrix linking sensitive routes/actions to executable evidence. |
 | [docs/adr/0002-control-plane-and-tenant-separation.md](docs/adr/0002-control-plane-and-tenant-separation.md) | Approved architecture for separated control-plane and tenant data boundaries. |
 | [docs/adr/0004-competitive-readiness-architecture.md](docs/adr/0004-competitive-readiness-architecture.md) | Architecture decision governing readiness contracts, mobile member workflows, communications adapters, import staging, and security evidence. |
 | [.claude/agents](.claude/agents) and [.claude/skills](.claude/skills) | Claude Code software-factory setup: focused agents, feature orchestration, build-with-tests workflow, and safety hook example. |

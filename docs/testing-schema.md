@@ -118,7 +118,7 @@ Status values:
 | --- | --- | --- | --- |
 | People and accounts | `app/app/church-admin/people/page.tsx`, `app/app/church-admin/accounts/page.tsx`, `app/app/church-admin-actions.ts`, people/account components | invite flow, edit validation, member number generation, preview fallback | Started: member pending-change review queue wiring plus local-fallback action/data tests |
 | Weekly readiness path | `app/app/church-admin/readiness/page.tsx`, readiness target route pages, `tests/e2e/church-admin-readiness.spec.ts` | browser sign-in, church-context hydration, readiness route traversal, target text assertions, tenant denied-role assertions | Foundation |
-| Events | `app/app/church-admin/events/page.tsx`, `app/app/church-admin/events/[id]/page.tsx`, `components/application/church-admin-event-workspace.tsx`, `app/app/church-admin-actions.ts` | event list, create action, roster assignment, quick check-in, visitor add, registration approval states, and event form-field definitions | Started: registration approval + form-field action coverage added |
+| Events | `app/app/church-admin/events/page.tsx`, `app/app/church-admin/events/[id]/page.tsx`, `components/application/church-admin-event-workspace.tsx`, `app/app/church-admin-actions.ts` | event list, create action, roster assignment, quick check-in, visitor add, registration approval states, and event form-field definitions | Started: registration approval + form-field action coverage plus paid-registration lifecycle default persistence checks |
 | Attendance and volunteers | `app/app/church-admin/attendance/page.tsx`, `app/app/church-admin/volunteers/page.tsx`, `app/app/church-admin/volunteers/schedules/page.tsx`, `app/app/church-admin/volunteers/schedules/[id]/page.tsx`, `app/app/volunteer-actions.ts` | headcount logging, scheduling rules, volunteer matching, duplicate handling, and run-of-service planning writes | Started: service-plan detail + run-of-service action coverage added |
 | Groups and visitors | `app/app/church-admin/groups/page.tsx`, `app/app/church-admin/groups/[id]/page.tsx`, `app/app/church-admin/visitors/page.tsx`, `app/app/groups-actions.ts` | group create/edit, join approvals, visitor workflow advancement | Foundation |
 | Giving admin | `app/app/church-admin/giving/page.tsx`, `app/app/giving-actions.ts`, `app/app/donations-actions.ts` | fund mapping, GL posting idempotency, public-page config, donation stub path | Foundation |
@@ -165,6 +165,7 @@ Status values:
 - `app/app/finance-actions.test.ts`
 - `app/app/church-admin-actions.test.ts`
 - `app/app/church-admin/people/import/actions.test.ts`
+- `lib/people-import-source-adapters.test.ts`
 - `app/app/member-actions.test.ts`
 - `app/app/actions.test.ts`
 - `app/app/ccm-actions.test.ts`

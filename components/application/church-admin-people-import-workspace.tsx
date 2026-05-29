@@ -9,6 +9,7 @@ import {
   Button,
   Group,
   Paper,
+  Select,
   Stack,
   Table,
   Text,
@@ -18,9 +19,11 @@ import {
 } from "@mantine/core";
 
 import { runPeopleImportDryRunAction } from "@/app/app/church-admin/people/import/actions";
+import { commitPeopleImportBatchAction } from "@/app/app/church-admin/people/import/actions";
 import { ApplicationShell } from "@/components/application/app-shell";
 import type { ChurchAppSession } from "@/lib/auth";
-import type { PeopleImportDryRunResult } from "@/lib/people-import-dry-run";
+import type { PeopleImportCommitResult, PeopleImportDryRunResult } from "@/lib/people-import-dry-run";
+import type { ImportSourceSystem } from "@/lib/people-import-source-adapters";
 
 export function ChurchAdminPeopleImportWorkspace({
   session,
@@ -29,10 +32,12 @@ export function ChurchAdminPeopleImportWorkspace({
 }) {
   const [isPending, startTransition] = useTransition();
   const [sourceFilename, setSourceFilename] = useState("people-households.csv");
+  const [sourceSystem, setSourceSystem] = useState<ImportSourceSystem>("generic_csv");
   const [csvText, setCsvText] = useState(
     "household_name,full_name,email,phone,member_number\nRiver Family,Ada Lovelace,ada@example.com,555-0101,M-1001\nHarbor House,Grace Hopper,grace@example.com,555-0102,",
   );
   const [result, setResult] = useState<PeopleImportDryRunResult | null>(null);
+  const [commitResult, setCommitResult] = useState<PeopleImportCommitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function handleRunDryRun() {
@@ -40,11 +45,36 @@ export function ChurchAdminPeopleImportWorkspace({
 
     startTransition(async () => {
       try {
-        const nextResult = await runPeopleImportDryRunAction({ sourceFilename, csvText });
+        const nextResult = await runPeopleImportDryRunAction({
+          sourceFilename,
+          sourceSystem,
+          csvText,
+        });
         setResult(nextResult);
+        setCommitResult(null);
       } catch (err) {
         setResult(null);
         setError(err instanceof Error ? err.message : "Unable to run dry import.");
+      }
+    });
+  }
+
+  function handleCommitBatch() {
+    if (!result?.batchId) {
+      return;
+    }
+
+    setError(null);
+
+    startTransition(async () => {
+      try {
+        const nextCommitResult = await commitPeopleImportBatchAction({
+          batchId: result.batchId,
+        });
+        setCommitResult(nextCommitResult);
+      } catch (err) {
+        setCommitResult(null);
+        setError(err instanceof Error ? err.message : "Unable to commit import batch.");
       }
     });
   }
@@ -93,6 +123,17 @@ export function ChurchAdminPeopleImportWorkspace({
               value={sourceFilename}
               onChange={(event) => setSourceFilename(event.currentTarget.value)}
             />
+            <Select
+              label="Source system"
+              value={sourceSystem}
+              onChange={(value) => setSourceSystem((value ?? "generic_csv") as ImportSourceSystem)}
+              data={[
+                { value: "generic_csv", label: "Generic CSV" },
+                { value: "planning_center", label: "Planning Center export" },
+                { value: "breeze", label: "Breeze/Tithely export" },
+                { value: "pushpay_ccb", label: "Pushpay/CCB export" },
+              ]}
+            />
             <Textarea
               label="CSV content"
               value={csvText}
@@ -127,6 +168,28 @@ export function ChurchAdminPeopleImportWorkspace({
               <Text size="sm" c="dimmed">
                 Dry run batch {result.batchId} captured in import staging tables.
               </Text>
+              <Group justify="space-between">
+                <Text size="sm" c="dimmed">
+                  Commit will only apply rows marked create/update.
+                </Text>
+                <Button
+                  size="xs"
+                  color="teal"
+                  variant="light"
+                  onClick={handleCommitBatch}
+                  loading={isPending}
+                >
+                  Commit batch
+                </Button>
+              </Group>
+              {commitResult ? (
+                <Alert
+                  color={commitResult.status === "committed" ? "green" : "orange"}
+                  title={commitResult.status === "committed" ? "Import committed" : "Import committed with failures"}
+                >
+                  Created {commitResult.created}, updated {commitResult.updated}, failed {commitResult.failed}.
+                </Alert>
+              ) : null}
               <Table highlightOnHover>
                 <Table.Thead>
                   <Table.Tr>
