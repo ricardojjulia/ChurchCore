@@ -6,7 +6,26 @@ Source checklist: docs/plans/mvp-competitive-go-no-go-checklist.md
 
 ## Objective
 
-Move MVP Today from NO-GO to GO by closing reliability and onboarding execution gaps, while reducing risk for the next competitive gates.
+Hold MVP Today at GO by closing onboarding and communications execution gaps, while reducing risk for the next competitive gates.
+
+## Sequence status (2026-05-29 update)
+
+- WS-1 Local reliability hardening: completed.
+- WS-2 Browser-complete onboarding path: completed.
+- Next execution item: WS-3 Communications unresolved-lane closure guidance.
+- Follow-on item after WS-3: WS-4 Security evidence maintenance.
+
+WS-1 completion evidence:
+
+- `npm run setup:local` ✅
+- `npm run smoke:local` ✅
+- `npm run test:e2e:readiness` ✅ (3 passed, 1 skipped control-plane-context test)
+
+WS-2 completion evidence:
+
+- `npm run test:e2e:onboarding` ✅ (1 passed)
+- `npm run test -- app/app/church-admin-actions.test.ts app/sign-in/actions.test.ts` ✅ (29 passed)
+- `npm run lint` ✅
 
 ## Weekly target outcomes
 
@@ -18,6 +37,8 @@ Move MVP Today from NO-GO to GO by closing reliability and onboarding execution 
 ## Workstreams
 
 ### WS-1 Local reliability hardening
+
+Status: Completed 2026-05-29
 
 Owner: Platform engineering
 
@@ -45,6 +66,8 @@ Verification commands:
 
 ### WS-2 Browser-complete onboarding path
 
+Status: Completed 2026-05-29
+
 Owner: Application engineering (ChurchAdmin + portal)
 
 Deliverables:
@@ -63,7 +86,7 @@ Definition of done:
 
 Verification commands:
 
-- `npx playwright test` (targeted onboarding spec)
+- `npm run test:e2e:onboarding`
 - `npm run test -- app/app/church-admin-actions.test.ts app/sign-in/actions.test.ts`
 - `npm run lint`
 

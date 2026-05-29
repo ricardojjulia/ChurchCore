@@ -34,6 +34,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added ChurchAdmin import commit workflow for dry-run-completed people/household batches, including role/backend-gated commit action coverage and workspace commit controls (`app/app/church-admin/people/import/actions.ts`, `app/app/church-admin/people/import/actions.test.ts`, `components/application/church-admin-people-import-workspace.tsx`, `lib/people-import-dry-run.ts`).
 - Added a security role-access matrix evidence index for sensitive route/action verification (`docs/security-role-access-matrix.md`).
 - Added factory-run evidence record for Finding 4/5/6 depth implementation in `docs/factory-runs/2026-05-29-findings4-5-6-depth-batch.md`.
+- Added deterministic browser-level onboarding coverage in `tests/e2e/onboarding-flow.spec.ts` with a dedicated command `npm run test:e2e:onboarding`, covering public portal registration, ChurchAdmin approval, invite email evidence via local Mailpit, and first member sign-in/profile hydration.
 
 ### Changed
 
@@ -53,6 +54,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Changed event registration writes in ChurchAdmin/member/public actions to persist deterministic payment lifecycle defaults (`pending` for paid non-waitlisted registrations, `not_required` for free/waitlisted registrations) (`app/app/church-admin-actions.ts`, `app/app/member-actions.ts`, `app/portal/actions.ts`).
 - Changed competitive-readiness execution tracking to include and mark complete new depth slices for Finding 4 paid-registration lifecycle, Finding 5 import commit/adapters, and Finding 6 security matrix evidence expansion (`docs/plans/competitive-readiness-30-day-execution.md`).
 - Changed security and testing evidence docs to reference the new import commit gates, paid-registration lifecycle verification, and role-access matrix (`docs/security-assessment.md`, `docs/security-mitigation-plan.md`, `docs/testing-schema.md`).
+- Changed local account-request approval resilience in `app/app/church-admin-actions.ts` to handle missing `generate_member_number()` runtime function support and invite-triggered pre-existing profile records, preventing duplicate-profile approval failures during onboarding.
 
 ## [3.1.0] - 2026-05-27
 

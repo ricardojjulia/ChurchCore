@@ -11,6 +11,7 @@ This document closes the current gap between the development plan and the reposi
 - `npm run smoke:preview`
 - `npm run smoke:local`
 - `npm run test:e2e:readiness`
+- `npm run test:e2e:onboarding`
 - local Supabase bootstrap and seed flows
 
 ### Missing Before This Change
