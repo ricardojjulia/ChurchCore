@@ -59,11 +59,11 @@ Acceptance criteria:
 Commands run:
 
 - `npm run test -- app/app/church-admin/people/import/actions.test.ts app/app/church-admin-actions.test.ts app/app/member-actions.test.ts lib/people-import-source-adapters.test.ts` ✅
-
-Pending run after final doc/changelog updates:
-
-- `npm run lint`
-- `npm run build`
+- `npm run lint` ✅
+- `npm run build` ✅
+- `npm run setup:local` ✅
+- `npm run smoke:local` ✅
+- `npm run test:e2e:readiness` ✅ (3 passed, 1 skipped control-plane-context test)
 
 ## Residual risk
 
@@ -72,7 +72,7 @@ Pending run after final doc/changelog updates:
 
 ## Delivery
 
-- Branch: pending
-- Pull request: pending
-- Merge method: pending
-- Final commit: pending
+- Branch: `feature/finding4-5-6-depth`
+- Pull request: `#54` (merged)
+- Merge method: auto-merge after required checks green
+- Final commit: merged via PR #54

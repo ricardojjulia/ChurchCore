@@ -106,11 +106,11 @@ Use this scoring line in each factory run:
 
 ### 2026-05-29
 
-- MVP Today: `NO-GO`
+- MVP Today: `GO`
 - MVP +2 weeks: `NO-GO`
 - Competitive 30 days: `NO-GO`
 - Competitive 60 days: `NO-GO`
-- Highest blocker this week: local runtime reliability and end-to-end evaluator path completion are still below required gates (`npm run dev` currently failing in local terminal context).
+- Highest blocker this week: browser-complete onboarding flow (public registration -> admin approval -> invite -> first sign-in -> profile hydration) is still below the required MVP +2 weeks gate.
 - Evidence links:
 	- [docs/plans/competitive-readiness-30-day-execution.md](docs/plans/competitive-readiness-30-day-execution.md)
 	- [docs/plans/competitive-readiness-roadmap.md](docs/plans/competitive-readiness-roadmap.md)
@@ -120,10 +120,13 @@ Use this scoring line in each factory run:
 	- [docs/security-mitigation-plan.md](docs/security-mitigation-plan.md)
 	- [docs/testing-schema.md](docs/testing-schema.md)
 	- [docs/factory-runs/2026-05-29-findings4-5-6-depth-batch.md](docs/factory-runs/2026-05-29-findings4-5-6-depth-batch.md)
+	- `npm run setup:local` ✅
+	- `npm run smoke:local` ✅
+	- `npm run test:e2e:readiness` ✅ (3 passed, 1 skipped control-plane-context test)
 
 ### Gate notes
 
-- MVP Today: route/action security evidence and targeted tests are strong, but the required local reliability gate is not yet met.
+- MVP Today: required local reliability gate is met (`setup:local`, `smoke:local`, `test:e2e:readiness`) and the role-boundary/readiness route checks continue to pass.
 - MVP +2 weeks: import commit flow and payment defaults advanced, but browser-complete onboarding and communications operations closure remain open.
 - Competitive 30 days: paid registration defaults and import foundation moved forward, but service-planning depth remains a replacement blocker.
 - Competitive 60 days: provider-depth communications lifecycle, broader migration coverage, and release-grade operational proof still remain.
@@ -136,8 +139,8 @@ Use this scoring line in each factory run:
 - MVP +2 weeks: `TARGET NO-GO` (closing to conditional GO)
 - Competitive 30 days: `TARGET NO-GO` (risk reduction expected)
 - Competitive 60 days: `TARGET NO-GO`
-- Highest blocker to close by this checkpoint: local runtime reliability and browser-complete onboarding path validation.
+- Highest blocker to close by this checkpoint: browser-complete onboarding path validation.
 - Expected gate changes:
-	- MVP Today local reliability gate should move to passing on clean-machine execution (`setup:local`, `smoke:local`, `test:e2e:readiness`).
+	- MVP Today local reliability gate moved to passing on clean-machine execution (`setup:local`, `smoke:local`, `test:e2e:readiness`).
 	- Onboarding browser path should have at least one executable end-to-end check from public registration through first sign-in.
 	- Communications unresolved-lane operations should include explicit operator closure workflow notes tied to tests/docs.
