@@ -247,6 +247,27 @@ export function CommunicationsHub({
       return;
     }
 
+    if (channel === "email" && !subject.trim()) {
+      notifications.show({
+        title: "Missing subject",
+        message: "Email broadcasts require a subject.",
+        color: "yellow",
+      });
+      return;
+    }
+
+    if (scheduledFor) {
+      const parsed = new Date(scheduledFor);
+      if (Number.isNaN(parsed.getTime()) || parsed.getTime() <= Date.now()) {
+        notifications.show({
+          title: "Invalid schedule",
+          message: "Choose a future schedule time.",
+          color: "yellow",
+        });
+        return;
+      }
+    }
+
     startTransition(async () => {
       try {
         const result = await broadcastMessageAction(recipients, {
@@ -775,6 +796,7 @@ export function CommunicationsHub({
             type="datetime-local"
             value={scheduledFor}
             onChange={(event) => setScheduledFor(event.currentTarget.value)}
+            min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
             radius="md"
           />
 

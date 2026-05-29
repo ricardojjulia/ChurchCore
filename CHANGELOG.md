@@ -25,6 +25,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added Slice 4 import foundation kickoff for ChurchAdmin people/household migration dry runs: staging schema (`import_batches`, `import_batch_rows`), deterministic CSV dry-run classification (`create`, `update`, `skip`, `reject`), and ChurchAdmin dry-run intake route at `/app/church-admin/people/import` (`supabase/migrations/20260529011500_slice4_import_staging_foundation.sql`, `lib/people-import-dry-run.ts`, `app/app/church-admin/people/import/page.tsx`, `components/application/church-admin-people-import-workspace.tsx`).
 - Added Slice 5 security evidence closure coverage for competitive-readiness slices: ChurchAdmin import dry-run role-gate tests and church-scope negative tests for event registration and communications retry/suppression actions (`app/app/church-admin/people/import/actions.test.ts`, `app/app/church-admin-actions.test.ts`, `app/app/communications-actions.test.ts`).
 - Added Slice 5 factory-run evidence record in `docs/factory-runs/2026-05-29-slice5-security-evidence-closure.md`.
+- Added Slice 6 communications dispatch guardrails with server-side body/subject/schedule validation, compose-side schedule/subject checks, and focused broadcast action coverage (`app/app/communications-actions.ts`, `components/application/communications-hub.tsx`, `app/app/communications-actions.test.ts`).
+- Added Slice 6 factory-run evidence record in `docs/factory-runs/2026-05-29-slice6-communications-guardrails.md`.
 
 ### Changed
 
@@ -40,6 +42,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Changed competitive-readiness execution status to mark Slice 5 security evidence closure complete and refreshed security evidence docs with 2026-05-29 verification results (`docs/plans/competitive-readiness-30-day-execution.md`, `docs/security-assessment.md`, `docs/security-mitigation-plan.md`).
 - Changed remaining hardcoded English UI text in finance journal editing and member volunteer schedule views to use shared i18n translations, including locale-aware currency/date rendering and translated toast/status labels (`components/application/finance-journal-editor.tsx`, `components/application/member-schedule.tsx`, `lib/i18n.ts`).
 - Changed the finance import wizard and public giving page to use shared i18n translations for workflow labels, validation text, progress states, donor messaging, and locale-aware amount formatting (`components/application/finance-import-wizard.tsx`, `components/application/public-giving-page.tsx`, `lib/i18n.ts`).
+- Changed competitive-readiness execution tracking to mark Slice 6 communications dispatch guardrails completed in the 30-day execution plan (`docs/plans/competitive-readiness-30-day-execution.md`).
 
 ## [3.1.0] - 2026-05-27
 
