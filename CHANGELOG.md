@@ -23,6 +23,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added focused review-state mapping coverage in `lib/member-portal-data.test.ts` for pending/rejected change-state rendering and pre-migration fallback safety.
 - Added pending-review workflow coverage in `app/app/actions.test.ts` and `lib/church-admin-people-data.test.ts` for review decisions, canonical-write gating, and queue summary mapping.
 - Added Slice 4 import foundation kickoff for ChurchAdmin people/household migration dry runs: staging schema (`import_batches`, `import_batch_rows`), deterministic CSV dry-run classification (`create`, `update`, `skip`, `reject`), and ChurchAdmin dry-run intake route at `/app/church-admin/people/import` (`supabase/migrations/20260529011500_slice4_import_staging_foundation.sql`, `lib/people-import-dry-run.ts`, `app/app/church-admin/people/import/page.tsx`, `components/application/church-admin-people-import-workspace.tsx`).
+- Added Slice 5 security evidence closure coverage for competitive-readiness slices: ChurchAdmin import dry-run role-gate tests and church-scope negative tests for event registration and communications retry/suppression actions (`app/app/church-admin/people/import/actions.test.ts`, `app/app/church-admin-actions.test.ts`, `app/app/communications-actions.test.ts`).
+- Added Slice 5 factory-run evidence record in `docs/factory-runs/2026-05-29-slice5-security-evidence-closure.md`.
 
 ### Changed
 
@@ -35,6 +37,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Changed communications lifecycle handling to normalize retry eligibility to transient failed sends only, add webhook-driven suppression and consent synchronization for bounced/suppressed/unsubscribed events, and surface unresolved delivery-lane operator cues in the communications hub (`lib/communications/provider-adapter.ts`, `lib/communications/webhook-events.ts`, `components/application/communications-hub.tsx`, `lib/communications/webhook-events.test.ts`).
 - Changed Phase 3 communications merge traceability: backend foundation merged as PR #43, and stacked UI PR #44 was superseded by rebased replacement PR #45 before merge to `main`.
 - Changed ChurchAdmin people workspace top actions to include direct import dry-run access for migration onboarding workflows (`components/application/church-admin-people-workspace.tsx`).
+- Changed competitive-readiness execution status to mark Slice 5 security evidence closure complete and refreshed security evidence docs with 2026-05-29 verification results (`docs/plans/competitive-readiness-30-day-execution.md`, `docs/security-assessment.md`, `docs/security-mitigation-plan.md`).
+- Changed remaining hardcoded English UI text in finance journal editing and member volunteer schedule views to use shared i18n translations, including locale-aware currency/date rendering and translated toast/status labels (`components/application/finance-journal-editor.tsx`, `components/application/member-schedule.tsx`, `lib/i18n.ts`).
+- Changed the finance import wizard and public giving page to use shared i18n translations for workflow labels, validation text, progress states, donor messaging, and locale-aware amount formatting (`components/application/finance-import-wizard.tsx`, `components/application/public-giving-page.tsx`, `lib/i18n.ts`).
 
 ## [3.1.0] - 2026-05-27
 

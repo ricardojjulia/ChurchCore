@@ -21,6 +21,14 @@ Migrations and code changes must be deployed together in a single release. Some 
 - Added targeted pending-review workflow verification for profile/family change requests and ChurchAdmin review approvals/rejections in `app/app/actions.test.ts`, `lib/church-admin-people-data.test.ts`, and `lib/member-portal-data.test.ts`.
 - Added Phase 3 communications adapter foundation test coverage in `lib/communications/provider-adapter.test.ts`.
 
+## Verification Evidence Refresh (2026-05-29)
+
+- Security evidence closure sprint verification passed for role-access and church-scope negative cases:
+   - `npm run test -- app/app/church-admin/people/import/actions.test.ts app/app/church-admin-actions.test.ts app/app/communications-actions.test.ts`
+- Added ChurchAdmin-only import dry-run role-gate tests in `app/app/church-admin/people/import/actions.test.ts`.
+- Expanded event registration boundary tests in `app/app/church-admin-actions.test.ts` for church mismatch and non-scoped approval/settings updates.
+- Expanded communications boundary tests in `app/app/communications-actions.test.ts` for out-of-scope retry attempts and suppression-consent scoping.
+
 ---
 
 ## Phase 1 — Critical (Block on real data)

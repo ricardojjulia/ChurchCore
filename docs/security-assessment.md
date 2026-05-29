@@ -26,6 +26,14 @@ This is fixable. None of it requires a redesign. All of it should be fixed befor
 - Focused verification for pending-review workflows now includes `app/app/actions.test.ts`, `lib/church-admin-people-data.test.ts`, and `lib/member-portal-data.test.ts`.
 - Communications provider Phase 3 foundation started with adapter/retry/idempotency contract tests in `lib/communications/provider-adapter.test.ts`.
 
+## Recent Evidence Refresh (2026-05-29)
+
+- Security-evidence closure verification for competitive-readiness slices now includes focused role-access and church-scope negative coverage:
+	- `npm run test -- app/app/church-admin/people/import/actions.test.ts app/app/church-admin-actions.test.ts app/app/communications-actions.test.ts`
+- Added role-access matrix coverage for ChurchAdmin-only import dry-run execution in `app/app/church-admin/people/import/actions.test.ts`.
+- Added cross-tenant negative coverage for event registration and approval boundaries in `app/app/church-admin-actions.test.ts`.
+- Added cross-tenant negative coverage for communications retry/suppression workflows in `app/app/communications-actions.test.ts`.
+
 ---
 
 ## Findings by Severity

@@ -10,12 +10,16 @@ import { AlertCircle, CheckCircle, FileText, Plus, Trash2, XCircle } from "lucid
 
 import { ApplicationShell } from "@/components/application/app-shell";
 import { financeNavItems } from "@/components/application/finance-nav";
+import { useI18n } from "@/components/i18n-provider";
 import { createJournalAction, postJournalAction, voidJournalAction, deleteJournalDraftAction } from "@/app/app/finance-actions";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { FinanceAccount, FinanceJournalWithLines } from "@/lib/finance-types";
 
-function formatCents(cents: number): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+function formatCents(cents: number, locale: string): string {
+  return new Intl.NumberFormat(locale === "es" ? "es-US" : "en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(cents / 100);
 }
 
 
@@ -41,6 +45,9 @@ export function FinanceJournalEditor({
   journal: FinanceJournalWithLines | null;
 }) {
   const router = useRouter();
+  const { locale, t } = useI18n();
+  const tr = (key: string, values?: Record<string, string | number>) =>
+    t("financeJournal", key, values);
   const [isPending, startTransition] = useTransition();
 
   const isNew = !journal;
@@ -69,8 +76,14 @@ export function FinanceJournalEditor({
   }
 
   function handleSave() {
-    if (!description.trim()) { notifications.show({ color: "red", message: "Description is required" }); return; }
-    if (!isBalanced) { notifications.show({ color: "red", message: "Journal must be balanced (debits = credits)" }); return; }
+    if (!description.trim()) {
+      notifications.show({ color: "red", message: tr("descriptionRequired") });
+      return;
+    }
+    if (!isBalanced) {
+      notifications.show({ color: "red", message: tr("mustBeBalanced") });
+      return;
+    }
     startTransition(async () => {
       try {
         const { id } = await createJournalAction({
@@ -80,7 +93,7 @@ export function FinanceJournalEditor({
           journalType: "general",
           lines: lines.map((l, i) => ({ accountId: l.accountId, side: l.side, amountCents: l.amountCents, memo: l.memo || null, sortOrder: i })),
         });
-        notifications.show({ color: "green", message: "Journal saved as draft" });
+        notifications.show({ color: "green", message: tr("journalSavedAsDraft") });
         router.push(`/app/church-admin/finance/journals/${id}`);
       } catch (err) {
         notifications.show({ color: "red", message: String(err) });
@@ -93,7 +106,7 @@ export function FinanceJournalEditor({
     startTransition(async () => {
       try {
         await postJournalAction(journal.id);
-        notifications.show({ color: "green", message: "Journal posted" });
+        notifications.show({ color: "green", message: tr("journalPosted") });
       } catch (err) {
         notifications.show({ color: "red", message: String(err) });
       }
@@ -105,7 +118,7 @@ export function FinanceJournalEditor({
     startTransition(async () => {
       try {
         await voidJournalAction(journal.id);
-        notifications.show({ color: "yellow", message: "Journal voided" });
+        notifications.show({ color: "yellow", message: tr("journalVoided") });
       } catch (err) {
         notifications.show({ color: "red", message: String(err) });
       }
@@ -117,7 +130,7 @@ export function FinanceJournalEditor({
     startTransition(async () => {
       try {
         await deleteJournalDraftAction(journal.id);
-        notifications.show({ color: "gray", message: "Draft deleted" });
+        notifications.show({ color: "gray", message: tr("draftDeleted") });
         router.push("/app/church-admin/finance/journals");
       } catch (err) {
         notifications.show({ color: "red", message: String(err) });
@@ -130,59 +143,67 @@ export function FinanceJournalEditor({
       session={session}
       workspaceHref="/app/church-admin"
       calendarHref="/app/calendar"
-      sectionLabel="Finance"
-      title={isNew ? "New Journal Entry" : journal.description}
+      sectionLabel={tr("finance")}
+      title={isNew ? tr("newJournalEntry") : journal.description}
       description={session.appContext.church.name}
-      sidebarTitle="Finance"
-      sidebarDescription="Create and post double-entry journal entries."
-      navLabel="Finance"
+      sidebarTitle={tr("finance")}
+      sidebarDescription={tr("sidebarDescription")}
+      navLabel={tr("finance")}
       navItems={financeNavItems("/app/church-admin/finance/journals")}
     >
       <Stack gap="lg">
         <Group justify="space-between" align="center">
           <Group gap="xs">
             <FileText size={20} />
-            <Title order={3}>{isNew ? "New Journal Entry" : "Journal Entry"}</Title>
-            {journal && <Badge color={journal.status === "posted" ? "green" : journal.status === "voided" ? "gray" : "yellow"}>{journal.status}</Badge>}
+            <Title order={3}>{isNew ? tr("newJournalEntry") : tr("journalEntry")}</Title>
+            {journal && (
+              <Badge color={journal.status === "posted" ? "green" : journal.status === "voided" ? "gray" : "yellow"}>
+                {journal.status === "posted"
+                  ? tr("statusPosted")
+                  : journal.status === "voided"
+                    ? tr("statusVoided")
+                    : tr("statusDraft")}
+              </Badge>
+            )}
           </Group>
           {!isNew && !isReadOnly && (
             <Group gap="xs">
-              <Button color="red" variant="subtle" size="sm" leftSection={<Trash2 size={14} />} onClick={handleDelete} loading={isPending}>Delete Draft</Button>
-              <Button color="orange" variant="subtle" size="sm" leftSection={<XCircle size={14} />} onClick={handleVoid} loading={isPending}>Void</Button>
-              <Button color="green" size="sm" leftSection={<CheckCircle size={14} />} onClick={handlePost} loading={isPending} disabled={!isBalanced}>Post</Button>
+              <Button color="red" variant="subtle" size="sm" leftSection={<Trash2 size={14} />} onClick={handleDelete} loading={isPending}>{tr("deleteDraft")}</Button>
+              <Button color="orange" variant="subtle" size="sm" leftSection={<XCircle size={14} />} onClick={handleVoid} loading={isPending}>{tr("void")}</Button>
+              <Button color="green" size="sm" leftSection={<CheckCircle size={14} />} onClick={handlePost} loading={isPending} disabled={!isBalanced}>{tr("post")}</Button>
             </Group>
           )}
         </Group>
 
         {isReadOnly && (
-          <Alert icon={<AlertCircle size={16} />} color="gray">This journal has been {journal.status} and cannot be edited.</Alert>
+          <Alert icon={<AlertCircle size={16} />} color="gray">{tr("readOnlyAlert", { status: journal.status === "posted" ? tr("statusPosted") : tr("statusVoided") })}</Alert>
         )}
 
         <Paper withBorder p="md" radius="md">
           <Stack gap="sm">
             <Group grow>
-              <TextInput label="Date" type="date" value={date} onChange={(e) => setDate(e.currentTarget.value)} disabled={!!isReadOnly} required />
-              <TextInput label="Reference / Check #" value={reference} onChange={(e) => setReference(e.currentTarget.value)} disabled={!!isReadOnly} placeholder="Optional" />
+              <TextInput label={tr("date")} type="date" value={date} onChange={(e) => setDate(e.currentTarget.value)} disabled={!!isReadOnly} required />
+              <TextInput label={tr("referenceCheck")} value={reference} onChange={(e) => setReference(e.currentTarget.value)} disabled={!!isReadOnly} placeholder={tr("optional")} />
             </Group>
-            <Textarea label="Description" value={description} onChange={(e) => setDescription(e.currentTarget.value)} disabled={!!isReadOnly} required rows={2} />
+            <Textarea label={tr("description")} value={description} onChange={(e) => setDescription(e.currentTarget.value)} disabled={!!isReadOnly} required rows={2} />
           </Stack>
         </Paper>
 
         <Paper withBorder p="md" radius="md">
           <Group justify="space-between" mb="md">
-            <Text fw={600}>Lines</Text>
+            <Text fw={600}>{tr("lines")}</Text>
             {!isReadOnly && (
-              <Button size="xs" variant="light" leftSection={<Plus size={14} />} onClick={() => setLines((prev) => [...prev, newLine()])}>Add Line</Button>
+              <Button size="xs" variant="light" leftSection={<Plus size={14} />} onClick={() => setLines((prev) => [...prev, newLine()])}>{tr("addLine")}</Button>
             )}
           </Group>
 
           <Table>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th style={{ width: "40%" }}>Account</Table.Th>
-                <Table.Th style={{ width: "15%" }}>Side</Table.Th>
-                <Table.Th style={{ width: "20%" }}>Amount</Table.Th>
-                <Table.Th>Memo</Table.Th>
+                <Table.Th style={{ width: "40%" }}>{tr("account")}</Table.Th>
+                <Table.Th style={{ width: "15%" }}>{tr("side")}</Table.Th>
+                <Table.Th style={{ width: "20%" }}>{tr("amount")}</Table.Th>
+                <Table.Th>{tr("memo")}</Table.Th>
                 {!isReadOnly && <Table.Th style={{ width: 40 }} />}
               </Table.Tr>
             </Table.Thead>
@@ -197,19 +218,19 @@ export function FinanceJournalEditor({
                       {isReadOnly ? (
                         <Text size="sm">{displayAccount ? `${displayAccount.accountCode} — ${displayAccount.accountName}` : line.accountId}</Text>
                       ) : (
-                        <Select data={accountOptions} value={line.accountId} onChange={(v) => updateLine(line.id, { accountId: v ?? "" })} searchable placeholder="Select account" size="xs" />
+                        <Select data={accountOptions} value={line.accountId} onChange={(v) => updateLine(line.id, { accountId: v ?? "" })} searchable placeholder={tr("selectAccount")} size="xs" />
                       )}
                     </Table.Td>
                     <Table.Td>
                       {isReadOnly ? (
-                        <Badge color={line.side === "debit" ? "blue" : "green"} size="sm">{line.side}</Badge>
+                        <Badge color={line.side === "debit" ? "blue" : "green"} size="sm">{line.side === "debit" ? tr("debit") : tr("credit")}</Badge>
                       ) : (
-                        <Select data={[{ value: "debit", label: "Debit" }, { value: "credit", label: "Credit" }]} value={line.side} onChange={(v) => updateLine(line.id, { side: (v ?? "debit") as "debit" | "credit" })} size="xs" />
+                        <Select data={[{ value: "debit", label: tr("debit") }, { value: "credit", label: tr("credit") }]} value={line.side} onChange={(v) => updateLine(line.id, { side: (v ?? "debit") as "debit" | "credit" })} size="xs" />
                       )}
                     </Table.Td>
                     <Table.Td>
                       {isReadOnly ? (
-                        <Text size="sm">{formatCents(line.amountCents)}</Text>
+                        <Text size="sm">{formatCents(line.amountCents, locale)}</Text>
                       ) : (
                         <NumberInput
                           value={line.amountCents / 100}
@@ -220,9 +241,9 @@ export function FinanceJournalEditor({
                     </Table.Td>
                     <Table.Td>
                       {isReadOnly ? (
-                        <Text size="sm" c="dimmed">{line.memo || "—"}</Text>
+                        <Text size="sm" c="dimmed">{line.memo || tr("dash")}</Text>
                       ) : (
-                        <TextInput value={line.memo} onChange={(e) => updateLine(line.id, { memo: e.currentTarget.value })} size="xs" placeholder="Optional" />
+                        <TextInput value={line.memo} onChange={(e) => updateLine(line.id, { memo: e.currentTarget.value })} size="xs" placeholder={tr("optional")} />
                       )}
                     </Table.Td>
                     {!isReadOnly && (
@@ -238,16 +259,16 @@ export function FinanceJournalEditor({
 
           <Divider my="sm" />
           <Group justify="flex-end" gap="xl">
-            <Text size="sm">Debits: <strong>{formatCents(totalDebits)}</strong></Text>
-            <Text size="sm">Credits: <strong>{formatCents(totalCredits)}</strong></Text>
-            <Badge color={isBalanced ? "green" : "red"} size="sm">{isBalanced ? "Balanced" : "Unbalanced"}</Badge>
+            <Text size="sm">{tr("debits")}: <strong>{formatCents(totalDebits, locale)}</strong></Text>
+            <Text size="sm">{tr("credits")}: <strong>{formatCents(totalCredits, locale)}</strong></Text>
+            <Badge color={isBalanced ? "green" : "red"} size="sm">{isBalanced ? tr("balanced") : tr("unbalanced")}</Badge>
           </Group>
         </Paper>
 
         {isNew && (
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={() => router.push("/app/church-admin/finance/journals")}>Cancel</Button>
-            <Button loading={isPending} onClick={handleSave} disabled={!isBalanced}>Save Draft</Button>
+            <Button variant="subtle" onClick={() => router.push("/app/church-admin/finance/journals")}>{tr("cancel")}</Button>
+            <Button loading={isPending} onClick={handleSave} disabled={!isBalanced}>{tr("saveDraft")}</Button>
           </Group>
         )}
       </Stack>

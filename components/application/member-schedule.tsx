@@ -7,12 +7,16 @@ import { Check, X } from "lucide-react";
 import type { MemberScheduleEntry } from "@/lib/volunteer-types";
 import { respondToShiftAction } from "@/app/app/volunteer-actions";
 import { notifications } from "@mantine/notifications";
+import { useI18n } from "@/components/i18n-provider";
 
 const CONFIRM_COLOR: Record<string, string> = {
   pending: "yellow", confirmed: "green", declined: "red", substitute: "orange",
 };
 
 export function MemberScheduleView({ shifts: initialShifts }: { shifts: MemberScheduleEntry[] }) {
+  const { locale, t } = useI18n();
+  const tr = (key: string, values?: Record<string, string | number>) =>
+    t("memberSchedule", key, values);
   const [shifts, setShifts] = useState(initialShifts);
   const [isPending, startTransition] = useTransition();
   const [declineTarget, setDeclineTarget] = useState<MemberScheduleEntry | null>(null);
@@ -23,9 +27,17 @@ export function MemberScheduleView({ shifts: initialShifts }: { shifts: MemberSc
       const res = await respondToShiftAction(shift.shiftId, "confirmed");
       if (res.ok) {
         setShifts((prev) => prev.map((s) => s.shiftId === shift.shiftId ? { ...s, confirmationStatus: "confirmed" } : s));
-        notifications.show({ title: "Confirmed", message: `You're confirmed for ${shift.roleName}.`, color: "teal" });
+        notifications.show({
+          title: tr("confirmedTitle"),
+          message: tr("confirmedMessage", { roleName: shift.roleName }),
+          color: "teal",
+        });
       } else {
-        notifications.show({ title: "Error", message: res.error ?? "Failed to confirm.", color: "red" });
+        notifications.show({
+          title: tr("errorTitle"),
+          message: res.error ?? tr("failedToConfirm"),
+          color: "red",
+        });
       }
     });
   }
@@ -38,20 +50,28 @@ export function MemberScheduleView({ shifts: initialShifts }: { shifts: MemberSc
         setShifts((prev) => prev.map((s) => s.shiftId === declineTarget.shiftId ? { ...s, confirmationStatus: "declined" } : s));
         setDeclineTarget(null);
         setDeclineReason("");
-        notifications.show({ title: "Declined", message: `Declined ${declineTarget.roleName}.`, color: "gray" });
+        notifications.show({
+          title: tr("declinedTitle"),
+          message: tr("declinedMessage", { roleName: declineTarget.roleName }),
+          color: "gray",
+        });
       } else {
-        notifications.show({ title: "Error", message: res.error ?? "Failed to decline.", color: "red" });
+        notifications.show({
+          title: tr("errorTitle"),
+          message: res.error ?? tr("failedToDecline"),
+          color: "red",
+        });
       }
     });
   }
 
   return (
     <Stack gap="md" p="md">
-      <Title order={3}>Upcoming Assignments</Title>
+      <Title order={3}>{tr("upcomingAssignments")}</Title>
 
       {shifts.length === 0 ? (
         <Paper withBorder p="xl" radius="md" ta="center">
-          <Text c="dimmed">No upcoming volunteer assignments.</Text>
+          <Text c="dimmed">{tr("noUpcomingAssignments")}</Text>
         </Paper>
       ) : (
         shifts.map((shift) => (
@@ -61,12 +81,18 @@ export function MemberScheduleView({ shifts: initialShifts }: { shifts: MemberSc
                 <Group gap="xs">
                   <Text fw={600}>{shift.roleName}</Text>
                   <Badge size="sm" color={CONFIRM_COLOR[shift.confirmationStatus]} variant="light">
-                    {shift.confirmationStatus}
+                    {shift.confirmationStatus === "pending"
+                      ? tr("statusPending")
+                      : shift.confirmationStatus === "confirmed"
+                        ? tr("statusConfirmed")
+                        : shift.confirmationStatus === "declined"
+                          ? tr("statusDeclined")
+                          : tr("statusSubstitute")}
                   </Badge>
                 </Group>
                 <Text size="sm">{shift.planName}</Text>
                 <Text size="xs" c="dimmed">
-                  {new Date(shift.serviceDate + "T00:00:00").toLocaleDateString("en-US", {
+                  {new Date(shift.serviceDate + "T00:00:00").toLocaleDateString(locale === "es" ? "es-US" : "en-US", {
                     weekday: "long", month: "long", day: "numeric",
                   })}
                 </Text>
@@ -75,11 +101,11 @@ export function MemberScheduleView({ shifts: initialShifts }: { shifts: MemberSc
                 <Group gap="xs">
                   <Button size="xs" color="green" leftSection={<Check size={13} />}
                     onClick={() => handleConfirm(shift)} loading={isPending}>
-                    Confirm
+                    {tr("confirm")}
                   </Button>
                   <Button size="xs" color="red" variant="light" leftSection={<X size={13} />}
                     onClick={() => setDeclineTarget(shift)} disabled={isPending}>
-                    Decline
+                    {tr("decline")}
                   </Button>
                 </Group>
               )}
@@ -91,20 +117,20 @@ export function MemberScheduleView({ shifts: initialShifts }: { shifts: MemberSc
       <Modal
         opened={!!declineTarget}
         onClose={() => { setDeclineTarget(null); setDeclineReason(""); }}
-        title={`Decline: ${declineTarget?.roleName}`}
+        title={tr("declineTitle", { roleName: declineTarget?.roleName ?? "" })}
         centered size="sm"
       >
         <Stack gap="sm">
           <Textarea
-            label="Reason (optional)"
-            placeholder="Out of town, prior commitment…"
+            label={tr("reasonOptional")}
+            placeholder={tr("reasonPlaceholder")}
             value={declineReason}
             onChange={(e) => setDeclineReason(e.target.value)}
             minRows={2}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setDeclineTarget(null)}>Cancel</Button>
-            <Button color="red" onClick={handleDecline} loading={isPending}>Decline</Button>
+            <Button variant="default" onClick={() => setDeclineTarget(null)}>{tr("cancel")}</Button>
+            <Button color="red" onClick={handleDecline} loading={isPending}>{tr("decline")}</Button>
           </Group>
         </Stack>
       </Modal>

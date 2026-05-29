@@ -17,6 +17,7 @@ import {
   Title,
 } from "@mantine/core";
 import { Heart, Lock, AlertCircle, Check } from "lucide-react";
+import { useI18n } from "@/components/i18n-provider";
 
 type PublicGivingPageProps = {
   data: {
@@ -33,6 +34,9 @@ type PublicGivingPageProps = {
 type GivingFrequency = "one_time" | "weekly" | "monthly";
 
 export function PublicGivingPage({ data }: PublicGivingPageProps) {
+  const { locale, t } = useI18n();
+  const tr = (key: string, values?: Record<string, string | number>) =>
+    t("publicGiving", key, values);
   const [amount, setAmount] = useState<number | "">(50);
   const [fund, setFund] = useState(data.funds[0] ?? "General Fund");
   const [frequency, setFrequency] = useState<GivingFrequency>("one_time");
@@ -46,18 +50,27 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
 
   const PRESET_AMOUNTS = [25, 50, 100, 250, 500];
   const FREQUENCIES: { value: GivingFrequency; label: string }[] = [
-    { value: "one_time", label: "One-time" },
-    { value: "weekly", label: "Weekly" },
-    { value: "monthly", label: "Monthly" },
+    { value: "one_time", label: tr("frequencyOneTime") },
+    { value: "weekly", label: tr("frequencyWeekly") },
+    { value: "monthly", label: tr("frequencyMonthly") },
   ];
+
+  function formatAmount(value: number | "") {
+    const numeric = Number(value || 0);
+    return new Intl.NumberFormat(locale === "es" ? "es-US" : "en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+    }).format(numeric);
+  }
 
   async function handleSubmit() {
     if (!amount || Number(amount) < 1) {
-      setError("Please enter a gift amount of at least $1.");
+      setError(tr("minimumGiftError"));
       return;
     }
     if (!isAnonymous && !email.trim()) {
-      setError("Email is required to receive your giving receipt.");
+      setError(tr("emailRequiredError"));
       return;
     }
 
@@ -81,19 +94,17 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
             <div style={{ background: "var(--mantine-color-green-1)", borderRadius: "50%", width: 64, height: 64, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Check size={32} color="var(--mantine-color-green-7)" />
             </div>
-            <Title order={3} ta="center">Thank you!</Title>
+            <Title order={3} ta="center">{tr("thankYou")}</Title>
             <Text c="dimmed" ta="center">
-              Your gift of{" "}
-              <strong>${Number(amount).toLocaleString()}</strong> to{" "}
-              <strong>{fund}</strong> has been received.
+              {tr("giftReceivedPrefix")} <strong>{formatAmount(amount)}</strong> {tr("giftReceivedTo")} <strong>{fund}</strong> {tr("giftReceivedSuffix")}
             </Text>
             {!isAnonymous && email && (
               <Text size="sm" c="dimmed" ta="center">
-                A receipt will be sent to <strong>{email}</strong>.
+                {tr("receiptSentTo")} <strong>{email}</strong>.
               </Text>
             )}
             <Text size="xs" c="dimmed" ta="center" mt="sm">
-              {data.churchName} — your generosity makes a difference.
+              {data.churchName} - {tr("generosityLine")}
             </Text>
           </Stack>
         </Paper>
@@ -120,7 +131,7 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
 
             {/* Amount */}
             <div>
-              <Text fw={500} size="sm" mb="xs">Gift amount</Text>
+              <Text fw={500} size="sm" mb="xs">{tr("giftAmount")}</Text>
               <Group gap="xs" mb="xs">
                 {PRESET_AMOUNTS.map((p) => (
                   <Button
@@ -129,12 +140,12 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
                     variant={Number(amount) === p ? "filled" : "default"}
                     onClick={() => setAmount(p)}
                   >
-                    ${p}
+                    {formatAmount(p)}
                   </Button>
                 ))}
               </Group>
               <NumberInput
-                placeholder="Other amount"
+                placeholder={tr("otherAmount")}
                 value={amount}
                 onChange={(v) => setAmount(v === "" ? "" : Number(v))}
                 min={1}
@@ -145,7 +156,7 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
             {/* Fund */}
             {data.funds.length > 1 && (
               <Select
-                label="Designate to"
+                label={tr("designateTo")}
                 data={data.funds}
                 value={fund}
                 onChange={(v) => setFund(v ?? data.funds[0])}
@@ -154,7 +165,7 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
 
             {/* Frequency */}
             <Select
-              label="Frequency"
+              label={tr("frequency")}
               data={FREQUENCIES.map((f) => ({ value: f.value, label: f.label }))}
               value={frequency}
               onChange={(v) => setFrequency((v ?? "one_time") as GivingFrequency)}
@@ -165,7 +176,7 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
             {/* Donor info */}
             {data.allowAnonymous && (
               <Switch
-                label="Give anonymously"
+                label={tr("giveAnonymously")}
                 checked={isAnonymous}
                 onChange={(e) => setIsAnonymous(e.target.checked)}
               />
@@ -174,12 +185,12 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
             {!isAnonymous && (
               <>
                 <TextInput
-                  label="Full name (optional)"
+                  label={tr("fullNameOptional")}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
                 <TextInput
-                  label="Email (for receipt)"
+                  label={tr("emailForReceipt")}
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -189,11 +200,11 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
             )}
 
             <Textarea
-              label="Note (optional)"
+              label={tr("noteOptional")}
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
-              placeholder="In honor of, in memory of, or a message..."
+              placeholder={tr("notePlaceholder")}
             />
 
             <Button
@@ -203,13 +214,13 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
               loading={isLoading}
               fullWidth
             >
-              Give ${amount ? Number(amount).toLocaleString() : "0"}
-              {frequency !== "one_time" ? ` / ${frequency.replace("_", " ")}` : ""}
+              {tr("giveAmountPrefix")} {formatAmount(amount)}
+              {frequency !== "one_time" ? ` / ${FREQUENCIES.find((item) => item.value === frequency)?.label ?? frequency}` : ""}
             </Button>
 
             <Group gap={4} justify="center">
               <Lock size={12} />
-              <Text size="xs" c="dimmed">Secure payment powered by Stripe</Text>
+              <Text size="xs" c="dimmed">{tr("securePayment")}</Text>
             </Group>
           </Stack>
         </Paper>

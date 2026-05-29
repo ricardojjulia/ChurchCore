@@ -112,7 +112,7 @@ Done when:
 
 - tests and docs provide concrete evidence for claims in security and roadmap docs
 
-Status: Planned
+Status: Completed (role-access and church-scope negative evidence added for Slice 2-4 routes/actions; docs refreshed)
 
 ## Weekly Cadence
 

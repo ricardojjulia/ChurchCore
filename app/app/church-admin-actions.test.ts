@@ -290,6 +290,22 @@ describe("church-admin actions", () => {
     );
   });
 
+  it("rejects registration requests when provided church does not match event church", async () => {
+    queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [{ church_id: "church-1" }] });
+
+    const result = await registerForEventAction({
+      eventId: "event-1",
+      churchId: "church-2",
+      registrantName: "Mismatched Church",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Event does not belong to the requested church.",
+    });
+    expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(1);
+  });
+
   it("approves a pending registration in local fallback mode", async () => {
     queryTenantLocalDbMock
       .mockResolvedValueOnce({ rows: [{ id: "event-1" }] })
@@ -303,6 +319,16 @@ describe("church-admin actions", () => {
       3,
       expect.stringContaining("set status = 'confirmed'"),
       ["reg-1", "church-1"],
+    );
+  });
+
+  it("rejects approval when registration is not scoped to the current church event", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "event-1" }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await expect(approveRegistrationAction("reg-foreign", "event-1")).rejects.toThrow(
+      "Registration not found for this event.",
     );
   });
 
@@ -345,6 +371,17 @@ describe("church-admin actions", () => {
         0,
       ],
     );
+  });
+
+  it("rejects registration settings updates when event is outside the active church", async () => {
+    queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [] });
+
+    await expect(
+      upsertRegistrationSettingsAction({
+        eventId: "event-foreign",
+        registrationOpen: true,
+      }),
+    ).rejects.toThrow("Event not found in this church.");
   });
 
   it("returns preview mode for roster assignment when tenant backend is unavailable", async () => {

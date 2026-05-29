@@ -258,4 +258,46 @@ describe("communications actions", () => {
     expect(result).toEqual({ retried: true });
     expect(sendWithSuppressionMock).toHaveBeenCalledTimes(1);
   });
+
+  it("rejects retry when the communication log is outside the active church scope", async () => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "pastor", church: { id: "church-1" } },
+      profile: { id: "profile-pastor" },
+      source: "supabase",
+      userId: "pastor-1",
+    });
+
+    queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [] });
+
+    await expect(retryCommunicationAction({ logId: "foreign-log" })).rejects.toThrow(
+      "Communication log not found.",
+    );
+    expect(sendWithSuppressionMock).not.toHaveBeenCalled();
+  });
+
+  it("does not write suppression consent when no in-church profile matches", async () => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "church-admin", church: { id: "church-1" } },
+      profile: { id: "profile-admin" },
+      source: "supabase",
+      userId: "admin-1",
+    });
+
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await suppressContactAction({
+      channel: "email",
+      contact: "external@example.com",
+      reason: "manual",
+    });
+
+    expect(insertConsentLogEntriesMock).not.toHaveBeenCalled();
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("from public.profiles"),
+      ["church-1", "email", "external@example.com"],
+    );
+  });
 });
