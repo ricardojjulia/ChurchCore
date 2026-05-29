@@ -1169,11 +1169,7 @@ export function EventRegistrationsPanel({
         setForm({ name: "", email: "", phone: "", notes: "" });
         setMsg({
           type: "success",
-          text: res.isWaitlisted
-            ? "Added to waitlist."
-            : res.paymentRequired
-              ? "Registered. Payment pending."
-              : "Registered.",
+          text: res.isWaitlisted ? "Added to waitlist." : "Registered.",
         });
       } else {
         setMsg({ type: "error", text: res.error ?? "Failed to register." });
