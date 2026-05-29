@@ -329,9 +329,9 @@ export function buildCommunicationsReadinessSummary({
     recommendedAction:
       issueCount === 0
         ? "No action needed."
-        : "Open communications and resolve pending sends, delivery failures, consent limits, or contact gaps.",
+        : "Open communications and close the lane in this order: retry transient failures, review non-retryable delivery issues and suppressions, then fix contact or consent gaps.",
     target: { route: "/app/communications", query: { view: "readiness" } },
-    detail: `${pendingCommunications} pending send${pendingCommunications === 1 ? "" : "s"} · ${failedCommunications} failed · ${bouncedCommunications} bounced · ${suppressedContacts} suppressed contact${suppressedContacts === 1 ? "" : "s"} · ${contactGaps} contact gap${contactGaps === 1 ? "" : "s"} · ${consentGaps} consent gap${consentGaps === 1 ? "" : "s"}.`,
+    detail: `${pendingCommunications} pending send${pendingCommunications === 1 ? "" : "s"} · ${failedCommunications} failed · ${bouncedCommunications} bounced · ${suppressedContacts} suppression${suppressedContacts === 1 ? "" : "s"} · ${contactGaps} contact gap${contactGaps === 1 ? "" : "s"} · ${consentGaps} consent gap${consentGaps === 1 ? "" : "s"}.`,
   });
 }
 

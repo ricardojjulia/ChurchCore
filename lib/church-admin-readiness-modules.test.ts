@@ -244,8 +244,8 @@ describe("church admin readiness module summaries", () => {
       issueCount: 4,
       completionState: "blocked",
       href: "/app/communications?view=readiness",
-      recommendedAction: "Open communications and resolve pending sends, delivery failures, consent limits, or contact gaps.",
-      detail: "1 pending send · 2 failed · 1 bounced · 0 suppressed contacts · 0 contact gaps · 0 consent gaps.",
+      recommendedAction: "Open communications and close the lane in this order: retry transient failures, review non-retryable delivery issues and suppressions, then fix contact or consent gaps.",
+      detail: "1 pending send · 2 failed · 1 bounced · 0 suppressions · 0 contact gaps · 0 consent gaps.",
     });
   });
 
@@ -262,7 +262,7 @@ describe("church admin readiness module summaries", () => {
       severity: "warning",
       issueCount: 10,
       completionState: "needs_review",
-      detail: "3 pending sends · 0 failed · 0 bounced · 1 suppressed contact · 2 contact gaps · 4 consent gaps.",
+      detail: "3 pending sends · 0 failed · 0 bounced · 1 suppression · 2 contact gaps · 4 consent gaps.",
     });
   });
 

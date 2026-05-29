@@ -110,7 +110,7 @@ Use this scoring line in each factory run:
 - MVP +2 weeks: `NO-GO`
 - Competitive 30 days: `NO-GO`
 - Competitive 60 days: `NO-GO`
-- Highest blocker this week: communications unresolved-lane closure workflow (retryability triage, suppression/consent follow-up, and explicit resolved-state operator path) is still below the required MVP +2 weeks gate.
+- Highest blocker this week: security evidence maintenance (role-access matrix and evidence docs need this week’s completed WS-1/WS-2/WS-3 verification links consolidated) is still below the required MVP +2 weeks gate.
 - Evidence links:
 	- [docs/plans/competitive-readiness-30-day-execution.md](docs/plans/competitive-readiness-30-day-execution.md)
 	- [docs/plans/competitive-readiness-roadmap.md](docs/plans/competitive-readiness-roadmap.md)
@@ -126,11 +126,13 @@ Use this scoring line in each factory run:
 	- `npm run test:e2e:onboarding` ✅ (1 passed)
 	- `npm run test -- app/app/church-admin-actions.test.ts app/sign-in/actions.test.ts` ✅ (29 passed)
 	- `npm run lint` ✅
+	- `npm run test -- lib/communications-closure-guidance.test.ts lib/church-admin-readiness-modules.test.ts app/app/communications-actions.test.ts` ✅ (35 passed)
+	- `npm run build` ✅
 
 ### Gate notes
 
 - MVP Today: required local reliability gate is met (`setup:local`, `smoke:local`, `test:e2e:readiness`) and the role-boundary/readiness route checks continue to pass.
-- MVP +2 weeks: import commit flow, payment defaults, and browser-complete onboarding now have executable coverage; communications operations closure remains open.
+- MVP +2 weeks: import commit flow, payment defaults, browser-complete onboarding, and communications closure guidance now have executable coverage; security evidence consolidation remains open.
 - Competitive 30 days: paid registration defaults and import foundation moved forward, but service-planning depth remains a replacement blocker.
 - Competitive 60 days: provider-depth communications lifecycle, broader migration coverage, and release-grade operational proof still remain.
 
@@ -138,13 +140,13 @@ Use this scoring line in each factory run:
 
 - Owner: Product + Engineering (weekly readiness review in planning sync)
 - Execution brief: [docs/plans/2026-06-05-execution-brief.md](docs/plans/2026-06-05-execution-brief.md)
-- Sequence status (2026-05-29): WS-1 local reliability and WS-2 browser-complete onboarding are complete; WS-3 communications unresolved-lane closure is the active next execution item.
+- Sequence status (2026-05-29): WS-1 local reliability, WS-2 browser-complete onboarding, and WS-3 communications unresolved-lane closure are complete; WS-4 security evidence maintenance is the active next execution item.
 - MVP Today: `TARGET GO`
 - MVP +2 weeks: `TARGET NO-GO` (closing to conditional GO)
 - Competitive 30 days: `TARGET NO-GO` (risk reduction expected)
 - Competitive 60 days: `TARGET NO-GO`
-- Highest blocker to close by this checkpoint: communications unresolved-lane closure validation.
+- Highest blocker to close by this checkpoint: security evidence maintenance validation.
 - Expected gate changes:
 	- MVP Today local reliability gate moved to passing on clean-machine execution (`setup:local`, `smoke:local`, `test:e2e:readiness`).
 	- Onboarding browser path moved to passing with an executable end-to-end check from public registration through first sign-in (`npm run test:e2e:onboarding`).
-	- Communications unresolved-lane operations should include explicit operator closure workflow notes tied to tests/docs.
+	- Communications unresolved-lane operations moved to passing with explicit operator closure workflow notes tied to tests/docs.

@@ -12,8 +12,8 @@ Hold MVP Today at GO by closing onboarding and communications execution gaps, wh
 
 - WS-1 Local reliability hardening: completed.
 - WS-2 Browser-complete onboarding path: completed.
-- Next execution item: WS-3 Communications unresolved-lane closure guidance.
-- Follow-on item after WS-3: WS-4 Security evidence maintenance.
+- WS-3 Communications unresolved-lane closure guidance: completed.
+- Next execution item: WS-4 Security evidence maintenance.
 
 WS-1 completion evidence:
 
@@ -26,6 +26,12 @@ WS-2 completion evidence:
 - `npm run test:e2e:onboarding` ✅ (1 passed)
 - `npm run test -- app/app/church-admin-actions.test.ts app/sign-in/actions.test.ts` ✅ (29 passed)
 - `npm run lint` ✅
+
+WS-3 completion evidence:
+
+- `npm run test -- lib/communications-closure-guidance.test.ts lib/church-admin-readiness-modules.test.ts app/app/communications-actions.test.ts` ✅ (35 passed)
+- `npm run lint` ✅
+- `npm run build` ✅
 
 ## Weekly target outcomes
 
@@ -92,6 +98,8 @@ Verification commands:
 
 ### WS-3 Communications unresolved-lane closure guidance
 
+Status: Completed 2026-05-29
+
 Owner: Communications workflow owner
 
 Deliverables:
@@ -109,7 +117,7 @@ Definition of done:
 
 Verification commands:
 
-- `npm run test -- app/app/communications-actions.test.ts`
+- `npm run test -- lib/communications-closure-guidance.test.ts lib/church-admin-readiness-modules.test.ts app/app/communications-actions.test.ts`
 - `npm run lint`
 - `npm run build`
 

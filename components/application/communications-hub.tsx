@@ -42,6 +42,7 @@ import {
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ReadinessTargetState } from "@/components/application/readiness-target-state";
 import type { ChurchAppSession } from "@/lib/auth";
+import { buildCommunicationsClosureGuidance } from "@/lib/communications-closure-guidance";
 import { shouldRetryDelivery } from "@/lib/communications/provider-adapter";
 import type {
   CommunicationDeliveryEvent,
@@ -192,8 +193,9 @@ export function CommunicationsHub({
   const suppressedContacts = suppressions.length;
   const contactGapCount = recipients.filter((recipient) => !recipient.email && !recipient.phone).length;
   const consentGapCount = recipients.filter(
-    (recipient) => !recipient.emailOptIn && !recipient.smsOptIn,
+    (recipient) => !recipient.emailOptIn || !recipient.smsOptIn,
   ).length;
+  const closureGuidance = buildCommunicationsClosureGuidance({ recentLogs, recipients, suppressions });
 
   const readinessIssueCount =
     pendingCount +
@@ -444,6 +446,48 @@ export function CommunicationsHub({
             primaryAction={{ label: "Back to readiness", href: "/app/church-admin/readiness" }}
             secondaryAction={{ label: "Compose message", href: "/app/communications" }}
           />
+
+          <Paper withBorder radius="lg" p="md">
+            <Group justify="space-between" align="flex-start" gap="md">
+              <div>
+                <Text fw={700} size="sm">
+                  Unresolved lane closure
+                </Text>
+                <Text size="sm" c="dimmed" mt={4}>
+                  {closureGuidance.expectedResolvedState}
+                </Text>
+              </div>
+              <Badge color={closureGuidance.resolved ? "green" : "orange"} variant="light">
+                {closureGuidance.resolved ? "Resolved" : `${closureGuidance.unresolvedCount} open`}
+              </Badge>
+            </Group>
+
+            <Stack gap="sm" mt="md">
+              {closureGuidance.steps.length > 0 ? (
+                closureGuidance.steps.map((step) => (
+                  <Paper key={step.title} withBorder radius="md" p="sm">
+                    <Group justify="space-between" align="flex-start" gap="md">
+                      <div>
+                        <Text fw={600} size="sm">
+                          {step.title}
+                        </Text>
+                        <Text size="sm" c="dimmed" mt={4}>
+                          {step.detail}
+                        </Text>
+                      </div>
+                      <Button component="a" href={step.href} size="xs" variant="light">
+                        {step.actionLabel}
+                      </Button>
+                    </Group>
+                  </Paper>
+                ))
+              ) : (
+                <Text size="sm" c="dimmed">
+                  {closureGuidance.resolvedSummary}
+                </Text>
+              )}
+            </Stack>
+          </Paper>
         </Stack>
       ) : null}
 
