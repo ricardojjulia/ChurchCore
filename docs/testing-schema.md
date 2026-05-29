@@ -164,6 +164,7 @@ Status values:
 - `app/app/groups-actions.test.ts`
 - `app/app/finance-actions.test.ts`
 - `app/app/church-admin-actions.test.ts`
+- `app/app/church-admin/people/import/actions.test.ts`
 - `app/app/member-actions.test.ts`
 - `app/app/actions.test.ts`
 - `app/app/ccm-actions.test.ts`
@@ -178,6 +179,7 @@ Status values:
 - `tests/e2e/church-admin-readiness.spec.ts`
 - `tests/e2e/member-mobile-foundation.spec.ts`
 - `lib/compliance/data-rights-actions.test.ts`
+- `app/app/communications-actions.test.ts`
 - `lib/communications/provider-adapter.test.ts`
 - `lib/church-admin-people-data.test.ts`
 - `lib/member-portal-data.test.ts`
