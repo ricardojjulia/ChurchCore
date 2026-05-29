@@ -229,7 +229,7 @@ describe("church-admin actions", () => {
   it("returns full event error when waitlist is disabled", async () => {
     queryTenantLocalDbMock
       .mockResolvedValueOnce({ rows: [{ church_id: "church-1" }] })
-      .mockResolvedValueOnce({ rows: [{ capacity: 1, waitlist_enabled: false, registration_open: true }] })
+      .mockResolvedValueOnce({ rows: [{ capacity: 1, waitlist_enabled: false, registration_open: true, price_cents: 0 }] })
       .mockResolvedValueOnce({ rows: [{ cnt: 1 }] });
 
     const result = await registerForEventAction({
@@ -244,7 +244,7 @@ describe("church-admin actions", () => {
   it("creates waitlisted registration when capacity is reached and waitlist is enabled", async () => {
     queryTenantLocalDbMock
       .mockResolvedValueOnce({ rows: [{ church_id: "church-1" }] })
-      .mockResolvedValueOnce({ rows: [{ capacity: 1, waitlist_enabled: true, registration_open: true }] })
+      .mockResolvedValueOnce({ rows: [{ capacity: 1, waitlist_enabled: true, registration_open: true, price_cents: 2500 }] })
       .mockResolvedValueOnce({ rows: [{ cnt: 1 }] })
       .mockResolvedValueOnce({ rows: [{ id: "reg-1" }] });
 
@@ -262,7 +262,7 @@ describe("church-admin actions", () => {
   it("creates pending-approval registration when approval is required", async () => {
     queryTenantLocalDbMock
       .mockResolvedValueOnce({ rows: [{ church_id: "church-1" }] })
-      .mockResolvedValueOnce({ rows: [{ capacity: null, waitlist_enabled: false, registration_open: true, approval_required: true }] })
+      .mockResolvedValueOnce({ rows: [{ capacity: null, waitlist_enabled: false, registration_open: true, approval_required: true, price_cents: 0 }] })
       .mockResolvedValueOnce({ rows: [{ id: "reg-approval-1" }] });
 
     const result = await registerForEventAction({
@@ -284,8 +284,41 @@ describe("church-admin actions", () => {
         null,
         "pending_approval",
         false,
+        "not_required",
         null,
         JSON.stringify({ tshirt_size: "L" }),
+      ],
+    );
+  });
+
+  it("sets pending payment status for paid non-waitlisted registrations", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ church_id: "church-1" }] })
+      .mockResolvedValueOnce({ rows: [{ capacity: null, waitlist_enabled: false, registration_open: true, approval_required: false, price_cents: 5000 }] })
+      .mockResolvedValueOnce({ rows: [{ id: "reg-paid-1" }] });
+
+    const result = await registerForEventAction({
+      eventId: "event-1",
+      churchId: "church-1",
+      registrantName: "Paid Registrant",
+      registrantEmail: "paid@example.com",
+    });
+
+    expect(result).toEqual({ ok: true, registrationId: "reg-paid-1", isWaitlisted: false });
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining("payment_status"),
+      [
+        "event-1",
+        "church-1",
+        "Paid Registrant",
+        "paid@example.com",
+        null,
+        "confirmed",
+        false,
+        "pending",
+        null,
+        null,
       ],
     );
   });

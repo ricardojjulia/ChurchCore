@@ -136,6 +136,61 @@ Done when:
 
 Status: Completed (dispatch validation, compose guardrails, and action test coverage shipped on main)
 
+### Slice 7: Paid Registration Lifecycle Defaults Completion
+
+Goal: Ensure paid event registrations always persist deterministic payment lifecycle defaults across ChurchAdmin, member, and public registration entry points.
+
+Scope:
+
+- enforce `payment_status` writes on event registration inserts
+- set `payment_status = pending` for paid, non-waitlisted registrations
+- set `payment_status = not_required` for free or waitlisted registrations
+- add focused tests for ChurchAdmin/member paid registration default behavior
+
+Done when:
+
+- all registration entry points persist payment lifecycle defaults consistently
+- targeted tests, lint, and build pass
+
+Status: Completed (payment default persistence and action tests shipped)
+
+### Slice 8: Import Commit Workflow and Vendor Source Adapters
+
+Goal: Expand migration tooling beyond dry run by adding source adapters and explicit commit/audit flow for people+household imports.
+
+Scope:
+
+- add import source-system adapters (`generic_csv`, `planning_center`, `breeze`, `pushpay_ccb`)
+- add source-system selection in ChurchAdmin people import workspace
+- add ChurchAdmin commit action for dry-run-completed import batches
+- commit create/update rows into canonical profiles/families with batch status and summary updates
+- add tests for dry-run source forwarding and commit role/backend gates
+
+Done when:
+
+- dry runs support vendor-specific alias mapping inputs
+- ChurchAdmin can commit a dry-run batch with auditable committed/failed summary output
+- targeted tests, lint, and build pass
+
+Status: Completed (source adapters, commit action/workspace controls, and tests shipped)
+
+### Slice 9: Security Evidence Matrix Expansion
+
+Goal: Expand Finding 6 evidence from isolated tests into a role-access matrix with direct verification links and refreshed security docs.
+
+Scope:
+
+- add a role-access matrix doc for sensitive route/action surfaces
+- refresh security assessment and mitigation docs with new import commit and payment lifecycle evidence
+- refresh testing schema references for new import and payment regression coverage
+
+Done when:
+
+- matrix and security docs reference executable evidence paths
+- documentation and verification records are updated alongside implementation
+
+Status: Completed (matrix doc and security/testing evidence updates shipped)
+
 ## Weekly Cadence
 
 - Day 1-2: implement + test first slice

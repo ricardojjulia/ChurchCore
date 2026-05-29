@@ -1434,8 +1434,9 @@ export async function registerForEventAction(
     const settingsResult = await queryTenantLocalDb<{
       capacity: number | null; waitlist_enabled: boolean; registration_open: boolean;
       approval_required: boolean;
+      price_cents: number;
     }>(
-      `select capacity, waitlist_enabled, registration_open, approval_required
+      `select capacity, waitlist_enabled, registration_open, approval_required, price_cents
        from public.event_registration_settings
        where event_id = $1`,
       [input.eventId],
@@ -1466,18 +1467,23 @@ export async function registerForEventAction(
       : settings?.approval_required
         ? "pending_approval"
         : "confirmed";
+    const paymentStatus = !isWaitlisted && (settings?.price_cents ?? 0) > 0
+      ? "pending"
+      : "not_required";
 
     const result = await queryTenantLocalDb<{ id: string }>(
       `insert into public.event_registrations
          (event_id, church_id, registrant_name, registrant_email, registrant_phone,
-          status, is_waitlisted, notes, custom_fields)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          status, is_waitlisted, payment_status, notes, custom_fields)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        returning id`,
       [
         input.eventId, churchId, input.registrantName.trim(),
         input.registrantEmail ?? null, input.registrantPhone ?? null,
         status,
-        isWaitlisted, input.notes ?? null,
+        isWaitlisted,
+        paymentStatus,
+        input.notes ?? null,
         input.customFields ? JSON.stringify(input.customFields) : null,
       ],
     );
@@ -1489,7 +1495,7 @@ export async function registerForEventAction(
 
   const { data: settings } = await supabase
     .from("event_registration_settings")
-    .select("capacity, waitlist_enabled, registration_open, approval_required")
+    .select("capacity, waitlist_enabled, registration_open, approval_required, price_cents")
     .eq("event_id", input.eventId)
     .maybeSingle();
 
@@ -1519,6 +1525,9 @@ export async function registerForEventAction(
     : settings?.approval_required
       ? "pending_approval"
       : "confirmed";
+  const paymentStatus = !isWaitlisted && (settings?.price_cents ?? 0) > 0
+    ? "pending"
+    : "not_required";
 
   const { data, error } = await supabase
     .from("event_registrations")
@@ -1529,6 +1538,7 @@ export async function registerForEventAction(
       registrant_phone: input.registrantPhone ?? null,
       status,
       is_waitlisted: isWaitlisted,
+      payment_status: paymentStatus,
       custom_fields: input.customFields ?? null,
       notes: input.notes ?? null,
     })

@@ -481,6 +481,7 @@ export async function memberRegisterForEventAction(
       approval_required: boolean;
       household_registration_enabled: boolean;
       deadline: string | null;
+      price_cents: number;
     }>(
       `select
          event.title as event_title,
@@ -491,7 +492,8 @@ export async function memberRegisterForEventAction(
          settings.waitlist_enabled,
          coalesce(settings.approval_required, false) as approval_required,
          coalesce(settings.household_registration_enabled, false) as household_registration_enabled,
-         settings.deadline
+         settings.deadline,
+         coalesce(settings.price_cents, 0) as price_cents
        from public.event_registration_settings settings
        join public.events event
          on event.id = settings.event_id
@@ -599,12 +601,15 @@ export async function memberRegisterForEventAction(
       : settings.approval_required
         ? "pending_approval"
         : "confirmed";
+    const paymentStatus = !isWaitlisted && settings.price_cents > 0
+      ? "pending"
+      : "not_required";
 
     await queryTenantLocalDb(
       `insert into public.event_registrations
          (event_id, church_id, profile_id, registrant_name, registrant_email, registrant_phone,
-          status, is_waitlisted, notes, custom_fields)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)`,
+          status, is_waitlisted, payment_status, notes, custom_fields)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)`,
       [
         input.eventId,
         churchId,
@@ -614,6 +619,7 @@ export async function memberRegisterForEventAction(
         targetProfile.phone,
         status,
         isWaitlisted,
+        paymentStatus,
         input.notes ?? null,
         input.customFields ? JSON.stringify(input.customFields) : null,
       ],
@@ -628,7 +634,7 @@ export async function memberRegisterForEventAction(
 
   const { data: settings } = await supabase
     .from("event_registration_settings")
-    .select("registration_open, capacity, waitlist_enabled, approval_required, household_registration_enabled, deadline, events!inner(id, visibility)")
+    .select("registration_open, capacity, waitlist_enabled, approval_required, household_registration_enabled, deadline, price_cents, events!inner(id, visibility)")
     .eq("event_id", input.eventId)
     .eq("church_id", churchId)
     .maybeSingle();
@@ -709,6 +715,9 @@ export async function memberRegisterForEventAction(
     : settings.approval_required
       ? "pending_approval"
       : "confirmed";
+  const paymentStatus = !isWaitlisted && (settings.price_cents ?? 0) > 0
+    ? "pending"
+    : "not_required";
 
   const { error } = await supabase.from("event_registrations").insert({
     event_id: input.eventId,
@@ -719,6 +728,7 @@ export async function memberRegisterForEventAction(
     registrant_phone: targetProfile.phone,
     status,
     is_waitlisted: isWaitlisted,
+    payment_status: paymentStatus,
     notes: input.notes ?? null,
     custom_fields: input.customFields ?? null,
   });
