@@ -22,6 +22,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added ChurchAdmin people management review queue UX for pending member profile/family updates with inline approve/reject controls wired to `reviewMemberChangeRequestAction` (`components/application/church-admin-people-workspace.tsx`, `lib/church-admin-people-data.ts`).
 - Added focused review-state mapping coverage in `lib/member-portal-data.test.ts` for pending/rejected change-state rendering and pre-migration fallback safety.
 - Added pending-review workflow coverage in `app/app/actions.test.ts` and `lib/church-admin-people-data.test.ts` for review decisions, canonical-write gating, and queue summary mapping.
+- Added Slice 4 import foundation kickoff for ChurchAdmin people/household migration dry runs: staging schema (`import_batches`, `import_batch_rows`), deterministic CSV dry-run classification (`create`, `update`, `skip`, `reject`), and ChurchAdmin dry-run intake route at `/app/church-admin/people/import` (`supabase/migrations/20260529011500_slice4_import_staging_foundation.sql`, `lib/people-import-dry-run.ts`, `app/app/church-admin/people/import/page.tsx`, `components/application/church-admin-people-import-workspace.tsx`).
 
 ### Changed
 
@@ -33,6 +34,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Changed communications readiness and operations summaries to account for new delivery lifecycle statuses (`scheduled`, `sending`) and suppressed-contact signals (`lib/church-admin-readiness-data.ts`, `lib/church-admin-readiness-modules.ts`, `lib/church-admin-operations-data.ts`, `components/application/communications-hub.tsx`).
 - Changed communications lifecycle handling to normalize retry eligibility to transient failed sends only, add webhook-driven suppression and consent synchronization for bounced/suppressed/unsubscribed events, and surface unresolved delivery-lane operator cues in the communications hub (`lib/communications/provider-adapter.ts`, `lib/communications/webhook-events.ts`, `components/application/communications-hub.tsx`, `lib/communications/webhook-events.test.ts`).
 - Changed Phase 3 communications merge traceability: backend foundation merged as PR #43, and stacked UI PR #44 was superseded by rebased replacement PR #45 before merge to `main`.
+- Changed ChurchAdmin people workspace top actions to include direct import dry-run access for migration onboarding workflows (`components/application/church-admin-people-workspace.tsx`).
 
 ## [3.1.0] - 2026-05-27
 

@@ -96,7 +96,7 @@ Done when:
 
 - ChurchAdmin can run a dry import and see deterministic summary results without production writes
 
-Status: Planned
+Status: Completed (dry-run people/household import foundation shipped in workspace; pending commit/PR)
 
 ### Slice 5: Security Evidence Closure Sprint
 
