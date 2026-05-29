@@ -30,6 +30,23 @@ export interface UpdateNotificationPreferencesInput {
   inAppOptIn: boolean;
 }
 
+function normalizeScheduledFor(value?: string): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error("Scheduled send time is invalid.");
+  }
+
+  if (parsed.getTime() <= Date.now()) {
+    throw new Error("Scheduled send time must be in the future.");
+  }
+
+  return parsed.toISOString();
+}
+
 /**
  * Sends a message to one or more recipients.
  * Each recipient is checked for consent and suppression individually.
@@ -43,6 +60,18 @@ export async function broadcastMessageAction(
   if (role !== "pastor" && role !== "church-admin") {
     throw new Error("Only pastors and church administrators may send communications.");
   }
+
+  const normalizedBody = input.body.trim();
+  if (!normalizedBody) {
+    throw new Error("Message body is required.");
+  }
+
+  const normalizedSubject = input.subject?.trim();
+  if (input.channel === "email" && !normalizedSubject) {
+    throw new Error("Email subject is required.");
+  }
+
+  const normalizedScheduledFor = normalizeScheduledFor(input.scheduledFor);
 
   let sent = 0;
   let skipped = 0;
@@ -62,9 +91,9 @@ export async function broadcastMessageAction(
       recipientProfileId: recipient.profileId,
       recipientContact: contact,
       channel: input.channel,
-      subject: input.subject,
-      body: input.body,
-      scheduledFor: input.scheduledFor,
+      subject: normalizedSubject,
+      body: normalizedBody,
+      scheduledFor: normalizedScheduledFor,
     });
 
     if (result.skipped) skipped++;

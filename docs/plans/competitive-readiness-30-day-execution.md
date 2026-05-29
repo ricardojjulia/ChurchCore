@@ -114,6 +114,28 @@ Done when:
 
 Status: Completed (role-access and church-scope negative evidence added for Slice 2-4 routes/actions; docs refreshed)
 
+### Slice 6: Communications Dispatch Guardrails and Operator Polish
+
+Goal: Reduce accidental messaging errors and improve operator confidence in queued/scheduled dispatch workflows.
+
+Scope:
+
+- add server-side guardrails for communications broadcasts:
+  - reject empty message body
+  - require email subject for email broadcasts
+  - reject invalid or non-future scheduled dispatch times
+- add compose-side validation for missing subject and invalid schedule times
+- add schedule input guardrail (`datetime-local` minimum) to reduce past-time selection mistakes
+- add targeted communications action tests for these new dispatch constraints
+
+Done when:
+
+- invalid broadcast payloads are rejected before provider dispatch
+- valid future-scheduled broadcasts normalize payloads correctly
+- targeted tests, lint, and build pass
+
+Status: Completed (dispatch validation, compose guardrails, and action test coverage shipped on main)
+
 ## Weekly Cadence
 
 - Day 1-2: implement + test first slice

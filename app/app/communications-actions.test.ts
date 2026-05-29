@@ -55,6 +55,7 @@ vi.mock("@/lib/communications/send-with-suppression", () => ({
 }));
 
 import {
+  broadcastMessageAction,
   retryCommunicationAction,
   suppressContactAction,
   updateNotificationPreferencesAction,
@@ -298,6 +299,119 @@ describe("communications actions", () => {
       2,
       expect.stringContaining("from public.profiles"),
       ["church-1", "email", "external@example.com"],
+    );
+  });
+
+  it("rejects email broadcast without subject", async () => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "pastor", church: { id: "church-1" } },
+      profile: { id: "profile-pastor" },
+      source: "supabase",
+      userId: "pastor-1",
+    });
+
+    await expect(
+      broadcastMessageAction(
+        [
+          {
+            profileId: "profile-2",
+            name: "Member",
+            email: "member@example.com",
+            phone: null,
+            role: "member",
+            ministries: [],
+            emailOptIn: true,
+            smsOptIn: false,
+          },
+        ],
+        {
+          recipientIds: ["profile-2"],
+          channel: "email",
+          subject: "   ",
+          body: "Hello church",
+        },
+      ),
+    ).rejects.toThrow("Email subject is required.");
+
+    expect(sendWithSuppressionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects broadcast with non-future schedule time", async () => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "pastor", church: { id: "church-1" } },
+      profile: { id: "profile-pastor" },
+      source: "supabase",
+      userId: "pastor-1",
+    });
+
+    await expect(
+      broadcastMessageAction(
+        [
+          {
+            profileId: "profile-2",
+            name: "Member",
+            email: "member@example.com",
+            phone: null,
+            role: "member",
+            ministries: [],
+            emailOptIn: true,
+            smsOptIn: false,
+          },
+        ],
+        {
+          recipientIds: ["profile-2"],
+          channel: "email",
+          subject: "Reminder",
+          body: "Hello church",
+          scheduledFor: "2000-01-01T00:00:00.000Z",
+        },
+      ),
+    ).rejects.toThrow("Scheduled send time must be in the future.");
+
+    expect(sendWithSuppressionMock).not.toHaveBeenCalled();
+  });
+
+  it("normalizes future schedule and trimmed content for valid broadcast", async () => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "pastor", church: { id: "church-1" } },
+      profile: { id: "profile-pastor" },
+      source: "supabase",
+      userId: "pastor-1",
+    });
+
+    sendWithSuppressionMock.mockResolvedValue({ sent: true, skipped: false });
+
+    const future = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const result = await broadcastMessageAction(
+      [
+        {
+          profileId: "profile-2",
+          name: "Member",
+          email: "member@example.com",
+          phone: null,
+          role: "member",
+          ministries: [],
+          emailOptIn: true,
+          smsOptIn: false,
+        },
+      ],
+      {
+        recipientIds: ["profile-2"],
+        channel: "email",
+        subject: "  Reminder  ",
+        body: "  Hello church  ",
+        scheduledFor: future,
+      },
+    );
+
+    expect(result).toEqual({ sent: 1, skipped: 0, errors: 0 });
+    expect(sendWithSuppressionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: "email",
+        subject: "Reminder",
+        body: "Hello church",
+        scheduledFor: expect.stringMatching(/Z$/),
+      }),
     );
   });
 });
