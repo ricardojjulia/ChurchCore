@@ -503,6 +503,8 @@ describe("church-admin actions", () => {
           },
         ],
       })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: "profile-7" }] })
       .mockResolvedValueOnce({ rows: [] });
 
@@ -525,11 +527,21 @@ describe("church-admin actions", () => {
     );
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
       4,
+      expect.stringContaining("where church_id = $1"),
+      ["church-1", "new.member@example.com"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      5,
+      expect.stringContaining("where lower(email) = lower($1)"),
+      ["new.member@example.com"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      6,
       expect.stringContaining("insert into public.profiles"),
       [null, "church-1", "New Member", "new.member@example.com", "555-0190", "GH-0007"],
     );
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
-      5,
+      7,
       expect.stringContaining("update public.account_requests"),
       ["profile-7", "admin-profile-1", expect.any(String), "request-1"],
     );
@@ -554,6 +566,9 @@ describe("church-admin actions", () => {
           },
         ],
       })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: "profile-8" }] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
@@ -574,6 +589,21 @@ describe("church-admin actions", () => {
     );
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
       4,
+      expect.stringContaining("where church_id = $1\n            and user_id = $2"),
+      ["church-1", "invited-user-1"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      5,
+      expect.stringContaining("where church_id = $1"),
+      ["church-1", "invited.member@example.com"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      6,
+      expect.stringContaining("where lower(email) = lower($1)"),
+      ["invited.member@example.com"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      7,
       expect.stringContaining("insert into public.profiles"),
       [
         "invited-user-1",
@@ -585,7 +615,7 @@ describe("church-admin actions", () => {
       ],
     );
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
-      5,
+      8,
       expect.stringContaining("insert into public.church_memberships"),
       ["church-1", "invited-user-1"],
     );

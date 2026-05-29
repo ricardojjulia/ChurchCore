@@ -457,16 +457,26 @@ async function resolveEventRegistrationChurchId(eventId: string) {
 }
 
 async function generateMemberNumber(session: ChurchManagerSession) {
+  const fallbackMemberNumber =
+    `CF-${new Date().toISOString().slice(5, 10).replace("-", "")}-${Math.random()
+      .toString(36)
+      .slice(2, 8)
+      .toUpperCase()}`;
+
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
     return `CF-PREVIEW-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
   }
 
   if (shouldUseLocalTenantFallback()) {
-    const result = await queryTenantLocalDb<{ member_number: string }>(
-      `select public.generate_member_number() as member_number`,
-    );
+    try {
+      const result = await queryTenantLocalDb<{ member_number: string }>(
+        `select public.generate_member_number() as member_number`,
+      );
 
-    return result.rows[0]?.member_number;
+      return result.rows[0]?.member_number ?? fallbackMemberNumber;
+    } catch {
+      return fallbackMemberNumber;
+    }
   }
 
   const supabase = await createTenantServerClient();
@@ -910,12 +920,57 @@ export async function approveAccountRequestAction(
     });
     let profileId = request.profile_id;
 
+    if (!profileId && inviteResult.userId) {
+      const invitedProfileResult = await queryTenantLocalDb<{ id: string }>(
+        `
+          select id
+          from public.profiles
+          where church_id = $1
+            and user_id = $2
+          limit 1
+        `,
+        [session.appContext.church.id, inviteResult.userId],
+      );
+
+      profileId = invitedProfileResult.rows[0]?.id ?? null;
+    }
+
+    if (!profileId) {
+      const emailProfileResult = await queryTenantLocalDb<{ id: string }>(
+        `
+          select id
+          from public.profiles
+          where church_id = $1
+            and lower(email) = lower($2)
+          limit 1
+        `,
+        [session.appContext.church.id, request.email],
+      );
+
+      profileId = emailProfileResult.rows[0]?.id ?? null;
+    }
+
+    if (!profileId) {
+      const globalEmailProfileResult = await queryTenantLocalDb<{ id: string }>(
+        `
+          select id
+          from public.profiles
+          where lower(email) = lower($1)
+          limit 1
+        `,
+        [request.email],
+      );
+
+      profileId = globalEmailProfileResult.rows[0]?.id ?? null;
+    }
+
     if (profileId) {
       await queryTenantLocalDb(
         `
           update public.profiles
           set
             user_id = coalesce($7, user_id),
+            church_id = coalesce(church_id, $6),
             full_name = $1,
             email = $2,
             phone = coalesce($3, phone),
@@ -926,7 +981,7 @@ export async function approveAccountRequestAction(
             is_roster_eligible = true,
             updated_at = timezone('utc', now())
           where id = $5
-            and church_id = $6
+            and (church_id = $6 or church_id is null)
         `,
         [
           fullName,
