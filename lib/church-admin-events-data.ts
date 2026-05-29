@@ -122,7 +122,9 @@ export type EventRegistration = {
   registrantPhone: string | null;
   status: "pending_approval" | "confirmed" | "cancelled" | "waitlisted" | "attended";
   isWaitlisted: boolean;
+  paymentStatus: "not_required" | "pending" | "paid" | "failed" | "refunded";
   amountPaidCents: number;
+  stripePaymentIntentId: string | null;
   customFields: Record<string, unknown> | null;
   notes: string | null;
   registeredAt: string;
@@ -183,11 +185,14 @@ export async function getEventRegistrations(
         id: string; event_id: string; registrant_name: string;
         registrant_email: string | null; registrant_phone: string | null;
         status: string; is_waitlisted: boolean; amount_paid_cents: number;
+        payment_status: string | null;
+        stripe_payment_intent_id: string | null;
         custom_fields: Record<string, unknown> | null; notes: string | null;
         registered_at: string; checked_in_at: string | null;
       }>(
         `select id, event_id, registrant_name, registrant_email, registrant_phone,
-                status, is_waitlisted, amount_paid_cents, custom_fields, notes,
+                status, is_waitlisted, payment_status, amount_paid_cents,
+                stripe_payment_intent_id, custom_fields, notes,
                 registered_at, checked_in_at
          from public.event_registrations
          where event_id = $1 and church_id = $2
@@ -237,7 +242,9 @@ export async function getEventRegistrations(
       id: r.id, eventId: r.event_id, registrantName: r.registrant_name,
       registrantEmail: r.registrant_email, registrantPhone: r.registrant_phone,
       status: r.status as EventRegistration["status"], isWaitlisted: r.is_waitlisted,
+      paymentStatus: (r.payment_status as EventRegistration["paymentStatus"]) ?? "not_required",
       amountPaidCents: r.amount_paid_cents, customFields: r.custom_fields,
+      stripePaymentIntentId: r.stripe_payment_intent_id,
       notes: r.notes, registeredAt: r.registered_at, checkedInAt: r.checked_in_at,
     }));
 
@@ -300,7 +307,9 @@ export async function getEventRegistrations(
     id: r.id, eventId: r.event_id, registrantName: r.registrant_name,
     registrantEmail: r.registrant_email, registrantPhone: r.registrant_phone,
     status: r.status as EventRegistration["status"], isWaitlisted: r.is_waitlisted,
+    paymentStatus: (r.payment_status as EventRegistration["paymentStatus"]) ?? "not_required",
     amountPaidCents: r.amount_paid_cents,
+    stripePaymentIntentId: r.stripe_payment_intent_id ?? null,
     customFields: r.custom_fields as Record<string, unknown> | null,
     notes: r.notes, registeredAt: r.registered_at, checkedInAt: r.checked_in_at,
   }));
