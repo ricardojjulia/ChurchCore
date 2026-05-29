@@ -35,6 +35,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added a security role-access matrix evidence index for sensitive route/action verification (`docs/security-role-access-matrix.md`).
 - Added factory-run evidence record for Finding 4/5/6 depth implementation in `docs/factory-runs/2026-05-29-findings4-5-6-depth-batch.md`.
 - Added deterministic browser-level onboarding coverage in `tests/e2e/onboarding-flow.spec.ts` with a dedicated command `npm run test:e2e:onboarding`, covering public portal registration, ChurchAdmin approval, invite email evidence via local Mailpit, and first member sign-in/profile hydration.
+- Added communications unresolved-lane closure guidance in the communications hub readiness view plus a shared closure-guidance helper and tests (`lib/communications-closure-guidance.ts`, `components/application/communications-hub.tsx`, `lib/communications-closure-guidance.test.ts`), and updated communications readiness wording to reflect retry-first operator closure.
 
 ### Changed
 
