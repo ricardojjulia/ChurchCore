@@ -7,11 +7,27 @@ import {
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
+import { insertConsentLogEntries } from "@/lib/consent-log";
 
 type ResolvedLog = {
   id: string;
   church_id: string;
+  recipient_id: string | null;
 };
+
+type SuppressionReason = "unsubscribe" | "bounce" | "complaint";
+
+function mapSuppressionReason(status: NormalizedProviderWebhookEvent["status"]): SuppressionReason | null {
+  if (status === "bounced") return "bounce";
+  if (status === "unsubscribed") return "unsubscribe";
+  if (status === "suppressed") return "complaint";
+  return null;
+}
+
+function normalizeSuppressionContact(channel: "email" | "sms", recipient: string): string {
+  const trimmed = recipient.trim();
+  return channel === "email" ? trimmed.toLowerCase() : trimmed;
+}
 
 async function resolveCommunicationLog(
   providerMessageId?: string,
@@ -23,7 +39,7 @@ async function resolveCommunicationLog(
   if (shouldUseLocalTenantFallback()) {
     const result = await queryTenantLocalDb<ResolvedLog>(
       `
-        select id, church_id
+        select id, church_id, recipient_id
         from public.communication_logs
         where provider_message_id = $1
            or external_id = $1
@@ -39,7 +55,7 @@ async function resolveCommunicationLog(
   const supabase = await createTenantServerClient();
   const { data, error } = await supabase
     .from("communication_logs")
-    .select("id, church_id")
+    .select("id, church_id, recipient_id")
     .or(`provider_message_id.eq.${providerMessageId},external_id.eq.${providerMessageId}`)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -66,6 +82,10 @@ export async function recordProviderWebhookEvent(input: {
     eventId: input.event.eventId,
     occurredAtIso: input.event.occurredAtIso,
   });
+  const suppressionReason = mapSuppressionReason(input.event.status);
+  const normalizedRecipient = input.event.recipient
+    ? normalizeSuppressionContact(input.event.channel, input.event.recipient)
+    : null;
 
   if (shouldUseLocalTenantFallback()) {
     const inserted = await queryTenantLocalDb<{ id: string }>(
@@ -105,6 +125,8 @@ export async function recordProviderWebhookEvent(input: {
         set status = $3,
             delivered_at = case when $3 = 'delivered' then coalesce(delivered_at, $4::timestamptz) else delivered_at end,
             failed_at = case when $3 in ('failed','bounced') then coalesce(failed_at, $4::timestamptz) else failed_at end,
+            suppressed_at = case when $3 in ('suppressed','unsubscribed') then coalesce(suppressed_at, $4::timestamptz) else suppressed_at end,
+            suppression_reason = case when $3 in ('suppressed','unsubscribed','bounced') then coalesce(suppression_reason, $6) else suppression_reason end,
             error_message = case when $5 is null then error_message else $5 end,
             error_code = case when $3 in ('failed','bounced') then coalesce(error_code, 'provider_event') else error_code end
         where church_id = $1
@@ -116,8 +138,39 @@ export async function recordProviderWebhookEvent(input: {
         input.event.status,
         input.event.occurredAtIso,
         input.event.reason ?? null,
+        suppressionReason,
       ],
     );
+
+    if (suppressionReason && normalizedRecipient) {
+      await queryTenantLocalDb(
+        `
+          insert into public.communication_suppressions
+            (church_id, channel, contact, reason, notes, suppressed_by)
+          values ($1, $2, $3, $4, $5, null)
+          on conflict (church_id, channel, contact) do nothing
+        `,
+        [
+          resolvedLog.church_id,
+          input.event.channel,
+          normalizedRecipient,
+          suppressionReason,
+          input.event.reason ?? `${input.event.provider} webhook ${input.event.status}`,
+        ],
+      );
+
+      if (resolvedLog.recipient_id) {
+        await insertConsentLogEntries([
+          {
+            churchId: resolvedLog.church_id,
+            profileId: resolvedLog.recipient_id,
+            consentType: "communication_suppression",
+            consented: false,
+            communicationType: input.event.channel,
+          },
+        ]);
+      }
+    }
 
     return { recorded: true, churchId: resolvedLog.church_id, communicationLogId: resolvedLog.id };
   }
@@ -168,6 +221,14 @@ export async function recordProviderWebhookEvent(input: {
     updatePayload.error_code = "provider_event";
   }
 
+  if (input.event.status === "suppressed" || input.event.status === "unsubscribed") {
+    updatePayload.suppressed_at = input.event.occurredAtIso;
+  }
+
+  if (suppressionReason) {
+    updatePayload.suppression_reason = suppressionReason;
+  }
+
   if (input.event.reason) {
     updatePayload.error_message = input.event.reason;
   }
@@ -180,6 +241,42 @@ export async function recordProviderWebhookEvent(input: {
 
   if (updateError) {
     throw new Error(updateError.message);
+  }
+
+  if (suppressionReason && normalizedRecipient) {
+    const { error: suppressionError } = await supabase
+      .from("communication_suppressions")
+      .upsert(
+        {
+          church_id: resolvedLog.church_id,
+          channel: input.event.channel,
+          contact: normalizedRecipient,
+          reason: suppressionReason,
+          notes: input.event.reason ?? `${input.event.provider} webhook ${input.event.status}`,
+          suppressed_by: null,
+          created_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "church_id,channel,contact",
+          ignoreDuplicates: true,
+        },
+      );
+
+    if (suppressionError) {
+      throw new Error(suppressionError.message);
+    }
+
+    if (resolvedLog.recipient_id) {
+      await insertConsentLogEntries([
+        {
+          churchId: resolvedLog.church_id,
+          profileId: resolvedLog.recipient_id,
+          consentType: "communication_suppression",
+          consented: false,
+          communicationType: input.event.channel,
+        },
+      ]);
+    }
   }
 
   return { recorded: true, churchId: resolvedLog.church_id, communicationLogId: resolvedLog.id };
