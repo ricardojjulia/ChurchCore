@@ -64,10 +64,6 @@ export function shouldRetryDelivery(
   status: CommunicationDeliveryStatus,
   errorCode?: string,
 ): boolean {
-  if (status === "queued" || status === "scheduled" || status === "sending") {
-    return true;
-  }
-
   if (status !== "failed") {
     return false;
   }

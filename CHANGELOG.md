@@ -8,6 +8,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 
+- Added execution tracker `docs/plans/competitive-readiness-30-day-execution.md` to document the current 30-day MVP/competitive closeout plan and ordered delivery slices.
+- Added Finding 4 payment foundation migration `supabase/migrations/20260528200000_event_registration_payment_foundation.sql` introducing `event_registration_payments` and registration-level `payment_status` scaffolding.
 - Added Finding 4 service-planning and event-registration vertical slice: service metadata and run-of-service planning items for service plans, event registration approval workflow (`pending_approval`), household registration policy setting, and configurable event registration form fields (`app/app/volunteer-actions.ts`, `lib/volunteer-data.ts`, `components/application/volunteer-schedule.tsx`, `app/app/church-admin-actions.ts`, `lib/church-admin-events-data.ts`, `components/application/church-admin-event-workspace.tsx`, `supabase/migrations/20260528133000_finding4_service_planning_registration.sql`).
 - Added Finding 4 member registration continuation slice: member-facing event registration panel with dynamic per-event fields, household-target registration support, and member action enforcement for approval, waitlist, duplicate prevention, and household boundaries (`components/application/member-event-registration-panel.tsx`, `app/app/member-actions.ts`, `lib/member-event-registration-data.ts`, `app/app/[role]/page.tsx`, `components/application/member-portal-home.tsx`).
 - Added Finding 4 public registration parity slice: public event registration route (`/portal/events/register`) with dynamic per-event intake fields, public registration validation/writes, and shared approval/waitlist lifecycle handling (`app/portal/events/register/page.tsx`, `components/portal/public-event-registration-panel.tsx`, `app/portal/actions.ts`, `lib/public-event-registration-data.ts`, `app/portal/page.tsx`).
@@ -23,10 +25,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Changed
 
+- Changed registration write actions for ChurchAdmin/member/public flows to set initial `payment_status` (`pending` for paid non-waitlisted registrations, `not_required` for free/waitlisted) as the first execution step toward payment-linked registration lifecycle support (`app/app/church-admin-actions.ts`, `app/app/member-actions.ts`, `app/portal/actions.ts`).
+- Changed ChurchAdmin event registration workspace to surface payment lifecycle visibility with payment-status filters, payment summary cards, payment badges, and payment export columns for roster operations (`components/application/church-admin-event-workspace.tsx`, `lib/church-admin-events-data.ts`).
 - Changed competitive roadmap and guide docs to mark Finding 4 as started and capture the new service-planning/registration workflow capabilities (`docs/plans/competitive-readiness-roadmap.md`, `docs/application-guide.md`, `docs/working-calendar.md`, `docs/testing-schema.md`).
 - Changed member action coverage scope to include registration action enforcement alongside mobile check-in (`app/app/member-actions.test.ts`).
 - Changed registration test coverage to add focused member registration panel interaction tests (`components/application/member-event-registration-panel.test.tsx`).
 - Changed communications readiness and operations summaries to account for new delivery lifecycle statuses (`scheduled`, `sending`) and suppressed-contact signals (`lib/church-admin-readiness-data.ts`, `lib/church-admin-readiness-modules.ts`, `lib/church-admin-operations-data.ts`, `components/application/communications-hub.tsx`).
+- Changed communications lifecycle handling to normalize retry eligibility to transient failed sends only, add webhook-driven suppression and consent synchronization for bounced/suppressed/unsubscribed events, and surface unresolved delivery-lane operator cues in the communications hub (`lib/communications/provider-adapter.ts`, `lib/communications/webhook-events.ts`, `components/application/communications-hub.tsx`, `lib/communications/webhook-events.test.ts`).
 - Changed Phase 3 communications merge traceability: backend foundation merged as PR #43, and stacked UI PR #44 was superseded by rebased replacement PR #45 before merge to `main`.
 
 ## [3.1.0] - 2026-05-27

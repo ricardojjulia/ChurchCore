@@ -179,6 +179,14 @@ export function CommunicationsHub({
   const pendingCount = recentLogs.filter(
     (log) => log.status === "queued" || log.status === "scheduled" || log.status === "sending",
   ).length;
+  const unresolvedDeliveryLogs = recentLogs.filter(
+    (log) =>
+      log.status === "failed" ||
+      log.status === "bounced" ||
+      log.status === "suppressed" ||
+      log.status === "unsubscribed",
+  );
+  const unresolvedRetryableCount = unresolvedDeliveryLogs.filter((log) => isRetryEligible(log)).length;
   const failedCount = recentLogs.filter((log) => log.status === "failed").length;
   const bouncedCount = recentLogs.filter((log) => log.status === "bounced").length;
   const suppressedContacts = suppressions.length;
@@ -442,6 +450,19 @@ export function CommunicationsHub({
         </Tabs.List>
 
         <Tabs.Panel value="log" pt="lg">
+          {unresolvedDeliveryLogs.length > 0 ? (
+            <Alert color="orange" variant="light" radius="md" mb="md">
+              <Text fz="sm">
+                {unresolvedDeliveryLogs.length} unresolved delivery issue
+                {unresolvedDeliveryLogs.length === 1 ? "" : "s"} in the message lane.
+                {" "}
+                {unresolvedRetryableCount > 0
+                  ? `${unresolvedRetryableCount} can be retried now.`
+                  : "Retry unavailable for current statuses; review suppression or recipient/contact context."}
+              </Text>
+            </Alert>
+          ) : null}
+
           {recentLogs.length === 0 ? (
             <Alert color="blue" variant="light" radius="md">
               <Text fz="sm" c="dimmed" ta="center" py="sm">

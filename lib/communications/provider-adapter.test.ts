@@ -16,6 +16,9 @@ describe("provider adapter helpers", () => {
     expect(shouldRetryDelivery("bounced", "provider_unavailable")).toBe(false);
     expect(shouldRetryDelivery("suppressed", "temporary_failure")).toBe(false);
     expect(shouldRetryDelivery("unsubscribed", "temporary_failure")).toBe(false);
+    expect(shouldRetryDelivery("queued", "temporary_failure")).toBe(false);
+    expect(shouldRetryDelivery("scheduled", "temporary_failure")).toBe(false);
+    expect(shouldRetryDelivery("sending", "temporary_failure")).toBe(false);
   });
 
   it("does not retry failed sends without a known transient code", () => {
