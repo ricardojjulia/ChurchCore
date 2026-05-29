@@ -341,6 +341,9 @@ export function ChurchAdminPeopleWorkspace({
       ]}
       topActions={
         <Group gap="sm">
+          <Button component={Link} href="/app/church-admin/people/import" variant="default" radius="xl">
+            Import
+          </Button>
           <ChurchAdminInviteUser />
           <ChurchAdminAddPerson />
         </Group>
