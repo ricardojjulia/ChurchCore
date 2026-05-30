@@ -12,6 +12,49 @@ export type RegistrationPaymentStatus =
   | "failed"
   | "refunded";
 
+export type RegistrationPaymentLedgerStatus =
+  | "pending"
+  | "succeeded"
+  | "failed"
+  | "refunded"
+  | "cancelled";
+
+export function paymentStatusToLedgerStatus(
+  paymentStatus: RegistrationPaymentStatus,
+): RegistrationPaymentLedgerStatus {
+  switch (paymentStatus) {
+    case "paid":
+      return "succeeded";
+    case "failed":
+      return "failed";
+    case "refunded":
+      return "refunded";
+    case "not_required":
+      return "cancelled";
+    case "pending":
+    default:
+      return "pending";
+  }
+}
+
+export function ledgerStatusToPaymentStatus(
+  ledgerStatus: RegistrationPaymentLedgerStatus,
+): RegistrationPaymentStatus {
+  switch (ledgerStatus) {
+    case "succeeded":
+      return "paid";
+    case "failed":
+      return "failed";
+    case "refunded":
+      return "refunded";
+    case "cancelled":
+      return "not_required";
+    case "pending":
+    default:
+      return "pending";
+  }
+}
+
 export function resolveRegistrationLifecycle(input: {
   isWaitlisted: boolean;
   approvalRequired: boolean;

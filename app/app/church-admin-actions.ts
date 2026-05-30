@@ -4,7 +4,11 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
-import { resolveRegistrationLifecycle } from "@/lib/event-registration-lifecycle";
+import {
+  paymentStatusToLedgerStatus,
+  resolveRegistrationLifecycle,
+  type RegistrationPaymentStatus,
+} from "@/lib/event-registration-lifecycle";
 import {
   createTenantAdminClient,
   createTenantServerClient,
@@ -1491,8 +1495,9 @@ export async function registerForEventAction(
       capacity: number | null; waitlist_enabled: boolean; registration_open: boolean;
       approval_required: boolean;
       price_cents: number;
+      currency: string | null;
     }>(
-      `select capacity, waitlist_enabled, registration_open, approval_required, price_cents
+      `select capacity, waitlist_enabled, registration_open, approval_required, price_cents, currency
        from public.event_registration_settings
        where event_id = $1`,
       [input.eventId],
@@ -1524,7 +1529,7 @@ export async function registerForEventAction(
       priceCents: settings?.price_cents ?? 0,
     });
 
-    const result = await queryTenantLocalDb<{ id: string }>(
+     const result = await queryTenantLocalDb<{ id: string }>(
       `insert into public.event_registrations
          (event_id, church_id, registrant_name, registrant_email, registrant_phone,
           status, is_waitlisted, payment_status, notes, custom_fields)
@@ -1540,15 +1545,38 @@ export async function registerForEventAction(
         input.customFields ? JSON.stringify(input.customFields) : null,
       ],
     );
+
+    const registrationId = result.rows[0]?.id;
+    if (registrationId && paymentStatus === "pending") {
+      await queryTenantLocalDb(
+        `insert into public.event_registration_payments
+           (registration_id, event_id, church_id, provider, status, amount_cents, currency)
+         values ($1, $2, $3, 'stripe', 'pending', $4, $5)
+         on conflict (registration_id)
+         do update set
+           status = excluded.status,
+           amount_cents = excluded.amount_cents,
+           currency = excluded.currency,
+           updated_at = now()`,
+        [
+          registrationId,
+          input.eventId,
+          churchId,
+          settings?.price_cents ?? 0,
+          settings?.currency ?? "usd",
+        ],
+      );
+    }
+
     revalidatePath(`/app/church-admin/events/${input.eventId}`);
-    return { ok: true, registrationId: result.rows[0]?.id, isWaitlisted };
+    return { ok: true, registrationId, isWaitlisted };
   }
 
   const supabase = await createTenantServerClient();
 
   const { data: settings } = await supabase
     .from("event_registration_settings")
-    .select("capacity, waitlist_enabled, registration_open, approval_required, price_cents")
+    .select("capacity, waitlist_enabled, registration_open, approval_required, price_cents, currency")
     .eq("event_id", input.eventId)
     .maybeSingle();
 
@@ -1595,6 +1623,23 @@ export async function registerForEventAction(
     .select("id")
     .single();
   if (error) return { ok: false, error: error.message };
+
+  if (paymentStatus === "pending") {
+    await supabase.from("event_registration_payments").upsert(
+      {
+        registration_id: data.id,
+        event_id: input.eventId,
+        church_id: churchId,
+        provider: "stripe",
+        status: "pending",
+        amount_cents: settings?.price_cents ?? 0,
+        currency: settings?.currency ?? "usd",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "registration_id" },
+    );
+  }
+
   revalidatePath(`/app/church-admin/events/${input.eventId}`);
   return { ok: true, registrationId: data.id, isWaitlisted };
 }
@@ -1632,6 +1677,88 @@ export async function approveRegistrationAction(
 
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/app/church-admin/events/${eventId}`);
+  return { ok: true };
+}
+
+export async function updateRegistrationPaymentFollowUpAction(input: {
+  registrationId: string;
+  eventId: string;
+  paymentStatus: RegistrationPaymentStatus;
+  note?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireAttendanceManagerSession("/app/church-admin/events");
+  const churchId = session.appContext.church.id;
+  const reconciledBy = session.profile.id;
+
+  await assertEventBelongsToChurch(churchId, input.eventId);
+  await assertRegistrationBelongsToEvent(churchId, input.eventId, input.registrationId);
+
+  const ledgerStatus = paymentStatusToLedgerStatus(input.paymentStatus);
+  const note = normalizeOptionalText(input.note) ?? null;
+
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `update public.event_registrations
+       set payment_status = $3
+       where id = $1 and church_id = $2`,
+      [input.registrationId, churchId, input.paymentStatus],
+    );
+
+    await queryTenantLocalDb(
+      `insert into public.event_registration_payments
+         (registration_id, event_id, church_id, status, follow_up_note, reconciled_by, reconciled_at, followed_up_at)
+       values ($1, $2, $3, $4, $5, $6, now(), now())
+       on conflict (registration_id)
+       do update set
+         status = $4,
+         follow_up_note = $5,
+         reconciled_by = $6,
+         reconciled_at = now(),
+         followed_up_at = now(),
+         updated_at = now()`,
+      [
+        input.registrationId,
+        input.eventId,
+        churchId,
+        ledgerStatus,
+        note,
+        reconciledBy,
+      ],
+    );
+
+    revalidatePath(`/app/church-admin/events/${input.eventId}`);
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { error: registrationError } = await supabase
+    .from("event_registrations")
+    .update({ payment_status: input.paymentStatus })
+    .eq("id", input.registrationId)
+    .eq("church_id", churchId);
+  if (registrationError) {
+    return { ok: false, error: registrationError.message };
+  }
+
+  const { error: paymentError } = await supabase.from("event_registration_payments").upsert(
+    {
+      registration_id: input.registrationId,
+      event_id: input.eventId,
+      church_id: churchId,
+      status: ledgerStatus,
+      follow_up_note: note,
+      reconciled_by: reconciledBy,
+      reconciled_at: new Date().toISOString(),
+      followed_up_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "registration_id" },
+  );
+  if (paymentError) {
+    return { ok: false, error: paymentError.message };
+  }
+
+  revalidatePath(`/app/church-admin/events/${input.eventId}`);
   return { ok: true };
 }
 
