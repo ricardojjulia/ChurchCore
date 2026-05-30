@@ -13,7 +13,8 @@ Hold MVP Today at GO by closing onboarding and communications execution gaps, wh
 - WS-1 Local reliability hardening: completed.
 - WS-2 Browser-complete onboarding path: completed.
 - WS-3 Communications unresolved-lane closure guidance: completed.
-- Next execution item: WS-4 Security evidence maintenance.
+- WS-4 Security evidence maintenance: completed.
+- Next execution item: remaining roadmap follow-up, starting with service-planning depth.
 
 WS-1 completion evidence:
 
@@ -125,6 +126,8 @@ Verification commands:
 
 Owner: Security and quality lead
 
+Status: Completed 2026-05-29
+
 Deliverables:
 
 - Update security role-access matrix and evidence docs with this week’s newly executed checks.
@@ -139,6 +142,14 @@ Verification commands:
 
 - `npm run test -- app/app/church-admin/people/import/actions.test.ts app/app/church-admin-actions.test.ts app/app/communications-actions.test.ts app/app/member-actions.test.ts`
 - `npm run lint`
+
+Completion evidence:
+
+- [docs/security-role-access-matrix.md](docs/security-role-access-matrix.md)
+- [docs/security-assessment.md](docs/security-assessment.md)
+- [docs/security-mitigation-plan.md](docs/security-mitigation-plan.md)
+- [docs/testing-schema.md](docs/testing-schema.md)
+- [docs/factory-runs/2026-05-29-ws4-security-evidence-maintenance.md](docs/factory-runs/2026-05-29-ws4-security-evidence-maintenance.md)
 
 ## Risks and fallback plan
 

@@ -101,11 +101,13 @@ describe("volunteer actions", () => {
 
   it("creates service plan and applies template positions in local mode", async () => {
     queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "event-1" }] })
       .mockResolvedValueOnce({ rows: [{ id: "plan-1" }] })
       .mockResolvedValueOnce({ rows: [{ positions: JSON.stringify([{ roleName: "Greeter", quantity: 2 }]) }] })
       .mockResolvedValueOnce({ rows: [] });
 
     const result = await createServicePlanAction({
+      eventId: "event-1",
       name: "Sunday Morning",
       serviceDate: "2026-04-21",
       templateId: "template-1",
@@ -113,14 +115,32 @@ describe("volunteer actions", () => {
 
     expect(result).toEqual({ ok: true, id: "plan-1" });
     expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      "select id from public.events where id = $1 and church_id = $2 limit 1",
+      ["event-1", "church-1"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
       expect.stringContaining("insert into public.service_plan_positions"),
       ["plan-1", "church-1", "Greeter", 2, 0],
     );
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/volunteers/schedules");
   });
 
+  it("rejects create service plan when linked event is out of scope", async () => {
+    queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [] });
+
+    const result = await createServicePlanAction({
+      eventId: "event-2",
+      name: "Sunday Morning",
+      serviceDate: "2026-04-21",
+    });
+
+    expect(result).toEqual({ ok: false, error: "Linked event must belong to this church." });
+  });
+
   it("returns conflict when volunteer already assigned on same date", async () => {
-    queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [{ id: "existing-shift" }] });
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ event_id: "event-1" }] })
+      .mockResolvedValueOnce({ rows: [{ id: "existing-shift" }] });
 
     const result = await assignVolunteerAction({
       planId: "plan-1",
@@ -135,6 +155,37 @@ describe("volunteer actions", () => {
       ok: false,
       error: "This volunteer is already assigned on this service date.",
     });
+  });
+
+  it("writes linked event id when assigning a volunteer", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ event_id: "event-9" }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const result = await assignVolunteerAction({
+      planId: "plan-1",
+      positionId: "position-1",
+      profileId: "member-2",
+      roleName: "Usher",
+      startsAt: "2026-04-21T09:00:00.000Z",
+      endsAt: "2026-04-21T10:30:00.000Z",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("insert into public.volunteer_shifts"),
+      [
+        "church-1",
+        "event-9",
+        "plan-1",
+        "position-1",
+        "member-2",
+        "Usher",
+        "2026-04-21T09:00:00.000Z",
+        "2026-04-21T10:30:00.000Z",
+      ],
+    );
   });
 
   it("updates member response for assigned shift", async () => {
@@ -165,11 +216,14 @@ describe("volunteer actions", () => {
   });
 
   it("updates service plan details in local fallback mode", async () => {
-    queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [] });
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "event-1" }] })
+      .mockResolvedValueOnce({ rows: [] });
 
     const result = await updateServicePlanDetailsAction({
       planId: "plan-1",
       name: "Sunday Worship",
+      eventId: "event-1",
       serviceType: "worship",
       serviceDate: "2026-04-21",
       serviceTime: "09:00",
@@ -185,6 +239,7 @@ describe("volunteer actions", () => {
       [
         "plan-1",
         "church-1",
+        "event-1",
         "Sunday Worship",
         "worship",
         "2026-04-21",
@@ -195,6 +250,20 @@ describe("volunteer actions", () => {
         "Focus on volunteer prayer team before service.",
       ],
     );
+  });
+
+  it("rejects service plan detail updates when linked event is out of scope", async () => {
+    queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [] });
+
+    const result = await updateServicePlanDetailsAction({
+      planId: "plan-1",
+      name: "Sunday Worship",
+      eventId: "event-2",
+      serviceType: "worship",
+      serviceDate: "2026-04-21",
+    });
+
+    expect(result).toEqual({ ok: false, error: "Linked event must belong to this church." });
   });
 
   it("adds a run-of-service item in local fallback mode", async () => {

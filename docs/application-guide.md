@@ -119,7 +119,7 @@ Current readiness target audit:
 | Unassigned households | `/app/church-admin/people?view=unassigned-households&household=unassigned` | Use household controls to assign people to existing households or create household links. |
 | Event roster gaps | `/app/church-admin/events?view=needs-roster` | Open matching events and add roster assignments or attendance setup. |
 | Children's ministry safety | `/app/church-admin/children/dashboard?view=readiness` | Open services, volunteers, rooms, incidents, check-in, or pickup flows from the dashboard to resolve safety gaps. |
-| Volunteer service plans | `/app/church-admin/volunteers/schedules?view=unassigned` | Open service plans and fill or confirm volunteer positions. |
+| Volunteer service plans | `/app/church-admin/volunteers/schedules?view=unassigned` | Open service plans, link them to ChurchAdmin events when needed, and fill or confirm volunteer positions. |
 | Giving/finance exceptions | `/app/church-admin/giving?view=exceptions` | Review failed gifts, publish giving pages, post mapped gifts to GL, queue receipt follow-up, or open draft journals. |
 | Draft finance journals | `/app/church-admin/finance/journals?view=drafts` | Open each draft journal and post, correct, or void it. |
 | Communications readiness | `/app/communications?view=readiness` | Review delivery/contact/consent signals and compose needed follow-up; provider retry and suppression handling remain part of the communications delivery roadmap. |
@@ -257,6 +257,8 @@ Event registration operations now support approval-gated intake (`pending_approv
 ### Volunteers
 
 Paths: `/app/church-admin/volunteers`, `/app/church-admin/volunteers/schedules`
+
+ChurchAdmin service plans can now be linked to an existing church event from the create flow or the plan detail view. Use that link when the volunteer schedule, run-of-service, and event roster should stay anchored to the same ministry moment.
 
 Volunteer workflows cover scheduling, member responses, hours, conflicts, and coverage needs. The roadmap includes deeper burnout guardrails and rotation suggestions.
 

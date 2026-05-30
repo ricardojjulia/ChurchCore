@@ -14,6 +14,24 @@ This document closes the current gap between the development plan and the reposi
 - `npm run test:e2e:onboarding`
 - local Supabase bootstrap and seed flows
 
+## WS-4 Evidence Refresh
+
+- Security evidence maintenance consolidated the current weekly verification set into the security assessment, mitigation plan, role-access matrix, and go/no-go planning docs.
+- Evidence-linked docs refreshed with the latest onboarding and reliability coverage:
+	- [docs/security-assessment.md](docs/security-assessment.md)
+	- [docs/security-mitigation-plan.md](docs/security-mitigation-plan.md)
+	- [docs/security-role-access-matrix.md](docs/security-role-access-matrix.md)
+	- [docs/plans/2026-06-05-execution-brief.md](docs/plans/2026-06-05-execution-brief.md)
+	- [docs/plans/mvp-competitive-go-no-go-checklist.md](docs/plans/mvp-competitive-go-no-go-checklist.md)
+- Verification evidence now explicitly includes the weekly onboarding and local reliability checks:
+	- `npm run setup:local`
+	- `npm run smoke:local`
+	- `npm run test:e2e:readiness`
+	- `npm run test:e2e:onboarding`
+	- `npm run test -- app/app/church-admin/people/import/actions.test.ts app/app/church-admin-actions.test.ts app/app/communications-actions.test.ts app/app/member-actions.test.ts`
+	- `npm run lint`
+	- `npm run build`
+
 ### Missing Before This Change
 
 - a first-class test runner in `package.json`
@@ -81,6 +99,8 @@ This document closes the current gap between the development plan and the reposi
 - audit-log creation for sensitive writes
 - consent and export/delete flows for data-rights routes
 - pending-review member data-rights behavior (deletion request + cancellation)
+
+The current evidence baseline for this layer is linked in the role-access matrix and security docs above.
 
 ## Coverage Map
 

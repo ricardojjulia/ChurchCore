@@ -48,6 +48,24 @@ This is fixable. None of it requires a redesign. All of it should be fixed befor
 - Added explicit role-access matrix reference document for sensitive route/action verification:
 	- `docs/security-role-access-matrix.md`
 
+## Recent Evidence Refresh (2026-05-29, WS-4)
+
+- Security evidence maintenance was consolidated into the weekly readiness docs and role-access matrix after the completed WS-1/WS-2/WS-3 verification set.
+- Evidence-linked docs refreshed in this pass:
+	- [docs/security-role-access-matrix.md](docs/security-role-access-matrix.md)
+	- [docs/security-mitigation-plan.md](docs/security-mitigation-plan.md)
+	- [docs/testing-schema.md](docs/testing-schema.md)
+	- [docs/plans/2026-06-05-execution-brief.md](docs/plans/2026-06-05-execution-brief.md)
+	- [docs/plans/mvp-competitive-go-no-go-checklist.md](docs/plans/mvp-competitive-go-no-go-checklist.md)
+- Verification evidence carried forward into this refresh:
+	- `npm run setup:local`
+	- `npm run smoke:local`
+	- `npm run test:e2e:readiness`
+	- `npm run test:e2e:onboarding`
+	- `npm run test -- app/app/church-admin/people/import/actions.test.ts app/app/church-admin-actions.test.ts app/app/communications-actions.test.ts app/app/member-actions.test.ts`
+	- `npm run lint`
+	- `npm run build`
+
 ---
 
 ## Findings by Severity
