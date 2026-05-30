@@ -184,7 +184,7 @@ export function ApplicationShell({
                 <Sparkles size={17} />
               </ThemeIcon>
               <Box style={{ minWidth: 0 }}>
-                <Text fw={850} size="sm" c="white" truncate>ChurchCore Ops</Text>
+                <Text fw={850} size="sm" c="white" truncate>ChurchCore</Text>
                 <Text c="rgba(255, 255, 255, 0.62)" size="xs" truncate>
                   {sectionLabel}
                 </Text>

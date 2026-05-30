@@ -1,6 +1,6 @@
 # Working Calendar
 
-This document describes the initial protected working calendar module in ChurchCore Ops.
+This document describes the initial protected working calendar module in ChurchCore.
 
 ## Purpose
 

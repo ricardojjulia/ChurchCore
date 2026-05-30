@@ -1,6 +1,6 @@
 # Factory Run Tracker
 
-This directory records meaningful software-factory runs for ChurchCore Ops.
+This directory records meaningful software-factory runs for ChurchCore.
 
 Each run file should be committed with the change it describes. The goal is to make the AI-assisted development trail inspectable without relying on chat history.
 

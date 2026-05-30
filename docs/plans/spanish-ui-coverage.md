@@ -1,6 +1,6 @@
 # Spanish UI Coverage Plan
 
-This plan tracks the rollout from partial Spanish support to full UI translation coverage across ChurchCore Ops.
+This plan tracks the rollout from partial Spanish support to full UI translation coverage across ChurchCore.
 
 ## Goal
 

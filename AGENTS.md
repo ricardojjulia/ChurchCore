@@ -1,4 +1,4 @@
-# ChurchCore Ops Agent Rules
+# ChurchCore Agent Rules
 
 - Read `DEVELOPMENT_PLAN.md` before proposing or implementing changes.
 - Treat `DEVELOPMENT_PLAN.md` as the source of truth for stack, structure, and release discipline.

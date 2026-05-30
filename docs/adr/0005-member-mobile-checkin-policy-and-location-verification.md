@@ -20,7 +20,7 @@ A remaining competitive and security gap was on-site assurance for events that r
 
 ## Decision
 
-ChurchCore Ops will support optional event-level geofence constraints for mobile member check-in.
+ChurchCore will support optional event-level geofence constraints for mobile member check-in.
 
 When configured, member check-in is allowed only if all of the following pass server-side:
 

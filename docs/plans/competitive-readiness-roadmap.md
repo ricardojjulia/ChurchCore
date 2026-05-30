@@ -7,13 +7,13 @@
 
 ## Purpose
 
-This roadmap turns the current competitive-priority list into the next major-release execution plan for ChurchCore Ops. The goal is to make the product credible against Planning Center, Breeze/Tithely, ChurchTrac, Pushpay/CCB, Realm, and MinistryPlatform by proving end-to-end church operations rather than only showing module breadth.
+This roadmap turns the current competitive-priority list into the next major-release execution plan for ChurchCore. The goal is to make the product credible against Planning Center, Breeze/Tithely, ChurchTrac, Pushpay/CCB, Realm, and MinistryPlatform by proving end-to-end church operations rather than only showing module breadth.
 
 The release is complete only when a church evaluator can operate the system without knowing the codebase, without relying on preview-only shortcuts, and without asking the team which route to visit next.
 
 ## Competitive Goal
 
-ChurchCore Ops should compete as a compliance-first church operating system, not as another lightweight church CRM. The release must prove six outcomes:
+ChurchCore should compete as a compliance-first church operating system, not as another lightweight church CRM. The release must prove six outcomes:
 
 1. The weekly church-operator path works end to end.
 2. Member mobile workflows are reliable enough for ordinary churchgoers.
@@ -24,13 +24,13 @@ ChurchCore Ops should compete as a compliance-first church operating system, not
 
 ## Competitive Analysis Snapshot
 
-ChurchCore Ops is not broadly competitive today against mature all-in-one church platforms. Planning Center, Breeze/Tithely, ChurchTrac, and Pushpay/CCB are ahead in polish, mobile member experience, provider-backed communications, service planning, event registration, migration support, integrations, and market trust.
+ChurchCore is not broadly competitive today against mature all-in-one church platforms. Planning Center, Breeze/Tithely, ChurchTrac, and Pushpay/CCB are ahead in polish, mobile member experience, provider-backed communications, service planning, event registration, migration support, integrations, and market trust.
 
-ChurchCore Ops still has a credible path because its strongest differentiators are not "more ChMS features." The defensible position is compliance-first operations: child safety, financial integrity, auditability, tenant isolation, role-aware workflows, and ministry operations in one connected system.
+ChurchCore still has a credible path because its strongest differentiators are not "more ChMS features." The defensible position is compliance-first operations: child safety, financial integrity, auditability, tenant isolation, role-aware workflows, and ministry operations in one connected system.
 
 ### Feature-By-Feature Competitive Position
 
-| Feature area | Current ChurchCore Ops position | Competitor position | Competitive verdict |
+| Feature area | Current ChurchCore position | Competitor position | Competitive verdict |
 | --- | --- | --- | --- |
 | People and directory | Built, needs end-to-end polish and import support | Mature in Planning Center, Breeze/Tithely, ChurchTrac, Pushpay/CCB | Almost competitive |
 | Households and profiles | Built, needs stronger self-service and approval workflow | Mature | Almost competitive |
@@ -60,7 +60,7 @@ ChurchCore Ops still has a credible path because its strongest differentiators a
 
 ### Go-To-Market Implication
 
-ChurchCore Ops should not position itself as a cheaper Planning Center clone. The strongest wedge is churches with 100-1,000 average attendance that feel pain around children, finances, volunteer coverage, pastoral follow-up, board accountability, insurance concerns, or fragmented systems.
+ChurchCore should not position itself as a cheaper Planning Center clone. The strongest wedge is churches with 100-1,000 average attendance that feel pain around children, finances, volunteer coverage, pastoral follow-up, board accountability, insurance concerns, or fragmented systems.
 
 The competitive message should be:
 
@@ -70,7 +70,7 @@ The competitive message should be:
 
 This analysis should be refreshed before public pricing, sales copy, or launch claims. Current comparison assumptions are based on public product and pricing pages from Planning Center, Breeze/Tithely, ChurchTrac, and Pushpay.
 
-ChurchTrac is a direct comparator for the mobile and check-in portions of this roadmap because its public positioning includes a member portal/app, a check-in app, unlimited kiosks, checkout, attendance, worship planning, accounting add-ons, and data import/support as part of the value story. ChurchCore Ops should treat that as a practical benchmark for small and mid-size churches that want one system rather than a deeply modular stack.
+ChurchTrac is a direct comparator for the mobile and check-in portions of this roadmap because its public positioning includes a member portal/app, a check-in app, unlimited kiosks, checkout, attendance, worship planning, accounting add-ons, and data import/support as part of the value story. ChurchCore should treat that as a practical benchmark for small and mid-size churches that want one system rather than a deeply modular stack.
 
 - Planning Center: modular products for People, Groups, Calendar, Registrations, Check-Ins, Services, Music Stand, Church Center, Publishing, and Giving; public pricing is usage-based by product.
 - Breeze/Tithely: flat-rate ChMS and All Access positioning, with giving, messaging, groups, service planning, events, check-in, app, and site bundles.
@@ -121,12 +121,12 @@ These workstreams convert the competitive findings into implementation-ready ste
 
 **Status:** Phase 2 closure slice is implemented and validated for the current release scope, including phone-sized member route coverage, role-boundary checks, member mobile check-in policy enforcement, day-session children safety gates, stronger parent checkout verification, and closed-session link invalidation.
 
-**Problem:** Competitors have mature member-facing apps, member portals, or app-like experiences. ChurchCore Ops needs the member surface to be phone-first before it can compete, but the first implementation should be a smaller, polished mobile web/PWA version of the product rather than a native app.
+**Problem:** Competitors have mature member-facing apps, member portals, or app-like experiences. ChurchCore needs the member surface to be phone-first before it can compete, but the first implementation should be a smaller, polished mobile web/PWA version of the product rather than a native app.
 
 **Steps:**
 
 1. Audit `/app/member/*` and `/app/calendar` at phone viewport sizes.
-2. Define the mobile web/PWA scope as a smaller member-facing version of ChurchCore Ops, not a full admin UI squeezed onto a phone.
+2. Define the mobile web/PWA scope as a smaller member-facing version of ChurchCore, not a full admin UI squeezed onto a phone.
 3. Define the member mobile workflow order: home, schedule, groups, directory, giving, family/profile, preferences, data rights, and member check-in where enabled.
 4. Add a mobile shell with bottom navigation, short task cards, large touch targets, and no dense admin tables.
 5. Add saved, pending-review, rejected, and permission-denied states for member profile and family updates.
@@ -144,7 +144,7 @@ These workstreams convert the competitive findings into implementation-ready ste
 
 **Status:** Phase 2 follow-ups delivered for the current scope. Event-level mobile member check-in enablement controls (window, optional access code, household mode, and optional geofence constraints) are implemented, member-home cards surface eligible check-ins, attendance writes include source metadata (`mobile_member` and `staff`), duplicate-present writes are blocked, and ChurchAdmin audit views include source-aware attendance filtering plus mobile-member household metrics. Household edge-case role tests are in place for member check-in.
 
-**Problem:** ChurchTrac and other competitors treat check-in and attendance as mobile-friendly operational workflows. ChurchCore Ops should let members check themselves in from the mobile web version when staff chooses to allow it.
+**Problem:** ChurchTrac and other competitors treat check-in and attendance as mobile-friendly operational workflows. ChurchCore should let members check themselves in from the mobile web version when staff chooses to allow it.
 
 **Steps:**
 
@@ -207,7 +207,7 @@ These workstreams convert the competitive findings into implementation-ready ste
 
 **Status:** Phase 4 is now started with three delivered slices on `main`: (1) service-plan metadata + run-of-service blocks and admin registration configuration (approval workflow, household policy, configurable form fields), (2) member-facing registration rendering with dynamic form fields and household-aware registration submission, and (3) public registration route parity using the same dynamic field model and approval/waitlist lifecycle.
 
-**Problem:** Planning Center, Pushpay, and Breeze/Tithely cover service planning and registration. ChurchCore Ops cannot replace them without these flows.
+**Problem:** Planning Center, Pushpay, and Breeze/Tithely cover service planning and registration. ChurchCore cannot replace them without these flows.
 
 **Steps:**
 
@@ -271,7 +271,7 @@ These workstreams convert the competitive findings into implementation-ready ste
 1. Rename or frame the core differentiator as a weekly operational readiness system, not only dashboards.
 2. Build demo data and walkthroughs around real pain: unsafe children's room ratio, unresolved custody restriction, unposted giving, missing fund mapping, volunteer coverage gap, lapsed follow-up, bounced communication, and draft journal.
 3. Add product copy that explains finance integrity, child safety, privacy, and auditability in church-office language.
-4. Create a buyer-facing comparison page or document that compares ChurchCore Ops against Planning Center, Breeze/Tithely, ChurchTrac, and Pushpay without overclaiming.
+4. Create a buyer-facing comparison page or document that compares ChurchCore against Planning Center, Breeze/Tithely, ChurchTrac, and Pushpay without overclaiming.
 5. Create a 30-minute evaluation script for pastors, administrators, treasurers, and children's ministry leaders.
 6. Track beta feedback by buyer persona and module.
 7. Use feedback to decide whether to double down on Growth/Pro churches or narrow further to children-and-finance-heavy churches.
@@ -405,7 +405,7 @@ These workstreams convert the competitive findings into implementation-ready ste
 
 ## Phase 4: Close Service Planning And Event Registration Gaps
 
-**Goal:** ChurchCore Ops can cover worship/service planning and paid or unpaid event registration.
+**Goal:** ChurchCore can cover worship/service planning and paid or unpaid event registration.
 
 ### Scope
 

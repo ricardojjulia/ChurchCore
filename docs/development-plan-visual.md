@@ -1,4 +1,4 @@
-# ChurchCore Ops Visual Development Plan
+# ChurchCore Visual Development Plan
 
 This is the visual companion to [DEVELOPMENT_PLAN.md](../DEVELOPMENT_PLAN.md). The written plan remains the source of truth for scope, stack, security posture, roadmap, and release discipline.
 
@@ -6,11 +6,11 @@ Static SVG companions live in `docs/assets/diagrams/` for contexts where Mermaid
 
 ## Product Strategy Map
 
-![ChurchCore Ops product strategy map](assets/diagrams/development-plan-strategy.svg)
+![ChurchCore product strategy map](assets/diagrams/development-plan-strategy.svg)
 
 ```mermaid
 flowchart TB
-  vision[ChurchCore Ops: secure multi-tenant church operations] --> boundaries[Separated control plane and tenant app]
+  vision[ChurchCore: secure multi-tenant church operations] --> boundaries[Separated control plane and tenant app]
   vision --> roles[Role-based portals]
   vision --> stewardship[Ministry and operational stewardship]
   vision --> trust[Security, privacy, consent, and audit]
@@ -45,7 +45,7 @@ flowchart TB
 
 ## Roadmap Flow
 
-![ChurchCore Ops sprint roadmap](assets/diagrams/development-plan-roadmap.svg)
+![ChurchCore sprint roadmap](assets/diagrams/development-plan-roadmap.svg)
 
 ```mermaid
 flowchart LR
@@ -67,11 +67,11 @@ flowchart LR
 
 ## Boundary And Security Model
 
-![ChurchCore Ops boundary and security model](assets/diagrams/development-plan-security-model.svg)
+![ChurchCore boundary and security model](assets/diagrams/development-plan-security-model.svg)
 
 ```mermaid
 flowchart TB
-  platform[ChurchCore Ops platform staff] --> control[Control plane]
+  platform[ChurchCore platform staff] --> control[Control plane]
   church[Church users] --> tenant[Tenant app]
 
   control --> controlDb[(Control-plane database)]
@@ -97,7 +97,7 @@ flowchart TB
 
 ## Sprint 1 Execution Flow
 
-![ChurchCore Ops Sprint 1 execution flow](assets/diagrams/development-plan-sprint1.svg)
+![ChurchCore Sprint 1 execution flow](assets/diagrams/development-plan-sprint1.svg)
 
 ```mermaid
 flowchart LR

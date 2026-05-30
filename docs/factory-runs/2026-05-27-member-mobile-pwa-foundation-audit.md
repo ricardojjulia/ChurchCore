@@ -12,7 +12,7 @@ Start Phase 2 with a mobile-first audit pass before implementing member check-in
 
 ## Story And Acceptance Criteria
 
-As a ChurchCore Ops operator and evaluator, I want a documented mobile member baseline and executable phone-sized browser checks, so the team can sequence member mobile implementation without ambiguity.
+As a ChurchCore operator and evaluator, I want a documented mobile member baseline and executable phone-sized browser checks, so the team can sequence member mobile implementation without ambiguity.
 
 Acceptance criteria:
 

@@ -231,7 +231,7 @@ Release 3.0.0 is a major-version release because the accumulated work since the 
 
 - Changed repository licensing from `UNLICENSED` to MIT in `LICENSE`, `package.json`, and `package-lock.json`.
 - Reworked the README opening into a technical blueprint entry point with status badges, architecture preview, quick start, repo map, and clearer control-plane/tenant boundary positioning.
-- Rebranded the product to ChurchCore Ops across the application shell, public metadata, documentation, demo domains, and local automation naming.
+- Rebranded the product to ChurchCore across the application shell, public metadata, documentation, demo domains, and local automation naming.
 - Reworked the public home screen into a sharper operations-console landing experience with clearer church-operations positioning, stronger entry actions, and English/Spanish copy coverage.
 - Reworked the signed-in ChurchAdmin shell with a higher-contrast navigation rail, stronger dashboard summary cards, and clearer action-path styling.
 - Changed local development ports to start at `4200`: the Next.js app runs on `4200`, tenant Supabase uses the `4201` series, and the control-plane Supabase project uses the `4211` series.
@@ -296,7 +296,7 @@ Release 3.0.0 is a major-version release because the accumulated work since the 
 
 ### Overview
 
-Release 2.12.0 ships **Phase 1 of the ChurchCore Ops product strategy** — closing the critical feature gaps between ChurchCore Ops and Planning Center. This release adds the Small Groups module (completely new), Giving GL auto-posting, a public-facing giving page, a complete Events directory with create flow, service attendance headcount tracking, first-time visitor workflow scaffolding, and navigation updates across all roles.
+Release 2.12.0 ships **Phase 1 of the ChurchCore product strategy** — closing the critical feature gaps between ChurchCore and Planning Center. This release adds the Small Groups module (completely new), Giving GL auto-posting, a public-facing giving page, a complete Events directory with create flow, service attendance headcount tracking, first-time visitor workflow scaffolding, and navigation updates across all roles.
 
 ### Added
 
@@ -363,7 +363,7 @@ Release 2.12.0 ships **Phase 1 of the ChurchCore Ops product strategy** — clos
 
 ### Overview
 
-Release 2.11.1 is the first private-repo readiness snapshot for ChurchCore Ops. It keeps the new CCM module intact while hardening the repository for invited evaluation: local credential material is no longer embedded in setup paths, repo metadata is aligned to the current release state, and GitHub-side security workflows are added alongside the existing lint/build checks.
+Release 2.11.1 is the first private-repo readiness snapshot for ChurchCore. It keeps the new CCM module intact while hardening the repository for invited evaluation: local credential material is no longer embedded in setup paths, repo metadata is aligned to the current release state, and GitHub-side security workflows are added alongside the existing lint/build checks.
 
 ### Fixed
 
@@ -450,7 +450,7 @@ Release 2.11.0 ships the **Children's Church Ministry (CCM) module** — a full 
 
 ### Overview
 
-Release 2.10.0 is the largest single feature release in the project's history. It ships two major system expansions simultaneously: the **Financial Management module** — a full double-entry accounting system built for 501(c)(3) church operations — and the **Advanced Ministry Forge** — an expanded set of ten specialized track panels that move the platform from administrative tracking into active Kingdom Stewardship. Together these additions bring ChurchCore Ops to full coverage of the five most critical operational domains any church leadership team manages: people, ministry programs, finances, reporting, and communications.
+Release 2.10.0 is the largest single feature release in the project's history. It ships two major system expansions simultaneously: the **Financial Management module** — a full double-entry accounting system built for 501(c)(3) church operations — and the **Advanced Ministry Forge** — an expanded set of ten specialized track panels that move the platform from administrative tracking into active Kingdom Stewardship. Together these additions bring ChurchCore to full coverage of the five most critical operational domains any church leadership team manages: people, ministry programs, finances, reporting, and communications.
 
 ---
 
@@ -768,7 +768,7 @@ Finance module is restricted to `church-admin` role only. All route pages includ
 
 ### Release Notes
 
-Release 2.8.0 transitions ChurchCore Ops from preview-only mode to a fully operational local development environment backed by a real Supabase instance.
+Release 2.8.0 transitions ChurchCore from preview-only mode to a fully operational local development environment backed by a real Supabase instance.
 
 **What changed in the data layer:** The local Supabase stack is now correctly wired end-to-end. Three schema-level bugs — all introduced by inconsistencies between the RLS layer (which uses `auth.uid()`) and table FK definitions (which pointed at `profiles.id`) — are fixed in three targeted migrations. A fourth migration corrects a column name typo in the mentorship audit trigger. The seed file is now a proper demo dataset rather than a skeleton.
 
@@ -785,11 +785,11 @@ Release 2.8.0 transitions ChurchCore Ops from preview-only mode to a fully opera
 - Added the first reporting-suite foundation under `/app/reports`, `/app/reports/members`, `/app/reports/events`, and `/app/reports/giving`, with a shared reporting shell, range switching, graphical dashboards, and preview-safe fallback behavior for pastor and church-admin roles.
 - Added `lib/reports-data.ts` to compute member, event, and giving report datasets across preview, local direct-DB fallback, and live tenant Supabase paths.
 - Added navigation entry points into the reporting suite from existing pastor and church-admin management surfaces.
-- Added `docs/plans/reporting-implementation.md`, a detailed implementation plan for ChurchCore Ops's future reporting suite across members, events, giving, ministries, communications, outreach, and executive stewardship dashboards.
+- Added `docs/plans/reporting-implementation.md`, a detailed implementation plan for ChurchCore's future reporting suite across members, events, giving, ministries, communications, outreach, and executive stewardship dashboards.
 
 ### Changed
 
-- Updated `DEVELOPMENT_PLAN.md` to version `1.8`, explicitly positioning graphical multi-surface reporting as a core ChurchCore Ops feature area.
+- Updated `DEVELOPMENT_PLAN.md` to version `1.8`, explicitly positioning graphical multi-surface reporting as a core ChurchCore feature area.
 - Updated `README.md` to release `2.7.0` and documented the new reporting suite routes, release highlights, and repo-level reporting plan reference.
 
 ### Fixed
@@ -799,7 +799,7 @@ Release 2.8.0 transitions ChurchCore Ops from preview-only mode to a fully opera
 
 ### Release Notes
 
-This release establishes ChurchCore Ops's first real reporting surface rather than treating reporting as a future-only concept.
+This release establishes ChurchCore's first real reporting surface rather than treating reporting as a future-only concept.
 
 Before `2.7.0`, the product had point dashboards such as giving and ministry health, but it did not yet have a unified reporting suite where leadership could move between member, event, and giving intelligence with one consistent visual and filtering model.
 
@@ -834,7 +834,7 @@ Just as importantly, this release tightens the preview and reduced-backend story
 
 This release closes the gap between church-admin people management and a usable member-facing identity flow.
 
-Before `2.6.0`, ChurchCore Ops could manage tenant people records and send direct invites, but the product did not yet support the more realistic church workflow where:
+Before `2.6.0`, ChurchCore could manage tenant people records and send direct invites, but the product did not yet support the more realistic church workflow where:
 
 - someone is known to the church before they have an auth account
 - a member requests portal access from a public page
@@ -844,7 +844,7 @@ Before `2.6.0`, ChurchCore Ops could manage tenant people records and send direc
 
 `2.6.0` introduces that missing connective tissue.
 
-The largest architectural shift in this release is the move from auth-coupled profiles to offline-capable profiles. `profiles.id` is no longer forced to equal `auth.users.id`; instead, `profiles.user_id` becomes the optional auth linkage. That lets ChurchCore Ops create visitor and member records first, then attach an auth user later during invitation or first account activation. This is the foundation that makes public portal requests, event visitors, and roster-first operations practical.
+The largest architectural shift in this release is the move from auth-coupled profiles to offline-capable profiles. `profiles.id` is no longer forced to equal `auth.users.id`; instead, `profiles.user_id` becomes the optional auth linkage. That lets ChurchCore create visitor and member records first, then attach an auth user later during invitation or first account activation. This is the foundation that makes public portal requests, event visitors, and roster-first operations practical.
 
 The public portal is now a real product surface. `/portal` is no longer just a protected redirect. It is now a public landing page with a clear split between existing sign-in and new access requests. `/portal/register` submits church-scoped requests with only the minimum identity fields required for review. Those requests are stored in `account_requests` and optionally linked to an existing member profile by matching email within the church boundary.
 
@@ -984,7 +984,7 @@ Security and tenant separation remain the controlling constraints across the rel
 - Changed the tenant calendar to open day details directly from calendar cells and week slots, improved agenda snapshot usefulness, widened the calendar data window, and refreshed the event mutation flow so create, update, delete, and RSVP actions give immediate feedback.
 - Upgraded the tenant calendar board from a list-only surface to an interactive month/week/day calendar with category filtering including an "all" option.
 - Replaced FullCalendar dependency with custom Mantine-based calendar implementation for improved control and styling consistency.
-- Updated landing page hero section: improved tagline to "Clarity for the mission you lead" and renamed action buttons to "ChurchCore Ops App" and "ChurchCore Ops Tenant Control" for better clarity.
+- Updated landing page hero section: improved tagline to "Clarity for the mission you lead" and renamed action buttons to "ChurchCore App" and "ChurchCore Tenant Control" for better clarity.
 
 ## [1.0.0] - 2026-04-11
 
@@ -1010,14 +1010,14 @@ Security and tenant separation remain the controlling constraints across the rel
 
 ### Changed
 
-- Updated the source-of-truth plan and README so Mantine is the standard UI framework for ChurchCore Ops going forward.
+- Updated the source-of-truth plan and README so Mantine is the standard UI framework for ChurchCore going forward.
 - Merged `DEVELOPMENT_PLAN.md` v1.4 with the new sprint roadmap, Sprint 1 schema priorities, categorized calendar direction, and updated source-of-truth structure.
 - Updated the README to reference the v1.4 development plan and its Sprint 1 priorities.
 - Started Sprint 1 execution by aligning the local Supabase schema toward member-portal profiles, ministry assignments, and categorized events, and by hydrating church-app sessions from live `profiles` rows when available.
 - Added the first real member portal slice under `/app/member`, backed by live `profiles`, `profile_ministries`, and categorized `events` data.
 - Accepted ADR 0001 in favor of Supabase and updated the repo copy to reflect an approved backend path instead of an undecided one.
 - Updated the sign-in flow to use Supabase SSR auth when configured, with the original preview identities retained only as a local fallback.
-- Aligned package metadata naming on `ChurchCore Ops` by updating the npm lockfile package name from the old bootstrap identifier to `churchcore-ops`.
+- Aligned package metadata naming on `ChurchCore` by updating the npm lockfile package name from the old bootstrap identifier to `churchcore-ops`.
 - Updated the landing page to route into sign-in, workspace, and calendar entry points so the repo now includes a protected application surface alongside the marketing shell.
 - Redesigned the protected application UI with a premium dashboard shell, stronger sidebar navigation, denser metric cards, and more intentional ChurchAdmin and calendar operating surfaces.
 - Redesigned the landing page and sign-in route to match the stronger product direction, and added stateful dashboard interactions for role switching, queue views, and calendar filtering.
@@ -1046,7 +1046,7 @@ Security and tenant separation remain the controlling constraints across the rel
 
 ### Added
 
-- Bootstrapped the ChurchCore Ops frontend with Next.js App Router, TypeScript, and Tailwind CSS.
+- Bootstrapped the ChurchCore frontend with Next.js App Router, TypeScript, and Tailwind CSS.
 - Established a disciplined repo structure with `app`, `components`, `lib`, and `docs`.
 - Added a polished landing page aligned with the ministry platform vision.
 - Added shared UI primitives, theme support, and CI verification.

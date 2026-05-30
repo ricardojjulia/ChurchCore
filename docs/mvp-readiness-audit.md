@@ -1,11 +1,11 @@
 # MVP Readiness Audit
 
 Date: May 9, 2026  
-Scope: ChurchCore Ops evaluation snapshot on the Sprint 2 branch.
+Scope: ChurchCore evaluation snapshot on the Sprint 2 branch.
 
 ## Executive Verdict
 
-ChurchCore Ops can plausibly help run a church, but it is not yet a clean MVP without tightening the operator path. The product has the right major modules: people, households, ministries, events, children, giving, finance, communications, groups, volunteers, care signals, and reporting. The main readiness risk is not missing ambition; it is workflow clarity and confidence that each role can find the next action without knowing the codebase.
+ChurchCore can plausibly help run a church, but it is not yet a clean MVP without tightening the operator path. The product has the right major modules: people, households, ministries, events, children, giving, finance, communications, groups, volunteers, care signals, and reporting. The main readiness risk is not missing ambition; it is workflow clarity and confidence that each role can find the next action without knowing the codebase.
 
 For MVP, the app should be judged by whether a church admin can complete one realistic week:
 
@@ -154,7 +154,7 @@ Priority 3:
 
 ## MVP Definition
 
-ChurchCore Ops is MVP-ready when a new evaluator can do this without help:
+ChurchCore is MVP-ready when a new evaluator can do this without help:
 
 1. Start the app locally.
 2. Sign in as the demo church admin.

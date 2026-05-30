@@ -1,6 +1,6 @@
-# ChurchCore Ops
+# ChurchCore
 
-ChurchCore Ops is a secure, multi-tenant church operations platform for member records, ministries, events, volunteer coordination, giving, financial stewardship, communications, reporting, and guardrailed ministry workflow recommendations.
+ChurchCore is a secure, multi-tenant church operations platform for member records, ministries, events, volunteer coordination, giving, financial stewardship, communications, reporting, and guardrailed ministry workflow recommendations.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-f97316.svg)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16-111827.svg)](package.json)
@@ -10,14 +10,14 @@ ChurchCore Ops is a secure, multi-tenant church operations platform for member r
 
 ## Technical Blueprint
 
-ChurchCore Ops is built around a hard boundary between platform operations and church runtime data:
+ChurchCore is built around a hard boundary between platform operations and church runtime data:
 
-- **Control plane:** ChurchCore Ops staff surface for tenant lifecycle, billing metadata, platform staff identity, support audit, and provisioning.
+- **Control plane:** ChurchCore staff surface for tenant lifecycle, billing metadata, platform staff identity, support audit, and provisioning.
 - **Tenant app:** Church-facing runtime for admins, pastors, secretaries, ministry leaders, volunteers, members, and public portal visitors.
 - **Data boundary:** Control-plane and tenant data live in separate Supabase projects. Cross-boundary support access must be explicit, audited, and intentionally designed.
 - **Workflow intelligence:** ShepherdAI is Ops-only and deterministic-first. It recommends ministry workflows from signals; it is not a chatbot and does not replace pastoral discernment.
 
-![ChurchCore Ops system architecture](docs/assets/diagrams/system-architecture.svg)
+![ChurchCore system architecture](docs/assets/diagrams/system-architecture.svg)
 
 Full diagram set: [docs/diagrams.md](docs/diagrams.md)
 
@@ -112,7 +112,7 @@ npm run dev
 
 ## AI-Assisted Development
 
-ChurchCore Ops includes a repo-local software factory for structured AI-assisted development:
+ChurchCore includes a repo-local software factory for structured AI-assisted development:
 
 - **Claude Code:** use `.claude/agents/`, `.claude/skills/feature-factory`, `.claude/skills/build-with-tests`, and `.claude/hooks/pre-commit.sh`.
 - **Codex:** use `.codex/skills/churchcore-feature-factory`, `.codex/skills/churchcore-build-with-tests`, and `.codex/skills/churchcore-pr-review`.
@@ -121,7 +121,7 @@ Start with [docs/software-factory.md](docs/software-factory.md) for the how-to a
 
 ### Preferred Factory Workflow
 
-ChurchCore Ops is intentionally transparent: every meaningful change should leave enough documentation for a future maintainer, church evaluator, or security reviewer to understand what changed, why it changed, and how it was verified.
+ChurchCore is intentionally transparent: every meaningful change should leave enough documentation for a future maintainer, church evaluator, or security reviewer to understand what changed, why it changed, and how it was verified.
 
 Use this workflow for non-trivial work in either Claude Code or Codex:
 
@@ -140,7 +140,7 @@ Claude Code should run this through the `feature-factory` and `build-with-tests`
 ## Plan Highlights
 
 - Role-based portals with least-privilege enforcement for platform, church, ministry, and member workflows.
-- Explicit separation between the ChurchCore Ops control plane and tenant-facing church app.
+- Explicit separation between the ChurchCore control plane and tenant-facing church app.
 - Sensitive-data posture for PII, PHI-adjacent pastoral data, donations, child safety, care records, and audit logs.
 - Categorized calendar, RSVP, volunteer scheduling, burnout guardrails, and ministry stewardship metrics.
 - Giving, double-entry finance, reporting, communications, and ministry pathway intelligence.
@@ -390,7 +390,7 @@ For voluntary donations (Sprint 7+), also supply:
 - `STRIPE_SECRET_KEY` — Stripe secret key (`sk_live_…` or `sk_test_…`)
 - `STRIPE_WEBHOOK_SECRET` — webhook signing secret (`whsec_…`) for payment confirmation
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` — for Stripe Elements on the frontend
-- When absent, donation actions return stub results so local dev is unaffected. ChurchCore Ops takes **no platform fees** — 100% of every donation goes directly to the church.
+- When absent, donation actions return stub results so local dev is unaffected. ChurchCore takes **no platform fees** — 100% of every donation goes directly to the church.
 
 For Communications Hub (Phase 6), also supply:
 
@@ -409,7 +409,7 @@ Primary routes:
 
 - `/` marketing and product-direction overview
 - `/sign-in` preview sign-in and protected-route entry
-- `/control` platform control plane for ChurchCore Ops staff
+- `/control` platform control plane for ChurchCore staff
 - `/controll` compatibility redirect to `/control`
 - `/app` tenant-facing church application entry
 - `/app/[role]` church role workspace
@@ -488,7 +488,7 @@ public/               Static assets
 - `proxy.ts`, `/sign-in`, and session hydration now refresh and resolve auth against explicit surface-aware Supabase clients instead of a generic shared selector, which keeps `/control` and `/app` aligned to ADR 0002 even while shared local env vars remain supported.
 - Tenant launch from `/control` is now registry-driven, with the control plane resolving the tenant runtime target through `tenants` and `tenant_connections` before entering `/app`.
 - Control-plane routing now resolves the tenant runtime church target from `tenant_connections.metadata.runtime_church_id`, which keeps platform tenant IDs separate from tenant-runtime church IDs.
-- Platform admins can now launch an explicit tenant view from the control plane and return to ChurchCore Ops Control without implicit cross-over.
+- Platform admins can now launch an explicit tenant view from the control plane and return to ChurchCore Control without implicit cross-over.
 - When Supabase is configured, the control plane now reads live church and membership counts plus recent tenant-view audit events from database records instead of relying only on mock tenant lists.
 - Local development can now fall back to direct Postgres reads and writes for app-owned Supabase tables when the local REST schema cache is unavailable.
 - The church app session now hydrates from real `profiles` rows when available, so `/app` and the app shell resolve live church-scoped user data instead of relying only on preview profile templates.
@@ -522,7 +522,7 @@ public/               Static assets
 - The Pastor Council Forge at `/app/council/forge` provides versioned collaborative notes (auto-incrementing version on each save) across five note types: general, sermon outline, series plan, council minutes, and sabbath reflection.
 - The Communications Hub at `/app/communications` enables pastors and church-admins to compose and broadcast email or SMS to congregation members, with per-member consent checking via `notification_preferences`, full `communication_logs` audit trail, and graceful local-dev stubs when SendGrid/Twilio are not configured.
 - The member portal bottom nav now includes a Ministries tab alongside Home, Calendar, Directory, and Family, with all five routes pre-cached by the service worker for offline access.
-- The voluntary donations system at `/app/member/giving` lets members give one-time or recurring gifts with fund designation and anonymous option. ChurchCore Ops takes no platform fee — 100% goes to the church. Receipt emails sent via SendGrid.
+- The voluntary donations system at `/app/member/giving` lets members give one-time or recurring gifts with fund designation and anonymous option. ChurchCore takes no platform fee — 100% goes to the church. Receipt emails sent via SendGrid.
 - Members can download a full JSON export of their personal data or request account deletion with a 30-day grace period from `/app/member/data-rights` (GDPR/CCPA aligned).
 - Pastors and church-admins have a giving reporting dashboard at `/app/giving` with fund breakdown, monthly and all-time totals, and recurring-gift counts. Anonymous donations are never de-anonymised in the UI.
 - Platform operators have a `/control/launch-checklist` with 47 interactive verification items across RLS, donations, AI guardrails, communications, data rights, security, mobile/PWA, and role access.

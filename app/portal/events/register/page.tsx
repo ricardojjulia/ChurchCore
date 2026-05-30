@@ -12,7 +12,7 @@ import {
 import { getPublicEventRegistrationOptions } from "@/lib/public-event-registration-data";
 
 export const metadata: Metadata = {
-  title: "Event Registration | ChurchCore Ops",
+  title: "Event Registration | ChurchCore",
   description: "Register for public church events.",
 };
 

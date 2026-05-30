@@ -306,7 +306,7 @@ export function ShepherdWorkflowQueue({
       }
     >
       <Stack gap="lg">
-        <Alert color="blue" variant="light" title="ShepherdAI for ChurchCore Ops">
+        <Alert color="blue" variant="light" title="ShepherdAI for ChurchCore">
           This queue shows suggested ministry workflows from structured Ops signals. Suggestions are
           not diagnoses and require human review before action.
         </Alert>

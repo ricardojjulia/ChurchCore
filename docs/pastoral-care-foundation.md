@@ -52,4 +52,4 @@ Current capabilities on that route:
 
 ## Why This Shape
 
-ChurchCore Ops needs a real pastoral-care primitive before it can credibly support elder workflows, AI guardrails, or richer discernment rooms. This slice establishes that primitive while keeping the blast radius small and reviewable.
+ChurchCore needs a real pastoral-care primitive before it can credibly support elder workflows, AI guardrails, or richer discernment rooms. This slice establishes that primitive while keeping the blast radius small and reviewable.

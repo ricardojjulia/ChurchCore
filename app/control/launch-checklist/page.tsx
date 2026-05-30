@@ -5,8 +5,8 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import { requireControlPlaneSession } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "Launch Checklist | ChurchCore Ops Control",
-  description: "Pre-launch readiness checklist for ChurchCore Ops platform operators.",
+  title: "Launch Checklist | ChurchCore Control",
+  description: "Pre-launch readiness checklist for ChurchCore platform operators.",
 };
 
 export default async function LaunchChecklistPage() {
@@ -33,9 +33,9 @@ export default async function LaunchChecklistPage() {
       calendarHref="/app/calendar"
       sectionLabel="Control"
       title="Launch Checklist"
-      description="ChurchCore Ops Platform"
+      description="ChurchCore Platform"
       sidebarTitle="Control"
-      sidebarDescription="Platform operator tools for ChurchCore Ops staff."
+      sidebarDescription="Platform operator tools for ChurchCore staff."
       navLabel="Control Plane"
       navItems={navItems}
     >

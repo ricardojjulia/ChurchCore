@@ -1,5 +1,5 @@
 -- ============================================================
--- Control Plane Schema — ChurchCore Ops
+-- Control Plane Schema — ChurchCore
 -- ============================================================
 -- This migration runs in the CONTROL PLANE Supabase project only.
 -- It is NOT applied to the tenant runtime project.

@@ -1,4 +1,4 @@
-# ChurchCore Ops Software Factory
+# ChurchCore Software Factory
 
 **Status:** Active workflow guide  
 **Date:** 2026-05-25  
@@ -6,7 +6,7 @@
 
 ## Purpose
 
-The software factory is a small set of repository files that turns AI-assisted development into a repeatable workflow. It keeps ChurchCore Ops work aligned with `DEVELOPMENT_PLAN.md`, ADRs, tenant boundaries, role access, sensitive-data rules, tests, and release discipline.
+The software factory is a small set of repository files that turns AI-assisted development into a repeatable workflow. It keeps ChurchCore work aligned with `DEVELOPMENT_PLAN.md`, ADRs, tenant boundaries, role access, sensitive-data rules, tests, and release discipline.
 
 The factory has two compatible surfaces:
 
@@ -21,7 +21,7 @@ research -> story -> spec -> backend/frontend build -> tests -> validation -> PR
 
 ## Transparency Standard
 
-ChurchCore Ops is built in the open from the repository's point of view. The factory must make each meaningful change traceable:
+ChurchCore is built in the open from the repository's point of view. The factory must make each meaningful change traceable:
 
 - **Intent:** the story, acceptance criteria, or brief states what problem is being solved.
 - **Architecture:** the brief names the routes, data surfaces, tenant boundaries, RBAC rules, provider integrations, and ADRs involved.

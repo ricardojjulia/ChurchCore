@@ -6,7 +6,7 @@
 
 ## Context
 
-ChurchCore Ops's existing giving/donations module handles Stripe-backed member contributions. Churches also need internal bookkeeping: tracking expenses, categorizing income beyond donations, managing restricted/unrestricted funds, producing income statements and balance sheets, and satisfying 501(c)(3) reporting requirements. A budget-only tool would not satisfy these needs.
+ChurchCore's existing giving/donations module handles Stripe-backed member contributions. Churches also need internal bookkeeping: tracking expenses, categorizing income beyond donations, managing restricted/unrestricted funds, producing income statements and balance sheets, and satisfying 501(c)(3) reporting requirements. A budget-only tool would not satisfy these needs.
 
 ## Decision
 
@@ -21,7 +21,7 @@ OFX/QFX bank feed import will be handled with a small hand-rolled parser (no add
 ## Alternatives Considered
 
 - **Budget + expense tracker only**: Simpler to build, but insufficient for fund accounting, restricted-fund tracking, and audit readiness. Would require a breaking schema migration later.
-- **Integrate a third-party accounting API (QuickBooks Online, Xero)**: Adds an external subscription dependency per tenant, creates significant data-boundary concerns, and couples ChurchCore Ops to a third-party's availability and pricing. Not appropriate for the current stage.
+- **Integrate a third-party accounting API (QuickBooks Online, Xero)**: Adds an external subscription dependency per tenant, creates significant data-boundary concerns, and couples ChurchCore to a third-party's availability and pricing. Not appropriate for the current stage.
 - **Use a float/decimal type for amounts**: Rejected in favor of `integer` cents to match the existing `donations` table and avoid floating-point rounding errors in financial calculations.
 
 ## Consequences

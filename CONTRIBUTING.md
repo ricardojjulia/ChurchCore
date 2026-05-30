@@ -1,6 +1,6 @@
 # Contributing
 
-ChurchCore Ops is currently a private evaluation repository. Treat every change as production-adjacent because the codebase touches finance, child-safety workflows, and other sensitive church data.
+ChurchCore is currently a private evaluation repository. Treat every change as production-adjacent because the codebase touches finance, child-safety workflows, and other sensitive church data.
 
 ## Before You Change Anything
 

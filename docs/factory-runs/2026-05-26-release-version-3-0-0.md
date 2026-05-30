@@ -12,7 +12,7 @@ Recalculate the current release version from the amount and type of work complet
 
 ## Story And Acceptance Criteria
 
-As a ChurchCore Ops evaluator, I want the repository version and release notes to match the true product scope, so release claims do not understate the operator, security, AI, and workflow work already completed.
+As a ChurchCore evaluator, I want the repository version and release notes to match the true product scope, so release claims do not understate the operator, security, AI, and workflow work already completed.
 
 Acceptance criteria:
 

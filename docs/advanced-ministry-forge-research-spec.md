@@ -1,7 +1,7 @@
 # Advanced Ministry Forge Research Specification
 
 **Living Document** - Last Updated: April 14, 2026  
-**Purpose**: This document reconciles the latest Ministry Forge expansion direction with the ChurchCore Ops tenant architecture that already exists in this repository.
+**Purpose**: This document reconciles the latest Ministry Forge expansion direction with the ChurchCore tenant architecture that already exists in this repository.
 
 This specification is the planning bridge between:
 
@@ -14,7 +14,7 @@ It does not replace the current shipped schema. It defines the next approved dir
 
 ## Why This Exists
 
-ChurchCore Ops already has:
+ChurchCore already has:
 
 - `ministries`
 - `profile_ministries`
@@ -35,7 +35,7 @@ The important engineering constraint is that this must be additive to the curren
 
 ## Research-Aligned Ministry Track Architecture
 
-ChurchCore Ops should move from broad ministry labeling toward explicit track pathways.
+ChurchCore should move from broad ministry labeling toward explicit track pathways.
 
 Canonical track kinds:
 
@@ -214,7 +214,7 @@ Deterministic baseline:
 
 - flag any person serving in more than 3 distinct ministry categories or track categories
 
-This must extend the existing burnout model rather than replace it. ChurchCore Ops already tracks ministry load; the next step is cross-track and cross-category aggregation.
+This must extend the existing burnout model rather than replace it. ChurchCore already tracks ministry load; the next step is cross-track and cross-category aggregation.
 
 ### Discipleship Velocity
 

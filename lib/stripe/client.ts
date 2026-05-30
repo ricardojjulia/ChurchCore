@@ -9,7 +9,7 @@
  * the stub guard in each action returns a safe fallback so the
  * app doesn't blow up.
  *
- * NOTE: ChurchCore Ops has NO platform subscription tiers.
+ * NOTE: ChurchCore has NO platform subscription tiers.
  * Stripe is used exclusively for voluntary donations to local churches.
  * The platform never takes a cut — 100% goes to the church.
  */

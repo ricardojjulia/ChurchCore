@@ -15,7 +15,7 @@ const options = [
   {
     title: "Accepted Decision",
     description:
-      "Supabase is approved as the backend and data platform for ChurchCore Ops, using Postgres, Auth, Realtime, and Storage.",
+      "Supabase is approved as the backend and data platform for ChurchCore, using Postgres, Auth, Realtime, and Storage.",
     icon: Zap,
   },
   {
@@ -43,7 +43,7 @@ export default function BackendAdrPage() {
               Supabase is now the approved backend platform.
             </h1>
             <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
-              ChurchCore Ops is standardizing on Supabase for Postgres, Auth,
+              ChurchCore is standardizing on Supabase for Postgres, Auth,
               Realtime, and Storage so the app can move from preview scaffolds
               into a real multi-tenant execution path.
             </p>

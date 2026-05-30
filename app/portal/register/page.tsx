@@ -8,7 +8,7 @@ import { localeCookieName, messages, normalizeLocale } from "@/lib/i18n";
 import { getPublicPortalChurches, getRequestedPublicChurch } from "@/lib/public-portal-data";
 
 export const metadata: Metadata = {
-  title: "Portal Registration | ChurchCore Ops",
+  title: "Portal Registration | ChurchCore",
   description: "Request member portal access for your church.",
 };
 

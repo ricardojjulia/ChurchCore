@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1120" height="540" viewBox="0 0 1120 540" role="img" aria-labelledby="title desc">
-  <title id="title">ChurchCore Ops Sprint 1 execution flow</title>
+  <title id="title">ChurchCore Sprint 1 execution flow</title>
   <desc id="desc">Sprint 1 execution flow from frontend alignment through data-boundary documentation, schema normalization, profile hydration, member portal, ministry assignment, and categorized events.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">

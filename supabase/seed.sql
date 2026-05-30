@@ -1,10 +1,10 @@
 -- ============================================================
--- ChurchCore Ops local development seed
+-- ChurchCore local development seed
 -- Run automatically by: supabase db reset
 --
 -- Requires auth users to exist first. Create them with:
 --   supabase/scripts/create-dev-users.sh
--- Or via the Supabase Admin API (see churchcore-ops-supabasesetup.md).
+-- Or via the Supabase Admin API (see local setup docs in docs/setup/).
 --
 -- Auth user IDs are looked up by email so this seed is
 -- idempotent even if users are recreated with new UUIDs.

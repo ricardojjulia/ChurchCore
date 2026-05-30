@@ -1,7 +1,7 @@
 # Competitive Readiness 30-Day Execution Plan
 
 Date: 2026-05-28
-Owner: ChurchCore Ops product + engineering
+Owner: ChurchCore product + engineering
 Status: Active execution plan
 
 ## Purpose

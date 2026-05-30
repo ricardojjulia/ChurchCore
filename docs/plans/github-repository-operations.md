@@ -1,6 +1,6 @@
 # GitHub Repository Operations Plan
 
-**Purpose:** Turn the ChurchCore Ops GitHub repository into a practical execution system for roadmap tracking, security triage, releases, and disciplined collaboration.
+**Purpose:** Turn the ChurchCore GitHub repository into a practical execution system for roadmap tracking, security triage, releases, and disciplined collaboration.
 
 **Source of truth:** `DEVELOPMENT_PLAN.md` remains the product and release source of truth. This plan only defines how GitHub should support that work.
 
@@ -37,7 +37,7 @@ Acceptance criteria:
 
 ### 2. Create A GitHub Project
 
-Create a repository project named `ChurchCore Ops Execution`.
+Create a repository project named `ChurchCore Execution`.
 
 Recommended fields:
 
@@ -248,4 +248,4 @@ Start with this sequence:
 6. Triage current security alerts.
 7. Tighten branch protections after the first pass proves the workflow is not too heavy.
 
-This gives ChurchCore Ops a visible execution system before adding stricter gates that could slow work down.
+This gives ChurchCore a visible execution system before adding stricter gates that could slow work down.

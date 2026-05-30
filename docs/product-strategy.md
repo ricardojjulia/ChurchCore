@@ -1,4 +1,4 @@
-# ChurchCore Ops Product Strategy
+# ChurchCore Product Strategy
 
 **Version:** 1.0
 **Date:** 2026-04-17
@@ -8,7 +8,7 @@
 
 ## 1. Mission Statement
 
-ChurchCore Ops is the compliance-first, security-native church management platform built for churches that take child safety, financial integrity, and data privacy seriously. Every other system was built for features first and retrofitted with compliance. ChurchCore Ops is the reverse: the architecture is built on a foundation that makes doing the right thing the easiest thing.
+ChurchCore is the compliance-first, security-native church management platform built for churches that take child safety, financial integrity, and data privacy seriously. Every other system was built for features first and retrofitted with compliance. ChurchCore is the reverse: the architecture is built on a foundation that makes doing the right thing the easiest thing.
 
 ---
 
@@ -28,7 +28,7 @@ ChurchCore Ops is the compliance-first, security-native church management platfo
 
 Planning Center is the direct benchmark. It dominates mid-size churches ($100–500K attendance). It is modular: churches pay per-module, per-headcount. Its pricing scales painfully.
 
-| PC Module | What it does | ChurchCore Ops status |
+| PC Module | What it does | ChurchCore status |
 | --- | --- | --- |
 | People | Member directory, groups, lists | Partial (profiles exist, groups missing) |
 | Giving | Online donations, pledge tracking, statements | **NOT BUILT** |
@@ -39,9 +39,9 @@ Planning Center is the direct benchmark. It dominates mid-size churches ($100–
 | Publishing | Church website builder | Out of scope (intentional) |
 | Music Stand | Digital sheet music | Out of scope (intentional) |
 
-### 2.3 What ChurchCore Ops already has that they don't
+### 2.3 What ChurchCore already has that they don't
 
-| Capability | ChurchCore Ops | Planning Center | Pushpay/CCB |
+| Capability | ChurchCore | Planning Center | Pushpay/CCB |
 | --- | --- | --- | --- |
 | Double-entry General Ledger | Yes | No | Partial (CCB) |
 | PIN-hashed (bcrypt) child check-in | Yes | No (PIN stored reversibly) | No |
@@ -55,7 +55,7 @@ Planning Center is the direct benchmark. It dominates mid-size churches ($100–
 
 ### 2.4 Critical gaps to close (Phase 1 — Match)
 
-These gaps mean churches **cannot** replace Planning Center with ChurchCore Ops today. Every item is a hard requirement.
+These gaps mean churches **cannot** replace Planning Center with ChurchCore today. Every item is a hard requirement.
 
 | Gap | Why it's a blocker | Planning Center equivalent |
 | --- | --- | --- |
@@ -68,7 +68,7 @@ These gaps mean churches **cannot** replace Planning Center with ChurchCore Ops 
 
 ### 2.5 Important gaps to close (Phase 2 — Compete)
 
-These gaps mean ChurchCore Ops is usable but visibly incomplete compared to well-run Planning Center implementations.
+These gaps mean ChurchCore is usable but visibly incomplete compared to well-run Planning Center implementations.
 
 | Gap | Why it matters |
 | --- | --- |
@@ -79,16 +79,16 @@ These gaps mean ChurchCore Ops is usable but visibly incomplete compared to well
 | First-visit workflows | Automated follow-up sequences for guests (email day 1, day 7, call prompt week 2) |
 | Bulk communications | Segmented email/SMS blasts, open tracking, unsubscribe compliance |
 
-### 2.6 Decisive differentiators — where ChurchCore Ops wins outright (Phase 3 — Win)
+### 2.6 Decisive differentiators — where ChurchCore wins outright (Phase 3 — Win)
 
-These are features that do not exist in any competitor at the price point ChurchCore Ops targets. They are ChurchCore Ops's moat.
+These are features that do not exist in any competitor at the price point ChurchCore targets. They are ChurchCore's moat.
 
 | Differentiator | Why it wins | None of the competition has this |
 | --- | --- | --- |
 | Giving → GL auto-posting | Every donation automatically creates a balanced journal entry. No manual import. | Planning Center has no GL. Pushpay/CCB has no double-entry. |
 | AI pastoral insights | Flag members with declining engagement before they leave. Suggest follow-up. Surface patterns across small groups. | No competitor has this with church-appropriate privacy constraints |
 | Denomination/network oversight | Multi-church dashboards for district superintendents, bishops, network leaders. Aggregate giving, CCM compliance, ministry progress across 10–500 churches | No affordable competitor supports this |
-| Compliance-first CCM as insurance differentiator | Partner with church liability insurers to offer premium discounts for ChurchCore Ops CCM. Court-order tracking, two-adult enforcement, incident reports = documented audit trail insurers require | No competitor is pursuing this partnership model |
+| Compliance-first CCM as insurance differentiator | Partner with church liability insurers to offer premium discounts for ChurchCore CCM. Court-order tracking, two-adult enforcement, incident reports = documented audit trail insurers require | No competitor is pursuing this partnership model |
 | COPPA-native data retention | Automatic purge schedules, annual PII reviews, data minimization in the database design | Privacy lawyers love this. No competitor has it built-in |
 | Unified financial + ministry data | Budget vs. actual by ministry team. Cost-per-attendee. Giving allocation to ministry tracks. | No competitor connects these two systems |
 
@@ -108,8 +108,8 @@ These are features that do not exist in any competitor at the price point Church
 ### 3.2 Pricing rationale
 
 - Planning Center comparable cost at 200 members: ~$100–180/mo (People + Giving + Check-Ins)
-- ChurchCore Ops Growth tier at 200 members: $99/mo with GL, CCM compliance, and groups included
-- ChurchCore Ops is 30–45% cheaper than PC for an equivalent feature set
+- ChurchCore Growth tier at 200 members: $99/mo with GL, CCM compliance, and groups included
+- ChurchCore is 30–45% cheaper than PC for an equivalent feature set
 - The GL alone is a feature Planning Center cannot match at any price
 
 ### 3.3 Revenue model to $18,000 MRR
@@ -139,13 +139,13 @@ Infrastructure cost at 230 churches: ~$4,500/mo (Vercel Pro + Platform DB + 230 
 
 ### Phase 1 — Match (Months 1–6)
 
-**Goal**: A church using Planning Center People + Giving + Check-Ins can switch to ChurchCore Ops with zero feature regression.
+**Goal**: A church using Planning Center People + Giving + Check-Ins can switch to ChurchCore with zero feature regression.
 
 ---
 
 #### 1.1 Online Giving
 
-**Why first**: Giving is the #1 reason churches buy software. Without it, ChurchCore Ops cannot be a church's primary system.
+**Why first**: Giving is the #1 reason churches buy software. Without it, ChurchCore cannot be a church's primary system.
 
 **Features to build**:
 - Stripe Connect integration (church receives funds directly to their Stripe account)
@@ -260,7 +260,7 @@ Infrastructure cost at 230 churches: ~$4,500/mo (Vercel Pro + Platform DB + 230 
 
 ### Phase 2 — Compete (Months 7–12)
 
-**Goal**: ChurchCore Ops is the preferred choice for churches evaluating a switch. Feature parity is complete; differentiators begin.
+**Goal**: ChurchCore is the preferred choice for churches evaluating a switch. Feature parity is complete; differentiators begin.
 
 ---
 
@@ -348,7 +348,7 @@ Infrastructure cost at 230 churches: ~$4,500/mo (Vercel Pro + Platform DB + 230 
 
 ### Phase 3 — Win (Months 13–24)
 
-**Goal**: ChurchCore Ops is the only system churches consider. Competitors cannot match the architecture or partnerships.
+**Goal**: ChurchCore is the only system churches consider. Competitors cannot match the architecture or partnerships.
 
 ---
 
@@ -407,19 +407,19 @@ Infrastructure cost at 230 churches: ~$4,500/mo (Vercel Pro + Platform DB + 230 
 
 #### 3.4 Insurance Carrier CCM Partnership
 
-**The opportunity**: Church liability insurance underwriters (Church Mutual, GuideOne, Brotherhood Mutual) require documented child safety policies. Most churches have paper policies that are never audited. ChurchCore Ops CCM generates a live, verifiable compliance record.
+**The opportunity**: Church liability insurance underwriters (Church Mutual, GuideOne, Brotherhood Mutual) require documented child safety policies. Most churches have paper policies that are never audited. ChurchCore CCM generates a live, verifiable compliance record.
 
 **What to build**:
 - Compliance report export: PDF/JSON showing for any date range: incident count, two-adult rule compliance %, background check currency, custody restriction log (anonymized), check-in/checkout audit trail
 - Insurance carrier API (future): direct compliance score feed to carrier for automated premium calculation
-- Church certification badge: "ChurchCore Ops CCM Certified — [Year]" for church website
+- Church certification badge: "ChurchCore CCM Certified — [Year]" for church website
 
 **Partnership ask to carriers**:
-- Carriers offer 5–15% premium discount for churches using ChurchCore Ops CCM with two-adult enforcement and background check integration
-- ChurchCore Ops gets co-marketing and preferred vendor listing
+- Carriers offer 5–15% premium discount for churches using ChurchCore CCM with two-adult enforcement and background check integration
+- ChurchCore gets co-marketing and preferred vendor listing
 - Carrier gets documented risk reduction and differentiated product offering
 
-**Why no competitor can match this**: Planning Center Check-Ins has no custody restriction tracking, no two-adult enforcement, and no incident reporting tied to insurance-grade documentation. This is ChurchCore Ops's structural moat.
+**Why no competitor can match this**: Planning Center Check-Ins has no custody restriction tracking, no two-adult enforcement, and no incident reporting tied to insurance-grade documentation. This is ChurchCore's structural moat.
 
 ---
 
@@ -447,7 +447,7 @@ Infrastructure cost at 230 churches: ~$4,500/mo (Vercel Pro + Platform DB + 230 
 - Right-to-deletion workflow: parent requests deletion → staff reviews → compliant purge with audit record
 - COPPA disclosure template: generates required privacy notice for church website
 
-**Why this wins**: No competitor has this built-in. Privacy lawyers reviewing church software will recommend ChurchCore Ops to every client.
+**Why this wins**: No competitor has this built-in. Privacy lawyers reviewing church software will recommend ChurchCore to every client.
 
 ---
 
@@ -457,7 +457,7 @@ Infrastructure cost at 230 churches: ~$4,500/mo (Vercel Pro + Platform DB + 230 
 | --- | --- |
 | Supabase silo model (per-tenant DB) | No shared-schema cross-tenant breach possible. Insurance carriers and denomination IT teams require this. |
 | Anthropic API with zero-retention clause | AI insights without being a PHI/PII liability. |
-| Stripe Connect | Churches never touch ChurchCore Ops money. Zero payment processing liability. |
+| Stripe Connect | Churches never touch ChurchCore money. Zero payment processing liability. |
 | bcrypt PIN hashing | The only correct security architecture for child check-in PINs. Structural competitive advantage. |
 | Vercel + Supabase (no self-managed infra) | Keeps the team focused on product, not ops. Both platforms have 99.9%+ SLA. |
 
@@ -474,7 +474,7 @@ Infrastructure cost at 230 churches: ~$4,500/mo (Vercel Pro + Platform DB + 230 
 
 ### 6.2 Acquisition channels
 
-1. **CCM insurance partnership** — carrier refers ChurchCore Ops to every church renewing liability policy
+1. **CCM insurance partnership** — carrier refers ChurchCore to every church renewing liability policy
 2. **Denomination endorsement** — pitch district leaders on the oversight dashboard; they recommend to every affiliated church
 3. **Organic content** — "How to run child check-in safely" / "Church financial controls for small churches" — targets searchers actively comparing software
 4. **Planning Center migration tool** — one-click import of PC People + Giving export. Removes friction from the #1 objection ("our data is in Planning Center")
@@ -482,7 +482,7 @@ Infrastructure cost at 230 churches: ~$4,500/mo (Vercel Pro + Platform DB + 230 
 
 ### 6.3 Retention strategy
 
-- **Giving lock-in**: Once a church's donor history is in ChurchCore Ops, migration cost is high (donor records, recurring giving setups)
+- **Giving lock-in**: Once a church's donor history is in ChurchCore, migration cost is high (donor records, recurring giving setups)
 - **GL lock-in**: 3+ years of journal entries is not easily migrated
 - **CCM lock-in**: Incident reports, custody restrictions, check-in history — churches cannot lose this for liability reasons
 - **Annual contract discount**: 2 months free on annual billing locks in a year at a time

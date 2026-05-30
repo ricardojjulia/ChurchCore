@@ -1,9 +1,9 @@
-# ChurchCore Ops - Advanced Ministries, Elders & Pastor Council Plan
+# ChurchCore - Advanced Ministries, Elders & Pastor Council Plan
 
 **Living Document** - Last Updated: April 15, 2026  
 **Filename**: `docs/plans/advanced-ministry-elders-pastor.md`  
 **Version**: 1.1  
-**Purpose**: This is the single source of truth for the most distinctive and spiritually rich feature direction in ChurchCore Ops: the areas intended to set the product apart from conventional church management software.
+**Purpose**: This is the single source of truth for the most distinctive and spiritually rich feature direction in ChurchCore: the areas intended to set the product apart from conventional church management software.
 
 This document extends `DEVELOPMENT_PLAN.md`, especially sections 2, 3, 4, 5, and 7. It also depends on the churchgoer data model direction defined in `docs/plans/churchgoer-data.md`.
 
@@ -12,7 +12,7 @@ The repo-level ministry summary now lives in `docs/plans/ministry-spec.md`.
 The deeper 2026 specialization direction for demographic-specific and service-specific pathways is documented in `docs/advanced-ministry-forge-research-spec.md`. Use that document when reconciling new Ministry Forge work with the current tenant schema and Sprint 2 identity model.
 
 **Differentiator Statement**  
-"While other platforms manage schedules and donations, ChurchCore Ops forges spiritually healthy ministries, protects elder unity, and equips pastors to lead with wisdom, powered by AI that knows its place beneath the Holy Spirit."
+"While other platforms manage schedules and donations, ChurchCore forges spiritually healthy ministries, protects elder unity, and equips pastors to lead with wisdom, powered by AI that knows its place beneath the Holy Spirit."
 
 ## Table of Contents
 
@@ -48,7 +48,7 @@ These features must remain assistive and subordinate to human pastoral authority
 
 ## 1.1 Specialized Track Expansion
 
-ChurchCore Ops should treat the following as distinct long-range pathway categories:
+ChurchCore should treat the following as distinct long-range pathway categories:
 
 - `men`
 - `women`
@@ -205,7 +205,7 @@ The `ministries.ministry_type` check constraint must be extended to include:
 - Minimal, focused, actionable
 - Metrics visible only when useful
 - Narrative ministry context preserved alongside charts and status
-- Mantine-first implementation aligned with ChurchCore Ops UI standards
+- Mantine-first implementation aligned with ChurchCore UI standards
 - Type-specific tabs appear conditionally — never cluttering ministries that don't match
 
 ## 4. Elders Discernment Room
