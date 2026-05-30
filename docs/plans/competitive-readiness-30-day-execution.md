@@ -297,7 +297,7 @@ Purpose: close the next three replacement-critical gaps with tightly scoped, mer
 | --- | --- | --- | --- | --- | --- |
 | A1 | Event-ops UI navigation completion from service-plan workflows | P0 | Completed | Product + Engineering | 2026-05-30 |
 | A2 | Volunteer scheduling completion (responses, reminders, coverage states) | P0 | Completed | Product + Engineering | 2026-05-30 |
-| A3 | Event registration/payments foundation hardening | P0 | Planned | Product + Engineering | 2026-05-30 |
+| A3 | Event registration/payments foundation hardening | P0 | Completed | Product + Engineering | 2026-05-30 |
 
 ### A1: Event-Ops UI Navigation Completion
 
@@ -365,6 +365,8 @@ Acceptance criteria:
 
 Validation:
 
-- `npm run test -- app/app/member-actions.test.ts app/app/church-admin-actions.test.ts`
+- `npm run test -- app/app/member-actions.test.ts app/app/church-admin-actions.test.ts app/portal/actions.test.ts lib/event-registration-lifecycle.test.ts`
 - `npm run lint`
 - `npm run build`
+
+Status: Completed (registration lifecycle writes now resolve through shared deterministic status/payment logic across ChurchAdmin, member, and public entry points; ChurchAdmin event registration views now include payment follow-up filtering and normalized payment-state visibility)

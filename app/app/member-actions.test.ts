@@ -594,4 +594,59 @@ describe("memberRegisterForEventAction", () => {
       ],
     );
   });
+
+  it("keeps waitlisted paid member registrations as not_required payment status", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            event_title: "Paid Workshop",
+            starts_at: "2000-01-01T00:00:00.000Z",
+            ends_at: "2999-01-01T00:00:00.000Z",
+            registration_open: true,
+            capacity: 1,
+            waitlist_enabled: true,
+            approval_required: false,
+            household_registration_enabled: false,
+            deadline: null,
+            price_cents: 3500,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "profile-1",
+            full_name: "Member One",
+            email: "member@example.com",
+            phone: "555-0100",
+            family_id: "family-1",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ cnt: 1 }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const result = await memberRegisterForEventAction({ eventId: "event-1" });
+
+    expect(result).toEqual({ ok: true, status: "waitlisted" });
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      5,
+      expect.stringContaining("payment_status"),
+      [
+        "event-1",
+        "church-1",
+        "profile-1",
+        "Member One",
+        "member@example.com",
+        "555-0100",
+        "waitlisted",
+        true,
+        "not_required",
+        null,
+        null,
+      ],
+    );
+  });
 });

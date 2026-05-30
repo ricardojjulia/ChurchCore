@@ -254,6 +254,8 @@ Admins create and manage church events, view categorized calendar data, track ro
 
 Event registration operations now support approval-gated intake (`pending_approval` before confirmation), optional household registration policy toggles, and configurable per-event registration form fields for custom intake data.
 
+Registration payment lifecycle defaults are now deterministic across ChurchAdmin, member, and public registration entry points (`pending` for paid non-waitlisted registrations; `not_required` for free or waitlisted). ChurchAdmin event registration views also include a dedicated payment follow-up filter to isolate unresolved paid registrations that still need operator action.
+
 ### Volunteers
 
 Paths: `/app/church-admin/volunteers`, `/app/church-admin/volunteers/schedules`

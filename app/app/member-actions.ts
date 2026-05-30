@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
+import { resolveRegistrationLifecycle } from "@/lib/event-registration-lifecycle";
 import {
   createTenantServerClient,
   hasTenantBackendEnv,
@@ -596,14 +597,11 @@ export async function memberRegisterForEventAction(
       }
     }
 
-    const status: MemberRegisterForEventResult["status"] = isWaitlisted
-      ? "waitlisted"
-      : settings.approval_required
-        ? "pending_approval"
-        : "confirmed";
-    const paymentStatus = !isWaitlisted && settings.price_cents > 0
-      ? "pending"
-      : "not_required";
+    const { status, paymentStatus } = resolveRegistrationLifecycle({
+      isWaitlisted,
+      approvalRequired: settings.approval_required,
+      priceCents: settings.price_cents,
+    });
 
     await queryTenantLocalDb(
       `insert into public.event_registrations
@@ -710,14 +708,11 @@ export async function memberRegisterForEventAction(
     }
   }
 
-  const status: MemberRegisterForEventResult["status"] = isWaitlisted
-    ? "waitlisted"
-    : settings.approval_required
-      ? "pending_approval"
-      : "confirmed";
-  const paymentStatus = !isWaitlisted && (settings.price_cents ?? 0) > 0
-    ? "pending"
-    : "not_required";
+  const { status, paymentStatus } = resolveRegistrationLifecycle({
+    isWaitlisted,
+    approvalRequired: settings.approval_required,
+    priceCents: settings.price_cents ?? 0,
+  });
 
   const { error } = await supabase.from("event_registrations").insert({
     event_id: input.eventId,
