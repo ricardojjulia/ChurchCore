@@ -25,6 +25,11 @@ Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual
 
 Build a secure, multi-tenant SaaS platform for churches called **ChurchCore**.
 
+Product family context:
+- **ChurchCore**: church operations platform (this plan and repository)
+- **ChurchCore Care**: Christian counseling product
+- **ChurchCore Academy**: Christian LMS and administration product
+
 - Empower churches with tools for administration, donations, ministries, leadership, spiritual formation, events, and volunteer coordination.
 - Key differentiators: role-based portals, user data ownership, strict PII and PHI handling, an intelligent categorized calendar, and AI-assisted tools with strong theological guardrails.
 - Business model: subscription tiers with usage-based add-ons such as payments processing and AI credits.

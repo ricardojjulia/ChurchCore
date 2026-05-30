@@ -10,6 +10,8 @@
 
 ChurchCore is the compliance-first, security-native church management platform built for churches that take child safety, financial integrity, and data privacy seriously. Every other system was built for features first and retrofitted with compliance. ChurchCore is the reverse: the architecture is built on a foundation that makes doing the right thing the easiest thing.
 
+Portfolio context: ChurchCore is the operations product within a three-product family that also includes ChurchCore Care (Christian counseling) and ChurchCore Academy (Christian LMS and administration).
+
 ---
 
 ## 2. Competitive Landscape

@@ -2,6 +2,11 @@
 
 ChurchCore is a secure, multi-tenant church operations platform for member records, ministries, events, volunteer coordination, giving, financial stewardship, communications, reporting, and guardrailed ministry workflow recommendations.
 
+ChurchCore is part of a broader product family:
+- ChurchCore: core church operations platform (this repository)
+- ChurchCore Care: Christian counseling workflows and care journeys
+- ChurchCore Academy: Christian LMS and administration software
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-f97316.svg)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16-111827.svg)](package.json)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-2563eb.svg)](tsconfig.json)
