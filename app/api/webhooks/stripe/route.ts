@@ -47,14 +47,48 @@ async function handlePaymentIntentSucceeded(pi: {
   id: string;
   amount: number;
   currency: string;
-  metadata?: { church_id?: string; fund_designation?: string };
+  metadata?: {
+    church_id?: string;
+    fund_designation?: string;
+    event_registration_id?: string;
+    registration_id?: string;
+  };
   receipt_email?: string;
   customer?: string;
 }) {
   const churchId = pi.metadata?.church_id;
   if (!churchId) return;
 
+  const registrationId =
+    pi.metadata?.event_registration_id ?? pi.metadata?.registration_id;
+
   if (shouldUseLocalTenantFallback()) {
+    if (registrationId) {
+      await queryTenantLocalDb(
+        `update public.event_registrations
+         set payment_status = 'paid',
+             stripe_payment_intent_id = $3,
+             amount_paid_cents = $4,
+             updated_at = now()
+         where id = $1 and church_id = $2`,
+        [registrationId, churchId, pi.id, pi.amount],
+      );
+
+      await queryTenantLocalDb(
+        `update public.event_registration_payments
+         set status = 'succeeded',
+             payment_intent_id = $3,
+             amount_cents = $4,
+             currency = $5,
+             failure_code = null,
+             failure_message = null,
+             reconciled_at = now(),
+             updated_at = now()
+         where registration_id = $1 and church_id = $2`,
+        [registrationId, churchId, pi.id, pi.amount, pi.currency],
+      );
+    }
+
     // Mark succeeded
     const result = await queryTenantLocalDb<{
       id: string;
@@ -111,10 +145,50 @@ async function handlePaymentIntentSucceeded(pi: {
 
 async function handlePaymentIntentFailed(pi: {
   id: string;
-  metadata?: { church_id?: string };
+  metadata?: {
+    church_id?: string;
+    event_registration_id?: string;
+    registration_id?: string;
+  };
+  last_payment_error?: {
+    code?: string;
+    message?: string;
+  };
 }) {
   const churchId = pi.metadata?.church_id;
   if (!churchId || !shouldUseLocalTenantFallback()) return;
+
+  const registrationId =
+    pi.metadata?.event_registration_id ?? pi.metadata?.registration_id;
+
+  if (registrationId) {
+    await queryTenantLocalDb(
+      `update public.event_registrations
+       set payment_status = 'failed',
+           stripe_payment_intent_id = $3,
+           updated_at = now()
+       where id = $1 and church_id = $2`,
+      [registrationId, churchId, pi.id],
+    );
+
+    await queryTenantLocalDb(
+      `update public.event_registration_payments
+       set status = 'failed',
+           payment_intent_id = $3,
+           failure_code = $4,
+           failure_message = $5,
+           reconciled_at = now(),
+           updated_at = now()
+       where registration_id = $1 and church_id = $2`,
+      [
+        registrationId,
+        churchId,
+        pi.id,
+        pi.last_payment_error?.code ?? null,
+        pi.last_payment_error?.message ?? null,
+      ],
+    );
+  }
 
   await queryTenantLocalDb(
     `update public.donations

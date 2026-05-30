@@ -247,6 +247,35 @@ Done when:
 
 Status: Completed (linked event roster/check-in actions and focused page coverage shipped)
 
+## Wave B (Current)
+
+### P0 Slice B1: Payment Lifecycle Operational Closeout
+
+Goal: Persist and reconcile registration payment records end-to-end from registration creation through Stripe webhook outcomes, with explicit ChurchAdmin follow-up controls and aligned visibility.
+
+Scope:
+
+- persist registration payment ledger rows (`event_registration_payments`) at registration creation when payment is required
+- reconcile both `event_registrations` and `event_registration_payments` for Stripe webhook success/failure outcomes
+- add ChurchAdmin operator action for unresolved payment follow-up resolution (status + note + actor)
+- keep ChurchAdmin registration visibility aligned with reconciled records and payment status states
+- ship as one vertical slice with tests-first implementation and gate validation
+
+Done when:
+
+- paid registration paths (ChurchAdmin, member, public portal) write deterministic ledger records
+- Stripe webhook updates registration + payment ledger records for success/failure outcomes
+- ChurchAdmin can resolve unresolved payments via follow-up action and notes
+- requested tests, lint, and build pass
+
+Verification:
+
+- `npm run test -- member-actions.test.ts church-admin-actions.test.ts actions.test.ts`
+- `npm run lint`
+- `npm run build`
+
+Status: In Progress
+
 ## Weekly Cadence
 
 - Day 1-2: implement + test first slice

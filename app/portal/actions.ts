@@ -79,11 +79,11 @@ export async function submitPortalAccountRequestAction(
 
   const supabase = await createTenantServerClient();
   const { error } = await supabase.rpc("submit_account_request", {
-    target_church_id: churchId,
     request_email: email,
     request_first_name: firstName,
     request_last_name: lastName,
     request_phone: phone,
+    request_church_id: churchId,
   });
 
   if (error) {
@@ -127,6 +127,7 @@ export async function submitPublicEventRegistrationAction(
       approval_required: boolean;
       deadline: string | null;
       price_cents: number;
+      currency: string | null;
     }>(
       `select
          settings.registration_open,
@@ -134,7 +135,8 @@ export async function submitPublicEventRegistrationAction(
          settings.waitlist_enabled,
          coalesce(settings.approval_required, false) as approval_required,
          settings.deadline,
-         coalesce(settings.price_cents, 0) as price_cents
+         coalesce(settings.price_cents, 0) as price_cents,
+         coalesce(settings.currency, 'usd') as currency
        from public.event_registration_settings settings
        join public.events event
          on event.id = settings.event_id
@@ -195,11 +197,12 @@ export async function submitPublicEventRegistrationAction(
       priceCents: settings.price_cents,
     });
 
-    await queryTenantLocalDb(
+     const registrationResult = await queryTenantLocalDb<{ id: string }>(
       `insert into public.event_registrations
          (event_id, church_id, registrant_name, registrant_email, registrant_phone,
           status, is_waitlisted, payment_status, notes, custom_fields)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)`,
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
+       returning id`,
       [
         eventId,
         churchId,
@@ -214,6 +217,22 @@ export async function submitPublicEventRegistrationAction(
       ],
     );
 
+    const registrationId = registrationResult.rows[0]?.id;
+    if (registrationId && paymentStatus === "pending") {
+      await queryTenantLocalDb(
+        `insert into public.event_registration_payments
+           (registration_id, event_id, church_id, provider, status, amount_cents, currency)
+         values ($1, $2, $3, 'stripe', 'pending', $4, $5)
+         on conflict (registration_id)
+         do update set
+           status = excluded.status,
+           amount_cents = excluded.amount_cents,
+           currency = excluded.currency,
+           updated_at = now()`,
+        [registrationId, eventId, churchId, settings.price_cents, settings.currency ?? "usd"],
+      );
+    }
+
     revalidatePath(`/portal/events/register?church=${encodeURIComponent(churchId)}`);
     return { ok: true, status };
   }
@@ -222,7 +241,7 @@ export async function submitPublicEventRegistrationAction(
 
   const { data: settings } = await supabase
     .from("event_registration_settings")
-    .select("registration_open, capacity, waitlist_enabled, approval_required, deadline, price_cents, events!inner(id, visibility)")
+    .select("registration_open, capacity, waitlist_enabled, approval_required, deadline, price_cents, currency, events!inner(id, visibility)")
     .eq("church_id", churchId)
     .eq("event_id", eventId)
     .eq("events.visibility", "public")
@@ -273,7 +292,7 @@ export async function submitPublicEventRegistrationAction(
     priceCents: settings.price_cents ?? 0,
   });
 
-  const { error } = await supabase.from("event_registrations").insert({
+  const { data, error } = await supabase.from("event_registrations").insert({
     church_id: churchId,
     event_id: eventId,
     registrant_name: registrantName,
@@ -284,10 +303,26 @@ export async function submitPublicEventRegistrationAction(
     payment_status: paymentStatus,
     notes,
     custom_fields: input.customFields ?? null,
-  });
+  }).select("id").single();
 
   if (error) {
     return { ok: false, error: error.message };
+  }
+
+  if (paymentStatus === "pending" && data?.id) {
+    await supabase.from("event_registration_payments").upsert(
+      {
+        registration_id: data.id,
+        event_id: eventId,
+        church_id: churchId,
+        provider: "stripe",
+        status: "pending",
+        amount_cents: settings.price_cents ?? 0,
+        currency: settings.currency ?? "usd",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "registration_id" },
+    );
   }
 
   revalidatePath(`/portal/events/register?church=${encodeURIComponent(churchId)}`);

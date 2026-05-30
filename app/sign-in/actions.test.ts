@@ -228,7 +228,7 @@ describe("sign-in actions", () => {
     formData.set("redirectTo", "/control");
 
     await expect(signInAction(formData)).rejects.toMatchObject({
-      url: "/sign-in?error=Control-plane%20accounts%20must%20be%20provisioned%20by%20ChurchCore%20Ops%20staff.&redirectTo=%2Fcontrol",
+      url: "/sign-in?error=Control-plane%20accounts%20must%20be%20provisioned%20by%20ChurchCore%20staff.&redirectTo=%2Fcontrol",
     });
   });
 });

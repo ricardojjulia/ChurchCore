@@ -483,6 +483,7 @@ export async function memberRegisterForEventAction(
       household_registration_enabled: boolean;
       deadline: string | null;
       price_cents: number;
+      currency: string | null;
     }>(
       `select
          event.title as event_title,
@@ -494,7 +495,8 @@ export async function memberRegisterForEventAction(
          coalesce(settings.approval_required, false) as approval_required,
          coalesce(settings.household_registration_enabled, false) as household_registration_enabled,
          settings.deadline,
-         coalesce(settings.price_cents, 0) as price_cents
+        coalesce(settings.price_cents, 0) as price_cents,
+        coalesce(settings.currency, 'usd') as currency
        from public.event_registration_settings settings
        join public.events event
          on event.id = settings.event_id
@@ -603,11 +605,12 @@ export async function memberRegisterForEventAction(
       priceCents: settings.price_cents,
     });
 
-    await queryTenantLocalDb(
+    const registrationResult = await queryTenantLocalDb<{ id: string }>(
       `insert into public.event_registrations
          (event_id, church_id, profile_id, registrant_name, registrant_email, registrant_phone,
           status, is_waitlisted, payment_status, notes, custom_fields)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)`,
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+      returning id`,
       [
         input.eventId,
         churchId,
@@ -623,6 +626,22 @@ export async function memberRegisterForEventAction(
       ],
     );
 
+    const registrationId = registrationResult.rows[0]?.id;
+    if (registrationId && paymentStatus === "pending") {
+      await queryTenantLocalDb(
+        `insert into public.event_registration_payments
+           (registration_id, event_id, church_id, provider, status, amount_cents, currency)
+         values ($1, $2, $3, 'stripe', 'pending', $4, $5)
+         on conflict (registration_id)
+         do update set
+           status = excluded.status,
+           amount_cents = excluded.amount_cents,
+           currency = excluded.currency,
+           updated_at = now()`,
+        [registrationId, input.eventId, churchId, settings.price_cents, settings.currency ?? "usd"],
+      );
+    }
+
     revalidatePath("/app/member");
     revalidatePath(`/app/church-admin/events/${input.eventId}`);
     return { ok: true, status };
@@ -632,7 +651,7 @@ export async function memberRegisterForEventAction(
 
   const { data: settings } = await supabase
     .from("event_registration_settings")
-    .select("registration_open, capacity, waitlist_enabled, approval_required, household_registration_enabled, deadline, price_cents, events!inner(id, visibility)")
+    .select("registration_open, capacity, waitlist_enabled, approval_required, household_registration_enabled, deadline, price_cents, currency, events!inner(id, visibility)")
     .eq("event_id", input.eventId)
     .eq("church_id", churchId)
     .maybeSingle();
@@ -714,7 +733,7 @@ export async function memberRegisterForEventAction(
     priceCents: settings.price_cents ?? 0,
   });
 
-  const { error } = await supabase.from("event_registrations").insert({
+  const { data, error } = await supabase.from("event_registrations").insert({
     event_id: input.eventId,
     church_id: churchId,
     profile_id: targetProfile.id,
@@ -726,10 +745,26 @@ export async function memberRegisterForEventAction(
     payment_status: paymentStatus,
     notes: input.notes ?? null,
     custom_fields: input.customFields ?? null,
-  });
+  }).select("id").single();
 
   if (error) {
     return { ok: false, error: error.message };
+  }
+
+  if (paymentStatus === "pending" && data?.id) {
+    await supabase.from("event_registration_payments").upsert(
+      {
+        registration_id: data.id,
+        event_id: input.eventId,
+        church_id: churchId,
+        provider: "stripe",
+        status: "pending",
+        amount_cents: settings.price_cents ?? 0,
+        currency: settings.currency ?? "usd",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "registration_id" },
+    );
   }
 
   revalidatePath("/app/member");

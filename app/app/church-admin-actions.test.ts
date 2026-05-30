@@ -96,6 +96,7 @@ import {
   approveRegistrationAction,
   approveAccountRequestAction,
   createEventAction,
+  updateRegistrationPaymentFollowUpAction,
   rejectAccountRequestAction,
   registerForEventAction,
   updateChurchSettingsAction,
@@ -368,6 +369,40 @@ describe("church-admin actions", () => {
       3,
       expect.stringContaining("set status = 'confirmed'"),
       ["reg-1", "church-1"],
+    );
+  });
+
+  it("records registration payment follow-up resolution in local fallback mode", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "event-1" }] })
+      .mockResolvedValueOnce({ rows: [{ id: "reg-1" }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const result = await updateRegistrationPaymentFollowUpAction({
+      registrationId: "reg-1",
+      eventId: "event-1",
+      paymentStatus: "paid",
+      note: "Manual Stripe reconciliation.",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining("update public.event_registrations"),
+      ["reg-1", "church-1", "paid"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining("event_registration_payments"),
+      [
+        "reg-1",
+        "event-1",
+        "church-1",
+        "succeeded",
+        "Manual Stripe reconciliation.",
+        "profile-1",
+      ],
     );
   });
 

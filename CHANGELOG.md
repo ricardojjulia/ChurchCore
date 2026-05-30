@@ -8,6 +8,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 
+- Added Wave B P0 payment lifecycle operational closeout foundations for event registrations: migration `supabase/migrations/20260530133000_event_registration_payment_closeout.sql`, ChurchAdmin payment follow-up action, Stripe webhook registration payment reconciliation coverage, and payment-ledger persistence on paid registration creates (`app/app/church-admin-actions.ts`, `app/api/webhooks/stripe/route.ts`, `app/api/webhooks/stripe/route.test.ts`, `app/app/member-actions.ts`, `app/portal/actions.ts`, `lib/event-registration-lifecycle.ts`).
 - Added execution tracker `docs/plans/competitive-readiness-30-day-execution.md` to document the current 30-day MVP/competitive closeout plan and ordered delivery slices.
 - Added Finding 4 payment foundation migration `supabase/migrations/20260528200000_event_registration_payment_foundation.sql` introducing `event_registration_payments` and registration-level `payment_status` scaffolding.
 - Added Finding 4 service-planning and event-registration vertical slice: service metadata and run-of-service planning items for service plans, event registration approval workflow (`pending_approval`), household registration policy setting, and configurable event registration form fields (`app/app/volunteer-actions.ts`, `lib/volunteer-data.ts`, `components/application/volunteer-schedule.tsx`, `app/app/church-admin-actions.ts`, `lib/church-admin-events-data.ts`, `components/application/church-admin-event-workspace.tsx`, `supabase/migrations/20260528133000_finding4_service_planning_registration.sql`).
@@ -46,6 +47,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Changed
 
+- Changed the 30-day execution tracker to define Wave B with an in-progress P0 slice for payment lifecycle operational closeout and explicit verification gates (`docs/plans/competitive-readiness-30-day-execution.md`).
 - Changed registration write actions for ChurchAdmin/member/public flows to set initial `payment_status` (`pending` for paid non-waitlisted registrations, `not_required` for free/waitlisted) as the first execution step toward payment-linked registration lifecycle support (`app/app/church-admin-actions.ts`, `app/app/member-actions.ts`, `app/portal/actions.ts`).
 - Changed ChurchAdmin event registration workspace to surface payment lifecycle visibility with payment-status filters, payment summary cards, payment badges, and payment export columns for roster operations (`components/application/church-admin-event-workspace.tsx`, `lib/church-admin-events-data.ts`).
 - Changed competitive roadmap and guide docs to mark Finding 4 as started and capture the new service-planning/registration workflow capabilities (`docs/plans/competitive-readiness-roadmap.md`, `docs/application-guide.md`, `docs/working-calendar.md`, `docs/testing-schema.md`).
