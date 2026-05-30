@@ -9,6 +9,8 @@
 
 This roadmap turns the current competitive-priority list into the next major-release execution plan for ChurchCore. The goal is to make the product credible against Planning Center, Breeze/Tithely, ChurchTrac, Pushpay/CCB, Realm, and MinistryPlatform by proving end-to-end church operations rather than only showing module breadth.
 
+Execution is tracked in active waves inside `docs/plans/competitive-readiness-30-day-execution.md`. Future sessions should update wave status, acceptance criteria, and validation evidence there before marking roadmap outcomes complete.
+
 The release is complete only when a church evaluator can operate the system without knowing the codebase, without relying on preview-only shortcuts, and without asking the team which route to visit next.
 
 ## Competitive Goal

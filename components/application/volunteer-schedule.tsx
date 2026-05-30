@@ -222,9 +222,48 @@ export function ServicePlansWorkspace({
                       <Table.Td>
                         <Text fw={500}>{p.name}</Text>
                         {p.eventId ? (
-                          <Text size="xs" c="dimmed">
-                            Linked event: {eventTitlesById.get(p.eventId) ?? "Church event"}
-                          </Text>
+                          <Stack gap={2}>
+                            <Text size="xs" c="dimmed">
+                              Linked event: {eventTitlesById.get(p.eventId) ?? "Unavailable"}
+                            </Text>
+                            {eventTitlesById.has(p.eventId) ? (
+                              <Group gap="xs">
+                                <Text
+                                  component={Link}
+                                  href={`/app/church-admin/events/${p.eventId}?tab=roster`}
+                                  size="xs"
+                                  fw={600}
+                                  c="churchBlue"
+                                >
+                                  Roster
+                                </Text>
+                                <Text c="dimmed" size="xs">•</Text>
+                                <Text
+                                  component={Link}
+                                  href={`/app/church-admin/events/${p.eventId}?tab=roster#attendance-tracker`}
+                                  size="xs"
+                                  fw={600}
+                                  c="churchBlue"
+                                >
+                                  Attendance
+                                </Text>
+                                <Text c="dimmed" size="xs">•</Text>
+                                <Text
+                                  component={Link}
+                                  href={`/app/church-admin/events/${p.eventId}?tab=registrations`}
+                                  size="xs"
+                                  fw={600}
+                                  c="churchBlue"
+                                >
+                                  Registrations
+                                </Text>
+                              </Group>
+                            ) : (
+                              <Text size="xs" c="orange">
+                                Linked event is unavailable. Open the plan to relink it.
+                              </Text>
+                            )}
+                          </Stack>
                         ) : null}
                       </Table.Td>
                       <Table.Td><Text size="sm">{formatDate(p.serviceDate)}</Text></Table.Td>
@@ -342,6 +381,9 @@ export function ServicePlanBuilder({
   }));
   const linkedEventLabel = detail.plan.eventId
     ? eventOptions.find((event) => event.value === detail.plan.eventId)?.label ?? "Linked church event"
+    : null;
+  const linkedEventOption = detail.plan.eventId
+    ? eventOptions.find((event) => event.value === detail.plan.eventId) ?? null
     : null;
 
   const filteredPool = pool.filter((v) =>
@@ -650,6 +692,11 @@ export function ServicePlanBuilder({
                 No linked church event yet.
               </Text>
             )}
+            {detail.plan.eventId && !linkedEventOption ? (
+              <Text size="xs" c="orange">
+                Linked event is unavailable. Update the linked event field before opening event operations.
+              </Text>
+            ) : null}
             {linkedEventOps ? (
               <Group gap="xs">
                 <Badge size="xs" variant="light" color="blue">
@@ -679,15 +726,33 @@ export function ServicePlanBuilder({
                 Mark Complete
               </Button>
             )}
-            {detail.plan.eventId ? (
-              <Button
-                component={Link}
-                href={`/app/church-admin/events/${detail.plan.eventId}`}
-                size="xs"
-                variant="default"
-              >
-                Open Linked Event
-              </Button>
+            {detail.plan.eventId && linkedEventOption ? (
+              <Group gap="xs">
+                <Button
+                  component={Link}
+                  href={`/app/church-admin/events/${detail.plan.eventId}?tab=roster`}
+                  size="xs"
+                  variant="default"
+                >
+                  Open Roster
+                </Button>
+                <Button
+                  component={Link}
+                  href={`/app/church-admin/events/${detail.plan.eventId}?tab=roster#attendance-tracker`}
+                  size="xs"
+                  variant="light"
+                >
+                  Open Attendance
+                </Button>
+                <Button
+                  component={Link}
+                  href={`/app/church-admin/events/${detail.plan.eventId}?tab=registrations`}
+                  size="xs"
+                  variant="light"
+                >
+                  Open Registrations
+                </Button>
+              </Group>
             ) : null}
           </Group>
         </Group>

@@ -260,3 +260,109 @@ Each slice must update:
 - `CHANGELOG.md`
 - `docs/factory-runs/` with commands/results and residual risks
 - relevant sections in `docs/application-guide.md` or roadmap docs when behavior changes
+
+## Execution Governance (Future Sessions)
+
+Use this section as the continuity contract for every future implementation session.
+
+### Session Start Checklist
+
+1. Read this file top-to-bottom and confirm the active wave table below.
+2. Continue exactly one `In Progress` slice until it meets done criteria.
+3. If no slice is `In Progress`, promote the highest-priority `Planned` slice.
+4. Do not start a new slice before the current slice has tests, docs, and validation evidence.
+
+### Session End Checklist
+
+1. Update the active wave table status and last update date.
+2. Append verification commands/results to a new file in `docs/factory-runs/`.
+3. Update `CHANGELOG.md` and any user-facing docs impacted by behavior changes.
+4. Run and record validation gates:
+  - `npm run lint`
+  - `npm run build`
+  - targeted tests for changed surfaces
+
+### Status Definitions
+
+- `Planned`: scoped, acceptance criteria defined, not yet implemented.
+- `In Progress`: implementation started in branch/worktree.
+- `Blocked`: cannot proceed due to dependency or unresolved defect.
+- `Completed`: merged to `main` with docs and verification evidence.
+
+## Active Wave A: Replacement-Critical Gaps (2026-05-30)
+
+Purpose: close the next three replacement-critical gaps with tightly scoped, merge-ready slices.
+
+| Slice ID | Slice | Priority | Status | Owner | Last Update |
+| --- | --- | --- | --- | --- | --- |
+| A1 | Event-ops UI navigation completion from service-plan workflows | P0 | Completed | Product + Engineering | 2026-05-30 |
+| A2 | Volunteer scheduling completion (responses, reminders, coverage states) | P0 | Planned | Product + Engineering | 2026-05-30 |
+| A3 | Event registration/payments foundation hardening | P0 | Planned | Product + Engineering | 2026-05-30 |
+
+### A1: Event-Ops UI Navigation Completion
+
+Goal: eliminate route-hopping friction by making linked event operations reachable directly from service-plan context.
+
+Scope:
+
+- ensure linked event quick actions are visible from service-plan list and detail contexts
+- provide direct navigation to linked event roster, attendance, and registration subviews
+- preserve church-scoped guards and role checks on all linked navigation targets
+
+Acceptance criteria:
+
+1. ChurchAdmin can navigate from service plans to linked event operations in one interaction.
+2. Missing or unlinked event states render explicit fallback guidance (no dead links).
+3. Route-level tests cover linked and unlinked states.
+
+Validation:
+
+- `npm run test -- app/app/church-admin/volunteers/schedules/page.test.tsx "app/app/church-admin/volunteers/schedules/[id]/page.test.tsx"`
+- `npm run lint`
+- `npm run build`
+
+Status: Completed (service-plan list/detail now provide direct linked navigation to event roster, attendance, and registrations, with unavailable-link fallback guidance; validation gates passed)
+
+### A2: Volunteer Scheduling Completion (Responses + Reminders)
+
+Goal: raise volunteer scheduling from partial coverage to operational reliability.
+
+Scope:
+
+- add assignment response states (pending, accepted, declined) with timestamps
+- add reminder triggers and reminder history for unconfirmed assignments
+- expose coverage and response gaps in service-plan/operator views
+
+Acceptance criteria:
+
+1. Assignment responses are persisted and visible in scheduler views.
+2. Reminders can be sent and are auditable per assignment.
+3. Coverage dashboards clearly identify unresolved roles.
+
+Validation:
+
+- targeted volunteer action + data tests (to be listed in the slice PR)
+- `npm run lint`
+- `npm run build`
+
+### A3: Event Registration/Payments Foundation Hardening
+
+Goal: move registration payment lifecycle from baseline to operationally reliable defaults and visibility.
+
+Scope:
+
+- enforce deterministic payment lifecycle writes across all registration entry points
+- normalize paid/free/waitlist status handling in ChurchAdmin, member, and public flows
+- strengthen payment-state visibility and filters in event workspace views
+
+Acceptance criteria:
+
+1. Registration payment status is deterministic across all entry points.
+2. ChurchAdmin can filter and review payment state without manual reconciliation.
+3. Regression tests cover lifecycle defaults and visibility filters.
+
+Validation:
+
+- `npm run test -- app/app/member-actions.test.ts app/app/church-admin-actions.test.ts`
+- `npm run lint`
+- `npm run build`
