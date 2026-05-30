@@ -53,6 +53,7 @@ import {
   createServicePlanAction,
   respondToShiftAction,
   saveServicePlanTemplateAction,
+  sendVolunteerReminderAction,
   updateServicePlanDetailsAction,
 } from "@/app/app/volunteer-actions";
 
@@ -199,6 +200,54 @@ describe("volunteer actions", () => {
       ["shift-1", "member-1", "confirmed", null, "church-1"],
     );
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/member/schedule");
+  });
+
+  it("logs reminder audit records for pending assignments", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({
+        rows: [{ assigned_user_id: "member-2", confirmation_status: "pending" }],
+      })
+      .mockResolvedValueOnce({ rows: [{ sent_at: "2026-05-01T15:00:00.000Z" }] });
+
+    const result = await sendVolunteerReminderAction({
+      planId: "plan-1",
+      shiftId: "shift-1",
+      channel: "email",
+      note: "Please confirm by Thursday.",
+    });
+
+    expect(result).toEqual({ ok: true, sentAt: "2026-05-01T15:00:00.000Z" });
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("from public.volunteer_shifts"),
+      ["shift-1", "church-1", "plan-1"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("insert into public.volunteer_shift_reminders"),
+      [
+        "church-1",
+        "shift-1",
+        "member-2",
+        "email",
+        "Please confirm by Thursday.",
+        "admin-1",
+      ],
+    );
+  });
+
+  it("rejects reminder when shift is no longer pending", async () => {
+    queryTenantLocalDbMock.mockResolvedValueOnce({
+      rows: [{ assigned_user_id: "member-2", confirmation_status: "confirmed" }],
+    });
+
+    const result = await sendVolunteerReminderAction({
+      planId: "plan-1",
+      shiftId: "shift-1",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Only pending volunteer responses can be reminded.",
+    });
   });
 
   it("returns supabase insert errors for template save", async () => {

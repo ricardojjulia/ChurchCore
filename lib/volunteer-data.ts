@@ -112,7 +112,7 @@ export async function getServicePlanDetail(
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {
-    const [planResult, posResult, shiftResult, runItemsResult] = await Promise.all([
+    const [planResult, posResult, shiftResult, reminderResult, runItemsResult] = await Promise.all([
       queryTenantLocalDb<{
         id: string; church_id: string; event_id: string | null;
         name: string; service_date: string; service_time: string | null;
@@ -156,6 +156,25 @@ export async function getServicePlanDetail(
         [planId],
       ),
       queryTenantLocalDb<{
+        shift_id: string;
+        reminder_count: number;
+        last_reminder_at: string | null;
+      }>(
+        `select
+           shift_id,
+           count(*)::int as reminder_count,
+           max(sent_at)::text as last_reminder_at
+         from public.volunteer_shift_reminders
+         where church_id = $1
+           and shift_id in (
+             select id
+             from public.volunteer_shifts
+             where plan_id = $2
+           )
+         group by shift_id`,
+        [churchId, planId],
+      ),
+      queryTenantLocalDb<{
         id: string; plan_id: string; church_id: string;
         starts_at: string | null; ends_at: string | null;
         title: string; item_type: string; leader_name: string | null;
@@ -173,6 +192,8 @@ export async function getServicePlanDetail(
     const plan = planResult.rows[0];
     if (!plan) return null;
 
+    const reminderByShiftId = new Map(reminderResult.rows.map((row) => [row.shift_id, row]));
+
     const shifts = shiftResult.rows.map((s) => ({
       id: s.id, churchId: s.church_id, eventId: s.event_id, planId: s.plan_id,
       positionId: s.position_id, assignedUserId: s.assigned_user_id,
@@ -180,6 +201,8 @@ export async function getServicePlanDetail(
       confirmationStatus: s.confirmation_status as MemberScheduleEntry["confirmationStatus"],
       declineReason: s.decline_reason, respondedAt: s.responded_at,
       volunteerNotes: s.volunteer_notes,
+      reminderCount: reminderByShiftId.get(s.id)?.reminder_count ?? 0,
+      lastReminderAt: reminderByShiftId.get(s.id)?.last_reminder_at ?? null,
       volunteerName: s.full_name, volunteerEmail: s.email, volunteerPhone: s.phone,
     }));
 
@@ -241,8 +264,34 @@ export async function getServicePlanDetail(
     supabase.from("service_plan_items").select("*").eq("plan_id", planId).order("sort_order"),
   ]);
 
+  const shiftIds = (shifts ?? []).map((shift) => shift.id);
+  const reminderByShiftId = new Map<string, { reminder_count: number; last_reminder_at: string | null }>();
+  if (shiftIds.length > 0) {
+    const { data: reminders } = await supabase
+      .from("volunteer_shift_reminders")
+      .select("shift_id, sent_at")
+      .eq("church_id", churchId)
+      .in("shift_id", shiftIds);
+
+    for (const reminder of reminders ?? []) {
+      const current = reminderByShiftId.get(reminder.shift_id) ?? {
+        reminder_count: 0,
+        last_reminder_at: null,
+      };
+
+      reminderByShiftId.set(reminder.shift_id, {
+        reminder_count: current.reminder_count + 1,
+        last_reminder_at:
+          !current.last_reminder_at || reminder.sent_at > current.last_reminder_at
+            ? reminder.sent_at
+            : current.last_reminder_at,
+      });
+    }
+  }
+
   const mappedShifts = (shifts ?? []).map((s) => {
     const p = s.profiles as { full_name: string; email: string; phone: string } | null;
+    const reminder = reminderByShiftId.get(s.id);
     return {
       id: s.id, churchId: s.church_id, eventId: s.event_id, planId: s.plan_id,
       positionId: s.position_id, assignedUserId: s.assigned_user_id,
@@ -250,6 +299,8 @@ export async function getServicePlanDetail(
       confirmationStatus: (s.confirmation_status ?? "pending") as MemberScheduleEntry["confirmationStatus"],
       declineReason: s.decline_reason ?? null, respondedAt: s.responded_at ?? null,
       volunteerNotes: s.volunteer_notes ?? null,
+      reminderCount: reminder?.reminder_count ?? 0,
+      lastReminderAt: reminder?.last_reminder_at ?? null,
       volunteerName: p?.full_name ?? null, volunteerEmail: p?.email ?? null, volunteerPhone: p?.phone ?? null,
     };
   });

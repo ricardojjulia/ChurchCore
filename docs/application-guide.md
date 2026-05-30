@@ -266,6 +266,8 @@ If a plan references an event that is no longer available, the schedules workspa
 
 Volunteer workflows cover scheduling, member responses, hours, conflicts, and coverage needs. The roadmap includes deeper burnout guardrails and rotation suggestions.
 
+ChurchAdmin service-plan detail now surfaces assignment response timestamps and reminder audit history for pending responses. Pending assignments can be reminded in place, reminder counts and last-reminded times are retained per assignment, and list/detail views now expose explicit coverage-gap and response-gap indicators.
+
 Service plan detail now includes editable service metadata (service type, scripture reference, sermon title, sermon speaker) and run-of-service item planning with schedule blocks, leader, notes, and attachment links.
 
 ### Small Groups

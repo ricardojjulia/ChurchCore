@@ -20,6 +20,7 @@ import {
   Title,
 } from "@mantine/core";
 import {
+  BellRing,
   CalendarCheck,
   Check,
   ChevronRight,
@@ -52,12 +53,22 @@ import {
   assignVolunteerAction,
   createServicePlanAction,
   removeAssignmentAction,
+  sendVolunteerReminderAction,
   updateServicePlanDetailsAction,
   updateServicePlanStatusAction,
 } from "@/app/app/volunteer-actions";
 
 function formatDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 const STATUS_COLOR: Record<string, string> = {
   draft: "gray", published: "blue", complete: "green", cancelled: "red",
@@ -100,6 +111,8 @@ export function ServicePlansWorkspace({
   const visiblePlans =
     view === "unassigned"
       ? plans.filter((plan) => plan.filledCount < plan.positionCount)
+      : view === "response-gaps"
+        ? plans.filter((plan) => plan.confirmedCount < plan.filledCount)
       : plans;
   const upcoming = visiblePlans.filter((p) => p.serviceDate >= new Date().toISOString().slice(0, 10));
   const past = visiblePlans.filter((p) => p.serviceDate < new Date().toISOString().slice(0, 10));
@@ -213,6 +226,8 @@ export function ServicePlansWorkspace({
                     <Table.Th>Status</Table.Th>
                     <Table.Th>Filled</Table.Th>
                     <Table.Th>Confirmed</Table.Th>
+                    <Table.Th>Coverage gap</Table.Th>
+                    <Table.Th>Response gap</Table.Th>
                     <Table.Th />
                   </Table.Tr>
                 </Table.Thead>
@@ -276,6 +291,24 @@ export function ServicePlansWorkspace({
                       <Table.Td>
                         <Badge size="sm" color={p.confirmedCount > 0 ? "green" : "gray"} variant="light">
                           {p.confirmedCount} confirmed
+                        </Badge>
+                      </Table.Td>
+                      <Table.Td>
+                        <Badge
+                          size="sm"
+                          color={Math.max(0, p.positionCount - p.filledCount) > 0 ? "orange" : "green"}
+                          variant="light"
+                        >
+                          {Math.max(0, p.positionCount - p.filledCount)}
+                        </Badge>
+                      </Table.Td>
+                      <Table.Td>
+                        <Badge
+                          size="sm"
+                          color={Math.max(0, p.filledCount - p.confirmedCount) > 0 ? "yellow" : "green"}
+                          variant="light"
+                        >
+                          {Math.max(0, p.filledCount - p.confirmedCount)}
                         </Badge>
                       </Table.Td>
                       <Table.Td>
@@ -573,6 +606,7 @@ export function ServicePlanBuilder({
                     assignedUserId: profileId, title: assignTarget.roleName,
                     startsAt, endsAt, status: "assigned", confirmationStatus: "pending",
                     declineReason: null, respondedAt: null, volunteerNotes: null,
+                    reminderCount: 0, lastReminderAt: null,
                     volunteerName: fullName, volunteerEmail: null, volunteerPhone: null,
                   }],
                 }
@@ -593,15 +627,68 @@ export function ServicePlanBuilder({
       if (res.ok) {
         setDetail((d) => ({
           ...d,
-          positions: d.positions.map((p) =>
-            p.id === positionId
-              ? { ...p, shifts: p.shifts.filter((s) => s.id !== shiftId), filled: Math.max(0, p.filled - 1) }
-              : p,
-          ),
+          positions: d.positions.map((p) => {
+            if (p.id !== positionId) {
+              return p;
+            }
+
+            const removedShift = p.shifts.find((s) => s.id === shiftId);
+            return {
+              ...p,
+              shifts: p.shifts.filter((s) => s.id !== shiftId),
+              filled: removedShift?.confirmationStatus !== "declined" ? Math.max(0, p.filled - 1) : p.filled,
+              pending: removedShift?.confirmationStatus === "pending" ? Math.max(0, p.pending - 1) : p.pending,
+            };
+          }),
+          pendingCount: d.positions
+            .find((p) => p.id === positionId)
+            ?.shifts.find((s) => s.id === shiftId)?.confirmationStatus === "pending"
+            ? Math.max(0, d.pendingCount - 1)
+            : d.pendingCount,
+          confirmedCount: d.positions
+            .find((p) => p.id === positionId)
+            ?.shifts.find((s) => s.id === shiftId)?.confirmationStatus === "confirmed"
+            ? Math.max(0, d.confirmedCount - 1)
+            : d.confirmedCount,
         }));
       } else {
         setMsg({ type: "error", text: res.error ?? "Failed to remove." });
       }
+    });
+  }
+
+  function handleSendReminder(shiftId: string, positionId: string, volunteerName: string) {
+    startTransition(async () => {
+      const res = await sendVolunteerReminderAction({
+        planId: detail.plan.id,
+        shiftId,
+      });
+
+      if (!res.ok) {
+        setMsg({ type: "error", text: res.error ?? "Failed to send reminder." });
+        return;
+      }
+
+      setDetail((d) => ({
+        ...d,
+        positions: d.positions.map((position) =>
+          position.id === positionId
+            ? {
+                ...position,
+                shifts: position.shifts.map((shift) =>
+                  shift.id === shiftId
+                    ? {
+                        ...shift,
+                        reminderCount: shift.reminderCount + 1,
+                        lastReminderAt: res.sentAt ?? new Date().toISOString(),
+                      }
+                    : shift,
+                ),
+              }
+            : position,
+        ),
+      }));
+      setMsg({ type: "success", text: `Reminder logged for ${volunteerName}.` });
     });
   }
 
@@ -1015,6 +1102,28 @@ export function ServicePlanBuilder({
                       <Badge size="xs" color={CONFIRM_COLOR[shift.confirmationStatus]} variant="dot">
                         {shift.confirmationStatus}
                       </Badge>
+                      {shift.respondedAt ? (
+                        <Text size="xs" c="dimmed">
+                          Responded {formatDateTime(shift.respondedAt)}
+                        </Text>
+                      ) : null}
+                      {shift.lastReminderAt ? (
+                        <Badge size="xs" color="gray" variant="light">
+                          {shift.reminderCount} reminder{shift.reminderCount === 1 ? "" : "s"} · last {formatDateTime(shift.lastReminderAt)}
+                        </Badge>
+                      ) : null}
+                      {shift.confirmationStatus === "pending" && shift.assignedUserId ? (
+                        <Button
+                          size="xs"
+                          variant="light"
+                          color="yellow"
+                          leftSection={<BellRing size={12} />}
+                          onClick={() => handleSendReminder(shift.id, pos.id, shift.volunteerName ?? "Member")}
+                          loading={isPending}
+                        >
+                          Remind
+                        </Button>
+                      ) : null}
                       {linkedEventOps && shift.assignedUserId ? (
                         rosterProfileIds.has(shift.assignedUserId) ? (
                           <Badge size="xs" color="blue" variant="light">On event roster</Badge>

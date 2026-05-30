@@ -296,7 +296,7 @@ Purpose: close the next three replacement-critical gaps with tightly scoped, mer
 | Slice ID | Slice | Priority | Status | Owner | Last Update |
 | --- | --- | --- | --- | --- | --- |
 | A1 | Event-ops UI navigation completion from service-plan workflows | P0 | Completed | Product + Engineering | 2026-05-30 |
-| A2 | Volunteer scheduling completion (responses, reminders, coverage states) | P0 | Planned | Product + Engineering | 2026-05-30 |
+| A2 | Volunteer scheduling completion (responses, reminders, coverage states) | P0 | Completed | Product + Engineering | 2026-05-30 |
 | A3 | Event registration/payments foundation hardening | P0 | Planned | Product + Engineering | 2026-05-30 |
 
 ### A1: Event-Ops UI Navigation Completion
@@ -341,9 +341,11 @@ Acceptance criteria:
 
 Validation:
 
-- targeted volunteer action + data tests (to be listed in the slice PR)
+- `npm run test -- app/app/volunteer-actions.test.ts app/app/church-admin/volunteers/schedules/page.test.tsx "app/app/church-admin/volunteers/schedules/[id]/page.test.tsx"`
 - `npm run lint`
 - `npm run build`
+
+Status: Completed (assignment responses now include visible response timestamps, pending assignments support auditable reminder logging, and service-plan list/detail surfaces explicit coverage and response gaps)
 
 ### A3: Event Registration/Payments Foundation Hardening
 
