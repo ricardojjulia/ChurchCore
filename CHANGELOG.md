@@ -40,6 +40,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added event-linked service-plan workflow support so ChurchAdmin can connect service plans to existing events from the schedules workspace, with scoped validation and focused page/action tests (`app/app/volunteer-actions.ts`, `components/application/volunteer-schedule.tsx`, `app/app/church-admin/volunteers/schedules/page.tsx`, `app/app/church-admin/volunteers/schedules/[id]/page.tsx`).
 - Added service-plan event-ops bridge behavior so volunteer assignments created from event-linked plans persist the linked `event_id`, plus direct navigation from plan detail to the linked ChurchAdmin event workspace (`app/app/volunteer-actions.ts`, `components/application/volunteer-schedule.tsx`, `app/app/volunteer-actions.test.ts`).
 - Added linked event operations in service-plan detail so ChurchAdmin can add assigned volunteers directly to the linked event roster and check them in from the same plan workflow (`components/application/volunteer-schedule.tsx`, `app/app/church-admin/volunteers/schedules/[id]/page.tsx`, `app/app/church-admin/volunteers/schedules/[id]/page.test.tsx`).
+- Added direct linked event-ops navigation from service-plan list/detail into event roster, attendance, and registrations, plus unavailable-link fallback guidance when linked events are missing (`components/application/volunteer-schedule.tsx`, `app/app/church-admin/events/[id]/page.tsx`, `components/application/church-admin-event-workspace.tsx`).
 
 ### Changed
 

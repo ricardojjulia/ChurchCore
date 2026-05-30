@@ -11,10 +11,13 @@ import {
 
 export default async function ChurchAdminEventPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
+  const { tab } = await searchParams;
   const session = await requireChurchSession(`/app/church-admin/events/${id}`);
 
   if (
@@ -41,6 +44,7 @@ export default async function ChurchAdminEventPage({
       registrations={registrations}
       settings={settings}
       formFields={formFields}
+      initialTab={tab === "registrations" ? "registrations" : "roster"}
     />
   );
 }

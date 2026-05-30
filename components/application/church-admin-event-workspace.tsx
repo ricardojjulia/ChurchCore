@@ -475,7 +475,7 @@ export function ChurchAdminEventWorkspace({
           </Stack>
         </Paper>
 
-        <Paper withBorder radius="xl" p="xl">
+        <Paper withBorder radius="xl" p="xl" id="attendance-tracker">
           <Group justify="space-between" align="center" mb="lg">
             <div>
               <Title order={3} size="h4">
@@ -994,6 +994,7 @@ export function ChurchAdminEventDetailWorkspace({
   registrations,
   settings,
   formFields,
+  initialTab = "roster",
 }: {
   session: import("@/lib/auth").ChurchAppSession;
   eventId: string;
@@ -1001,6 +1002,7 @@ export function ChurchAdminEventDetailWorkspace({
   registrations: EventRegistration[];
   settings: EventRegistrationSettings | null;
   formFields: EventRegistrationFormField[];
+  initialTab?: "roster" | "registrations";
 }) {
   return (
     <ApplicationShell
@@ -1023,7 +1025,7 @@ export function ChurchAdminEventDetailWorkspace({
         },
       ]}
     >
-      <Tabs defaultValue="roster" p="md">
+      <Tabs defaultValue={initialTab} p="md">
         <Tabs.List mb="md">
           <Tabs.Tab value="roster" leftSection={<Users size={14} />}>
             Roster & Attendance
