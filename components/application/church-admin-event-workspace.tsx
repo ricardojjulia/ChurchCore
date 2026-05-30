@@ -1067,9 +1067,8 @@ export function EventRegistrationsPanel({
   formFields: EventRegistrationFormField[];
 }) {
   const [registrations, setRegistrations] = useState(initialRegistrations);
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState<
-    "all" | EventRegistration["paymentStatus"]
-  >("all");
+  type PaymentStatusFilter = "all" | "follow_up" | EventRegistration["paymentStatus"];
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<PaymentStatusFilter>("all");
   const [settings] = useState(initialSettings);
   const [formFields, setFormFields] = useState(initialFormFields);
   const [isPending, startTransition] = useTransition();
@@ -1236,10 +1235,15 @@ export function EventRegistrationsPanel({
   const confirmed = registrations.filter((r) => !r.isWaitlisted && r.status !== "cancelled");
   const waitlisted = registrations.filter((r) => r.isWaitlisted);
   const paymentPending = registrations.filter((r) => r.paymentStatus === "pending");
+  const paymentFollowUp = registrations.filter(
+    (r) => r.status !== "cancelled" && !r.isWaitlisted && (r.paymentStatus === "pending" || r.paymentStatus === "failed"),
+  );
   const paymentPaid = registrations.filter((r) => r.paymentStatus === "paid");
   const filteredRegistrations =
     paymentStatusFilter === "all"
       ? registrations
+      : paymentStatusFilter === "follow_up"
+        ? paymentFollowUp
       : registrations.filter((registration) => registration.paymentStatus === paymentStatusFilter);
   const hasCheckInWindow =
     Boolean(settingsForm.mobileMemberCheckInStartsAt) &&
@@ -1585,6 +1589,10 @@ export function EventRegistrationsPanel({
           <Text fw={700} size="xl">{paymentPending.length}</Text>
         </Paper>
         <Paper withBorder p="sm" radius="md" style={{ flex: 1 }}>
+          <Text size="xs" c="dimmed">Payment follow-up</Text>
+          <Text fw={700} size="xl">{paymentFollowUp.length}</Text>
+        </Paper>
+        <Paper withBorder p="sm" radius="md" style={{ flex: 1 }}>
           <Text size="xs" c="dimmed">Paid</Text>
           <Text fw={700} size="xl">{paymentPaid.length}</Text>
         </Paper>
@@ -1610,6 +1618,14 @@ export function EventRegistrationsPanel({
           onClick={() => setPaymentStatusFilter("all")}
         >
           All ({registrations.length})
+        </Button>
+        <Button
+          size="xs"
+          variant={paymentStatusFilter === "follow_up" ? "filled" : "light"}
+          color="orange"
+          onClick={() => setPaymentStatusFilter("follow_up")}
+        >
+          Follow-up ({paymentFollowUp.length})
         </Button>
         {([
           "pending",

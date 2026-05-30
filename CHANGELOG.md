@@ -42,6 +42,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added linked event operations in service-plan detail so ChurchAdmin can add assigned volunteers directly to the linked event roster and check them in from the same plan workflow (`components/application/volunteer-schedule.tsx`, `app/app/church-admin/volunteers/schedules/[id]/page.tsx`, `app/app/church-admin/volunteers/schedules/[id]/page.test.tsx`).
 - Added direct linked event-ops navigation from service-plan list/detail into event roster, attendance, and registrations, plus unavailable-link fallback guidance when linked events are missing (`components/application/volunteer-schedule.tsx`, `app/app/church-admin/events/[id]/page.tsx`, `components/application/church-admin-event-workspace.tsx`).
 - Added volunteer reminder audit foundation with `volunteer_shift_reminders` migration and ChurchAdmin reminder action support for pending assignments (`supabase/migrations/20260530104500_volunteer_shift_reminders.sql`, `app/app/volunteer-actions.ts`, `app/app/volunteer-actions.test.ts`).
+- Added shared event registration lifecycle utilities and focused tests to enforce deterministic status/payment defaults across ChurchAdmin/member/public registration writes (`lib/event-registration-lifecycle.ts`, `lib/event-registration-lifecycle.test.ts`, `app/portal/actions.test.ts`).
 
 ### Changed
 
@@ -63,6 +64,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Changed security and testing evidence docs to reference the new import commit gates, paid-registration lifecycle verification, and role-access matrix (`docs/security-assessment.md`, `docs/security-mitigation-plan.md`, `docs/testing-schema.md`).
 - Changed local account-request approval resilience in `app/app/church-admin-actions.ts` to handle missing `generate_member_number()` runtime function support and invite-triggered pre-existing profile records, preventing duplicate-profile approval failures during onboarding.
 - Changed service-plan scheduling views to expose coverage-gap and response-gap metrics, assignment response timestamps, and per-assignment reminder history with in-context reminder controls for pending responses (`components/application/volunteer-schedule.tsx`, `lib/volunteer-data.ts`, `lib/volunteer-types.ts`).
+- Changed event registration lifecycle writes in ChurchAdmin/member/public actions to reuse a shared resolver, reducing drift risk between paid/free/waitlist/approval branches (`app/app/church-admin-actions.ts`, `app/app/member-actions.ts`, `app/portal/actions.ts`).
+- Changed ChurchAdmin event registration payment visibility to normalize legacy/inconsistent payment statuses and add a payment follow-up filter for unresolved paid registrations (`lib/church-admin-events-data.ts`, `components/application/church-admin-event-workspace.tsx`).
 
 ## [3.1.0] - 2026-05-27
 

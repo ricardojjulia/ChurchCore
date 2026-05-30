@@ -256,6 +256,22 @@ describe("church-admin actions", () => {
     });
 
     expect(result).toEqual({ ok: true, registrationId: "reg-1", isWaitlisted: true });
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining("payment_status"),
+      [
+        "event-1",
+        "church-1",
+        "New Visitor",
+        "visitor@example.com",
+        null,
+        "waitlisted",
+        true,
+        "not_required",
+        null,
+        null,
+      ],
+    );
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/events/event-1");
   });
 

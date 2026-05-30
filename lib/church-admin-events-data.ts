@@ -2,6 +2,7 @@ import "server-only";
 
 import type { ChurchAppSession } from "@/lib/auth";
 import { AI_ASSISTIVE_DISCLAIMER } from "@/lib/ministry-forge-types";
+import { normalizeRegistrationPaymentStatus } from "@/lib/event-registration-lifecycle";
 import {
   createTenantServerClient,
   hasTenantBackendEnv,
@@ -238,17 +239,31 @@ export async function getEventRegistrations(
       ),
     ]);
 
+    const s = settingsRows.rows[0];
+    const eventPriceCents = s?.price_cents ?? 0;
     const registrations: EventRegistration[] = regRows.rows.map((r) => ({
-      id: r.id, eventId: r.event_id, registrantName: r.registrant_name,
-      registrantEmail: r.registrant_email, registrantPhone: r.registrant_phone,
-      status: r.status as EventRegistration["status"], isWaitlisted: r.is_waitlisted,
-      paymentStatus: (r.payment_status as EventRegistration["paymentStatus"]) ?? "not_required",
-      amountPaidCents: r.amount_paid_cents, customFields: r.custom_fields,
+      id: r.id,
+      eventId: r.event_id,
+      registrantName: r.registrant_name,
+      registrantEmail: r.registrant_email,
+      registrantPhone: r.registrant_phone,
+      status: r.status as EventRegistration["status"],
+      isWaitlisted: r.is_waitlisted,
+      paymentStatus: normalizeRegistrationPaymentStatus({
+        status: r.status,
+        isWaitlisted: r.is_waitlisted,
+        amountPaidCents: r.amount_paid_cents,
+        storedPaymentStatus: r.payment_status,
+        priceCents: eventPriceCents,
+      }),
+      amountPaidCents: r.amount_paid_cents,
+      customFields: r.custom_fields,
       stripePaymentIntentId: r.stripe_payment_intent_id,
-      notes: r.notes, registeredAt: r.registered_at, checkedInAt: r.checked_in_at,
+      notes: r.notes,
+      registeredAt: r.registered_at,
+      checkedInAt: r.checked_in_at,
     }));
 
-    const s = settingsRows.rows[0];
     const settings: EventRegistrationSettings | null = s ? {
       id: s.id, eventId: s.event_id, registrationOpen: s.registration_open,
       capacity: s.capacity, priceCents: s.price_cents, deadline: s.deadline,
@@ -303,18 +318,31 @@ export async function getEventRegistrations(
       .order("sort_order"),
   ]);
 
+  const s = settingsData;
+  const eventPriceCents = s?.price_cents ?? 0;
   const registrations: EventRegistration[] = (regData ?? []).map((r) => ({
-    id: r.id, eventId: r.event_id, registrantName: r.registrant_name,
-    registrantEmail: r.registrant_email, registrantPhone: r.registrant_phone,
-    status: r.status as EventRegistration["status"], isWaitlisted: r.is_waitlisted,
-    paymentStatus: (r.payment_status as EventRegistration["paymentStatus"]) ?? "not_required",
+    id: r.id,
+    eventId: r.event_id,
+    registrantName: r.registrant_name,
+    registrantEmail: r.registrant_email,
+    registrantPhone: r.registrant_phone,
+    status: r.status as EventRegistration["status"],
+    isWaitlisted: r.is_waitlisted,
+    paymentStatus: normalizeRegistrationPaymentStatus({
+      status: r.status,
+      isWaitlisted: r.is_waitlisted,
+      amountPaidCents: r.amount_paid_cents,
+      storedPaymentStatus: r.payment_status,
+      priceCents: eventPriceCents,
+    }),
     amountPaidCents: r.amount_paid_cents,
     stripePaymentIntentId: r.stripe_payment_intent_id ?? null,
     customFields: r.custom_fields as Record<string, unknown> | null,
-    notes: r.notes, registeredAt: r.registered_at, checkedInAt: r.checked_in_at,
+    notes: r.notes,
+    registeredAt: r.registered_at,
+    checkedInAt: r.checked_in_at,
   }));
 
-  const s = settingsData;
   const settings: EventRegistrationSettings | null = s ? {
     id: s.id, eventId: s.event_id, registrationOpen: s.registration_open,
     capacity: s.capacity, priceCents: s.price_cents, deadline: s.deadline,
