@@ -6,6 +6,7 @@ const {
   redirectMock,
   requireChurchSessionMock,
   getChurchAdminEventsListMock,
+  getChurchAdminEventWorkspaceDataMock,
   getServicePlanDetailMock,
   getVolunteerPoolMock,
   applicationShellMock,
@@ -19,6 +20,7 @@ const {
   }),
   requireChurchSessionMock: vi.fn(),
   getChurchAdminEventsListMock: vi.fn(),
+  getChurchAdminEventWorkspaceDataMock: vi.fn(),
   getServicePlanDetailMock: vi.fn(),
   getVolunteerPoolMock: vi.fn(),
   applicationShellMock: vi.fn(({ title, description, children }: { title: string; description: string; children: React.ReactNode }) => (
@@ -42,6 +44,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/church-admin-events-data", () => ({
   getChurchAdminEventsList: getChurchAdminEventsListMock,
+  getChurchAdminEventWorkspaceData: getChurchAdminEventWorkspaceDataMock,
 }));
 
 vi.mock("@/lib/volunteer-data", () => ({
@@ -67,10 +70,15 @@ describe("service plan detail page", () => {
       homePath: "/app/member",
     });
     getServicePlanDetailMock.mockResolvedValue({
-      plan: { id: "plan-1", name: "Sunday Worship", serviceDate: "2026-04-21" },
+      plan: { id: "plan-1", name: "Sunday Worship", serviceDate: "2026-04-21", eventId: "event-1" },
     });
     getVolunteerPoolMock.mockResolvedValue([{ profileId: "member-1" }]);
     getChurchAdminEventsListMock.mockResolvedValue([{ id: "event-1", title: "Sunday Worship", startsAt: "2026-04-21T09:00:00Z" }]);
+    getChurchAdminEventWorkspaceDataMock.mockResolvedValue({
+      event: { id: "event-1", title: "Sunday Worship" },
+      rosterEntries: [{ profileId: "member-1" }],
+      attendanceEntries: [{ profileId: "member-2" }],
+    });
   });
 
   it("redirects non-admin users", async () => {
@@ -91,8 +99,33 @@ describe("service plan detail page", () => {
     expect(screen.getByText("Service Plan Builder")).toBeInTheDocument();
     expect(builderMock).toHaveBeenCalledWith(
       {
-        detail: { plan: { id: "plan-1", name: "Sunday Worship", serviceDate: "2026-04-21" } },
+        detail: { plan: { id: "plan-1", name: "Sunday Worship", serviceDate: "2026-04-21", eventId: "event-1" } },
         events: [{ id: "event-1", title: "Sunday Worship", startsAt: "2026-04-21T09:00:00Z" }],
+        linkedEventOps: {
+          eventId: "event-1",
+          eventTitle: "Sunday Worship",
+          rosterProfileIds: ["member-1"],
+          attendanceProfileIds: ["member-2"],
+        },
+        pool: [{ profileId: "member-1" }],
+      },
+      undefined,
+    );
+  });
+
+  it("passes null linkedEventOps when no plan event is linked", async () => {
+    getServicePlanDetailMock.mockResolvedValueOnce({
+      plan: { id: "plan-1", name: "Sunday Worship", serviceDate: "2026-04-21", eventId: null },
+    });
+
+    const page = await ServicePlanDetailPage({ params: Promise.resolve({ id: "plan-1" }) });
+    render(page);
+
+    expect(builderMock).toHaveBeenCalledWith(
+      {
+        detail: { plan: { id: "plan-1", name: "Sunday Worship", serviceDate: "2026-04-21", eventId: null } },
+        events: [{ id: "event-1", title: "Sunday Worship", startsAt: "2026-04-21T09:00:00Z" }],
+        linkedEventOps: null,
         pool: [{ profileId: "member-1" }],
       },
       undefined,

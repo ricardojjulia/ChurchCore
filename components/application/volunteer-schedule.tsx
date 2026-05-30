@@ -34,9 +34,14 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { ReadinessTargetState } from "@/components/application/readiness-target-state";
+import {
+  addRosterAssignmentAction,
+  quickCheckInEventMemberAction,
+} from "@/app/app/church-admin-actions";
 import type {
   ServicePlanDetail,
   ServicePlanEventOption,
+  ServicePlanLinkedEventOps,
   ServicePlanListEntry,
   ServicePlanTemplate,
   VolunteerPoolEntry,
@@ -292,12 +297,15 @@ export function ServicePlanBuilder({
   detail: initialDetail,
   events,
   pool,
+  linkedEventOps: initialLinkedEventOps,
 }: {
   detail: ServicePlanDetail;
   events: ServicePlanEventOption[];
   pool: VolunteerPoolEntry[];
+  linkedEventOps: ServicePlanLinkedEventOps | null;
 }) {
   const [detail, setDetail] = useState(initialDetail);
+  const [linkedEventOps, setLinkedEventOps] = useState(initialLinkedEventOps);
   const [isPending, startTransition] = useTransition();
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showAddPosition, setShowAddPosition] = useState(false);
@@ -340,6 +348,8 @@ export function ServicePlanBuilder({
     !volunteerSearch ||
     [v.fullName, v.email].filter(Boolean).join(" ").toLowerCase().includes(volunteerSearch.toLowerCase())
   );
+  const rosterProfileIds = new Set(linkedEventOps?.rosterProfileIds ?? []);
+  const attendanceProfileIds = new Set(linkedEventOps?.attendanceProfileIds ?? []);
 
   function handleSaveDetails() {
     startTransition(async () => {
@@ -517,7 +527,7 @@ export function ServicePlanBuilder({
                   pending: p.pending + 1,
                   shifts: [...p.shifts, {
                     id: crypto.randomUUID(), churchId: d.plan.churchId,
-                    eventId: null, planId: d.plan.id, positionId: p.id,
+                    eventId: d.plan.eventId, planId: d.plan.id, positionId: p.id,
                     assignedUserId: profileId, title: assignTarget.roleName,
                     startsAt, endsAt, status: "assigned", confirmationStatus: "pending",
                     declineReason: null, respondedAt: null, volunteerNotes: null,
@@ -553,6 +563,71 @@ export function ServicePlanBuilder({
     });
   }
 
+  function handleAddToLinkedEventRoster(profileId: string, roleName: string, fullName: string) {
+    if (!linkedEventOps?.eventId) {
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        await addRosterAssignmentAction({
+          eventId: linkedEventOps.eventId,
+          profileId,
+          roleTitle: roleName,
+        });
+
+        setLinkedEventOps((current) => {
+          if (!current || current.rosterProfileIds.includes(profileId)) {
+            return current;
+          }
+
+          return {
+            ...current,
+            rosterProfileIds: [...current.rosterProfileIds, profileId],
+          };
+        });
+        setMsg({ type: "success", text: `${fullName} was added to the linked event roster.` });
+      } catch (error) {
+        setMsg({
+          type: "error",
+          text: error instanceof Error ? error.message : "Failed to add roster assignment.",
+        });
+      }
+    });
+  }
+
+  function handleLinkedEventCheckIn(profileId: string, fullName: string) {
+    if (!linkedEventOps?.eventId) {
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        await quickCheckInEventMemberAction({
+          eventId: linkedEventOps.eventId,
+          profileId,
+        });
+
+        setLinkedEventOps((current) => {
+          if (!current || current.attendanceProfileIds.includes(profileId)) {
+            return current;
+          }
+
+          return {
+            ...current,
+            attendanceProfileIds: [...current.attendanceProfileIds, profileId],
+          };
+        });
+        setMsg({ type: "success", text: `${fullName} was checked in on the linked event.` });
+      } catch (error) {
+        setMsg({
+          type: "error",
+          text: error instanceof Error ? error.message : "Failed to check in member.",
+        });
+      }
+    });
+  }
+
   const totalNeeded = detail.positions.reduce((s, p) => s + p.quantityNeeded, 0);
   const fillPct = totalNeeded > 0 ? Math.round((detail.confirmedCount / totalNeeded) * 100) : 0;
 
@@ -575,6 +650,16 @@ export function ServicePlanBuilder({
                 No linked church event yet.
               </Text>
             )}
+            {linkedEventOps ? (
+              <Group gap="xs">
+                <Badge size="xs" variant="light" color="blue">
+                  Linked roster: {linkedEventOps.rosterProfileIds.length}
+                </Badge>
+                <Badge size="xs" variant="light" color="teal">
+                  Linked attendance: {linkedEventOps.attendanceProfileIds.length}
+                </Badge>
+              </Group>
+            ) : null}
             <Group gap="md">
               <Group gap="xs"><CalendarCheck size={14} /><Text size="sm">{formatDate(detail.plan.serviceDate)}</Text></Group>
               {detail.plan.serviceTime && (
@@ -865,6 +950,46 @@ export function ServicePlanBuilder({
                       <Badge size="xs" color={CONFIRM_COLOR[shift.confirmationStatus]} variant="dot">
                         {shift.confirmationStatus}
                       </Badge>
+                      {linkedEventOps && shift.assignedUserId ? (
+                        rosterProfileIds.has(shift.assignedUserId) ? (
+                          <Badge size="xs" color="blue" variant="light">On event roster</Badge>
+                        ) : (
+                          <Button
+                            size="xs"
+                            variant="light"
+                            onClick={() =>
+                              handleAddToLinkedEventRoster(
+                                shift.assignedUserId!,
+                                pos.roleName,
+                                shift.volunteerName ?? "Member",
+                              )
+                            }
+                            loading={isPending}
+                          >
+                            Add to Event Roster
+                          </Button>
+                        )
+                      ) : null}
+                      {linkedEventOps && shift.assignedUserId ? (
+                        attendanceProfileIds.has(shift.assignedUserId) ? (
+                          <Badge size="xs" color="teal" variant="light">Checked in</Badge>
+                        ) : (
+                          <Button
+                            size="xs"
+                            variant="light"
+                            color="teal"
+                            onClick={() =>
+                              handleLinkedEventCheckIn(
+                                shift.assignedUserId!,
+                                shift.volunteerName ?? "Member",
+                              )
+                            }
+                            loading={isPending}
+                          >
+                            Check In on Event
+                          </Button>
+                        )
+                      ) : null}
                       <Button size="xs" variant="subtle" color="red"
                         leftSection={<UserMinus size={12} />}
                         onClick={() => handleRemove(shift.id, pos.id)}

@@ -24,6 +24,13 @@ export type ServicePlanEventOption = {
   startsAt: string;
 };
 
+export type ServicePlanLinkedEventOps = {
+  eventId: string;
+  eventTitle: string;
+  rosterProfileIds: string[];
+  attendanceProfileIds: string[];
+};
+
 export type ServicePlanItem = {
   id: string;
   planId: string;

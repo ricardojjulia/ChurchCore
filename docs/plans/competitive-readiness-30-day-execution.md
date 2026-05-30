@@ -228,6 +228,25 @@ Done when:
 
 Status: Completed (event-linked assignment propagation and linked-event navigation shipped)
 
+### Slice 12: Linked Event Roster and Check-In Actions From Service Plans
+
+Goal: Let ChurchAdmin complete key event operations from the linked service-plan workflow without route switching for each volunteer action.
+
+Scope:
+
+- surface linked event roster/attendance state in service-plan detail
+- add "Add to Event Roster" action for assigned volunteers not yet on the linked event roster
+- add "Check In on Event" action for assigned volunteers not yet checked in on the linked event
+- add focused tests for linked-event data wiring into service-plan detail
+
+Done when:
+
+- service-plan detail can trigger linked event roster/check-in actions for assigned volunteers
+- linked-event state updates in the UI after successful actions
+- targeted tests and lint pass
+
+Status: Completed (linked event roster/check-in actions and focused page coverage shipped)
+
 ## Weekly Cadence
 
 - Day 1-2: implement + test first slice

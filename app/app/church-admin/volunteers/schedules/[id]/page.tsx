@@ -3,8 +3,12 @@ import { notFound, redirect } from "next/navigation";
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ServicePlanBuilder } from "@/components/application/volunteer-schedule";
 import { requireChurchSession } from "@/lib/auth";
-import { getChurchAdminEventsList } from "@/lib/church-admin-events-data";
+import {
+  getChurchAdminEventsList,
+  getChurchAdminEventWorkspaceData,
+} from "@/lib/church-admin-events-data";
 import { getServicePlanDetail, getVolunteerPool } from "@/lib/volunteer-data";
+import type { ServicePlanLinkedEventOps } from "@/lib/volunteer-types";
 
 export default async function ServicePlanDetailPage({
   params,
@@ -18,10 +22,22 @@ export default async function ServicePlanDetailPage({
   const detail = await getServicePlanDetail(session, id);
   if (!detail) notFound();
 
-  const [pool, events] = await Promise.all([
+  const [pool, events, linkedEventWorkspace] = await Promise.all([
     getVolunteerPool(session, detail.plan.serviceDate),
     getChurchAdminEventsList(session),
+    detail.plan.eventId
+      ? getChurchAdminEventWorkspaceData(session, detail.plan.eventId)
+      : Promise.resolve(null),
   ]);
+
+  const linkedEventOps: ServicePlanLinkedEventOps | null = linkedEventWorkspace
+    ? {
+        eventId: linkedEventWorkspace.event.id,
+        eventTitle: linkedEventWorkspace.event.title,
+        rosterProfileIds: linkedEventWorkspace.rosterEntries.map((entry) => entry.profileId),
+        attendanceProfileIds: linkedEventWorkspace.attendanceEntries.map((entry) => entry.profileId),
+      }
+    : null;
 
   const NAV_ITEMS = [
     { href: "/app/church-admin", label: "Home", description: "Church admin", icon: "Users" },
@@ -43,7 +59,7 @@ export default async function ServicePlanDetailPage({
       navItems={NAV_ITEMS}
     >
       <div style={{ padding: "var(--mantine-spacing-md)" }}>
-        <ServicePlanBuilder detail={detail} events={events} pool={pool} />
+        <ServicePlanBuilder detail={detail} events={events} pool={pool} linkedEventOps={linkedEventOps} />
       </div>
     </ApplicationShell>
   );
