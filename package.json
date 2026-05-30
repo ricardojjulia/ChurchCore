@@ -3,7 +3,7 @@
   "version": "3.1.0",
   "private": true,
   "license": "MIT",
-  "description": "ChurchCore technical blueprint and evaluation snapshot aligned with the development plan.",
+  "description": "ChurchCore is a secure, multi-tenant church operations platform with compliance-first architecture, role-based portals, and production-grade workflows across people, ministries, events, giving, finance, and reporting.",
   "scripts": {
     "dev": "next dev -p 4200",
     "build": "next build",
