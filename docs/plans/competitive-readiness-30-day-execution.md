@@ -274,7 +274,68 @@ Verification:
 - `npm run lint`
 - `npm run build`
 
-Status: In Progress
+Status: Completed (payment lifecycle closeout shipped, gates passed 130/130, merged as PR #64; operationally verified 2026-05-31)
+
+Residual risk: local Supabase snapshot required manual schema backfill (`updated_at`, `payment_status` columns) before smoke passed — existing `setup:local` / `supabase db reset` will be clean for fresh clones; schema lag only affects existing dev environments that haven't re-seeded since the original `event_registrations` migration.
+
+## Weekly Cadence
+## Active Wave B: Payment Lifecycle Operational Closeout (2026-05-31)
+
+Purpose: close the end-to-end payment record lifecycle for event registrations, from creation through Stripe reconciliation, with ChurchAdmin operator controls.
+
+| Slice ID | Slice | Priority | Status | Owner | Last Update |
+| --- | --- | --- | --- | --- | --- |
+| B1 | Payment lifecycle operational closeout | P0 | Completed | Product + Engineering | 2026-05-31 |
+| B2 | ChurchAdmin payment follow-up operator UI | P1 | Planned | Product + Engineering | — |
+| B3 | Stripe Payment Intent creation at registration time | P1 | Planned | Product + Engineering | — |
+
+### B2: ChurchAdmin Payment Follow-Up Operator UI
+
+Goal: Surface unresolved payment ledger records in ChurchAdmin event workspace so operators can act on them without inspecting raw data, and trigger `updateRegistrationPaymentFollowUpAction` directly from the UI.
+
+Scope:
+
+- add "Unresolved Payments" tab or filter to ChurchAdmin event registration workspace showing registrants with `payment_status = 'pending'` or `'failed'`
+- add inline follow-up action panel: status selector (paid / failed / cancelled), note textarea, submit button — wires to `updateRegistrationPaymentFollowUpAction`
+- display `follow_up_note` and `followed_up_at` for already-resolved records to give operators audit visibility
+- optimistic UI update after action resolves; error feedback on failure
+- add focused page/action tests for the new operator panel
+
+Done when:
+
+- ChurchAdmin event workspace exposes unresolved payment records by default
+- operators can resolve a payment with note and status in one interaction
+- resolved records display follow-up audit trail
+- targeted tests, lint, and build pass
+
+Acceptance criteria:
+
+1. Unresolved payment registrants are surfaced in a dedicated filter/view in ChurchAdmin event workspace.
+2. Operator can set follow-up status + note and submit via `updateRegistrationPaymentFollowUpAction`.
+3. Follow-up history (note, actor, timestamp) is visible on resolved records.
+4. Role checks prevent non-managers from invoking follow-up action.
+
+Status: Planned
+
+### B3: Stripe Payment Intent Creation at Registration Time
+
+Goal: Close the "pending → real Stripe intent" gap by creating a Stripe Payment Intent when a paid registration is created, so the ledger record is linked to a real intent from the start rather than waiting for an out-of-band webhook.
+
+Scope:
+
+- create a Stripe Payment Intent (or SetupIntent) at member/public registration time for paid events
+- store the resulting `payment_intent_id` in `event_registration_payments` at creation
+- surface the intent client secret to the registration form for Stripe Elements confirmation (if needed)
+- handle Stripe intent creation failure gracefully (fall back to `pending` state with no intent id)
+- add tests for payment intent creation and failure fallback paths
+
+Done when:
+
+- paid registrations have a `payment_intent_id` in the ledger row at creation time
+- Stripe webhook reconciliation can match by intent ID without requiring metadata-carried registration IDs
+- targeted tests, lint, and build pass
+
+Status: Planned
 
 ## Weekly Cadence
 
