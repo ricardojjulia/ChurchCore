@@ -1,5 +1,5 @@
 # Control Plane Supabase project configuration.
-# This is the SEPARATE project for ChurchCore Ops platform concerns:
+# This is the SEPARATE project for ChurchCore platform concerns:
 # tenant registry, billing metadata, provisioning state, platform staff access,
 # support operations, and tenant-view audit trails.
 #

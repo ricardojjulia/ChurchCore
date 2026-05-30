@@ -1,9 +1,9 @@
-# ChurchCore Ops Reporting Implementation Plan
+# ChurchCore Reporting Implementation Plan
 
 **Living Document** - Last Updated: April 15, 2026  
-**Purpose**: This document defines the implementation plan for making ChurchCore Ops a first-class reporting and analytics platform across members, events, giving, communications, ministries, and leadership stewardship.
+**Purpose**: This document defines the implementation plan for making ChurchCore a first-class reporting and analytics platform across members, events, giving, communications, ministries, and leadership stewardship.
 
-This plan is intentionally product-forward and engineering-specific. It is designed to move ChurchCore Ops beyond static dashboards and into a reporting system that helps pastors, church-admins, elders, and ministry leaders see what is happening, why it is happening, and where they should prayerfully respond next.
+This plan is intentionally product-forward and engineering-specific. It is designed to move ChurchCore beyond static dashboards and into a reporting system that helps pastors, church-admins, elders, and ministry leaders see what is happening, why it is happening, and where they should prayerfully respond next.
 
 This document should be read alongside:
 
@@ -20,7 +20,7 @@ Church software usually fails in one of two ways:
 1. it provides only export-style tables that are technically useful but visually exhausting
 2. it provides shallow dashboards that look modern but do not answer real ministry questions
 
-ChurchCore Ops should do neither.
+ChurchCore should do neither.
 
 The reporting system should become:
 
@@ -72,7 +72,7 @@ Reports must work on phones and tablets, not only desktop dashboards.
 
 ### 2.5 Pastoral Restraint
 
-ChurchCore Ops should surface insight, not spiritual judgment.
+ChurchCore should surface insight, not spiritual judgment.
 
 Any AI-assisted interpretation must include:
 
@@ -377,7 +377,7 @@ Distinctive features:
 
 ## 5. Never-Seen or Rarely-Seen Differentiators
 
-These are the kinds of capabilities that would make ChurchCore Ops genuinely distinctive.
+These are the kinds of capabilities that would make ChurchCore genuinely distinctive.
 
 ### 5.1 Shepherding Radar
 
@@ -433,7 +433,7 @@ This prevents the reporting system from becoming emotionally sterile.
 
 ## 6. Graphical Design System for Reports
 
-ChurchCore Ops reporting should look intentional and calm, not like generic BI software.
+ChurchCore reporting should look intentional and calm, not like generic BI software.
 
 ### 6.1 Visualization Types
 
@@ -654,7 +654,7 @@ Technical tasks:
 - add map-oriented data structures
 - add outreach follow-up summary tables
 
-### Phase 5: Distinctive ChurchCore Ops Intelligence
+### Phase 5: Distinctive ChurchCore Intelligence
 
 Deliver:
 
@@ -746,7 +746,7 @@ The reporting system is successful when:
 - report pages remain usable on mobile
 - each metric is explainable
 - reporting supports ministry decisions without violating confidentiality
-- ChurchCore Ops surfaces insights that typical church software does not expose
+- ChurchCore surfaces insights that typical church software does not expose
 
 ## 14. Recommended First Build
 
@@ -759,4 +759,4 @@ If implementation starts now, build in this order:
 5. ministry vitality and burnout reporting
 6. communications reach dashboard
 
-This order gives ChurchCore Ops the fastest path to a meaningfully differentiated reporting system while staying aligned with the data already present in the repo.
+This order gives ChurchCore the fastest path to a meaningfully differentiated reporting system while staying aligned with the data already present in the repo.

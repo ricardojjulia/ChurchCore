@@ -24,7 +24,7 @@ create index if not exists profiles_data_delete_requested_idx
 
 -- ── 2. Voluntary donations ────────────────────────────────────
 -- All giving is 100% voluntary and church-controlled.
--- ChurchCore Ops never takes a platform cut.
+-- ChurchCore never takes a platform cut.
 -- Stripe handles payment processing; we store only metadata,
 -- never raw card data (PCI scope is fully Stripe's).
 

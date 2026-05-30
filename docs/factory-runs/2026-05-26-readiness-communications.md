@@ -73,5 +73,5 @@ Patterns reused:
 ## Delivery
 
 - Branch: `feature/readiness-communications-summary`
-- Pull request: [#22](https://github.com/ricardojjulia/ChurchCore-Ops/pull/22)
+- Pull request: [#22](https://github.com/ricardojjulia/ChurchCore/pull/22)
 - Merge: squash merge `d1376cc`

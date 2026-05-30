@@ -1,4 +1,4 @@
-# ChurchCore Ops — Cloud Architecture
+# ChurchCore — Cloud Architecture
 
 **Date:** April 17, 2026
 **Status:** Recommended design for production SaaS deployment
@@ -8,7 +8,7 @@
 
 ## Overview
 
-ChurchCore Ops is a multi-tenant SaaS platform. Each church is a fully isolated tenant with its own database. The existing codebase is already designed for this model: `tenant_connections`, `createTenantServerClient()`, and `shouldUseLocalTenantFallback()` all assume per-tenant database connections.
+ChurchCore is a multi-tenant SaaS platform. Each church is a fully isolated tenant with its own database. The existing codebase is already designed for this model: `tenant_connections`, `createTenantServerClient()`, and `shouldUseLocalTenantFallback()` all assume per-tenant database connections.
 
 This document describes the recommended cloud architecture for a production deployment where each church accesses only its own tenant.
 
@@ -44,7 +44,7 @@ This document describes the recommended cloud architecture for a production depl
 
 ## Tenant Isolation Model: Silo (Per-Tenant Database)
 
-Each church gets its own dedicated Supabase project. This is the correct model for ChurchCore Ops given the sensitivity of the data it stores.
+Each church gets its own dedicated Supabase project. This is the correct model for ChurchCore given the sensitivity of the data it stores.
 
 ### Why silo over a shared pool
 
@@ -200,7 +200,7 @@ When you onboard your first paying church, provision a fresh Supabase project fo
 
 ## Platform and Church App Separation
 
-ChurchCore Ops operates as two distinct applications — the business management portal (used by ChurchCore Ops staff) and the church-facing product (used by each church). These should be separated into two Vercel projects within one account.
+ChurchCore operates as two distinct applications — the business management portal (used by ChurchCore staff) and the church-facing product (used by each church). These should be separated into two Vercel projects within one account.
 
 ### Two projects, not two accounts
 
@@ -307,7 +307,7 @@ The codebase changes for the split are modest — middleware subdomain resolutio
 
 ## Vercel Traffic Analysis — How Many Churches on $20/Month
 
-Vercel Pro pricing does not scale per tenant or per church. It scales on bandwidth and serverless execution time. ChurchCore Ops's usage pattern — a church management app with Sunday-heavy, low-frequency CRUD traffic — is extremely light on both.
+Vercel Pro pricing does not scale per tenant or per church. It scales on bandwidth and serverless execution time. ChurchCore's usage pattern — a church management app with Sunday-heavy, low-frequency CRUD traffic — is extremely light on both.
 
 ### Vercel Pro included resources
 
@@ -350,7 +350,7 @@ before hitting the execution ceiling
 
 ### Practical answer
 
-**Hundreds to low thousands of churches** can run on a single $20/month Vercel Pro plan before any overage appears. For ChurchCore Ops's traffic pattern, bandwidth is the binding constraint — and even that supports ~10,000 churches on the included 1 TB.
+**Hundreds to low thousands of churches** can run on a single $20/month Vercel Pro plan before any overage appears. For ChurchCore's traffic pattern, bandwidth is the binding constraint — and even that supports ~10,000 churches on the included 1 TB.
 
 ### When to upgrade Vercel
 

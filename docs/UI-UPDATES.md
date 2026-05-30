@@ -1,10 +1,10 @@
 # UI Updates
 
-This document records active UI direction changes for ChurchCore Ops.
+This document records active UI direction changes for ChurchCore.
 
 ## 2026-04-11: Blue-Neutral Minimal System
 
-ChurchCore Ops is moving to a minimalist, high-contrast, adaptive UI system built for operational clarity rather than trend-driven decoration.
+ChurchCore is moving to a minimalist, high-contrast, adaptive UI system built for operational clarity rather than trend-driven decoration.
 
 ### Approved Direction
 
@@ -16,7 +16,7 @@ ChurchCore Ops is moving to a minimalist, high-contrast, adaptive UI system buil
 
 ### Color Strategy
 
-ChurchCore Ops now follows a practical version of the `60-30-10` rule:
+ChurchCore now follows a practical version of the `60-30-10` rule:
 
 - `60%` neutral backgrounds and surfaces
 - `30%` slate structure, text hierarchy, and framing
@@ -77,11 +77,11 @@ Reason:
 
 ## 2026-05-22: Public Home Console Direction
 
-The public home screen now uses a sharper ChurchCore Ops command-center presentation instead of the earlier soft centered card. The visual direction should feel professional and technical while keeping faith references restrained and operational.
+The public home screen now uses a sharper ChurchCore command-center presentation instead of the earlier soft centered card. The visual direction should feel professional and technical while keeping faith references restrained and operational.
 
 ### Applied Direction
 
-- Lead with ChurchCore Ops as the first-viewport product signal.
+- Lead with ChurchCore as the first-viewport product signal.
 - Use the landing screen to communicate an operations system for people, ministries, events, care, giving, volunteers, and calendar coordination.
 - Prefer crisp panels, status lanes, and metric signals over decorative illustrations.
 - Keep faith language concrete and light: stewardship, prayer, worship, mission, care.

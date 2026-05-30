@@ -1,8 +1,8 @@
-# ChurchCore Ops Development Plan
+# ChurchCore Development Plan
 
 **Living Document** - Last Updated: May 26, 2026
 **Version**: 2.0
-**Purpose**: This is the single source of truth for all ChurchCore Ops development. Every GitHub Issue, PR, sprint, and code review must reference this document. Update only via PR.
+**Purpose**: This is the single source of truth for all ChurchCore development. Every GitHub Issue, PR, sprint, and code review must reference this document. Update only via PR.
 
 Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual.md) summarizes the strategy, roadmap, boundary model, and Sprint 1 flow as diagrams. This document remains the source of truth.
 
@@ -23,12 +23,17 @@ Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual
 
 ## 1. Project Vision & Scope
 
-Build a secure, multi-tenant SaaS platform for churches called **ChurchCore Ops**.
+Build a secure, multi-tenant SaaS platform for churches called **ChurchCore**.
+
+Product family context:
+- **ChurchCore**: church operations platform (this plan and repository)
+- **ChurchCore Care**: Christian counseling product
+- **ChurchCore Academy**: Christian LMS and administration product
 
 - Empower churches with tools for administration, donations, ministries, leadership, spiritual formation, events, and volunteer coordination.
 - Key differentiators: role-based portals, user data ownership, strict PII and PHI handling, an intelligent categorized calendar, and AI-assisted tools with strong theological guardrails.
 - Business model: subscription tiers with usage-based add-ons such as payments processing and AI credits.
-- Architectural rule: the ChurchCore Ops control plane and the tenant-facing church application are separate products with separate data boundaries.
+- Architectural rule: the ChurchCore control plane and the tenant-facing church application are separate products with separate data boundaries.
 
 ## 2. User Roles & Portals (RBAC)
 
@@ -43,7 +48,7 @@ All pages and APIs enforce least-privilege RBAC.
 
 Platform and tenant boundaries are also explicit:
 
-- **Control Plane**: ChurchCore Ops staff only
+- **Control Plane**: ChurchCore staff only
 - **Tenant App**: Church users only
 
 The two surfaces may share design systems and selected libraries, but they do not share a long-term runtime data model.

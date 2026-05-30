@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1120" height="720" viewBox="0 0 1120 720" role="img" aria-labelledby="title desc">
-  <title id="title">ChurchCore Ops product strategy map</title>
-  <desc id="desc">Visual strategy map for the ChurchCore Ops development plan, showing boundaries, roles, stewardship domains, trust controls, and assistive AI.</desc>
+  <title id="title">ChurchCore product strategy map</title>
+  <desc id="desc">Visual strategy map for the ChurchCore development plan, showing boundaries, roles, stewardship domains, trust controls, and assistive AI.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#475467"/>
@@ -11,10 +11,10 @@
   </defs>
   <rect class="bg" width="1120" height="720" rx="18"/>
   <text x="48" y="58" class="title">Development Plan Strategy Map</text>
-  <text x="48" y="84" class="small">The plan organizes ChurchCore Ops around boundaries, roles, stewardship workflows, trust controls, and assistive AI.</text>
+  <text x="48" y="84" class="small">The plan organizes ChurchCore around boundaries, roles, stewardship workflows, trust controls, and assistive AI.</text>
 
   <rect x="396" y="116" width="328" height="82" rx="14" class="center"/>
-  <text x="432" y="150" class="label white">ChurchCore Ops</text>
+  <text x="432" y="150" class="label white">ChurchCore</text>
   <text x="432" y="174" class="small white">Secure multi-tenant church operations</text>
 
   <rect x="66" y="270" width="190" height="72" rx="12" class="boundary"/><text x="88" y="300" class="label">Boundaries</text><text x="88" y="322" class="small">Control plane and tenant app</text>

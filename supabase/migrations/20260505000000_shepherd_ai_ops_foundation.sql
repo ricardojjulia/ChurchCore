@@ -1,8 +1,8 @@
 -- ============================================================
--- ShepherdAI for ChurchCore Ops (Ops-only, product-isolated)
+-- ShepherdAI for ChurchCore (Ops-only, product-isolated)
 --
 -- This migration adds deterministic signal and workflow persistence
--- for ChurchCore Ops ShepherdAI. It is intentionally scoped to Ops
+-- for ChurchCore ShepherdAI. It is intentionally scoped to Ops
 -- and must not aggregate or infer from Academy or Care data.
 -- ============================================================
 

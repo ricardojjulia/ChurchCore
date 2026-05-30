@@ -26,7 +26,7 @@ export default function PlanPage() {
           <Badge>Development Plan v1.3</Badge>
           <div className="space-y-2">
             <h1 className="font-serif text-4xl tracking-tight sm:text-5xl">
-              ChurchCore Ops runs from a written plan, not drifting assumptions.
+              ChurchCore runs from a written plan, not drifting assumptions.
             </h1>
             <p className="max-w-3xl text-lg leading-8 text-muted-foreground">
               This route summarizes the repo baseline. The canonical plan lives

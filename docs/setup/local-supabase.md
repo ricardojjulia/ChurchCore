@@ -1,6 +1,6 @@
-# ChurchCore Ops — Local Supabase Setup
+# ChurchCore — Local Supabase Setup
 
-This document covers how to start, seed, and reset the local Supabase instance for ChurchCore Ops development.
+This document covers how to start, seed, and reset the local Supabase instance for ChurchCore development.
 
 ---
 

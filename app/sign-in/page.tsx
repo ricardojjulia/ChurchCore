@@ -34,9 +34,9 @@ import { toFriendlySupabaseErrorMessage } from "@/lib/supabase/postgrest";
 import { localeCookieName, messages, normalizeLocale } from "@/lib/i18n";
 
 export const metadata: Metadata = {
-  title: "Sign In | ChurchCore Ops",
+  title: "Sign In | ChurchCore",
   description:
-    "Sign in to ChurchCore Ops through the approved Supabase SSR auth foundation.",
+    "Sign in to ChurchCore through the approved Supabase SSR auth foundation.",
 };
 
 type SignInPageProps = {
@@ -99,7 +99,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         <Group justify="space-between" mb={32}>
           <Box>
             <Badge color="gray" variant="light" mb="sm">
-              ChurchCore Ops
+              ChurchCore
             </Badge>
             <Title order={1}>{translate("signIn")}</Title>
             <Text c="dimmed" mt="sm">

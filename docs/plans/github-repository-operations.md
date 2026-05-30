@@ -1,6 +1,6 @@
 # GitHub Repository Operations Plan
 
-**Purpose:** Turn the ChurchCore Ops GitHub repository into a practical execution system for roadmap tracking, security triage, releases, and disciplined collaboration.
+**Purpose:** Turn the ChurchCore GitHub repository into a practical execution system for roadmap tracking, security triage, releases, and disciplined collaboration.
 
 **Source of truth:** `DEVELOPMENT_PLAN.md` remains the product and release source of truth. This plan only defines how GitHub should support that work.
 
@@ -37,7 +37,7 @@ Acceptance criteria:
 
 ### 2. Create A GitHub Project
 
-Create a repository project named `ChurchCore Ops Execution`.
+Create a repository project named `ChurchCore Execution`.
 
 Recommended fields:
 
@@ -224,7 +224,7 @@ Run this after implementation:
 git status --short
 npm run lint
 npm run build
-gh repo view ricardojjulia/ChurchCore-Ops --json nameWithOwner,url,defaultBranchRef
+gh repo view ricardojjulia/ChurchCore --json nameWithOwner,url,defaultBranchRef
 gh issue list --limit 20
 gh pr list --limit 20
 ```
@@ -233,7 +233,7 @@ Expected result:
 
 - Local repo has only intentional changes staged or committed.
 - Lint and build pass.
-- GitHub repo resolves as `ricardojjulia/ChurchCore-Ops`.
+- GitHub repo resolves as `ricardojjulia/ChurchCore`.
 - Issues, milestones, labels, and project structure are visible in GitHub.
 
 ## First Implementation Recommendation
@@ -248,4 +248,4 @@ Start with this sequence:
 6. Triage current security alerts.
 7. Tighten branch protections after the first pass proves the workflow is not too heavy.
 
-This gives ChurchCore Ops a visible execution system before adding stricter gates that could slow work down.
+This gives ChurchCore a visible execution system before adding stricter gates that could slow work down.

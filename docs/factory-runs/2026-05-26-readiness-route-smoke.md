@@ -74,5 +74,5 @@ Patterns reused:
 ## Delivery
 
 - Branch: `test/readiness-route-smoke`
-- Pull request: [#27](https://github.com/ricardojjulia/ChurchCore-Ops/pull/27)
+- Pull request: [#27](https://github.com/ricardojjulia/ChurchCore/pull/27)
 - Merge: squash merge `d54ab85`

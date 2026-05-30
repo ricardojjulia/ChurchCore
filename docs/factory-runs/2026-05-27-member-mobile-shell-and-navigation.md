@@ -12,7 +12,7 @@ Harden the member mobile shell after the foundation audit by reducing bottom-nav
 
 ## Story And Acceptance Criteria
 
-As a member using ChurchCore Ops on a phone, I want mobile navigation and first actions to be obvious, reachable, and consistent across key routes, so I can move through daily church tasks without desktop-style navigation overhead.
+As a member using ChurchCore on a phone, I want mobile navigation and first actions to be obvious, reachable, and consistent across key routes, so I can move through daily church tasks without desktop-style navigation overhead.
 
 Acceptance criteria:
 

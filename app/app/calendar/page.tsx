@@ -5,7 +5,7 @@ import { requireChurchSession } from "@/lib/auth";
 import { getChurchCalendarData } from "@/lib/church-calendar-data";
 
 export const metadata: Metadata = {
-  title: "Church Calendar | ChurchCore Ops",
+  title: "Church Calendar | ChurchCore",
   description:
     "Tenant-facing working calendar for events, volunteer coverage, approvals, and ministry operations.",
 };

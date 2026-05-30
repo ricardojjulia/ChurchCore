@@ -64,7 +64,7 @@ export async function signInAction(formData: FormData) {
 
     if (intent === "sign-up") {
       if (authSurface === "control-plane") {
-        errorRedirect("Control-plane accounts must be provisioned by ChurchCore Ops staff.");
+        errorRedirect("Control-plane accounts must be provisioned by ChurchCore staff.");
       }
 
       const headerStore = await headers();

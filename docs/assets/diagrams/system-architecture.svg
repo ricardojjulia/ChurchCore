@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1120" height="620" viewBox="0 0 1120 620" role="img" aria-labelledby="title desc">
-  <title id="title">ChurchCore Ops system architecture</title>
+  <title id="title">ChurchCore system architecture</title>
   <desc id="desc">Technical architecture showing GitHub, CI, Vercel, public portal, tenant app, control plane, cron, and separated Supabase projects.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -10,7 +10,7 @@
     </style>
   </defs>
   <rect class="bg" width="1120" height="620" rx="18"/>
-  <text x="48" y="58" class="title">ChurchCore Ops Technical Blueprint</text>
+  <text x="48" y="58" class="title">ChurchCore Technical Blueprint</text>
   <text x="48" y="86" class="small">Separated control-plane and tenant runtime with GitHub, Vercel, Supabase, and scheduled workflow evaluation.</text>
 
   <rect x="48" y="130" width="190" height="84" rx="12" class="guard"/>

@@ -1,5 +1,5 @@
 export const SHEPHERD_AI_OPS_BOUNDARY_NOTE =
-  "Suggested workflow only. ChurchCore Ops ShepherdAI uses ChurchCore Ops data and Ops ministry patterns only. It may indicate a pattern, not a diagnosis or certainty about personal causes.";
+  "Suggested workflow only. ChurchCore ShepherdAI uses ChurchCore data and Ops ministry patterns only. It may indicate a pattern, not a diagnosis or certainty about personal causes.";
 
 export type ShepherdAiWorkflowCode =
   | "reconnect_inactive_member"

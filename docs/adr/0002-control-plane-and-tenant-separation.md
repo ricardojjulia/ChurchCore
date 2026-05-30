@@ -5,9 +5,9 @@
 
 ## Context
 
-ChurchCore Ops has two product surfaces with different responsibilities:
+ChurchCore has two product surfaces with different responsibilities:
 
-- The control plane used by ChurchCore Ops staff for tenant lifecycle, billing, support, provisioning, and oversight
+- The control plane used by ChurchCore staff for tenant lifecycle, billing, support, provisioning, and oversight
 - The tenant-facing church application used by individual churches for members, ministries, events, giving, care, and internal operations
 
 The current implementation still assumes a single Supabase-backed data plane for both concerns. That makes the architecture too coupled.
@@ -18,14 +18,14 @@ The platform UI and the church UI must be separated at the product boundary and 
 
 ## Decision
 
-ChurchCore Ops will separate control-plane data from tenant data.
+ChurchCore will separate control-plane data from tenant data.
 
 Approved target architecture:
 
-- One control-plane backend and database for ChurchCore Ops platform concerns
+- One control-plane backend and database for ChurchCore platform concerns
 - A separate tenant backend and database per church tenant, or a tenant-isolated tenant data plane that is operationally independent from the control-plane database
 - Separate UI surfaces retained and strengthened:
-  - `/control` for ChurchCore Ops staff
+  - `/control` for ChurchCore staff
   - `/app` for church users
 
 The control-plane database owns:
@@ -36,7 +36,7 @@ The control-plane database owns:
 - Support operations
 - Platform audit trails
 - Tenant connection and routing metadata
-- ChurchCore Ops staff access control
+- ChurchCore staff access control
 
 The tenant database owns:
 

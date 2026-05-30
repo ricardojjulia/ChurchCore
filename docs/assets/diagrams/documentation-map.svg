@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1120" height="620" viewBox="0 0 1120 620" role="img" aria-labelledby="title desc">
-  <title id="title">ChurchCore Ops documentation map</title>
+  <title id="title">ChurchCore documentation map</title>
   <desc id="desc">Documentation map showing README links to development plan, diagrams, application guide, local setup, security, ADRs, and generated SVG companions.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">

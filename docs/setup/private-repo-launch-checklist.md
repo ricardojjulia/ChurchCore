@@ -1,6 +1,6 @@
 # Private Repo Launch Checklist
 
-Use this checklist immediately after creating the private GitHub repository for ChurchCore Ops.
+Use this checklist immediately after creating the private GitHub repository for ChurchCore.
 
 ## Repository Settings
 

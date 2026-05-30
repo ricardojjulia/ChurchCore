@@ -1,10 +1,10 @@
-# ShepherdAI for ChurchCore Ops
+# ShepherdAI for ChurchCore
 
-**ShepherdAI for ChurchCore Ops is an explainable workflow recommendation engine, not an AI chatbot. It uses structured ministry signals from Ops to generate Suggested Ministry Workflows for human review and action, with optional LLM assistance limited to wording and support content. It is product-specific and must not use or imply access to Academy or Care data.**
+**ShepherdAI for ChurchCore is an explainable workflow recommendation engine, not an AI chatbot. It uses structured ministry signals from Ops to generate Suggested Ministry Workflows for human review and action, with optional LLM assistance limited to wording and support content. It is product-specific and must not use or imply access to Academy or Care data.**
 
 ## Product Boundary
 
-- Scope: ChurchCore Ops only
+- Scope: ChurchCore only
 - Data boundary: Ops tenant tables and Ops-approved domain logic only
 - Prohibited sources: ChurchCore Academy and ChurchCore Care data
 - Inference boundary: no cross-product assumptions or merged context

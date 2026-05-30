@@ -1,4 +1,4 @@
-# ChurchCore Ops Diagrams
+# ChurchCore Diagrams
 
 These diagrams are the canonical visual reference for the repository. The Mermaid blocks are the source of truth because GitHub renders them natively and they stay easy to review in pull requests.
 
@@ -10,7 +10,7 @@ For the AI-assisted workflow guide, see [docs/software-factory.md](software-fact
 
 ## System Architecture
 
-![ChurchCore Ops system architecture](assets/diagrams/system-architecture.svg)
+![ChurchCore system architecture](assets/diagrams/system-architecture.svg)
 
 ```mermaid
 flowchart LR
@@ -44,12 +44,12 @@ flowchart LR
 
 ## Role And Surface Map
 
-![ChurchCore Ops role and surface map](assets/diagrams/role-surface-map.svg)
+![ChurchCore role and surface map](assets/diagrams/role-surface-map.svg)
 
 ```mermaid
 flowchart TB
   super[SuperAdmin] --> control[/Control Plane/]
-  platform[ChurchCore Ops Staff] --> control
+  platform[ChurchCore Staff] --> control
 
   churchAdmin[ChurchAdmin] --> admin[/Church Admin Workspace/]
   secretary[Secretary / Office Admin] --> daily[/Daily Desk/]
@@ -72,7 +72,7 @@ flowchart TB
 
 ## Core Workflow Map
 
-![ChurchCore Ops core workflow map](assets/diagrams/core-workflows.svg)
+![ChurchCore core workflow map](assets/diagrams/core-workflows.svg)
 
 ```mermaid
 flowchart LR
@@ -99,7 +99,7 @@ flowchart LR
 
 ## Documentation Map
 
-![ChurchCore Ops documentation map](assets/diagrams/documentation-map.svg)
+![ChurchCore documentation map](assets/diagrams/documentation-map.svg)
 
 ```mermaid
 flowchart TB

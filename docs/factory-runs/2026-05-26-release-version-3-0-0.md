@@ -12,7 +12,7 @@ Recalculate the current release version from the amount and type of work complet
 
 ## Story And Acceptance Criteria
 
-As a ChurchCore Ops evaluator, I want the repository version and release notes to match the true product scope, so release claims do not understate the operator, security, AI, and workflow work already completed.
+As a ChurchCore evaluator, I want the repository version and release notes to match the true product scope, so release claims do not understate the operator, security, AI, and workflow work already completed.
 
 Acceptance criteria:
 
@@ -61,5 +61,5 @@ Files changed:
 ## Delivery
 
 - Branch: `release/version-3-0-0`
-- Pull request: [#16](https://github.com/ricardojjulia/ChurchCore-Ops/pull/16)
+- Pull request: [#16](https://github.com/ricardojjulia/ChurchCore/pull/16)
 - Merge: squash merge `3d23855`

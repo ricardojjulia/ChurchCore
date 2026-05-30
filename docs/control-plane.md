@@ -1,10 +1,10 @@
 # Control Plane
 
-This document describes the platform-side ChurchCore Ops Control experience.
+This document describes the platform-side ChurchCore Control experience.
 
 ## Purpose
 
-The control plane exists for ChurchCore Ops staff operating the SaaS itself. It is intentionally separate from the tenant-facing church app.
+The control plane exists for ChurchCore staff operating the SaaS itself. It is intentionally separate from the tenant-facing church app.
 
 The UI direction for this surface is now intentionally lighter and quieter: light-only, low-chrome, and short on-page copy so operator attention stays on tenant status and explicit tenant-view actions.
 

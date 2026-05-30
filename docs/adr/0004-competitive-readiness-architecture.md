@@ -6,7 +6,7 @@
 
 ## Context
 
-ChurchCore Ops has a broad product surface across people, households, ministries, events, children's ministry, volunteers, giving, finance, communications, reporting, and ShepherdAI workflow recommendations. The product strategy now requires the platform to compete credibly with mature church-management systems such as Planning Center, Breeze/Tithely, Pushpay/CCB, Realm, and MinistryPlatform.
+ChurchCore has a broad product surface across people, households, ministries, events, children's ministry, volunteers, giving, finance, communications, reporting, and ShepherdAI workflow recommendations. The product strategy now requires the platform to compete credibly with mature church-management systems such as Planning Center, Breeze/Tithely, Pushpay/CCB, Realm, and MinistryPlatform.
 
 The largest competitive risk is not lack of module count. It is whether the workflows are complete, discoverable, mobile-usable, provider-backed, importable, and verifiably secure.
 
@@ -23,7 +23,7 @@ This architecture decision governs how those priorities will be implemented.
 
 ## Decision
 
-ChurchCore Ops will treat competitive readiness as a release architecture, not only as a feature backlog. Each priority must follow the existing control-plane and tenant separation from ADR 0002 and the financial correctness rules from ADR 0003.
+ChurchCore will treat competitive readiness as a release architecture, not only as a feature backlog. Each priority must follow the existing control-plane and tenant separation from ADR 0002 and the financial correctness rules from ADR 0003.
 
 The release architecture has six building blocks:
 

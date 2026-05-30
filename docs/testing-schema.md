@@ -1,4 +1,4 @@
-# ChurchCore Ops Testing Schema
+# ChurchCore Testing Schema
 
 This document closes the current gap between the development plan and the repository state. `DEVELOPMENT_PLAN.md` requires testing across unit, integration, manual, and security paths, but the current repo only had lint, build, and shell smoke helpers. The schema below defines the application-specific test surface and the verification layers each area must pass.
 

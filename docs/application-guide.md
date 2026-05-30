@@ -1,15 +1,15 @@
-# ChurchCore Ops Application Guide
+# ChurchCore Application Guide
 
-This guide explains what ChurchCore Ops does from first entry through day-to-day use. It is written for evaluators, operators, and contributors who need the whole product story before reading implementation details.
+This guide explains what ChurchCore does from first entry through day-to-day use. It is written for evaluators, operators, and contributors who need the whole product story before reading implementation details.
 
-## 1. What ChurchCore Ops Is
+## 1. What ChurchCore Is
 
-ChurchCore Ops is a multi-tenant church operations platform. It gives a church one working system for member records, families, ministries, events, giving, communications, volunteer coordination, children's ministry safety, finance, reports, and guarded ministry workflow recommendations.
+ChurchCore is a multi-tenant church operations platform. It gives a church one working system for member records, families, ministries, events, giving, communications, volunteer coordination, children's ministry safety, finance, reports, and guarded ministry workflow recommendations.
 
 The application has two separate operating surfaces:
 
 - **Tenant app:** the church-facing product used by church admins, pastors, ministry leaders, volunteers, and members.
-- **Control plane:** the ChurchCore Ops staff surface used for tenant oversight, platform operations, onboarding, billing metadata, and support audit workflows.
+- **Control plane:** the ChurchCore staff surface used for tenant oversight, platform operations, onboarding, billing metadata, and support audit workflows.
 
 Those surfaces intentionally have different data boundaries. The control plane manages platform concerns; the tenant app manages church runtime data.
 
@@ -54,7 +54,7 @@ The readiness e2e check starts the Next.js dev server automatically and expects 
 
 ## 3. First Screen And Sign-In
 
-The root page introduces ChurchCore Ops and gives two main entry points:
+The root page introduces ChurchCore and gives two main entry points:
 
 - **Sign in:** opens the tenant app sign-in flow.
 - **Control:** opens the platform control-plane sign-in flow.
@@ -346,7 +346,7 @@ The current implementation continues to expand these role-specific paths as the 
 
 Path: `/control`
 
-The control plane is for ChurchCore Ops platform staff, not church staff. It supports platform-level oversight such as:
+The control plane is for ChurchCore platform staff, not church staff. It supports platform-level oversight such as:
 
 - tenant registry
 - onboarding state
@@ -359,7 +359,7 @@ The control plane has its own Supabase project directory under `supabase/control
 
 ## 10. Data And Security Model
 
-ChurchCore Ops treats member information, donations, pastoral notes, prayer journals, children's safety records, care records, volunteer feedback, and account access as sensitive data.
+ChurchCore treats member information, donations, pastoral notes, prayer journals, children's safety records, care records, volunteer feedback, and account access as sensitive data.
 
 Core expectations:
 

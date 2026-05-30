@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
-  <title id="title">Claude Code software factory for ChurchCore Ops</title>
+  <title id="title">Claude Code software factory for ChurchCore</title>
   <desc id="desc">Diagram showing Claude Code using project rules, skills, agents, hooks, human approval gates, implementation agents, tests, validation, and delivery.</desc>
   <defs>
     <style>

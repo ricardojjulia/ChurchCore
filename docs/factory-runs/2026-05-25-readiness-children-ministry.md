@@ -70,5 +70,5 @@ Patterns reused:
 ## Delivery
 
 - Branch: `feature/readiness-children-builder`
-- Pull request: [#14](https://github.com/ricardojjulia/ChurchCore-Ops/pull/14)
+- Pull request: [#14](https://github.com/ricardojjulia/ChurchCore/pull/14)
 - Merge: squash merge `604a703`

@@ -1120,7 +1120,7 @@ export async function requireControlPlaneSession(redirectTo: string) {
   if (!session.canAccessControl) {
     redirect(
       `/sign-in?redirectTo=${encodeURIComponent(redirectTo)}&force=1&message=${encodeURIComponent(
-        "Sign in with a control-plane account to open ChurchCore Ops Control.",
+        "Sign in with a control-plane account to open ChurchCore Control.",
       )}`,
     );
   }
