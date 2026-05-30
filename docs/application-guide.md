@@ -260,6 +260,8 @@ Paths: `/app/church-admin/volunteers`, `/app/church-admin/volunteers/schedules`
 
 ChurchAdmin service plans can now be linked to an existing church event from the create flow or the plan detail view. Use that link when the volunteer schedule, run-of-service, and event roster should stay anchored to the same ministry moment.
 
+When a service plan is linked, the plan detail also exposes event operations for assigned volunteers so ChurchAdmin can add them to the linked event roster and check them in without leaving the plan workflow.
+
 Volunteer workflows cover scheduling, member responses, hours, conflicts, and coverage needs. The roadmap includes deeper burnout guardrails and rotation suggestions.
 
 Service plan detail now includes editable service metadata (service type, scripture reference, sermon title, sermon speaker) and run-of-service item planning with schedule blocks, leader, notes, and attachment links.
