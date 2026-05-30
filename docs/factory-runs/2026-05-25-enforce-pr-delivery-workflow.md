@@ -49,7 +49,7 @@ Files changed:
 
 ## Verification
 
-- Confirm branch protection has `"enforce_admins": true` - passed through `gh api repos/ricardojjulia/ChurchCore-Ops/branches/main/protection --jq '.enforce_admins'`.
+- Confirm branch protection has `"enforce_admins": true` - passed through `gh api repos/ricardojjulia/ChurchCore/branches/main/protection --jq '.enforce_admins'`.
 - `npm run lint` - passed.
 - `npm run build` - passed.
 - `git diff --check` - passed.
@@ -63,5 +63,5 @@ Files changed:
 ## Delivery
 
 - Branch: `chore/enforce-pr-workflow`
-- Pull request: https://github.com/ricardojjulia/ChurchCore-Ops/pull/11
+- Pull request: https://github.com/ricardojjulia/ChurchCore/pull/11
 - Merge: squash merged through GitHub as `7538a861f52eaa52980345ddbb1b41b666e5fafc` on 2026-05-26.

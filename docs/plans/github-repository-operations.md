@@ -224,7 +224,7 @@ Run this after implementation:
 git status --short
 npm run lint
 npm run build
-gh repo view ricardojjulia/ChurchCore-Ops --json nameWithOwner,url,defaultBranchRef
+gh repo view ricardojjulia/ChurchCore --json nameWithOwner,url,defaultBranchRef
 gh issue list --limit 20
 gh pr list --limit 20
 ```
@@ -233,7 +233,7 @@ Expected result:
 
 - Local repo has only intentional changes staged or committed.
 - Lint and build pass.
-- GitHub repo resolves as `ricardojjulia/ChurchCore-Ops`.
+- GitHub repo resolves as `ricardojjulia/ChurchCore`.
 - Issues, milestones, labels, and project structure are visible in GitHub.
 
 ## First Implementation Recommendation

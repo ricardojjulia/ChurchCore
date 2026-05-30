@@ -77,5 +77,5 @@ Patterns reused:
 ## Delivery
 
 - Branch: `test/readiness-playwright-smoke`
-- Pull request: [#29](https://github.com/ricardojjulia/ChurchCore-Ops/pull/29)
+- Pull request: [#29](https://github.com/ricardojjulia/ChurchCore/pull/29)
 - Merge: squash merge `4608bf8`

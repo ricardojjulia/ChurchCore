@@ -76,5 +76,5 @@ Patterns reused:
 ## Delivery
 
 - Branch: `feature/readiness-reports-summary`
-- Pull request: [#25](https://github.com/ricardojjulia/ChurchCore-Ops/pull/25)
+- Pull request: [#25](https://github.com/ricardojjulia/ChurchCore/pull/25)
 - Merge: squash merge `c231ca7`
