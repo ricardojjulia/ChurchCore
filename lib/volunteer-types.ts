@@ -18,6 +18,12 @@ export type ServicePlan = {
   createdAt: string;
 };
 
+export type ServicePlanEventOption = {
+  id: string;
+  title: string;
+  startsAt: string;
+};
+
 export type ServicePlanItem = {
   id: string;
   planId: string;

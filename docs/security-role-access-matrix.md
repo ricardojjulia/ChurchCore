@@ -34,3 +34,15 @@ This matrix records allowed roles and verification evidence for high-sensitivity
 
 - Each row is expected to retain a corresponding executable test as behavior evolves.
 - Cross-church scope protection remains mandatory for all tenant writes and should be validated in action tests whenever write paths are expanded.
+
+## WS-4 Evidence Refresh
+
+- Security evidence maintenance was consolidated on 2026-05-29 with the weekly go/no-go docs in [docs/security-assessment.md](docs/security-assessment.md), [docs/security-mitigation-plan.md](docs/security-mitigation-plan.md), and [docs/testing-schema.md](docs/testing-schema.md).
+- Completed verification coverage referenced by this matrix includes:
+	- `npm run setup:local`
+	- `npm run smoke:local`
+	- `npm run test:e2e:readiness`
+	- `npm run test:e2e:onboarding`
+	- `npm run test -- app/app/church-admin/people/import/actions.test.ts app/app/church-admin-actions.test.ts app/app/communications-actions.test.ts app/app/member-actions.test.ts`
+	- `npm run lint`
+	- `npm run build`

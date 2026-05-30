@@ -34,7 +34,13 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { ReadinessTargetState } from "@/components/application/readiness-target-state";
-import type { ServicePlanDetail, ServicePlanListEntry, ServicePlanTemplate, VolunteerPoolEntry } from "@/lib/volunteer-types";
+import type {
+  ServicePlanDetail,
+  ServicePlanEventOption,
+  ServicePlanListEntry,
+  ServicePlanTemplate,
+  VolunteerPoolEntry,
+} from "@/lib/volunteer-types";
 import {
   addPlanPositionAction,
   addRunOfServiceItemAction,
@@ -59,10 +65,12 @@ const CONFIRM_COLOR: Record<string, string> = {
 
 export function ServicePlansWorkspace({
   plans: initialPlans,
+  events,
   templates,
   source,
 }: {
   plans: ServicePlanListEntry[];
+  events: ServicePlanEventOption[];
   templates: ServicePlanTemplate[];
   source: "preview" | "live";
 }) {
@@ -73,8 +81,16 @@ export function ServicePlansWorkspace({
   const [showCreate, setShowCreate] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [form, setForm] = useState({
-    name: "", serviceDate: "", serviceTime: "", notes: "", templateId: "",
+    name: "", serviceDate: "", serviceTime: "", notes: "", templateId: "", eventId: "",
   });
+  const eventOptions = events.map((event) => ({
+    value: event.id,
+    label: `${event.title} · ${new Date(event.startsAt).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    })}`,
+  }));
+  const eventTitlesById = new Map(events.map((event) => [event.id, event.title]));
 
   const visiblePlans =
     view === "unassigned"
@@ -119,6 +135,7 @@ export function ServicePlansWorkspace({
     startTransition(async () => {
       const res = await createServicePlanAction({
         name: form.name, serviceDate: form.serviceDate,
+        eventId: form.eventId || undefined,
         serviceTime: form.serviceTime || undefined,
         notes: form.notes || undefined,
         templateId: form.templateId || undefined,
@@ -197,7 +214,14 @@ export function ServicePlansWorkspace({
                 <Table.Tbody>
                   {rows.map((p) => (
                     <Table.Tr key={p.id}>
-                      <Table.Td fw={500}>{p.name}</Table.Td>
+                      <Table.Td>
+                        <Text fw={500}>{p.name}</Text>
+                        {p.eventId ? (
+                          <Text size="xs" c="dimmed">
+                            Linked event: {eventTitlesById.get(p.eventId) ?? "Church event"}
+                          </Text>
+                        ) : null}
+                      </Table.Td>
                       <Table.Td><Text size="sm">{formatDate(p.serviceDate)}</Text></Table.Td>
                       <Table.Td>
                         <Badge size="sm" color={STATUS_COLOR[p.status]} variant="light" tt="capitalize">{p.status}</Badge>
@@ -239,6 +263,12 @@ export function ServicePlansWorkspace({
             <TextInput label="Service time" type="time" style={{ flex: 1 }}
               value={form.serviceTime} onChange={(e) => setForm((f) => ({ ...f, serviceTime: e.target.value }))} />
           </Group>
+          {eventOptions.length > 0 ? (
+            <Select label="Linked church event (optional)" placeholder="Choose an existing event"
+              data={eventOptions}
+              value={form.eventId} onChange={(v) => setForm((f) => ({ ...f, eventId: v ?? "" }))}
+              clearable />
+          ) : null}
           {templates.length > 0 && (
             <Select label="Apply template (optional)" placeholder="Choose a template"
               data={[{ value: "", label: "No template" }, ...templates.map((t) => ({ value: t.id, label: t.name }))]}
@@ -260,9 +290,11 @@ export function ServicePlansWorkspace({
 
 export function ServicePlanBuilder({
   detail: initialDetail,
+  events,
   pool,
 }: {
   detail: ServicePlanDetail;
+  events: ServicePlanEventOption[];
   pool: VolunteerPoolEntry[];
 }) {
   const [detail, setDetail] = useState(initialDetail);
@@ -273,6 +305,7 @@ export function ServicePlanBuilder({
   const [posForm, setPosForm] = useState({ roleName: "", quantityNeeded: 1 });
   const [detailsForm, setDetailsForm] = useState({
     name: initialDetail.plan.name,
+    eventId: initialDetail.plan.eventId ?? "",
     serviceType: initialDetail.plan.serviceType,
     serviceDate: initialDetail.plan.serviceDate,
     serviceTime: initialDetail.plan.serviceTime ?? "",
@@ -292,6 +325,16 @@ export function ServicePlanBuilder({
   });
   const [assignTarget, setAssignTarget] = useState<{ positionId: string; roleName: string } | null>(null);
   const [volunteerSearch, setVolunteerSearch] = useState("");
+  const eventOptions = events.map((event) => ({
+    value: event.id,
+    label: `${event.title} · ${new Date(event.startsAt).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    })}`,
+  }));
+  const linkedEventLabel = detail.plan.eventId
+    ? eventOptions.find((event) => event.value === detail.plan.eventId)?.label ?? "Linked church event"
+    : null;
 
   const filteredPool = pool.filter((v) =>
     !volunteerSearch ||
@@ -303,6 +346,7 @@ export function ServicePlanBuilder({
       const res = await updateServicePlanDetailsAction({
         planId: detail.plan.id,
         name: detailsForm.name,
+        eventId: detailsForm.eventId || undefined,
         serviceType: detailsForm.serviceType as
           | "worship"
           | "prayer"
@@ -328,6 +372,7 @@ export function ServicePlanBuilder({
         plan: {
           ...d.plan,
           name: detailsForm.name,
+          eventId: detailsForm.eventId || null,
           serviceType: detailsForm.serviceType as typeof d.plan.serviceType,
           serviceDate: detailsForm.serviceDate,
           serviceTime: detailsForm.serviceTime || null,
@@ -523,6 +568,13 @@ export function ServicePlanBuilder({
                 {detail.plan.status}
               </Badge>
             </Group>
+            {linkedEventLabel ? (
+              <Text size="sm" c="dimmed">{linkedEventLabel}</Text>
+            ) : (
+              <Text size="sm" c="dimmed">
+                No linked church event yet.
+              </Text>
+            )}
             <Group gap="md">
               <Group gap="xs"><CalendarCheck size={14} /><Text size="sm">{formatDate(detail.plan.serviceDate)}</Text></Group>
               {detail.plan.serviceTime && (
@@ -542,6 +594,16 @@ export function ServicePlanBuilder({
                 Mark Complete
               </Button>
             )}
+            {detail.plan.eventId ? (
+              <Button
+                component={Link}
+                href={`/app/church-admin/events/${detail.plan.eventId}`}
+                size="xs"
+                variant="default"
+              >
+                Open Linked Event
+              </Button>
+            ) : null}
           </Group>
         </Group>
 
@@ -570,6 +632,21 @@ export function ServicePlanBuilder({
         </SimpleGrid>
 
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm" mt="md">
+          {eventOptions.length > 0 ? (
+            <Select
+              label="Linked church event"
+              placeholder="Choose an existing event"
+              data={eventOptions}
+              value={detailsForm.eventId}
+              onChange={(value) =>
+                setDetailsForm((form) => ({
+                  ...form,
+                  eventId: value ?? "",
+                }))
+              }
+              clearable
+            />
+          ) : null}
           <TextInput
             label="Service type"
             value={detailsForm.serviceType}

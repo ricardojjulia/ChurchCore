@@ -45,6 +45,24 @@ Migrations and code changes must be deployed together in a single release. Some 
 - Added security role-access matrix evidence index:
    - `docs/security-role-access-matrix.md`
 
+## Verification Evidence Refresh (2026-05-29, WS-4)
+
+- Security evidence maintenance is now consolidated in the weekly readiness docs and the role-access matrix.
+- Documentation surfaces refreshed in this pass:
+   - [docs/security-assessment.md](docs/security-assessment.md)
+   - [docs/security-role-access-matrix.md](docs/security-role-access-matrix.md)
+   - [docs/testing-schema.md](docs/testing-schema.md)
+   - [docs/plans/2026-06-05-execution-brief.md](docs/plans/2026-06-05-execution-brief.md)
+   - [docs/plans/mvp-competitive-go-no-go-checklist.md](docs/plans/mvp-competitive-go-no-go-checklist.md)
+- Verification evidence referenced by this refresh:
+   - `npm run setup:local`
+   - `npm run smoke:local`
+   - `npm run test:e2e:readiness`
+   - `npm run test:e2e:onboarding`
+   - `npm run test -- app/app/church-admin/people/import/actions.test.ts app/app/church-admin-actions.test.ts app/app/communications-actions.test.ts app/app/member-actions.test.ts`
+   - `npm run lint`
+   - `npm run build`
+
 ---
 
 ## Phase 1 — Critical (Block on real data)

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   redirectMock,
   requireChurchSessionMock,
+  getChurchAdminEventsListMock,
   getServicePlanListMock,
   getServicePlanTemplatesMock,
   hasTenantBackendEnvMock,
@@ -14,6 +15,7 @@ const {
     throw { url };
   }),
   requireChurchSessionMock: vi.fn(),
+  getChurchAdminEventsListMock: vi.fn(),
   getServicePlanListMock: vi.fn(),
   getServicePlanTemplatesMock: vi.fn(),
   hasTenantBackendEnvMock: vi.fn(),
@@ -40,6 +42,10 @@ vi.mock("@/lib/volunteer-data", () => ({
   getServicePlanTemplates: getServicePlanTemplatesMock,
 }));
 
+vi.mock("@/lib/church-admin-events-data", () => ({
+  getChurchAdminEventsList: getChurchAdminEventsListMock,
+}));
+
 vi.mock("@/lib/supabase/tenant", () => ({
   hasTenantBackendEnv: hasTenantBackendEnvMock,
 }));
@@ -62,6 +68,7 @@ describe("service plans page", () => {
       homePath: "/app/member",
       source: "supabase",
     });
+    getChurchAdminEventsListMock.mockResolvedValue([{ id: "event-1", title: "Sunday Worship", startsAt: "2026-04-21T09:00:00Z" }]);
     getServicePlanListMock.mockResolvedValue([{ id: "plan-1" }]);
     getServicePlanTemplatesMock.mockResolvedValue([{ id: "template-1" }]);
     hasTenantBackendEnvMock.mockReturnValue(true);
@@ -86,6 +93,7 @@ describe("service plans page", () => {
     expect(workspaceMock).toHaveBeenCalledWith(
       {
         plans: [{ id: "plan-1" }],
+        events: [{ id: "event-1", title: "Sunday Worship", startsAt: "2026-04-21T09:00:00Z" }],
         templates: [{ id: "template-1" }],
         source: "live",
       },
@@ -102,6 +110,7 @@ describe("service plans page", () => {
     expect(workspaceMock).toHaveBeenCalledWith(
       {
         plans: [{ id: "plan-1" }],
+        events: [{ id: "event-1", title: "Sunday Worship", startsAt: "2026-04-21T09:00:00Z" }],
         templates: [{ id: "template-1" }],
         source: "preview",
       },

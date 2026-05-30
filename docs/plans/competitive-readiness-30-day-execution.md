@@ -191,6 +191,43 @@ Done when:
 
 Status: Completed (matrix doc and security/testing evidence updates shipped)
 
+### Slice 10: Service Plan Event Linkage
+
+Goal: Make service plans an event-linked ChurchAdmin workflow instead of a standalone volunteer surface.
+
+Scope:
+
+- expose existing church events as optional service-plan links in create and edit flows
+- validate linked events against church scope before writes
+- surface linked-event context inside the service-plan workspace
+- add focused service-plan action and page tests for event linkage
+
+Done when:
+
+- ChurchAdmin can create or update a service plan with an optional linked event
+- event linkage remains church-scoped and test-covered
+- targeted tests pass
+
+Status: Completed (event-linked service-plan create/edit workflow and focused tests shipped)
+
+### Slice 11: Service Plan Event-Ops Bridge
+
+Goal: Connect event-linked service plans to downstream event operations and assignment records.
+
+Scope:
+
+- persist linked service-plan `event_id` values into volunteer assignment writes
+- add direct linked-event navigation from service-plan detail
+- extend focused tests for event-linked assignment writes
+
+Done when:
+
+- assignments created from event-linked plans retain `event_id` linkage
+- operators can jump from service-plan detail into the linked ChurchAdmin event workspace
+- targeted tests and lint pass
+
+Status: Completed (event-linked assignment propagation and linked-event navigation shipped)
+
 ## Weekly Cadence
 
 - Day 1-2: implement + test first slice

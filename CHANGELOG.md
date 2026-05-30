@@ -36,6 +36,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added factory-run evidence record for Finding 4/5/6 depth implementation in `docs/factory-runs/2026-05-29-findings4-5-6-depth-batch.md`.
 - Added deterministic browser-level onboarding coverage in `tests/e2e/onboarding-flow.spec.ts` with a dedicated command `npm run test:e2e:onboarding`, covering public portal registration, ChurchAdmin approval, invite email evidence via local Mailpit, and first member sign-in/profile hydration.
 - Added communications unresolved-lane closure guidance in the communications hub readiness view plus a shared closure-guidance helper and tests (`lib/communications-closure-guidance.ts`, `components/application/communications-hub.tsx`, `lib/communications-closure-guidance.test.ts`), and updated communications readiness wording to reflect retry-first operator closure.
+- Added WS-4 security evidence maintenance refresh across the role-access matrix, security assessment, mitigation plan, testing schema, and weekly go/no-go planning docs so the latest onboarding and reliability evidence is consolidated in committed artifacts.
+- Added event-linked service-plan workflow support so ChurchAdmin can connect service plans to existing events from the schedules workspace, with scoped validation and focused page/action tests (`app/app/volunteer-actions.ts`, `components/application/volunteer-schedule.tsx`, `app/app/church-admin/volunteers/schedules/page.tsx`, `app/app/church-admin/volunteers/schedules/[id]/page.tsx`).
+- Added service-plan event-ops bridge behavior so volunteer assignments created from event-linked plans persist the linked `event_id`, plus direct navigation from plan detail to the linked ChurchAdmin event workspace (`app/app/volunteer-actions.ts`, `components/application/volunteer-schedule.tsx`, `app/app/volunteer-actions.test.ts`).
 
 ### Changed
 

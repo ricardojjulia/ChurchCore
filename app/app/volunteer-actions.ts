@@ -24,6 +24,7 @@ async function requireAdminSession() {
 export type CreateServicePlanInput = {
   name: string;
   serviceDate: string;
+  eventId?: string;
   serviceTime?: string;
   serviceType?: "worship" | "prayer" | "youth" | "special_event" | "class" | "other";
   scriptureReference?: string;
@@ -32,6 +33,42 @@ export type CreateServicePlanInput = {
   notes?: string;
   templateId?: string;
 };
+
+async function resolveScopedEventId(
+  churchId: string,
+  eventId?: string,
+): Promise<{ eventId: string | null; error?: string }> {
+  if (!eventId) {
+    return { eventId: null };
+  }
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `select id from public.events where id = $1 and church_id = $2 limit 1`,
+      [eventId, churchId],
+    );
+
+    if (!result.rows[0]?.id) {
+      return { eventId: null, error: "Linked event must belong to this church." };
+    }
+
+    return { eventId };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select("id")
+    .eq("id", eventId)
+    .eq("church_id", churchId)
+    .single();
+
+  if (error || !data?.id) {
+    return { eventId: null, error: "Linked event must belong to this church." };
+  }
+
+  return { eventId: data.id };
+}
 
 export async function createServicePlanAction(
   input: CreateServicePlanInput,
@@ -44,15 +81,21 @@ export async function createServicePlanAction(
     return { ok: false, error: "Name and service date are required." };
   }
 
+  const linkedEvent = await resolveScopedEventId(churchId, input.eventId);
+  if (linkedEvent.error) {
+    return { ok: false, error: linkedEvent.error };
+  }
+
   if (shouldUseLocalTenantFallback()) {
     const result = await queryTenantLocalDb<{ id: string }>(
       `insert into public.service_plans
-         (church_id, name, service_date, service_time, service_type,
+         (church_id, event_id, name, service_date, service_time, service_type,
           scripture_reference, sermon_title, sermon_speaker, notes, created_by)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        returning id`,
       [
         churchId,
+        linkedEvent.eventId,
         input.name.trim(),
         input.serviceDate,
         input.serviceTime ?? null,
@@ -93,7 +136,10 @@ export async function createServicePlanAction(
 
   const supabase = await createTenantServerClient();
   const { data: plan, error } = await supabase.from("service_plans").insert({
-    church_id: churchId, name: input.name.trim(), service_date: input.serviceDate,
+    church_id: churchId,
+    event_id: linkedEvent.eventId,
+    name: input.name.trim(),
+    service_date: input.serviceDate,
     service_time: input.serviceTime ?? null,
     service_type: input.serviceType ?? "worship",
     scripture_reference: input.scriptureReference ?? null,
@@ -111,6 +157,7 @@ export async function createServicePlanAction(
 export type UpdateServicePlanDetailsInput = {
   planId: string;
   name: string;
+  eventId?: string;
   serviceType: "worship" | "prayer" | "youth" | "special_event" | "class" | "other";
   serviceDate: string;
   serviceTime?: string;
@@ -130,22 +177,29 @@ export async function updateServicePlanDetailsAction(
     return { ok: false, error: "Name and service date are required." };
   }
 
+  const linkedEvent = await resolveScopedEventId(churchId, input.eventId);
+  if (linkedEvent.error) {
+    return { ok: false, error: linkedEvent.error };
+  }
+
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
       `update public.service_plans
-       set name = $3,
-           service_type = $4,
-           service_date = $5,
-           service_time = $6,
-           scripture_reference = $7,
-           sermon_title = $8,
-           sermon_speaker = $9,
-           notes = $10,
+       set event_id = $3,
+           name = $4,
+           service_type = $5,
+           service_date = $6,
+           service_time = $7,
+           scripture_reference = $8,
+           sermon_title = $9,
+           sermon_speaker = $10,
+           notes = $11,
            updated_at = now()
        where id = $1 and church_id = $2`,
       [
         input.planId,
         churchId,
+        linkedEvent.eventId,
         input.name.trim(),
         input.serviceType,
         input.serviceDate,
@@ -165,6 +219,7 @@ export async function updateServicePlanDetailsAction(
   const { error } = await supabase
     .from("service_plans")
     .update({
+      event_id: linkedEvent.eventId,
       name: input.name.trim(),
       service_type: input.serviceType,
       service_date: input.serviceDate,
@@ -322,11 +377,18 @@ export async function assignVolunteerAction(input: {
 }): Promise<{ ok: boolean; error?: string }> {
   const session = await requireAdminSession();
   const churchId = session.appContext.church.id;
+  let linkedEventId: string | null = null;
 
   // Conflict check: is this volunteer already assigned on the same day?
   const datePrefix = input.startsAt.slice(0, 10);
 
   if (shouldUseLocalTenantFallback()) {
+    const planResult = await queryTenantLocalDb<{ event_id: string | null }>(
+      `select event_id from public.service_plans where id = $1 and church_id = $2 limit 1`,
+      [input.planId, churchId],
+    );
+    linkedEventId = planResult.rows[0]?.event_id ?? null;
+
     const conflict = await queryTenantLocalDb<{ id: string }>(
       `select vs.id from public.volunteer_shifts vs
        join public.service_plans sp on sp.id = vs.plan_id
@@ -343,16 +405,41 @@ export async function assignVolunteerAction(input: {
     await queryTenantLocalDb(
       `insert into public.volunteer_shifts
          (church_id, event_id, plan_id, position_id, assigned_user_id, title, starts_at, ends_at, status, confirmation_status)
-       values ($1, null, $2, $3, $4, $5, $6, $7, 'assigned', 'pending')`,
-      [churchId, input.planId, input.positionId, input.profileId, input.roleName, input.startsAt, input.endsAt],
+       values ($1, $2, $3, $4, $5, $6, $7, $8, 'assigned', 'pending')`,
+      [
+        churchId,
+        linkedEventId,
+        input.planId,
+        input.positionId,
+        input.profileId,
+        input.roleName,
+        input.startsAt,
+        input.endsAt,
+      ],
     );
     revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
     return { ok: true };
   }
 
   const supabase = await createTenantServerClient();
+  const { data: plan, error: planError } = await supabase
+    .from("service_plans")
+    .select("event_id")
+    .eq("id", input.planId)
+    .eq("church_id", churchId)
+    .single();
+
+  if (planError) {
+    return { ok: false, error: planError.message };
+  }
+
+  linkedEventId = plan?.event_id ?? null;
+
   const { error } = await supabase.from("volunteer_shifts").insert({
-    church_id: churchId, plan_id: input.planId, position_id: input.positionId,
+    church_id: churchId,
+    event_id: linkedEventId,
+    plan_id: input.planId,
+    position_id: input.positionId,
     assigned_user_id: input.profileId, title: input.roleName,
     starts_at: input.startsAt, ends_at: input.endsAt,
     status: "assigned", confirmation_status: "pending",

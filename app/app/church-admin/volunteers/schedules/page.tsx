@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ApplicationShell } from "@/components/application/app-shell";
 import { ServicePlansWorkspace } from "@/components/application/volunteer-schedule";
 import { requireChurchSession } from "@/lib/auth";
+import { getChurchAdminEventsList } from "@/lib/church-admin-events-data";
 import { hasTenantBackendEnv } from "@/lib/supabase/tenant";
 import { getServicePlanList, getServicePlanTemplates } from "@/lib/volunteer-data";
 
@@ -16,9 +17,10 @@ export default async function ServicePlansPage() {
   const session = await requireChurchSession("/app/church-admin/volunteers/schedules");
   if (session.appContext.roleId !== "church-admin") redirect(session.homePath);
 
-  const [plans, templates] = await Promise.all([
+  const [plans, templates, events] = await Promise.all([
     getServicePlanList(session, { upcoming: true }),
     getServicePlanTemplates(session),
+    getChurchAdminEventsList(session),
   ]);
   const source = hasTenantBackendEnv() && session.source === "supabase" ? "live" : "preview";
 
@@ -36,7 +38,7 @@ export default async function ServicePlansPage() {
       navItems={NAV_ITEMS}
     >
       <div style={{ padding: "var(--mantine-spacing-md)" }}>
-        <ServicePlansWorkspace plans={plans} templates={templates} source={source} />
+        <ServicePlansWorkspace plans={plans} events={events} templates={templates} source={source} />
       </div>
     </ApplicationShell>
   );
