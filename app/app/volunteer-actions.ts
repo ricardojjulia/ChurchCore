@@ -517,6 +517,96 @@ export async function respondToShiftAction(
   return { ok: true };
 }
 
+// ── Reminder audit logging ───────────────────────────────────
+
+export async function sendVolunteerReminderAction(input: {
+  planId: string;
+  shiftId: string;
+  channel?: "manual" | "email" | "sms" | "push";
+  note?: string;
+}): Promise<{ ok: boolean; sentAt?: string; error?: string }> {
+  const session = await requireAdminSession();
+  const churchId = session.appContext.church.id;
+  const sentBy = session.profile.id;
+  const channel = input.channel ?? "manual";
+
+  if (shouldUseLocalTenantFallback()) {
+    const shiftResult = await queryTenantLocalDb<{
+      assigned_user_id: string | null;
+      confirmation_status: string;
+    }>(
+      `select assigned_user_id, confirmation_status
+       from public.volunteer_shifts
+       where id = $1 and church_id = $2 and plan_id = $3
+       limit 1`,
+      [input.shiftId, churchId, input.planId],
+    );
+
+    const shift = shiftResult.rows[0];
+    if (!shift) {
+      return { ok: false, error: "Shift not found for this plan." };
+    }
+    if (!shift.assigned_user_id) {
+      return { ok: false, error: "Cannot remind an unassigned shift." };
+    }
+    if (shift.confirmation_status !== "pending") {
+      return { ok: false, error: "Only pending volunteer responses can be reminded." };
+    }
+
+    const reminderResult = await queryTenantLocalDb<{ sent_at: string }>(
+      `insert into public.volunteer_shift_reminders
+         (church_id, shift_id, reminded_profile_id, reminder_channel, reminder_note, sent_by)
+       values ($1, $2, $3, $4, $5, $6)
+       returning sent_at::text`,
+      [churchId, input.shiftId, shift.assigned_user_id, channel, input.note?.trim() || null, sentBy],
+    );
+
+    revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+    revalidatePath(SCHEDULES_PATH);
+    return { ok: true, sentAt: reminderResult.rows[0]?.sent_at };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data: shift, error: shiftError } = await supabase
+    .from("volunteer_shifts")
+    .select("assigned_user_id, confirmation_status")
+    .eq("id", input.shiftId)
+    .eq("church_id", churchId)
+    .eq("plan_id", input.planId)
+    .single();
+
+  if (shiftError || !shift) {
+    return { ok: false, error: "Shift not found for this plan." };
+  }
+  if (!shift.assigned_user_id) {
+    return { ok: false, error: "Cannot remind an unassigned shift." };
+  }
+  if (shift.confirmation_status !== "pending") {
+    return { ok: false, error: "Only pending volunteer responses can be reminded." };
+  }
+
+  const { data: reminder, error } = await supabase
+    .from("volunteer_shift_reminders")
+    .insert({
+      church_id: churchId,
+      shift_id: input.shiftId,
+      reminded_profile_id: shift.assigned_user_id,
+      reminder_channel: channel,
+      reminder_note: input.note?.trim() || null,
+      sent_by: sentBy,
+    })
+    .select("sent_at")
+    .single();
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+  revalidatePath(SCHEDULES_PATH);
+  return { ok: true, sentAt: reminder?.sent_at ?? new Date().toISOString() };
+}
+
 // ── Log volunteer hours ──────────────────────────────────────
 
 export async function logVolunteerHoursAction(input: {

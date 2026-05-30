@@ -70,6 +70,8 @@ export type VolunteerShift = {
   declineReason: string | null;
   respondedAt: string | null;
   volunteerNotes: string | null;
+  reminderCount: number;
+  lastReminderAt: string | null;
   // joined
   volunteerName: string | null;
   volunteerEmail: string | null;
