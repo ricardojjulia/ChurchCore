@@ -982,9 +982,10 @@ import {
   registerForEventAction,
   cancelRegistrationAction,
   checkInRegistrantAction,
+  updateRegistrationPaymentFollowUpAction,
   type UpsertRegistrationSettingsInput,
 } from "@/app/app/church-admin-actions";
-import { NumberInput, Switch } from "@mantine/core";
+import { NumberInput, Select, Switch, Textarea } from "@mantine/core";
 import { Check, UserCheck, UserX, Download } from "lucide-react";
 
 export function ChurchAdminEventDetailWorkspace({
@@ -1071,6 +1072,9 @@ export function EventRegistrationsPanel({
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<PaymentStatusFilter>("all");
   const [settings] = useState(initialSettings);
   const [formFields, setFormFields] = useState(initialFormFields);
+  const [paymentFollowUpForms, setPaymentFollowUpForms] = useState<
+    Record<string, { paymentStatus: EventRegistration["paymentStatus"]; note: string }>
+  >({});
   const [isPending, startTransition] = useTransition();
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -1209,6 +1213,69 @@ export function EventRegistrationsPanel({
         setRegistrations((r) => r.map((reg) => reg.id === id ? { ...reg, status: "attended", checkedInAt: new Date().toISOString() } : reg));
       } else {
         setMsg({ type: "error", text: res.error ?? "Failed to check in." });
+      }
+    });
+  }
+
+  function updatePaymentFollowUpForm(
+    registration: EventRegistration,
+    patch: Partial<{ paymentStatus: EventRegistration["paymentStatus"]; note: string }>,
+  ) {
+    setPaymentFollowUpForms((forms) => ({
+      ...forms,
+      [registration.id]: {
+        paymentStatus:
+          forms[registration.id]?.paymentStatus ??
+          (registration.paymentStatus === "paid" || registration.paymentStatus === "failed"
+            ? registration.paymentStatus
+            : "paid"),
+        note: forms[registration.id]?.note ?? registration.paymentFollowUpNote ?? "",
+        ...patch,
+      },
+    }));
+  }
+
+  function getPaymentFollowUpForm(registration: EventRegistration) {
+    return (
+      paymentFollowUpForms[registration.id] ?? {
+        paymentStatus:
+          registration.paymentStatus === "paid" || registration.paymentStatus === "failed"
+            ? registration.paymentStatus
+            : "paid",
+        note: registration.paymentFollowUpNote ?? "",
+      }
+    );
+  }
+
+  function handlePaymentFollowUp(registration: EventRegistration) {
+    const form = getPaymentFollowUpForm(registration);
+
+    startTransition(async () => {
+      const res = await updateRegistrationPaymentFollowUpAction({
+        registrationId: registration.id,
+        eventId,
+        paymentStatus: form.paymentStatus,
+        note: form.note || undefined,
+      });
+
+      if (res.ok) {
+        const followedUpAt = new Date().toISOString();
+        setRegistrations((rows) =>
+          rows.map((row) =>
+            row.id === registration.id
+              ? {
+                  ...row,
+                  paymentStatus: form.paymentStatus,
+                  paymentFollowUpNote: form.note || null,
+                  paymentFollowedUpAt: followedUpAt,
+                  paymentFollowedUpBy: session.profile.name,
+                }
+              : row,
+          ),
+        );
+        setMsg({ type: "success", text: "Payment follow-up updated." });
+      } else {
+        setMsg({ type: "error", text: res.error ?? "Failed to update payment follow-up." });
       }
     });
   }
@@ -1716,6 +1783,58 @@ export function EventRegistrationsPanel({
                           PI {r.stripePaymentIntentId.slice(0, 12)}...
                         </Text>
                       ) : null}
+                      {r.paymentFollowedUpAt ? (
+                        <Text size="xs" c="dimmed">
+                          Followed up {new Date(r.paymentFollowedUpAt).toLocaleDateString()}
+                          {r.paymentFollowedUpBy ? ` by ${r.paymentFollowedUpBy}` : ""}
+                        </Text>
+                      ) : null}
+                      {r.paymentFollowUpNote ? (
+                        <Text size="xs" c="dimmed">
+                          Note: {r.paymentFollowUpNote}
+                        </Text>
+                      ) : null}
+                      {(r.paymentStatus === "pending" || r.paymentStatus === "failed") && (
+                        <Paper withBorder p="xs" radius="sm" mt={4}>
+                          <Stack gap={6}>
+                            <Text size="xs" fw={600}>Resolve payment follow-up</Text>
+                            <Select
+                              size="xs"
+                              label="Follow-up status"
+                              value={getPaymentFollowUpForm(r).paymentStatus}
+                              data={[
+                                { value: "paid", label: "Paid" },
+                                { value: "failed", label: "Failed" },
+                                { value: "refunded", label: "Refunded" },
+                              ]}
+                              onChange={(value) =>
+                                updatePaymentFollowUpForm(r, {
+                                  paymentStatus:
+                                    (value as EventRegistration["paymentStatus"] | null) ?? "paid",
+                                })
+                              }
+                            />
+                            <Textarea
+                              size="xs"
+                              label="Follow-up note"
+                              minRows={2}
+                              value={getPaymentFollowUpForm(r).note}
+                              onChange={(event) =>
+                                updatePaymentFollowUpForm(r, { note: event.currentTarget.value })
+                              }
+                            />
+                            <Button
+                              size="xs"
+                              variant="light"
+                              color="orange"
+                              onClick={() => handlePaymentFollowUp(r)}
+                              loading={isPending}
+                            >
+                              Save payment follow-up
+                            </Button>
+                          </Stack>
+                        </Paper>
+                      )}
                     </Stack>
                   </Table.Td>
                   <Table.Td>

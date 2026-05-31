@@ -8,6 +8,11 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 
+- Added Wave B Slice B2 ChurchAdmin payment follow-up operator UI so event
+  registration staff can resolve pending or failed payment records inline and
+  see follow-up notes, actor, and timestamp audit context
+  (`components/application/church-admin-event-workspace.tsx`,
+  `lib/church-admin-events-data.ts`).
 - Added a dedicated `npm run test:e2e:member-mobile` command and factory-run
   record for the 2026-05-31 Phase 2 member mobile/check-in verification pass.
 - Added Wave B P0 payment lifecycle operational closeout foundations for event registrations: migration `supabase/migrations/20260530133000_event_registration_payment_closeout.sql`, ChurchAdmin payment follow-up action, Stripe webhook registration payment reconciliation coverage, and payment-ledger persistence on paid registration creates (`app/app/church-admin-actions.ts`, `app/api/webhooks/stripe/route.ts`, `app/api/webhooks/stripe/route.test.ts`, `app/app/member-actions.ts`, `app/portal/actions.ts`, `lib/event-registration-lifecycle.ts`).
