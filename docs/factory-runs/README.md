@@ -51,3 +51,4 @@ Each run file should be committed with the change it describes. The goal is to m
 | 2026-05-29 | [Slice 6 communications guardrails and operator polish](2026-05-29-slice6-communications-guardrails.md) | Add server/UI dispatch guardrails for subject/body/schedule validation with focused communications action coverage | Pending |
 | 2026-05-29 | [Findings 4/5/6 depth batch](2026-05-29-findings4-5-6-depth-batch.md) | Complete paid registration defaults, add import source adapters + commit flow, and expand security evidence matrix/docs | Pending |
 | 2026-05-31 | [Wave B B2 payment follow-up operator UI](2026-05-31-wave-b-b2-payment-followup-operator-ui.md) | Add inline ChurchAdmin registration payment follow-up resolution controls and audit-trail display | PR #67 |
+| 2026-05-31 | [Wave B B3 Stripe payment intent](2026-05-31-wave-b-b3-stripe-payment-intent.md) | Create and store Stripe Payment Intents for paid registrations and reconcile webhooks by intent ID | PR #68 |

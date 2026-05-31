@@ -207,7 +207,7 @@ These workstreams convert the competitive findings into implementation-ready ste
 
 ### Finding 4: Service Planning And Event Registration Are Major Gaps
 
-**Status:** Phase 4 is now started with three delivered slices on `main`: (1) service-plan metadata + run-of-service blocks and admin registration configuration (approval workflow, household policy, configurable form fields), (2) member-facing registration rendering with dynamic form fields and household-aware registration submission, and (3) public registration route parity using the same dynamic field model and approval/waitlist lifecycle.
+**Status:** Phase 4 is now started with three delivered slices on `main`: (1) service-plan metadata + run-of-service blocks and admin registration configuration (approval workflow, household policy, configurable form fields), (2) member-facing registration rendering with dynamic form fields and household-aware registration submission, and (3) public registration route parity using the same dynamic field model and approval/waitlist lifecycle. Wave B payment hardening is also closing the paid-registration lifecycle: payment ledger persistence, ChurchAdmin follow-up UI, Stripe Payment Intent creation, client-secret return, and webhook reconciliation by intent ID are now implemented for the current registration scope.
 
 **Problem:** Planning Center, Pushpay, and Breeze/Tithely cover service planning and registration. ChurchCore cannot replace them without these flows.
 

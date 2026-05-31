@@ -287,7 +287,7 @@ Purpose: close the end-to-end payment record lifecycle for event registrations, 
 | --- | --- | --- | --- | --- | --- |
 | B1 | Payment lifecycle operational closeout | P0 | Completed | Product + Engineering | 2026-05-31 |
 | B2 | ChurchAdmin payment follow-up operator UI | P1 | Completed | Product + Engineering | 2026-05-31 |
-| B3 | Stripe Payment Intent creation at registration time | P1 | Planned | Product + Engineering | — |
+| B3 | Stripe Payment Intent creation at registration time | P1 | Completed | Product + Engineering | 2026-05-31 |
 
 ### B2: ChurchAdmin Payment Follow-Up Operator UI
 
@@ -335,7 +335,7 @@ Done when:
 - Stripe webhook reconciliation can match by intent ID without requiring metadata-carried registration IDs
 - targeted tests, lint, and build pass
 
-Status: Planned
+Status: Completed (paid ChurchAdmin, member, and public registrations now create and store Stripe Payment Intents when possible, return client secrets to registration surfaces, preserve pending follow-up state when Stripe creation fails, and Stripe webhooks can reconcile event registration payments by `payment_intent_id` even when metadata omits the registration ID; targeted tests passed)
 
 ## Weekly Cadence
 

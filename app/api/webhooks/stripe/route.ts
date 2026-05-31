@@ -63,7 +63,12 @@ async function handlePaymentIntentSucceeded(pi: {
     pi.metadata?.event_registration_id ?? pi.metadata?.registration_id;
 
   if (shouldUseLocalTenantFallback()) {
-    if (registrationId) {
+    const resolvedRegistrationId = registrationId ?? await resolveRegistrationIdFromPaymentIntent(
+      pi.id,
+      churchId,
+    );
+
+    if (resolvedRegistrationId) {
       await queryTenantLocalDb(
         `update public.event_registrations
          set payment_status = 'paid',
@@ -71,7 +76,7 @@ async function handlePaymentIntentSucceeded(pi: {
              amount_paid_cents = $4,
              updated_at = now()
          where id = $1 and church_id = $2`,
-        [registrationId, churchId, pi.id, pi.amount],
+        [resolvedRegistrationId, churchId, pi.id, pi.amount],
       );
 
       await queryTenantLocalDb(
@@ -85,7 +90,7 @@ async function handlePaymentIntentSucceeded(pi: {
              reconciled_at = now(),
              updated_at = now()
          where registration_id = $1 and church_id = $2`,
-        [registrationId, churchId, pi.id, pi.amount, pi.currency],
+        [resolvedRegistrationId, churchId, pi.id, pi.amount, pi.currency],
       );
     }
 
@@ -161,14 +166,19 @@ async function handlePaymentIntentFailed(pi: {
   const registrationId =
     pi.metadata?.event_registration_id ?? pi.metadata?.registration_id;
 
-  if (registrationId) {
+  const resolvedRegistrationId = registrationId ?? await resolveRegistrationIdFromPaymentIntent(
+    pi.id,
+    churchId,
+  );
+
+  if (resolvedRegistrationId) {
     await queryTenantLocalDb(
       `update public.event_registrations
        set payment_status = 'failed',
            stripe_payment_intent_id = $3,
            updated_at = now()
        where id = $1 and church_id = $2`,
-      [registrationId, churchId, pi.id],
+      [resolvedRegistrationId, churchId, pi.id],
     );
 
     await queryTenantLocalDb(
@@ -181,7 +191,7 @@ async function handlePaymentIntentFailed(pi: {
            updated_at = now()
        where registration_id = $1 and church_id = $2`,
       [
-        registrationId,
+        resolvedRegistrationId,
         churchId,
         pi.id,
         pi.last_payment_error?.code ?? null,
@@ -196,6 +206,21 @@ async function handlePaymentIntentFailed(pi: {
      where stripe_payment_intent_id = $1 and church_id = $2 and status = 'pending'`,
     [pi.id, churchId],
   );
+}
+
+async function resolveRegistrationIdFromPaymentIntent(
+  paymentIntentId: string,
+  churchId: string,
+) {
+  const result = await queryTenantLocalDb<{ registration_id: string }>(
+    `select registration_id
+     from public.event_registration_payments
+     where payment_intent_id = $1 and church_id = $2
+     limit 1`,
+    [paymentIntentId, churchId],
+  );
+
+  return result.rows[0]?.registration_id ?? null;
 }
 
 async function handleSubscriptionDeleted(sub: {

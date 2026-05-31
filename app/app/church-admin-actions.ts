@@ -9,6 +9,7 @@ import {
   resolveRegistrationLifecycle,
   type RegistrationPaymentStatus,
 } from "@/lib/event-registration-lifecycle";
+import { createEventRegistrationPaymentIntent } from "@/lib/stripe/event-registrations";
 import {
   createTenantAdminClient,
   createTenantServerClient,
@@ -1480,7 +1481,14 @@ export type RegisterForEventInput = {
 
 export async function registerForEventAction(
   input: RegisterForEventInput,
-): Promise<{ ok: boolean; registrationId?: string; isWaitlisted?: boolean; error?: string }> {
+): Promise<{
+  ok: boolean;
+  registrationId?: string;
+  isWaitlisted?: boolean;
+  paymentIntentId?: string | null;
+  paymentClientSecret?: string | null;
+  error?: string;
+}> {
   if (!input.registrantName.trim()) return { ok: false, error: "Name is required." };
 
   const churchId = await resolveEventRegistrationChurchId(input.eventId);
@@ -1547,16 +1555,34 @@ export async function registerForEventAction(
     );
 
     const registrationId = result.rows[0]?.id;
+    let paymentIntent:
+      | Awaited<ReturnType<typeof createEventRegistrationPaymentIntent>>
+      | null = null;
     if (registrationId && paymentStatus === "pending") {
+      try {
+        paymentIntent = await createEventRegistrationPaymentIntent({
+          amountCents: settings?.price_cents ?? 0,
+          currency: settings?.currency,
+          churchId,
+          eventId: input.eventId,
+          registrationId,
+          registrantEmail: input.registrantEmail,
+          registrantName: input.registrantName.trim(),
+        });
+      } catch {
+        paymentIntent = null;
+      }
+
       await queryTenantLocalDb(
         `insert into public.event_registration_payments
-           (registration_id, event_id, church_id, provider, status, amount_cents, currency)
-         values ($1, $2, $3, 'stripe', 'pending', $4, $5)
+           (registration_id, event_id, church_id, provider, status, amount_cents, currency, payment_intent_id)
+         values ($1, $2, $3, 'stripe', 'pending', $4, $5, $6)
          on conflict (registration_id)
          do update set
            status = excluded.status,
            amount_cents = excluded.amount_cents,
            currency = excluded.currency,
+           payment_intent_id = excluded.payment_intent_id,
            updated_at = now()`,
         [
           registrationId,
@@ -1564,12 +1590,23 @@ export async function registerForEventAction(
           churchId,
           settings?.price_cents ?? 0,
           settings?.currency ?? "usd",
+          paymentIntent?.paymentIntentId ?? null,
         ],
       );
     }
 
     revalidatePath(`/app/church-admin/events/${input.eventId}`);
-    return { ok: true, registrationId, isWaitlisted };
+    return {
+      ok: true,
+      registrationId,
+      isWaitlisted,
+      ...(paymentIntent
+        ? {
+            paymentIntentId: paymentIntent.paymentIntentId,
+            paymentClientSecret: paymentIntent.clientSecret,
+          }
+        : {}),
+    };
   }
 
   const supabase = await createTenantServerClient();
@@ -1625,6 +1662,23 @@ export async function registerForEventAction(
   if (error) return { ok: false, error: error.message };
 
   if (paymentStatus === "pending") {
+    let paymentIntent:
+      | Awaited<ReturnType<typeof createEventRegistrationPaymentIntent>>
+      | null = null;
+    try {
+      paymentIntent = await createEventRegistrationPaymentIntent({
+        amountCents: settings?.price_cents ?? 0,
+        currency: settings?.currency,
+        churchId,
+        eventId: input.eventId,
+        registrationId: data.id,
+        registrantEmail: input.registrantEmail,
+        registrantName: input.registrantName.trim(),
+      });
+    } catch {
+      paymentIntent = null;
+    }
+
     await supabase.from("event_registration_payments").upsert(
       {
         registration_id: data.id,
@@ -1634,10 +1688,24 @@ export async function registerForEventAction(
         status: "pending",
         amount_cents: settings?.price_cents ?? 0,
         currency: settings?.currency ?? "usd",
+        payment_intent_id: paymentIntent?.paymentIntentId ?? null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "registration_id" },
     );
+
+    revalidatePath(`/app/church-admin/events/${input.eventId}`);
+    return {
+      ok: true,
+      registrationId: data.id,
+      isWaitlisted,
+      ...(paymentIntent
+        ? {
+            paymentIntentId: paymentIntent.paymentIntentId,
+            paymentClientSecret: paymentIntent.clientSecret,
+          }
+        : {}),
+    };
   }
 
   revalidatePath(`/app/church-admin/events/${input.eventId}`);
