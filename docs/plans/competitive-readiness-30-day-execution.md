@@ -286,7 +286,7 @@ Purpose: close the end-to-end payment record lifecycle for event registrations, 
 | Slice ID | Slice | Priority | Status | Owner | Last Update |
 | --- | --- | --- | --- | --- | --- |
 | B1 | Payment lifecycle operational closeout | P0 | Completed | Product + Engineering | 2026-05-31 |
-| B2 | ChurchAdmin payment follow-up operator UI | P1 | Planned | Product + Engineering | — |
+| B2 | ChurchAdmin payment follow-up operator UI | P1 | Completed | Product + Engineering | 2026-05-31 |
 | B3 | Stripe Payment Intent creation at registration time | P1 | Planned | Product + Engineering | — |
 
 ### B2: ChurchAdmin Payment Follow-Up Operator UI
@@ -315,7 +315,7 @@ Acceptance criteria:
 3. Follow-up history (note, actor, timestamp) is visible on resolved records.
 4. Role checks prevent non-managers from invoking follow-up action.
 
-Status: Planned
+Status: Completed (ChurchAdmin event registration workspace now loads payment follow-up audit fields, displays unresolved payment resolution controls inline, and shows follow-up note, actor, and timestamp context after resolution; targeted component/action tests passed)
 
 ### B3: Stripe Payment Intent Creation at Registration Time
 

@@ -126,6 +126,9 @@ export type EventRegistration = {
   paymentStatus: "not_required" | "pending" | "paid" | "failed" | "refunded";
   amountPaidCents: number;
   stripePaymentIntentId: string | null;
+  paymentFollowUpNote: string | null;
+  paymentFollowedUpAt: string | null;
+  paymentFollowedUpBy: string | null;
   customFields: Record<string, unknown> | null;
   notes: string | null;
   registeredAt: string;
@@ -181,7 +184,7 @@ export async function getEventRegistrations(
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {
-    const [regRows, settingsRows, fieldRows] = await Promise.all([
+    const [regRows, settingsRows, fieldRows, paymentRows] = await Promise.all([
       queryTenantLocalDb<{
         id: string; event_id: string; registrant_name: string;
         registrant_email: string | null; registrant_phone: string | null;
@@ -237,10 +240,26 @@ export async function getEventRegistrations(
          order by sort_order, created_at`,
         [eventId, churchId],
       ),
+      queryTenantLocalDb<{
+        registration_id: string;
+        follow_up_note: string | null;
+        followed_up_at: string | null;
+        followed_up_by: string | null;
+      }>(
+        `select p.registration_id, p.follow_up_note, p.followed_up_at,
+                pr.full_name as followed_up_by
+         from public.event_registration_payments p
+         left join public.profiles pr on pr.id = p.reconciled_by
+         where p.event_id = $1 and p.church_id = $2`,
+        [eventId, churchId],
+      ),
     ]);
 
     const s = settingsRows.rows[0];
     const eventPriceCents = s?.price_cents ?? 0;
+    const paymentsByRegistration = new Map(
+      paymentRows.rows.map((row) => [row.registration_id, row]),
+    );
     const registrations: EventRegistration[] = regRows.rows.map((r) => ({
       id: r.id,
       eventId: r.event_id,
@@ -259,6 +278,9 @@ export async function getEventRegistrations(
       amountPaidCents: r.amount_paid_cents,
       customFields: r.custom_fields,
       stripePaymentIntentId: r.stripe_payment_intent_id,
+      paymentFollowUpNote: paymentsByRegistration.get(r.id)?.follow_up_note ?? null,
+      paymentFollowedUpAt: paymentsByRegistration.get(r.id)?.followed_up_at ?? null,
+      paymentFollowedUpBy: paymentsByRegistration.get(r.id)?.followed_up_by ?? null,
       notes: r.notes,
       registeredAt: r.registered_at,
       checkedInAt: r.checked_in_at,
@@ -298,7 +320,12 @@ export async function getEventRegistrations(
   }
 
   const supabase = await createTenantServerClient();
-  const [{ data: regData }, { data: settingsData }, { data: formFieldData }] = await Promise.all([
+  const [
+    { data: regData },
+    { data: settingsData },
+    { data: formFieldData },
+    { data: paymentData },
+  ] = await Promise.all([
     supabase
       .from("event_registrations")
       .select("*")
@@ -316,10 +343,27 @@ export async function getEventRegistrations(
       .eq("event_id", eventId)
       .eq("church_id", churchId)
       .order("sort_order"),
+    supabase
+      .from("event_registration_payments")
+      .select("registration_id, follow_up_note, followed_up_at, reconciled_by")
+      .eq("event_id", eventId)
+      .eq("church_id", churchId),
   ]);
 
   const s = settingsData;
   const eventPriceCents = s?.price_cents ?? 0;
+  const reconcilerIds = Array.from(
+    new Set((paymentData ?? []).map((row) => row.reconciled_by).filter(Boolean)),
+  ) as string[];
+  const { data: reconcilerData } = reconcilerIds.length > 0
+    ? await supabase.from("profiles").select("id, full_name").in("id", reconcilerIds)
+    : { data: [] };
+  const reconcilerNames = new Map(
+    (reconcilerData ?? []).map((profile) => [profile.id, profile.full_name ?? null]),
+  );
+  const paymentsByRegistration = new Map(
+    (paymentData ?? []).map((row) => [row.registration_id, row]),
+  );
   const registrations: EventRegistration[] = (regData ?? []).map((r) => ({
     id: r.id,
     eventId: r.event_id,
@@ -337,6 +381,10 @@ export async function getEventRegistrations(
     }),
     amountPaidCents: r.amount_paid_cents,
     stripePaymentIntentId: r.stripe_payment_intent_id ?? null,
+    paymentFollowUpNote: paymentsByRegistration.get(r.id)?.follow_up_note ?? null,
+    paymentFollowedUpAt: paymentsByRegistration.get(r.id)?.followed_up_at ?? null,
+    paymentFollowedUpBy:
+      reconcilerNames.get(paymentsByRegistration.get(r.id)?.reconciled_by ?? "") ?? null,
     customFields: r.custom_fields as Record<string, unknown> | null,
     notes: r.notes,
     registeredAt: r.registered_at,
