@@ -8,6 +8,11 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 
+- Added Wave B Slice B4 paid-registration checkout UI states for member and
+  public event registration surfaces, including payment-required messaging,
+  payment-ready confirmation, masked client-secret handling, and focused
+  component coverage (`components/application/member-event-registration-panel.tsx`,
+  `components/portal/public-event-registration-panel.tsx`).
 - Added Wave B Slice B3 Stripe Payment Intent creation for paid event
   registrations, returning a client secret to member/public registration
   surfaces, storing `payment_intent_id` in the event registration payment

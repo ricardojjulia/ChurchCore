@@ -288,6 +288,7 @@ Purpose: close the end-to-end payment record lifecycle for event registrations, 
 | B1 | Payment lifecycle operational closeout | P0 | Completed | Product + Engineering | 2026-05-31 |
 | B2 | ChurchAdmin payment follow-up operator UI | P1 | Completed | Product + Engineering | 2026-05-31 |
 | B3 | Stripe Payment Intent creation at registration time | P1 | Completed | Product + Engineering | 2026-05-31 |
+| B4 | Paid registration checkout UI states | P1 | Completed | Product + Engineering | 2026-05-31 |
 
 ### B2: ChurchAdmin Payment Follow-Up Operator UI
 
@@ -336,6 +337,35 @@ Done when:
 - targeted tests, lint, and build pass
 
 Status: Completed (paid ChurchAdmin, member, and public registrations now create and store Stripe Payment Intents when possible, return client secrets to registration surfaces, preserve pending follow-up state when Stripe creation fails, and Stripe webhooks can reconcile event registration payments by `payment_intent_id` even when metadata omits the registration ID; targeted tests passed)
+
+### B4: Paid Registration Checkout UI States
+
+Goal: Turn the B3 client-secret contract into a visible member/public checkout
+state so paid registrations clearly communicate that payment is required and
+ready for secure Stripe confirmation.
+
+Scope:
+
+- show payment-required messaging before submit for paid member/public event
+  registrations
+- show secure payment-ready state after the server returns a Payment Intent
+  client secret
+- display the Payment Intent ID for operator/support traceability without
+  exposing the client secret
+- keep free, waitlist, already-registered, and approval-required flows unchanged
+- add focused component tests for member and public paid-registration UI states
+
+Done when:
+
+- member and public registration modals distinguish payment-required and
+  payment-ready states
+- client secrets are not rendered into the UI
+- focused tests, lint, and build pass
+
+Status: Completed (member and public event registration modals now show
+payment-required messaging before submit, render a secure payment-ready panel
+after Payment Intent preparation, and keep the client secret hidden; focused
+component tests passed)
 
 ## Weekly Cadence
 

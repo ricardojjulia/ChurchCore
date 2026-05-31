@@ -30,6 +30,11 @@ type Props = {
   familyMembers: MemberPortalFamilyMember[];
 };
 
+type PaymentCheckoutState = {
+  paymentIntentId: string;
+  amountLabel: string;
+};
+
 function getStatusLabel(status: MemberEventRegistrationOption["memberRegistrationStatus"]) {
   if (status === "pending_approval") return "pending approval";
   if (status === "waitlisted") return "waitlisted";
@@ -44,6 +49,7 @@ export function MemberEventRegistrationPanel({ options, familyMembers }: Props) 
   const [notes, setNotes] = useState("");
   const [fieldValues, setFieldValues] = useState<Record<string, string | number | boolean>>({});
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [paymentCheckout, setPaymentCheckout] = useState<PaymentCheckoutState | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const selectedEvent = useMemo(
@@ -56,6 +62,7 @@ export function MemberEventRegistrationPanel({ options, familyMembers }: Props) 
     setNotes("");
     setFieldValues({});
     setMessage(null);
+    setPaymentCheckout(null);
     setTargetProfileId(option.householdRegistrationEnabled ? familyMembers[0]?.id ?? null : null);
   }
 
@@ -64,7 +71,15 @@ export function MemberEventRegistrationPanel({ options, familyMembers }: Props) 
     setNotes("");
     setFieldValues({});
     setMessage(null);
+    setPaymentCheckout(null);
     setTargetProfileId(null);
+  }
+
+  function formatAmount(cents: number, currency: string) {
+    return (cents / 100).toLocaleString(undefined, {
+      style: "currency",
+      currency: currency.toUpperCase(),
+    });
   }
 
   function isFieldValid(field: MemberEventRegistrationField) {
@@ -118,16 +133,19 @@ export function MemberEventRegistrationPanel({ options, familyMembers }: Props) 
 
       if (!result.ok) {
         setMessage({ type: "error", text: result.error ?? "Registration failed." });
+        setPaymentCheckout(null);
         return;
       }
 
       if (result.previewMode) {
         setMessage({ type: "success", text: "Preview mode registration submitted." });
+        setPaymentCheckout(null);
         return;
       }
 
       if (result.alreadyRegistered) {
         setMessage({ type: "success", text: "This person is already registered for this event." });
+        setPaymentCheckout(null);
         return;
       }
 
@@ -142,6 +160,14 @@ export function MemberEventRegistrationPanel({ options, familyMembers }: Props) 
           ? `${statusText} Secure payment is ready.`
           : statusText,
       });
+      setPaymentCheckout(
+        result.paymentClientSecret && result.paymentIntentId
+          ? {
+              paymentIntentId: result.paymentIntentId,
+              amountLabel: formatAmount(selectedEvent.priceCents, selectedEvent.currency),
+            }
+          : null,
+      );
     });
   }
 
@@ -220,6 +246,30 @@ export function MemberEventRegistrationPanel({ options, familyMembers }: Props) 
         <Stack gap="sm">
           {message ? (
             <Alert color={message.type === "success" ? "teal" : "red"}>{message.text}</Alert>
+          ) : null}
+
+          {selectedEvent && selectedEvent.priceCents > 0 && !paymentCheckout ? (
+            <Alert color="grape" variant="light">
+              Payment required: {formatAmount(selectedEvent.priceCents, selectedEvent.currency)}.
+              A secure Stripe payment step will be prepared after registration.
+            </Alert>
+          ) : null}
+
+          {paymentCheckout ? (
+            <Paper withBorder radius="md" p="md">
+              <Stack gap={6}>
+                <Text fw={700}>Secure payment ready</Text>
+                <Text size="sm">
+                  Complete {paymentCheckout.amountLabel} through the secure Stripe payment step for this registration.
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Payment intent: {paymentCheckout.paymentIntentId}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  No card details are stored in ChurchCore.
+                </Text>
+              </Stack>
+            </Paper>
           ) : null}
 
           {selectedEvent?.householdRegistrationEnabled && familyMembers.length > 1 ? (
