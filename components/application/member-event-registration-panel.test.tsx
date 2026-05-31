@@ -106,4 +106,35 @@ describe("MemberEventRegistrationPanel", () => {
 
     expect(await screen.findByText("Registration confirmed.")).toBeInTheDocument();
   });
+
+  it("shows payment-ready checkout state for paid registrations", async () => {
+    memberRegisterForEventActionMock.mockResolvedValue({
+      ok: true,
+      status: "confirmed",
+      paymentIntentId: "pi_member_registration_1",
+      paymentClientSecret: "client_secret_hidden",
+    });
+
+    renderPanel({
+      options: [
+        {
+          ...baseOptions[0],
+          priceCents: 2500,
+          currency: "usd",
+          fields: [],
+        },
+      ] as never,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+
+    expect(screen.getByText(/Payment required: \$25.00/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit registration" }));
+
+    expect(await screen.findByText("Secure payment ready")).toBeInTheDocument();
+    expect(screen.getByText(/Complete \$25.00 through the secure Stripe payment step/)).toBeInTheDocument();
+    expect(screen.getByText("Payment intent: pi_member_registration_1")).toBeInTheDocument();
+    expect(screen.queryByText("client_secret_hidden")).not.toBeInTheDocument();
+  });
 });
