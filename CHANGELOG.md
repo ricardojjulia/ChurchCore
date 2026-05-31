@@ -80,6 +80,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 Release 3.1.0 captures the post-3.0 competitive-readiness execution batch: Phase 2 mobile and children-safety closure slices, post-merge verification evidence on `main`, pending-review compliance test expansion, and the Phase 3 communications adapter foundation kickoff.
 
+- Wave B P0 Slice B1 operationally verified in local runtime (2026-05-31): dev server confirmed healthy on port 4200, all key routes smoke-passed (public registration 200, auth-protected routes 307, Stripe webhook reconciliation clean on both succeeded/failed paths), local DB schema backfill applied. Residual risk: existing envs with stale `event_registrations` snapshot need `supabase db reset` or manual column backfill.
+- Wave B Slice B2 (Planned): ChurchAdmin payment follow-up operator UI — unresolved payment filter/view in event workspace, inline follow-up action panel wired to `updateRegistrationPaymentFollowUpAction`, and follow-up audit trail display.
+- Wave B Slice B3 (Planned): Stripe Payment Intent creation at registration time to close the pending-to-real-intent gap and enable intent-ID-matched webhook reconciliation.
+
 ### Added
 
 - Added pending-review compliance coverage for member data-rights deletion lifecycle (`requestAccountDeletionAction` + cancellation + staff-role rejection) in `lib/compliance/data-rights-actions.test.ts`.
