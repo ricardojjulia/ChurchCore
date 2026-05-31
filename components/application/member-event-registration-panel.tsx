@@ -136,7 +136,12 @@ export function MemberEventRegistrationPanel({ options, familyMembers }: Props) 
         : result.status === "waitlisted"
           ? "Registration submitted to waitlist."
           : "Registration confirmed.";
-      setMessage({ type: "success", text: statusText });
+      setMessage({
+        type: "success",
+        text: result.paymentClientSecret
+          ? `${statusText} Secure payment is ready.`
+          : statusText,
+      });
     });
   }
 

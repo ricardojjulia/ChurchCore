@@ -68,6 +68,42 @@ describe("stripe webhook route", () => {
     );
   });
 
+  it("reconciles event registration payment by intent id when metadata omits registration id", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ registration_id: "reg-by-intent" }] })
+      .mockResolvedValue({ rows: [] });
+
+    const response = await stripeWebhookPost(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        body: JSON.stringify({
+          type: "payment_intent.succeeded",
+          data: {
+            object: {
+              id: "pi_lookup_1",
+              amount: 4500,
+              currency: "usd",
+              metadata: {
+                church_id: "church-1",
+              },
+            },
+          },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("where payment_intent_id = $1"),
+      ["pi_lookup_1", "church-1"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("update public.event_registrations"),
+      ["reg-by-intent", "church-1", "pi_lookup_1", 4500],
+    );
+  });
+
   it("reconciles event registration payment as failed on payment_intent.payment_failed", async () => {
     const response = await stripeWebhookPost(
       new NextRequest("http://localhost/api/webhooks/stripe", {
@@ -99,6 +135,44 @@ describe("stripe webhook route", () => {
     expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
       expect.stringContaining("update public.event_registration_payments"),
       ["reg-2", "church-1", "pi_reg_2", "card_declined", "Card was declined."],
+    );
+  });
+
+  it("reconciles failed event registration payment by intent id", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ registration_id: "reg-failed-by-intent" }] })
+      .mockResolvedValue({ rows: [] });
+
+    const response = await stripeWebhookPost(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        body: JSON.stringify({
+          type: "payment_intent.payment_failed",
+          data: {
+            object: {
+              id: "pi_failed_lookup_1",
+              metadata: {
+                church_id: "church-1",
+              },
+              last_payment_error: {
+                code: "expired_card",
+                message: "Card expired.",
+              },
+            },
+          },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("where payment_intent_id = $1"),
+      ["pi_failed_lookup_1", "church-1"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("update public.event_registrations"),
+      ["reg-failed-by-intent", "church-1", "pi_failed_lookup_1"],
     );
   });
 });

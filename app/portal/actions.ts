@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { resolveRegistrationLifecycle } from "@/lib/event-registration-lifecycle";
+import { createEventRegistrationPaymentIntent } from "@/lib/stripe/event-registrations";
 import { getRequestedPublicChurch } from "@/lib/public-portal-data";
 import {
   createTenantServerClient,
@@ -35,6 +36,8 @@ export type SubmitPublicEventRegistrationResult = {
   previewMode?: boolean;
   alreadyRegistered?: boolean;
   status?: "pending_approval" | "confirmed" | "waitlisted";
+  paymentIntentId?: string | null;
+  paymentClientSecret?: string | null;
   error?: string;
 };
 
@@ -218,23 +221,57 @@ export async function submitPublicEventRegistrationAction(
     );
 
     const registrationId = registrationResult.rows[0]?.id;
+    let paymentIntent:
+      | Awaited<ReturnType<typeof createEventRegistrationPaymentIntent>>
+      | null = null;
     if (registrationId && paymentStatus === "pending") {
+      try {
+        paymentIntent = await createEventRegistrationPaymentIntent({
+          amountCents: settings.price_cents,
+          currency: settings.currency,
+          churchId,
+          eventId,
+          registrationId,
+          registrantEmail,
+          registrantName,
+        });
+      } catch {
+        paymentIntent = null;
+      }
+
       await queryTenantLocalDb(
         `insert into public.event_registration_payments
-           (registration_id, event_id, church_id, provider, status, amount_cents, currency)
-         values ($1, $2, $3, 'stripe', 'pending', $4, $5)
+           (registration_id, event_id, church_id, provider, status, amount_cents, currency, payment_intent_id)
+         values ($1, $2, $3, 'stripe', 'pending', $4, $5, $6)
          on conflict (registration_id)
          do update set
            status = excluded.status,
            amount_cents = excluded.amount_cents,
            currency = excluded.currency,
+           payment_intent_id = excluded.payment_intent_id,
            updated_at = now()`,
-        [registrationId, eventId, churchId, settings.price_cents, settings.currency ?? "usd"],
+        [
+          registrationId,
+          eventId,
+          churchId,
+          settings.price_cents,
+          settings.currency ?? "usd",
+          paymentIntent?.paymentIntentId ?? null,
+        ],
       );
     }
 
     revalidatePath(`/portal/events/register?church=${encodeURIComponent(churchId)}`);
-    return { ok: true, status };
+    return {
+      ok: true,
+      status,
+      ...(paymentIntent
+        ? {
+            paymentIntentId: paymentIntent.paymentIntentId,
+            paymentClientSecret: paymentIntent.clientSecret,
+          }
+        : {}),
+    };
   }
 
   const supabase = await createTenantServerClient();
@@ -310,6 +347,23 @@ export async function submitPublicEventRegistrationAction(
   }
 
   if (paymentStatus === "pending" && data?.id) {
+    let paymentIntent:
+      | Awaited<ReturnType<typeof createEventRegistrationPaymentIntent>>
+      | null = null;
+    try {
+      paymentIntent = await createEventRegistrationPaymentIntent({
+        amountCents: settings.price_cents ?? 0,
+        currency: settings.currency,
+        churchId,
+        eventId,
+        registrationId: data.id,
+        registrantEmail,
+        registrantName,
+      });
+    } catch {
+      paymentIntent = null;
+    }
+
     await supabase.from("event_registration_payments").upsert(
       {
         registration_id: data.id,
@@ -319,10 +373,23 @@ export async function submitPublicEventRegistrationAction(
         status: "pending",
         amount_cents: settings.price_cents ?? 0,
         currency: settings.currency ?? "usd",
+        payment_intent_id: paymentIntent?.paymentIntentId ?? null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "registration_id" },
     );
+
+    revalidatePath(`/portal/events/register?church=${encodeURIComponent(churchId)}`);
+    return {
+      ok: true,
+      status,
+      ...(paymentIntent
+        ? {
+            paymentIntentId: paymentIntent.paymentIntentId,
+            paymentClientSecret: paymentIntent.clientSecret,
+          }
+        : {}),
+    };
   }
 
   revalidatePath(`/portal/events/register?church=${encodeURIComponent(churchId)}`);

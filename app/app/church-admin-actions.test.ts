@@ -321,7 +321,13 @@ describe("church-admin actions", () => {
       registrantEmail: "paid@example.com",
     });
 
-    expect(result).toEqual({ ok: true, registrationId: "reg-paid-1", isWaitlisted: false });
+    expect(result).toEqual({
+      ok: true,
+      registrationId: "reg-paid-1",
+      isWaitlisted: false,
+      paymentIntentId: "pi_event_registration_stub_reg-paid-1",
+      paymentClientSecret: "pi_event_registration_stub_reg-paid-1_secret_test",
+    });
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
       3,
       expect.stringContaining("payment_status"),
@@ -336,6 +342,18 @@ describe("church-admin actions", () => {
         "pending",
         null,
         null,
+      ],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining("payment_intent_id"),
+      [
+        "reg-paid-1",
+        "event-1",
+        "church-1",
+        5000,
+        "usd",
+        "pi_event_registration_stub_reg-paid-1",
       ],
     );
   });

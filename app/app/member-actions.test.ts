@@ -571,11 +571,17 @@ describe("memberRegisterForEventAction", () => {
         ],
       })
       .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "reg-member-paid-1" }] })
       .mockResolvedValueOnce({ rows: [] });
 
     const result = await memberRegisterForEventAction({ eventId: "event-1" });
 
-    expect(result).toEqual({ ok: true, status: "confirmed" });
+    expect(result).toEqual({
+      ok: true,
+      status: "confirmed",
+      paymentIntentId: "pi_event_registration_stub_reg-member-paid-1",
+      paymentClientSecret: "pi_event_registration_stub_reg-member-paid-1_secret_test",
+    });
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
       4,
       expect.stringContaining("payment_status"),
@@ -591,6 +597,18 @@ describe("memberRegisterForEventAction", () => {
         "pending",
         null,
         null,
+      ],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+      5,
+      expect.stringContaining("payment_intent_id"),
+      [
+        "reg-member-paid-1",
+        "event-1",
+        "church-1",
+        3500,
+        "usd",
+        "pi_event_registration_stub_reg-member-paid-1",
       ],
     );
   });

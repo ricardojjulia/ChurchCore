@@ -8,6 +8,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 
+- Added Wave B Slice B3 Stripe Payment Intent creation for paid event
+  registrations, returning a client secret to member/public registration
+  surfaces, storing `payment_intent_id` in the event registration payment
+  ledger, and reconciling Stripe webhooks by intent ID when metadata omits the
+  registration ID (`lib/stripe/event-registrations.ts`,
+  `app/app/member-actions.ts`, `app/portal/actions.ts`,
+  `app/app/church-admin-actions.ts`, `app/api/webhooks/stripe/route.ts`).
 - Added Wave B Slice B2 ChurchAdmin payment follow-up operator UI so event
   registration staff can resolve pending or failed payment records inline and
   see follow-up notes, actor, and timestamp audit context
