@@ -318,6 +318,9 @@ These workstreams convert the competitive findings into implementation-ready ste
 **Goal:** Members can manage their own church relationship from a phone-sized screen.
 
 **Status update (2026-05-27):** Phase 2 closure slice completed for the current release scope.
+**Verification refresh (2026-05-31):** Current `main` evidence was rechecked
+through the member mobile factory verification run, and the phone-sized
+Playwright path now has a dedicated `npm run test:e2e:member-mobile` command.
 
 **Evaluation summary:**
 
@@ -331,7 +334,7 @@ These workstreams convert the competitive findings into implementation-ready ste
 **Validation evidence:**
 
 - `npm run test -- app/app/ccm-actions.test.ts app/app/member-actions.test.ts app/portal/children/actions.test.ts lib/ccm-public-data.test.ts`
-- `npx playwright test tests/e2e/member-mobile-foundation.spec.ts`
+- `npm run test:e2e:member-mobile`
 - `npm run lint`
 - `npm run build`
 

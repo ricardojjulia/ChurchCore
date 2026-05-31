@@ -11,6 +11,7 @@ This document closes the current gap between the development plan and the reposi
 - `npm run smoke:preview`
 - `npm run smoke:local`
 - `npm run test:e2e:readiness`
+- `npm run test:e2e:member-mobile`
 - `npm run test:e2e:onboarding`
 - local Supabase bootstrap and seed flows
 
@@ -27,6 +28,7 @@ This document closes the current gap between the development plan and the reposi
 	- `npm run setup:local`
 	- `npm run smoke:local`
 	- `npm run test:e2e:readiness`
+	- `npm run test:e2e:member-mobile`
 	- `npm run test:e2e:onboarding`
 	- `npm run test -- app/app/church-admin/people/import/actions.test.ts app/app/church-admin-actions.test.ts app/app/communications-actions.test.ts app/app/member-actions.test.ts`
 	- `npm run lint`
@@ -50,6 +52,7 @@ This document closes the current gap between the development plan and the reposi
 - `npm run smoke:preview`
 - `npm run smoke:local`
 - `npm run test:e2e:readiness`
+- `npm run test:e2e:member-mobile`
 
 ### Layer 1: Unit Logic Tests
 

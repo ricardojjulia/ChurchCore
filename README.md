@@ -168,11 +168,11 @@ See [docs/shepherd-ai-ops.md](docs/shepherd-ai-ops.md) for architecture and guar
 
 ## Evaluation Snapshot
 
-- Current repo version: `3.0.0`
+- Current repo version: `3.1.0`
 - License: [MIT](LICENSE)
 - Included demo scope: preview mode without a backend, or local Supabase with seeded Grace Harbor Church data
 - Local credential material is not committed; demo credentials are generated locally by the bootstrap script and saved to gitignored `.demo-credentials.local`
-- Evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, `npm run smoke:local`, `npm run test:e2e:readiness`, and `npm run test:e2e -- tests/e2e/member-mobile-foundation.spec.ts`
+- Evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, `npm run smoke:local`, `npm run test:e2e:readiness`, and `npm run test:e2e:member-mobile`
 - Spanish UI support has started with cookie-backed English/Spanish selection; track rollout in [docs/plans/spanish-ui-coverage.md](docs/plans/spanish-ui-coverage.md)
 
 ## Release 3.0.0 Highlights

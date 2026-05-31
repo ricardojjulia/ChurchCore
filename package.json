@@ -15,6 +15,7 @@
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
     "test:e2e:readiness": "playwright test tests/e2e/church-admin-readiness.spec.ts",
+    "test:e2e:member-mobile": "playwright test tests/e2e/member-mobile-foundation.spec.ts",
     "test:e2e:onboarding": "playwright test tests/e2e/onboarding-flow.spec.ts",
     "check": "npm run lint && npm run build",
     "postinstall": "rm -rf node_modules/next/node_modules/postcss",
