@@ -43,6 +43,9 @@ export type ServicePlanItem = {
   notes: string | null;
   attachmentUrl: string | null;
   sortOrder: number;
+  songKey: string | null;
+  durationSeconds: number | null;
+  artist: string | null;
 };
 
 export type ServicePlanPosition = {

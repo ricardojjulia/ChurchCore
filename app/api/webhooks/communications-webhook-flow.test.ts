@@ -6,12 +6,16 @@ const {
   sendgridNormalizeMock,
   twilioVerifyMock,
   twilioNormalizeMock,
+  resendVerifyMock,
+  resendNormalizeMock,
   recordProviderWebhookEventMock,
 } = vi.hoisted(() => ({
   sendgridVerifyMock: vi.fn(),
   sendgridNormalizeMock: vi.fn(),
   twilioVerifyMock: vi.fn(),
   twilioNormalizeMock: vi.fn(),
+  resendVerifyMock: vi.fn(),
+  resendNormalizeMock: vi.fn(),
   recordProviderWebhookEventMock: vi.fn(),
 }));
 
@@ -29,12 +33,20 @@ vi.mock("@/lib/communications/twilio-adapter", () => ({
   },
 }));
 
+vi.mock("@/lib/communications/resend-adapter", () => ({
+  resendAdapter: {
+    verifyWebhookSignature: resendVerifyMock,
+    normalizeWebhookEvent: resendNormalizeMock,
+  },
+}));
+
 vi.mock("@/lib/communications/webhook-events", () => ({
   recordProviderWebhookEvent: recordProviderWebhookEventMock,
 }));
 
 import { POST as sendgridWebhookPost } from "@/app/api/webhooks/sendgrid/route";
 import { POST as twilioWebhookPost } from "@/app/api/webhooks/twilio/route";
+import { POST as resendWebhookPost } from "@/app/api/webhooks/resend/route";
 
 describe("communications webhook routes", () => {
   beforeEach(() => {
@@ -106,6 +118,60 @@ describe("communications webhook routes", () => {
       new NextRequest("http://localhost/api/webhooks/twilio", {
         method: "POST",
         body: "MessageSid=SM123&MessageStatus=delivered",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(recordProviderWebhookEventMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects Resend webhook when signature is invalid", async () => {
+    resendVerifyMock.mockReturnValue(false);
+
+    const response = await resendWebhookPost(
+      new NextRequest("http://localhost/api/webhooks/resend", {
+        method: "POST",
+        body: JSON.stringify({ type: "email.delivered" }),
+      }),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  it("returns 400 for Resend webhook when normalizeWebhookEvent returns null", async () => {
+    resendVerifyMock.mockReturnValue(true);
+    resendNormalizeMock.mockReturnValue(null);
+
+    const response = await resendWebhookPost(
+      new NextRequest("http://localhost/api/webhooks/resend", {
+        method: "POST",
+        body: JSON.stringify({ type: "email.unsupported" }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("records Resend webhook event successfully", async () => {
+    resendVerifyMock.mockReturnValue(true);
+    resendNormalizeMock.mockReturnValue({
+      provider: "resend",
+      channel: "email",
+      eventId: "email.delivered:msg-1:2026-06-01T00:00:00.000Z",
+      providerMessageId: "msg-1",
+      status: "delivered",
+      occurredAtIso: "2026-06-01T00:00:00.000Z",
+    });
+    recordProviderWebhookEventMock.mockResolvedValue({ recorded: true });
+
+    const response = await resendWebhookPost(
+      new NextRequest("http://localhost/api/webhooks/resend", {
+        method: "POST",
+        body: JSON.stringify({
+          type: "email.delivered",
+          created_at: "2026-06-01T00:00:00.000Z",
+          data: { email_id: "msg-1" },
+        }),
       }),
     );
 

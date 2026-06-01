@@ -10,14 +10,16 @@ export type RegistrationPaymentStatus =
   | "pending"
   | "paid"
   | "failed"
-  | "refunded";
+  | "refunded"
+  | "partially_refunded";
 
 export type RegistrationPaymentLedgerStatus =
   | "pending"
   | "succeeded"
   | "failed"
   | "refunded"
-  | "cancelled";
+  | "cancelled"
+  | "partially_refunded";
 
 export function paymentStatusToLedgerStatus(
   paymentStatus: RegistrationPaymentStatus,
@@ -29,6 +31,8 @@ export function paymentStatusToLedgerStatus(
       return "failed";
     case "refunded":
       return "refunded";
+    case "partially_refunded":
+      return "partially_refunded";
     case "not_required":
       return "cancelled";
     case "pending":
@@ -47,6 +51,8 @@ export function ledgerStatusToPaymentStatus(
       return "failed";
     case "refunded":
       return "refunded";
+    case "partially_refunded":
+      return "partially_refunded";
     case "cancelled":
       return "not_required";
     case "pending":
@@ -82,6 +88,15 @@ export function normalizeRegistrationPaymentStatus(input: {
   storedPaymentStatus: string | null;
   priceCents: number;
 }): RegistrationPaymentStatus {
+  // Refund states are terminal — guard before the amountPaidCents shortcut so a
+  // refunded row with a positive amount_paid_cents doesn't flip back to "paid".
+  if (
+    input.storedPaymentStatus === "refunded" ||
+    input.storedPaymentStatus === "partially_refunded"
+  ) {
+    return input.storedPaymentStatus;
+  }
+
   if (input.amountPaidCents > 0) {
     return "paid";
   }
@@ -92,6 +107,7 @@ export function normalizeRegistrationPaymentStatus(input: {
     "paid",
     "failed",
     "refunded",
+    "partially_refunded",
   ]);
 
   const status = input.storedPaymentStatus as RegistrationPaymentStatus | null;

@@ -278,6 +278,8 @@ Path: `/app/church-admin/groups`
 
 Admins manage small groups, group leaders, membership requests, meetings, attendance, and resources. Members can browse and request to join open groups.
 
+Groups can be bulk-imported from CSV files exported from Planning Center, Breeze, or any generic CSV source. The import flow runs a dry-run classification first (showing `create`, `update`, `skip`, and `reject` rows with reasons) before committing. Each row is matched to an existing group by `source_id` for idempotent re-imports. Category values must be one of `general`, `life_stage`, `geographic`, `interest`, `discipleship`, `support`, `service`, `youth`, or `seniors`. Leader emails are resolved against existing church profiles; unmatched leaders are flagged in the dry-run preview. The import entry point for UI wiring is `/app/church-admin/groups/import`.
+
 ### Visitors
 
 Path: `/app/church-admin/visitors`

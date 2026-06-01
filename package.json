@@ -21,7 +21,11 @@
     "postinstall": "rm -rf node_modules/next/node_modules/postcss",
     "setup:local": "./supabase/scripts/setup-local.sh",
     "smoke:preview": "./supabase/scripts/smoke-demo.sh preview",
-    "smoke:local": "./supabase/scripts/smoke-demo.sh local"
+    "smoke:local": "./supabase/scripts/smoke-demo.sh local",
+    "lint:migrations": "node scripts/lint-migrations.mjs",
+    "check:schema": "node scripts/check-schema-alignment.mjs",
+    "audit:rls": "node scripts/audit-rls.mjs",
+    "generate:manifest": "node scripts/generate-manifest.mjs"
   },
   "dependencies": {
     "@mantine/core": "^9.0.1",
@@ -43,6 +47,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "read-excel-file": "^9.0.6",
+    "svix": "^1.95.1",
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {

@@ -64,6 +64,7 @@ const clearMetricRow = {
   pending_communications: 0,
   failed_communications: 0,
   bounced_communications: 0,
+  suppressed_contacts: 0,
   contact_gaps: 0,
   consent_gaps: 0,
   report_profiles: 25,

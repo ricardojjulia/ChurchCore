@@ -249,6 +249,9 @@ export type AddRunOfServiceItemInput = {
   notes?: string;
   attachmentUrl?: string;
   sortOrder?: number;
+  songKey?: string;
+  durationSeconds?: number;
+  artist?: string;
 };
 
 export async function addRunOfServiceItemAction(
@@ -261,11 +264,30 @@ export async function addRunOfServiceItemAction(
     return { ok: false, error: "Run-of-service item title is required." };
   }
 
+  const isSong = input.itemType === "song";
+  const songKey = isSong ? (input.songKey ?? null) : null;
+  const durationSeconds = isSong ? (input.durationSeconds ?? null) : null;
+  const artist = isSong ? (input.artist ?? null) : null;
+
   if (shouldUseLocalTenantFallback()) {
+    const ownerCheck = await queryTenantLocalDb<{ id: string }>(
+      `SELECT id FROM public.service_plans WHERE id = $1 AND church_id = $2`,
+      [input.planId, churchId],
+    );
+    if (!ownerCheck.rows[0]?.id) {
+      return { ok: false, error: "Service plan not found." };
+    }
+
+    const sortResult = await queryTenantLocalDb<{ next_sort: number }>(
+      `SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_sort FROM public.service_plan_items WHERE plan_id = $1 AND church_id = $2`,
+      [input.planId, churchId],
+    );
+    const sortOrder = sortResult.rows[0]?.next_sort ?? 0;
+
     const result = await queryTenantLocalDb<{ id: string }>(
       `insert into public.service_plan_items
-         (plan_id, church_id, starts_at, ends_at, title, item_type, leader_name, notes, attachment_url, sort_order)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         (plan_id, church_id, starts_at, ends_at, title, item_type, leader_name, notes, attachment_url, sort_order, song_key, duration_seconds, artist)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        returning id`,
       [
         input.planId,
@@ -277,7 +299,10 @@ export async function addRunOfServiceItemAction(
         input.leaderName ?? null,
         input.notes ?? null,
         input.attachmentUrl ?? null,
-        input.sortOrder ?? 0,
+        sortOrder,
+        songKey,
+        durationSeconds,
+        artist,
       ],
     );
     revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
@@ -285,6 +310,26 @@ export async function addRunOfServiceItemAction(
   }
 
   const supabase = await createTenantServerClient();
+  const { data: planOwner } = await supabase
+    .from("service_plans")
+    .select("id")
+    .eq("id", input.planId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+  if (!planOwner?.id) {
+    return { ok: false, error: "Service plan not found." };
+  }
+
+  const { data: sortData } = await supabase
+    .from("service_plan_items")
+    .select("sort_order")
+    .eq("plan_id", input.planId)
+    .eq("church_id", churchId)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .single();
+  const sortOrder = sortData != null ? (sortData.sort_order as number) + 1 : 0;
+
   const { data, error } = await supabase
     .from("service_plan_items")
     .insert({
@@ -297,7 +342,10 @@ export async function addRunOfServiceItemAction(
       leader_name: input.leaderName ?? null,
       notes: input.notes ?? null,
       attachment_url: input.attachmentUrl ?? null,
-      sort_order: input.sortOrder ?? 0,
+      sort_order: sortOrder,
+      song_key: songKey,
+      duration_seconds: durationSeconds,
+      artist: artist,
     })
     .select("id")
     .single();
@@ -305,6 +353,76 @@ export async function addRunOfServiceItemAction(
   if (error) return { ok: false, error: error.message };
   revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
   return { ok: true, id: data?.id };
+}
+
+// ── Reorder run-of-service items ─────────────────────────────
+
+export type ReorderServicePlanItemsInput = {
+  planId: string;
+  orderedIds: string[];
+};
+
+export async function reorderServicePlanItemsAction(
+  input: ReorderServicePlanItemsInput,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireAdminSession();
+  const churchId = session.appContext.church.id;
+
+  if (!Array.isArray(input.orderedIds) || input.orderedIds.length === 0) {
+    return { ok: false, error: "orderedIds must be a non-empty array." };
+  }
+
+  if (shouldUseLocalTenantFallback()) {
+    const existing = await queryTenantLocalDb<{ id: string }>(
+      `SELECT id FROM public.service_plan_items WHERE plan_id = $1 AND church_id = $2`,
+      [input.planId, churchId],
+    );
+    const existingSet = new Set(existing.rows.map((r) => r.id));
+    const allValid =
+      input.orderedIds.length === existingSet.size &&
+      input.orderedIds.every((id) => existingSet.has(id));
+    if (!allValid) {
+      return { ok: false, error: "Invalid item IDs for this plan." };
+    }
+
+    // Sequential updates with no transaction — consistent with codebase pattern; partial failure leaves order inconsistent until next reorder.
+    for (let i = 0; i < input.orderedIds.length; i++) {
+      await queryTenantLocalDb(
+        `UPDATE public.service_plan_items SET sort_order = $1 WHERE id = $2 AND church_id = $3`,
+        [i, input.orderedIds[i], churchId],
+      );
+    }
+
+    revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data: existing } = await supabase
+    .from("service_plan_items")
+    .select("id")
+    .eq("plan_id", input.planId)
+    .eq("church_id", churchId);
+
+  const existingSet = new Set((existing ?? []).map((r: { id: string }) => r.id));
+  const allValid =
+    input.orderedIds.length === existingSet.size &&
+    input.orderedIds.every((id) => existingSet.has(id));
+  if (!allValid) {
+    return { ok: false, error: "Invalid item IDs for this plan." };
+  }
+
+  // Sequential updates with no transaction — consistent with codebase pattern; partial failure leaves order inconsistent until next reorder.
+  for (let i = 0; i < input.orderedIds.length; i++) {
+    await supabase
+      .from("service_plan_items")
+      .update({ sort_order: i })
+      .eq("id", input.orderedIds[i])
+      .eq("church_id", churchId);
+  }
+
+  revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+  return { ok: true };
 }
 
 // ── Publish / complete plan ──────────────────────────────────

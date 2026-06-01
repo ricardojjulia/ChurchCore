@@ -179,9 +179,11 @@ export async function getServicePlanDetail(
         starts_at: string | null; ends_at: string | null;
         title: string; item_type: string; leader_name: string | null;
         notes: string | null; attachment_url: string | null; sort_order: number;
+        song_key: string | null; duration_seconds: number | null; artist: string | null;
       }>(
         `select id, plan_id, church_id, starts_at, ends_at, title, item_type,
-                leader_name, notes, attachment_url, sort_order
+                leader_name, notes, attachment_url, sort_order,
+                song_key, duration_seconds, artist
          from public.service_plan_items
          where plan_id = $1
          order by sort_order, starts_at nulls last`,
@@ -218,6 +220,9 @@ export async function getServicePlanDetail(
       notes: item.notes,
       attachmentUrl: item.attachment_url,
       sortOrder: item.sort_order,
+      songKey: item.song_key ?? null,
+      durationSeconds: item.duration_seconds ?? null,
+      artist: item.artist ?? null,
     }));
 
     const positions = posResult.rows.map((pos) => {
@@ -329,6 +334,9 @@ export async function getServicePlanDetail(
     notes: item.notes ?? null,
     attachmentUrl: item.attachment_url ?? null,
     sortOrder: item.sort_order,
+    songKey: item.song_key ?? null,
+    durationSeconds: item.duration_seconds ?? null,
+    artist: item.artist ?? null,
   }));
 
   return {
