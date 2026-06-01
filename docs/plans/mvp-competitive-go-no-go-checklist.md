@@ -152,3 +152,19 @@ Use this scoring line in each factory run:
 	- Onboarding browser path moved to passing with an executable end-to-end check from public registration through first sign-in (`npm run test:e2e:onboarding`).
 	- Communications unresolved-lane operations moved to passing with explicit operator closure workflow notes tied to tests/docs.
 	- Security evidence maintenance moved to passing with consolidated evidence links across the matrix, assessment, mitigation, and testing schema docs.
+
+### 2026-05-31 (interim verification run)
+
+- Owner: Product + Engineering
+- MVP Today: `GO`
+- MVP +2 weeks: `CONDITIONAL GO`
+- Competitive 30 days: `NO-GO`
+- Competitive 60 days: `NO-GO`
+- Highest blocker this week: service-planning depth (worship/setlist planning unstarted); stripe refund lifecycle gap is Phase C.
+- Evidence:
+	- `npm run lint` ✅ (clean)
+	- `npm run build` ✅ (92 routes, 0 errors)
+	- `npm run smoke:local` ✅ (all 21 smoke checks passed)
+	- `npm run test:e2e:readiness` ✅ (3 passed, 1 skipped — control-plane context)
+	- `npm run test:e2e:onboarding` ✅ (1 passed)
+- Gate change: MVP +2 weeks moved from NO-GO to CONDITIONAL GO. All required Phase B gates now pass. Remaining soft gap: Spanish coverage for finance/communications routes (not a hard blocker). Next Phase C blockers: stripe refund flow, service-planning depth, import breadth beyond people/households.
