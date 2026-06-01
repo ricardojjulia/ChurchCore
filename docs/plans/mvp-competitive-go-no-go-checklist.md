@@ -189,3 +189,18 @@ Use this scoring line in each factory run:
   - WS-C2: Stripe refund lifecycle closed — `refunded`/`partially_refunded` states on both registration tables; operator-initiated refund action; `charge.refunded` webhook with idempotency guard; UNIQUE constraint on refund_id; best-effort GL reversal.
   - WS-C3: Groups import at dry-run + commit level — source_id dedup key; adapters for generic_csv, planning_center, breeze; unmatched-leader warning (not rejection); `/app/church-admin/groups/import` route live.
 - Remaining Phase C blockers (next brief): events/attendance/giving import breadth, communications provider depth, Spanish coverage (Phase B soft gap).
+
+### 2026-06-19 (planned checkpoint)
+
+- Owner: Product + Engineering (weekly readiness review in planning sync)
+- Execution brief: [docs/plans/2026-06-19-execution-brief.md](docs/plans/2026-06-19-execution-brief.md)
+- Sequence status (2026-06-01): WS-C4 Spanish coverage, WS-C5 communications auto-retry + unsubscribe injection, WS-C6 events import are all planned.
+- MVP Today: `TARGET GO`
+- MVP +2 weeks: `TARGET GO` (promote from CONDITIONAL GO — Spanish coverage closes the soft gap)
+- Competitive 30 days: `TARGET NO-GO` (further risk reduction)
+- Competitive 60 days: `TARGET NO-GO`
+- Highest blocker to close by this checkpoint: Spanish coverage for communications routes (WS-C4).
+- Expected gate changes:
+  - MVP +2 weeks promoted to full GO: all ChurchAdmin communications and remaining finance route strings covered by i18n.
+  - Communications operational depth improved: auto-retry for failed sends, unsubscribe link auto-injection into outbound emails.
+  - Events import available at dry-run + commit level.
