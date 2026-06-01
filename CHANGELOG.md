@@ -8,6 +8,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 
+- Added Resend as the primary email provider (`lib/communications/resend-adapter.ts`) with stub mode for local dev, Svix webhook signature verification, and full event normalization (delivered, bounced, complained, clicked). ADR 0006 documents the decision; SendGrid remains as a documented fallback adapter.
+- Added `/api/webhooks/resend` route for Svix-verified Resend webhook ingestion, delegating to the shared `webhook-events.ts` handler for idempotent delivery-event recording and auto-suppression on bounce/complaint.
+- Added `lib/communications/unsubscribe.ts` with HMAC-SHA256 signed, 30-day expiring unsubscribe link generation and timing-safe token verification.
+- Added unauthenticated `GET /api/unsubscribe` route that validates unsubscribe tokens and writes suppression records to `communication_suppressions` with `reason='unsubscribe'`.
+- Added `supabase/migrations/20260601000000_communication_suppressions_unsubscribe_policy.sql` granting service-role insert/update access to `communication_suppressions` for the unauthenticated unsubscribe flow.
+- Added `docs/runbooks/communications.md` covering all provider env vars, Resend and Twilio webhook registration steps, suppression management SOP, retry SOP, and unsubscribe link guidance.
+- Added `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_WEBHOOK_SECRET`, and `UNSUBSCRIBE_SECRET` to `.env.example`.
+
 - Added Wave B Slice B4 paid-registration checkout UI states for member and
   public event registration surfaces, including payment-required messaging,
   payment-ready confirmation, masked client-secret handling, and focused
