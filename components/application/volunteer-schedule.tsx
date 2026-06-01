@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import {
+  ActionIcon,
   Alert,
   Badge,
   Button,
@@ -20,6 +21,8 @@ import {
   Title,
 } from "@mantine/core";
 import {
+  ArrowDown,
+  ArrowUp,
   BellRing,
   CalendarCheck,
   Check,
@@ -52,6 +55,7 @@ import {
   addRunOfServiceItemAction,
   assignVolunteerAction,
   createServicePlanAction,
+  reorderServicePlanItemsAction,
   removeAssignmentAction,
   sendVolunteerReminderAction,
   updateServicePlanDetailsAction,
@@ -396,13 +400,19 @@ export function ServicePlanBuilder({
   });
   const [runItemForm, setRunItemForm] = useState({
     title: "",
-    itemType: "segment",
+    itemType: "song",
     startsAt: "",
     endsAt: "",
     leaderName: "",
     notes: "",
     attachmentUrl: "",
+    songKey: "",
+    durationMinutes: "",
+    durationSeconds: "",
+    artist: "",
   });
+  const [runItemFormError, setRunItemFormError] = useState<string | null>(null);
+  const [isReorderPending, setIsReorderPending] = useState(false);
   const [assignTarget, setAssignTarget] = useState<{ positionId: string; roleName: string } | null>(null);
   const [volunteerSearch, setVolunteerSearch] = useState("");
   const eventOptions = events.map((event) => ({
@@ -472,7 +482,15 @@ export function ServicePlanBuilder({
   }
 
   function handleAddRunItem() {
-    if (!runItemForm.title.trim()) return;
+    if (!runItemForm.title.trim()) {
+      setRunItemFormError("Title is required.");
+      return;
+    }
+    setRunItemFormError(null);
+
+    const mins = parseInt(runItemForm.durationMinutes || "0", 10);
+    const secs = parseInt(runItemForm.durationSeconds || "0", 10);
+    const durationSeconds = (mins > 0 || secs > 0) ? mins * 60 + secs : undefined;
 
     startTransition(async () => {
       const res = await addRunOfServiceItemAction({
@@ -491,7 +509,9 @@ export function ServicePlanBuilder({
         leaderName: runItemForm.leaderName || undefined,
         notes: runItemForm.notes || undefined,
         attachmentUrl: runItemForm.attachmentUrl || undefined,
-        sortOrder: detail.runOfService.length,
+        songKey: runItemForm.songKey || undefined,
+        durationSeconds,
+        artist: runItemForm.artist || undefined,
       });
 
       if (!res.ok || !res.id) {
@@ -523,6 +543,9 @@ export function ServicePlanBuilder({
             notes: runItemForm.notes || null,
             attachmentUrl: runItemForm.attachmentUrl || null,
             sortOrder: d.runOfService.length,
+            songKey: runItemForm.songKey || null,
+            durationSeconds: durationSeconds ?? null,
+            artist: runItemForm.artist || null,
           },
         ],
       }));
@@ -530,14 +553,49 @@ export function ServicePlanBuilder({
       setShowRunItemForm(false);
       setRunItemForm({
         title: "",
-        itemType: "segment",
+        itemType: "song",
         startsAt: "",
         endsAt: "",
         leaderName: "",
         notes: "",
         attachmentUrl: "",
+        songKey: "",
+        durationMinutes: "",
+        durationSeconds: "",
+        artist: "",
       });
       setMsg({ type: "success", text: "Run-of-service item added." });
+    });
+  }
+
+  function handleMoveItem(itemId: string, direction: "up" | "down") {
+    const items = detail.runOfService;
+    const idx = items.findIndex((i) => i.id === itemId);
+    if (idx < 0) return;
+    if (direction === "up" && idx === 0) return;
+    if (direction === "down" && idx === items.length - 1) return;
+
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    const newOrder = [...items];
+    const temp = newOrder[idx];
+    newOrder[idx] = newOrder[swapIdx];
+    newOrder[swapIdx] = temp;
+
+    const previousOrder = items;
+    setDetail((d) => ({ ...d, runOfService: newOrder }));
+    setIsReorderPending(true);
+
+    reorderServicePlanItemsAction({
+      planId: detail.plan.id,
+      orderedIds: newOrder.map((i) => i.id),
+    }).then((res) => {
+      if (res.ok) {
+        setIsReorderPending(false);
+      } else {
+        setDetail((d) => ({ ...d, runOfService: previousOrder }));
+        setIsReorderPending(false);
+        setMsg({ type: "error", text: res.error ?? "Failed to reorder items." });
+      }
     });
   }
 
@@ -932,9 +990,24 @@ export function ServicePlanBuilder({
         </Group>
       </Paper>
 
+      {(detail.plan.scriptureReference || detail.plan.sermonTitle || detail.plan.sermonSpeaker) ? (
+        <Paper withBorder p="sm" radius="md">
+          <Text size="xs" fw={700} tt="uppercase" c="dimmed" mb="xs">Sermon Info</Text>
+          {detail.plan.scriptureReference ? (
+            <Text size="sm"><Text span fw={600}>Scripture:</Text> {detail.plan.scriptureReference}</Text>
+          ) : null}
+          {detail.plan.sermonTitle ? (
+            <Text size="sm"><Text span fw={600}>Series:</Text> {detail.plan.sermonTitle}</Text>
+          ) : null}
+          {detail.plan.sermonSpeaker ? (
+            <Text size="sm"><Text span fw={600}>Speaker:</Text> {detail.plan.sermonSpeaker}</Text>
+          ) : null}
+        </Paper>
+      ) : null}
+
       <Paper withBorder radius="md" p="md">
         <Group justify="space-between" mb="sm">
-          <Title order={4} size="h5">Run of service</Title>
+          <Title order={4} size="h5">Setlist / Run of Service</Title>
           <Button
             size="xs"
             leftSection={<Plus size={13} />}
@@ -951,21 +1024,37 @@ export function ServicePlanBuilder({
               <TextInput
                 label="Title"
                 required
+                error={runItemFormError}
                 value={runItemForm.title}
-                onChange={(event) =>
-                  setRunItemForm((form) => ({ ...form, title: event.currentTarget.value }))
-                }
+                onChange={(event) => {
+                  setRunItemFormError(null);
+                  setRunItemForm((form) => ({ ...form, title: event.currentTarget.value }));
+                }}
               />
               <Group grow>
-                <TextInput
+                <Select
                   label="Item type"
+                  data={[
+                    { value: "segment", label: "Segment" },
+                    { value: "song", label: "Song" },
+                    { value: "reading", label: "Reading" },
+                    { value: "prayer", label: "Prayer" },
+                    { value: "sermon", label: "Sermon" },
+                    { value: "announcement", label: "Announcement" },
+                    { value: "other", label: "Other" },
+                  ]}
                   value={runItemForm.itemType}
-                  onChange={(event) =>
+                  onChange={(value) => {
+                    const newType = value ?? "song";
                     setRunItemForm((form) => ({
                       ...form,
-                      itemType: event.currentTarget.value as typeof form.itemType,
-                    }))
-                  }
+                      itemType: newType,
+                      leaderName:
+                        newType === "sermon" && !form.leaderName
+                          ? (detail.plan.sermonSpeaker ?? form.leaderName)
+                          : form.leaderName,
+                    }));
+                  }}
                 />
                 <TextInput
                   label="Leader"
@@ -975,6 +1064,45 @@ export function ServicePlanBuilder({
                   }
                 />
               </Group>
+              {runItemForm.itemType === "song" ? (
+                <>
+                  <TextInput
+                    label="Key"
+                    placeholder="e.g. G, Bb, F#m"
+                    value={runItemForm.songKey}
+                    onChange={(event) =>
+                      setRunItemForm((form) => ({ ...form, songKey: event.currentTarget.value }))
+                    }
+                  />
+                  <Group grow>
+                    <NumberInput
+                      label="Min"
+                      min={0}
+                      max={99}
+                      value={runItemForm.durationMinutes === "" ? "" : Number(runItemForm.durationMinutes)}
+                      onChange={(value) =>
+                        setRunItemForm((form) => ({ ...form, durationMinutes: value === "" ? "" : String(value) }))
+                      }
+                    />
+                    <NumberInput
+                      label="Sec"
+                      min={0}
+                      max={59}
+                      value={runItemForm.durationSeconds === "" ? "" : Number(runItemForm.durationSeconds)}
+                      onChange={(value) =>
+                        setRunItemForm((form) => ({ ...form, durationSeconds: value === "" ? "" : String(value) }))
+                      }
+                    />
+                  </Group>
+                  <TextInput
+                    label="Artist / Composer"
+                    value={runItemForm.artist}
+                    onChange={(event) =>
+                      setRunItemForm((form) => ({ ...form, artist: event.currentTarget.value }))
+                    }
+                  />
+                </>
+              ) : null}
               <Group grow>
                 <TextInput
                   label="Starts at"
@@ -1009,7 +1137,7 @@ export function ServicePlanBuilder({
                 }
               />
               <Group justify="flex-end">
-                <Button size="xs" variant="default" onClick={() => setShowRunItemForm(false)}>
+                <Button size="xs" variant="default" onClick={() => { setShowRunItemForm(false); setRunItemFormError(null); }}>
                   Cancel
                 </Button>
                 <Button size="xs" onClick={handleAddRunItem} loading={isPending}>
@@ -1024,14 +1152,25 @@ export function ServicePlanBuilder({
           <Text size="sm" c="dimmed">No run-of-service items yet.</Text>
         ) : (
           <Stack gap="xs">
-            {detail.runOfService.map((item) => (
+            {detail.runOfService.map((item, idx) => (
               <Paper key={item.id} withBorder p="sm" radius="sm">
                 <Group justify="space-between" align="flex-start">
                   <Stack gap={2}>
                     <Group gap="xs">
                       <Text fw={600} size="sm">{item.title}</Text>
                       <Badge size="xs" variant="light" color="gray">{item.itemType}</Badge>
+                      {item.itemType === "song" && item.songKey ? (
+                        <Badge size="xs" variant="outline" color="blue">{item.songKey}</Badge>
+                      ) : null}
+                      {item.itemType === "song" && item.durationSeconds != null ? (
+                        <Text size="xs" c="dimmed">
+                          {Math.floor(item.durationSeconds / 60) + ":" + String(item.durationSeconds % 60).padStart(2, "0")}
+                        </Text>
+                      ) : null}
                     </Group>
+                    {item.itemType === "song" && item.artist ? (
+                      <Text size="xs" c="dimmed">{item.artist}</Text>
+                    ) : null}
                     {item.leaderName ? <Text size="xs" c="dimmed">Leader: {item.leaderName}</Text> : null}
                     {item.startsAt || item.endsAt ? (
                       <Text size="xs" c="dimmed">
@@ -1045,6 +1184,26 @@ export function ServicePlanBuilder({
                       <Text size="xs" c="churchBlue">{item.attachmentUrl}</Text>
                     ) : null}
                   </Stack>
+                  <Group gap={4}>
+                    <ActionIcon
+                      size="sm"
+                      variant="subtle"
+                      aria-label={`Move up: ${item.title}`}
+                      disabled={idx === 0 || isReorderPending}
+                      onClick={() => handleMoveItem(item.id, "up")}
+                    >
+                      <ArrowUp size={13} />
+                    </ActionIcon>
+                    <ActionIcon
+                      size="sm"
+                      variant="subtle"
+                      aria-label={`Move down: ${item.title}`}
+                      disabled={idx === detail.runOfService.length - 1 || isReorderPending}
+                      onClick={() => handleMoveItem(item.id, "down")}
+                    >
+                      <ArrowDown size={13} />
+                    </ActionIcon>
+                  </Group>
                 </Group>
               </Paper>
             ))}

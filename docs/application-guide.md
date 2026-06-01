@@ -270,7 +270,7 @@ Volunteer workflows cover scheduling, member responses, hours, conflicts, and co
 
 ChurchAdmin service-plan detail now surfaces assignment response timestamps and reminder audit history for pending responses. Pending assignments can be reminded in place, reminder counts and last-reminded times are retained per assignment, and list/detail views now expose explicit coverage-gap and response-gap indicators.
 
-Service plan detail now includes editable service metadata (service type, scripture reference, sermon title, sermon speaker) and run-of-service item planning with schedule blocks, leader, notes, and attachment links.
+Service plan detail now includes editable service metadata (service type, scripture reference, sermon title, sermon speaker) and run-of-service item planning with schedule blocks, leader, notes, and attachment links. Song items carry optional key (e.g. "G", "Bb"), duration (M:SS), and artist/composer fields. The item type selector supports: segment, song, reading, prayer, sermon, announcement, and other. A read-only Sermon Info block shows scripture reference, series title, and speaker when set on the plan.
 
 ### Small Groups
 

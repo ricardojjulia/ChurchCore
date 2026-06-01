@@ -131,4 +131,58 @@ describe("service plan detail page", () => {
       undefined,
     );
   });
+
+  it("setlist data passes through to builder", async () => {
+    const songItem = {
+      id: "item-1",
+      planId: "plan-1",
+      churchId: "church-1",
+      title: "Amazing Grace",
+      itemType: "song",
+      songKey: "G",
+      durationSeconds: 195,
+      artist: "Hillsong",
+      sortOrder: 0,
+      startsAt: null,
+      endsAt: null,
+      leaderName: null,
+      notes: null,
+      attachmentUrl: null,
+    };
+    getServicePlanDetailMock.mockResolvedValueOnce({
+      plan: { id: "plan-1", name: "Sunday Worship", serviceDate: "2026-04-21", eventId: "event-1" },
+      runOfService: [songItem],
+    });
+
+    const page = await ServicePlanDetailPage({ params: Promise.resolve({ id: "plan-1" }) });
+    render(page);
+
+    const call = builderMock.mock.calls[0][0];
+    expect(call.detail.runOfService).toHaveLength(1);
+    expect(call.detail.runOfService[0].songKey).toBe("G");
+    expect(call.detail.runOfService[0].durationSeconds).toBe(195);
+    expect(call.detail.runOfService[0].artist).toBe("Hillsong");
+  });
+
+  it("sermon info passes through to builder", async () => {
+    getServicePlanDetailMock.mockResolvedValueOnce({
+      plan: {
+        id: "plan-1",
+        name: "Sunday Worship",
+        serviceDate: "2026-04-21",
+        eventId: "event-1",
+        sermonTitle: "The Living Word",
+        sermonSpeaker: "Pastor Nate",
+        scriptureReference: "John 1:1",
+      },
+    });
+
+    const page = await ServicePlanDetailPage({ params: Promise.resolve({ id: "plan-1" }) });
+    render(page);
+
+    const call = builderMock.mock.calls[0][0];
+    expect(call.detail.plan.sermonTitle).toBe("The Living Word");
+    expect(call.detail.plan.sermonSpeaker).toBe("Pastor Nate");
+    expect(call.detail.plan.scriptureReference).toBe("John 1:1");
+  });
 });

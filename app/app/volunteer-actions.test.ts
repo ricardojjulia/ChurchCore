@@ -51,6 +51,7 @@ import {
   addRunOfServiceItemAction,
   assignVolunteerAction,
   createServicePlanAction,
+  reorderServicePlanItemsAction,
   respondToShiftAction,
   saveServicePlanTemplateAction,
   sendVolunteerReminderAction,
@@ -316,7 +317,10 @@ describe("volunteer actions", () => {
   });
 
   it("adds a run-of-service item in local fallback mode", async () => {
-    queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [{ id: "item-1" }] });
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "plan-1" }] })
+      .mockResolvedValueOnce({ rows: [{ next_sort: 0 }] })
+      .mockResolvedValueOnce({ rows: [{ id: "item-1" }] });
 
     const result = await addRunOfServiceItemAction({
       planId: "plan-1",
@@ -343,7 +347,205 @@ describe("volunteer actions", () => {
         "Invite congregation to stand.",
         null,
         0,
+        null,
+        null,
+        null,
       ],
     );
+  });
+
+  it("persists song fields when item type is song", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "plan-1" }] })
+      .mockResolvedValueOnce({ rows: [{ next_sort: 4 }] })
+      .mockResolvedValueOnce({ rows: [{ id: "item-2" }] });
+
+    const result = await addRunOfServiceItemAction({
+      planId: "plan-1",
+      title: "How Great Is Our God",
+      itemType: "song",
+      songKey: "G",
+      durationSeconds: 195,
+      artist: "Hillsong",
+    });
+
+    expect(result).toEqual({ ok: true, id: "item-2" });
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("insert into public.service_plan_items"),
+      [
+        "plan-1",
+        "church-1",
+        null,
+        null,
+        "How Great Is Our God",
+        "song",
+        null,
+        null,
+        null,
+        4,
+        "G",
+        195,
+        "Hillsong",
+      ],
+    );
+  });
+
+  it("computes sort_order as MAX + 1 from DB", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "plan-1" }] })
+      .mockResolvedValueOnce({ rows: [{ next_sort: 4 }] })
+      .mockResolvedValueOnce({ rows: [{ id: "item-3" }] });
+
+    await addRunOfServiceItemAction({ planId: "plan-1", title: "Offering" });
+
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("COALESCE(MAX(sort_order), -1) + 1"),
+      ["plan-1", "church-1"],
+    );
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("insert into public.service_plan_items"),
+      expect.arrayContaining([4]),
+    );
+  });
+
+  it("defaults sort_order to 0 when table is empty (COALESCE returns 0)", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "plan-1" }] })
+      .mockResolvedValueOnce({ rows: [{ next_sort: 0 }] })
+      .mockResolvedValueOnce({ rows: [{ id: "item-4" }] });
+
+    await addRunOfServiceItemAction({ planId: "plan-1", title: "Opening" });
+
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("insert into public.service_plan_items"),
+      expect.arrayContaining([0]),
+    );
+  });
+
+  it("passes null song fields for non-song item types", async () => {
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [{ id: "plan-1" }] })
+      .mockResolvedValueOnce({ rows: [{ next_sort: 1 }] })
+      .mockResolvedValueOnce({ rows: [{ id: "item-5" }] });
+
+    await addRunOfServiceItemAction({
+      planId: "plan-1",
+      title: "Opening Prayer",
+      itemType: "prayer",
+      songKey: "G",
+    });
+
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("insert into public.service_plan_items"),
+      [
+        "plan-1",
+        "church-1",
+        null,
+        null,
+        "Opening Prayer",
+        "prayer",
+        null,
+        null,
+        null,
+        1,
+        null,
+        null,
+        null,
+      ],
+    );
+  });
+
+  it("rejects addRunOfServiceItemAction for non-admin roles", async () => {
+    requireChurchSessionMock.mockResolvedValueOnce({
+      appContext: { roleId: "member", church: { id: "church-1" } },
+      profile: { id: "member-1" },
+    });
+
+    await expect(
+      addRunOfServiceItemAction({ planId: "plan-1", title: "Song 1" }),
+    ).rejects.toThrow("Unauthorized");
+  });
+
+  it("rejects addRunOfServiceItemAction when plan belongs to a different church", async () => {
+    queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [] });
+
+    const result = await addRunOfServiceItemAction({
+      planId: "other-church-plan",
+      title: "Song 1",
+    });
+
+    expect(result).toEqual({ ok: false, error: "Service plan not found." });
+    expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(1);
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("SELECT id FROM public.service_plans"),
+      ["other-church-plan", "church-1"],
+    );
+  });
+
+  describe("reorderServicePlanItemsAction", () => {
+    it("reorders items and calls revalidatePath on happy path", async () => {
+      queryTenantLocalDbMock
+        .mockResolvedValueOnce({ rows: [{ id: "a" }, { id: "b" }, { id: "c" }] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      const result = await reorderServicePlanItemsAction({
+        planId: "plan-1",
+        orderedIds: ["b", "a", "c"],
+      });
+
+      expect(result).toEqual({ ok: true });
+      expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+        expect.stringContaining("UPDATE public.service_plan_items SET sort_order = $1"),
+        [0, "b", "church-1"],
+      );
+      expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+        expect.stringContaining("UPDATE public.service_plan_items SET sort_order = $1"),
+        [1, "a", "church-1"],
+      );
+      expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+        expect.stringContaining("UPDATE public.service_plan_items SET sort_order = $1"),
+        [2, "c", "church-1"],
+      );
+      expect(revalidatePathMock).toHaveBeenCalledWith(
+        expect.stringContaining("plan-1"),
+      );
+    });
+
+    it("rejects reorder for non-admin roles", async () => {
+      requireChurchSessionMock.mockResolvedValueOnce({
+        appContext: { roleId: "member", church: { id: "church-1" } },
+        profile: { id: "member-1" },
+      });
+
+      await expect(
+        reorderServicePlanItemsAction({ planId: "plan-1", orderedIds: ["a"] }),
+      ).rejects.toThrow("Unauthorized");
+    });
+
+    it("returns error for cross-church or invalid IDs", async () => {
+      queryTenantLocalDbMock.mockResolvedValueOnce({
+        rows: [{ id: "a" }, { id: "b" }],
+      });
+
+      const result = await reorderServicePlanItemsAction({
+        planId: "plan-1",
+        orderedIds: ["a", "b", "c"],
+      });
+
+      expect(result).toEqual({ ok: false, error: "Invalid item IDs for this plan." });
+      expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns error for empty orderedIds without DB calls", async () => {
+      const result = await reorderServicePlanItemsAction({
+        planId: "plan-1",
+        orderedIds: [],
+      });
+
+      expect(result).toEqual({ ok: false, error: "orderedIds must be a non-empty array." });
+      expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+    });
   });
 });
