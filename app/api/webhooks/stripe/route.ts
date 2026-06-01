@@ -6,6 +6,7 @@ import {
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
 import { getStripeWebhookSecret } from "@/lib/stripe/client";
+import { reverseGlEntryForRefund } from "@/lib/stripe/event-registrations";
 import { sendEmail } from "@/lib/notifications/send-email";
 
 // ── Signature verification ────────────────────────────────────
@@ -223,6 +224,93 @@ async function resolveRegistrationIdFromPaymentIntent(
   return result.rows[0]?.registration_id ?? null;
 }
 
+async function handleChargeRefunded(charge: {
+  payment_intent: string | null;
+  amount: number;
+  amount_refunded: number;
+  metadata?: {
+    church_id?: string;
+    event_registration_id?: string;
+    registration_id?: string;
+  };
+  refunds?: {
+    data?: Array<{
+      id: string;
+      amount: number;
+    }>;
+  };
+}) {
+  const churchId = charge.metadata?.church_id;
+  if (!churchId) {
+    console.info("[stripe-webhook] charge.refunded: no church_id in metadata — skipped");
+    return;
+  }
+
+  if (!shouldUseLocalTenantFallback()) return;
+
+  const paymentIntentId = charge.payment_intent;
+  if (!paymentIntentId) return;
+
+  const registrationId =
+    charge.metadata?.event_registration_id ??
+    charge.metadata?.registration_id ??
+    (await resolveRegistrationIdFromPaymentIntent(paymentIntentId, churchId));
+
+  if (!registrationId) return;
+
+  const refund = charge.refunds?.data?.[0];
+  if (!refund) return;
+
+  const refundId = refund.id;
+  const refundAmountCents = refund.amount;
+
+  // Idempotency: skip if this refund has already been recorded
+  const existing = await queryTenantLocalDb<{ registration_id: string }>(
+    `select registration_id
+     from public.event_registration_payments
+     where refund_id = $1
+     limit 1`,
+    [refundId],
+  );
+  if (existing.rows[0]) return;
+
+  const status =
+    charge.amount_refunded >= charge.amount ? 'refunded' : 'partially_refunded';
+
+  await queryTenantLocalDb(
+    `update public.event_registrations
+     set payment_status = $2,
+         updated_at = now()
+     where id = $1 and church_id = $3`,
+    [registrationId, status, churchId],
+  );
+
+  await queryTenantLocalDb(
+    `update public.event_registration_payments
+     set status = $2,
+         refund_id = $3,
+         refund_amount_cents = $4,
+         refund_completed_at = now(),
+         updated_at = now()
+     where registration_id = $1 and church_id = $5`,
+    [registrationId, status, refundId, refundAmountCents, churchId],
+  );
+
+  // GL reversal — best-effort, does not fail the webhook acknowledgement
+  try {
+    await reverseGlEntryForRefund({
+      churchId,
+      registrationId,
+      amountCents: refundAmountCents,
+      refundId,
+      refundedAt: new Date().toISOString(),
+      profileId: null, // no actor session available in webhook context
+    });
+  } catch (glErr) {
+    console.error("[stripe-webhook] GL reversal failed (non-blocking):", glErr);
+  }
+}
+
 async function handleSubscriptionDeleted(sub: {
   id: string;
   metadata?: { church_id?: string };
@@ -378,6 +466,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       case "customer.subscription.deleted":
         await handleSubscriptionDeleted(
           event.data.object as Parameters<typeof handleSubscriptionDeleted>[0],
+        );
+        break;
+
+      case "charge.refunded":
+        await handleChargeRefunded(
+          event.data.object as Parameters<typeof handleChargeRefunded>[0],
         );
         break;
 

@@ -983,6 +983,7 @@ import {
   cancelRegistrationAction,
   checkInRegistrantAction,
   updateRegistrationPaymentFollowUpAction,
+  initiateRegistrationRefundAction,
   type UpsertRegistrationSettingsInput,
 } from "@/app/app/church-admin-actions";
 import { NumberInput, Select, Switch, Textarea } from "@mantine/core";
@@ -1075,6 +1076,10 @@ export function EventRegistrationsPanel({
   const [paymentFollowUpForms, setPaymentFollowUpForms] = useState<
     Record<string, { paymentStatus: EventRegistration["paymentStatus"]; note: string }>
   >({});
+  const [refundForms, setRefundForms] = useState<
+    Record<string, { amountCents: number; reason: string }>
+  >({});
+  const [refundConfirmOpen, setRefundConfirmOpen] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -1333,10 +1338,13 @@ export function EventRegistrationsPanel({
     paid: "teal",
     failed: "red",
     refunded: "violet",
+    partially_refunded: "orange",
   };
 
   function formatPaymentStatus(value: EventRegistration["paymentStatus"]) {
     if (value === "not_required") return "not required";
+    if (value === "partially_refunded") return "Partial Refund";
+    if (value === "refunded") return "Refunded";
     return value;
   }
 
@@ -1699,6 +1707,7 @@ export function EventRegistrationsPanel({
           "paid",
           "failed",
           "refunded",
+          "partially_refunded",
           "not_required",
         ] as const).map((status) => {
           const count = registrations.filter((registration) => registration.paymentStatus === status).length;
@@ -1835,6 +1844,60 @@ export function EventRegistrationsPanel({
                           </Stack>
                         </Paper>
                       )}
+                      {r.paymentStatus === "paid" && (
+                        <Paper withBorder p="xs" radius="sm" mt="xs">
+                          <Text size="xs" fw={600} mb="xs">Initiate Refund</Text>
+                          <NumberInput
+                            label="Refund amount ($)"
+                            min={0.01}
+                            max={r.amountPaidCents / 100}
+                            step={0.01}
+                            decimalScale={2}
+                            value={(refundForms[r.id]?.amountCents ?? r.amountPaidCents) / 100}
+                            onChange={(value) =>
+                              setRefundForms((forms) => ({
+                                ...forms,
+                                [r.id]: {
+                                  ...forms[r.id],
+                                  amountCents: Math.round(Number(value) * 100),
+                                  reason: forms[r.id]?.reason ?? "",
+                                },
+                              }))
+                            }
+                          />
+                          <Select
+                            label="Reason (optional)"
+                            clearable
+                            data={[
+                              { value: "requested_by_customer", label: "Requested by customer" },
+                              { value: "duplicate", label: "Duplicate" },
+                              { value: "fraudulent", label: "Fraudulent" },
+                            ]}
+                            value={refundForms[r.id]?.reason || null}
+                            onChange={(value) =>
+                              setRefundForms((forms) => ({
+                                ...forms,
+                                [r.id]: {
+                                  ...forms[r.id],
+                                  amountCents: forms[r.id]?.amountCents ?? r.amountPaidCents,
+                                  reason: value ?? "",
+                                },
+                              }))
+                            }
+                            mt="xs"
+                          />
+                          <Button
+                            color="red"
+                            variant="light"
+                            size="xs"
+                            mt="xs"
+                            aria-label={`Initiate refund for ${r.registrantName}`}
+                            onClick={() => setRefundConfirmOpen(r.id)}
+                          >
+                            Initiate refund
+                          </Button>
+                        </Paper>
+                      )}
                     </Stack>
                   </Table.Td>
                   <Table.Td>
@@ -1872,6 +1935,88 @@ export function EventRegistrationsPanel({
           </Table.Tbody>
         </Table>
       </Paper>
+
+      <Modal
+        opened={refundConfirmOpen !== null}
+        onClose={() => setRefundConfirmOpen(null)}
+        title="Confirm refund"
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            This will issue a refund of $
+            {refundConfirmOpen !== null
+              ? (
+                  (refundForms[refundConfirmOpen]?.amountCents ??
+                    (registrations.find((r) => r.id === refundConfirmOpen)?.amountPaidCents ?? 0)) /
+                  100
+                ).toFixed(2)
+              : "0.00"}{" "}
+            to the registrant. This action cannot be undone.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setRefundConfirmOpen(null)}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              loading={isPending}
+              onClick={() => {
+                if (refundConfirmOpen === null) return;
+                const registrationId = refundConfirmOpen;
+                const reg = registrations.find((r) => r.id === registrationId);
+                const amountCents =
+                  refundForms[registrationId]?.amountCents ?? reg?.amountPaidCents ?? 0;
+                startTransition(async () => {
+                  const res = await initiateRegistrationRefundAction({
+                    registrationId,
+                    eventId,
+                    amountCents,
+                    reason: (refundForms[registrationId]?.reason || undefined) as
+                      | "duplicate"
+                      | "fraudulent"
+                      | "requested_by_customer"
+                      | undefined,
+                  });
+                  if (res.ok) {
+                    setRefundConfirmOpen(null);
+                    setRefundForms((forms) => {
+                      const next = { ...forms };
+                      delete next[registrationId];
+                      return next;
+                    });
+                    setRegistrations((rows) =>
+                      rows.map((row) =>
+                        row.id === registrationId
+                          ? {
+                              ...row,
+                              paymentStatus:
+                                amountCents >= (reg?.amountPaidCents ?? 0)
+                                  ? ("refunded" as const)
+                                  : ("partially_refunded" as const),
+                            }
+                          : row,
+                      ),
+                    );
+                    notifications.show({
+                      title: "Refund initiated",
+                      message: "Refund initiated successfully.",
+                      color: "teal",
+                    });
+                  } else {
+                    notifications.show({
+                      title: "Refund failed",
+                      message: res.error ?? "The refund could not be completed.",
+                      color: "red",
+                    });
+                  }
+                });
+              }}
+            >
+              Confirm refund
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ledgerStatusToPaymentStatus,
   normalizeRegistrationPaymentStatus,
+  paymentStatusToLedgerStatus,
   resolveRegistrationLifecycle,
 } from "@/lib/event-registration-lifecycle";
 
@@ -62,5 +64,46 @@ describe("normalizeRegistrationPaymentStatus", () => {
         priceCents: 1500,
       }),
     ).toBe("paid");
+  });
+
+  // AC14 — terminal guard: refunded status is never overwritten back to paid
+  it("does not flip refunded status back to paid when amountPaidCents is positive", () => {
+    expect(
+      normalizeRegistrationPaymentStatus({
+        status: "confirmed",
+        isWaitlisted: false,
+        amountPaidCents: 5000,
+        storedPaymentStatus: "refunded",
+        priceCents: 5000,
+      }),
+    ).toBe("refunded");
+  });
+});
+
+describe("paymentStatusToLedgerStatus", () => {
+  it("maps partially_refunded payment status to partially_refunded ledger status", () => {
+    expect(paymentStatusToLedgerStatus("partially_refunded")).toBe("partially_refunded");
+  });
+
+  it("maps paid to succeeded", () => {
+    expect(paymentStatusToLedgerStatus("paid")).toBe("succeeded");
+  });
+
+  it("maps refunded to refunded", () => {
+    expect(paymentStatusToLedgerStatus("refunded")).toBe("refunded");
+  });
+});
+
+describe("ledgerStatusToPaymentStatus", () => {
+  it("maps partially_refunded ledger status to partially_refunded payment status", () => {
+    expect(ledgerStatusToPaymentStatus("partially_refunded")).toBe("partially_refunded");
+  });
+
+  it("maps succeeded to paid", () => {
+    expect(ledgerStatusToPaymentStatus("succeeded")).toBe("paid");
+  });
+
+  it("maps refunded to refunded", () => {
+    expect(ledgerStatusToPaymentStatus("refunded")).toBe("refunded");
   });
 });

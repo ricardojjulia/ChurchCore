@@ -123,12 +123,14 @@ export type EventRegistration = {
   registrantPhone: string | null;
   status: "pending_approval" | "confirmed" | "cancelled" | "waitlisted" | "attended";
   isWaitlisted: boolean;
-  paymentStatus: "not_required" | "pending" | "paid" | "failed" | "refunded";
+  paymentStatus: "not_required" | "pending" | "paid" | "failed" | "refunded" | "partially_refunded";
   amountPaidCents: number;
   stripePaymentIntentId: string | null;
   paymentFollowUpNote: string | null;
   paymentFollowedUpAt: string | null;
   paymentFollowedUpBy: string | null;
+  refundAmountCents: number | null;
+  refundId: string | null;
   customFields: Record<string, unknown> | null;
   notes: string | null;
   registeredAt: string;
@@ -245,9 +247,12 @@ export async function getEventRegistrations(
         follow_up_note: string | null;
         followed_up_at: string | null;
         followed_up_by: string | null;
+        refund_amount_cents: number | null;
+        refund_id: string | null;
       }>(
         `select p.registration_id, p.follow_up_note, p.followed_up_at,
-                pr.full_name as followed_up_by
+                pr.full_name as followed_up_by,
+                p.refund_amount_cents, p.refund_id
          from public.event_registration_payments p
          left join public.profiles pr on pr.id = p.reconciled_by
          where p.event_id = $1 and p.church_id = $2`,
@@ -281,6 +286,8 @@ export async function getEventRegistrations(
       paymentFollowUpNote: paymentsByRegistration.get(r.id)?.follow_up_note ?? null,
       paymentFollowedUpAt: paymentsByRegistration.get(r.id)?.followed_up_at ?? null,
       paymentFollowedUpBy: paymentsByRegistration.get(r.id)?.followed_up_by ?? null,
+      refundAmountCents: paymentsByRegistration.get(r.id)?.refund_amount_cents ?? null,
+      refundId: paymentsByRegistration.get(r.id)?.refund_id ?? null,
       notes: r.notes,
       registeredAt: r.registered_at,
       checkedInAt: r.checked_in_at,
@@ -345,7 +352,7 @@ export async function getEventRegistrations(
       .order("sort_order"),
     supabase
       .from("event_registration_payments")
-      .select("registration_id, follow_up_note, followed_up_at, reconciled_by")
+      .select("registration_id, follow_up_note, followed_up_at, reconciled_by, refund_amount_cents, refund_id")
       .eq("event_id", eventId)
       .eq("church_id", churchId),
   ]);
@@ -385,6 +392,8 @@ export async function getEventRegistrations(
     paymentFollowedUpAt: paymentsByRegistration.get(r.id)?.followed_up_at ?? null,
     paymentFollowedUpBy:
       reconcilerNames.get(paymentsByRegistration.get(r.id)?.reconciled_by ?? "") ?? null,
+    refundAmountCents: paymentsByRegistration.get(r.id)?.refund_amount_cents ?? null,
+    refundId: paymentsByRegistration.get(r.id)?.refund_id ?? null,
     customFields: r.custom_fields as Record<string, unknown> | null,
     notes: r.notes,
     registeredAt: r.registered_at,

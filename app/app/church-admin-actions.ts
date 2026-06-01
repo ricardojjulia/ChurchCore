@@ -9,7 +9,11 @@ import {
   resolveRegistrationLifecycle,
   type RegistrationPaymentStatus,
 } from "@/lib/event-registration-lifecycle";
-import { createEventRegistrationPaymentIntent } from "@/lib/stripe/event-registrations";
+import {
+  createEventRegistrationPaymentIntent,
+  createRefund,
+  reverseGlEntryForRefund,
+} from "@/lib/stripe/event-registrations";
 import {
   createTenantAdminClient,
   createTenantServerClient,
@@ -1978,4 +1982,215 @@ export async function checkInRegistrantAction(
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/app/church-admin/events/${eventId}`);
   return { ok: true };
+}
+
+// ── Refund ────────────────────────────────────────────────────
+
+export type InitiateRegistrationRefundInput = {
+  registrationId: string;
+  eventId: string;
+  amountCents: number;
+  reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer' | null;
+};
+
+export type InitiateRegistrationRefundResult = {
+  ok: boolean;
+  refundId?: string;
+  isStub?: boolean;
+  error?: string;
+};
+
+export async function initiateRegistrationRefundAction(
+  input: InitiateRegistrationRefundInput,
+): Promise<InitiateRegistrationRefundResult> {
+  let session: Awaited<ReturnType<typeof requireChurchAdminOnlySession>>;
+  try {
+    session = await requireChurchAdminOnlySession('/app/church-admin/events');
+  } catch {
+    return { ok: false, error: 'Church-admin access is required.' };
+  }
+  const churchId = session.appContext.church.id;
+
+  try {
+    await assertEventBelongsToChurch(churchId, input.eventId);
+    await assertRegistrationBelongsToEvent(churchId, input.eventId, input.registrationId);
+  } catch {
+    return { ok: false, error: 'Registration does not belong to this church.' };
+  }
+
+  if (shouldUseLocalTenantFallback()) {
+    const regResult = await queryTenantLocalDb<{ payment_status: string | null }>(
+      `select payment_status
+       from public.event_registrations
+       where id = $1 and church_id = $2
+       limit 1`,
+      [input.registrationId, churchId],
+    );
+    if (regResult.rows[0]?.payment_status !== 'paid') {
+      return { ok: false, error: 'Registration is not in a paid state.' };
+    }
+
+    const payResult = await queryTenantLocalDb<{
+      payment_intent_id: string | null;
+      amount_cents: number;
+    }>(
+      `select payment_intent_id, amount_cents
+       from public.event_registration_payments
+       where registration_id = $1 and church_id = $2
+       limit 1`,
+      [input.registrationId, churchId],
+    );
+    const paymentRecord = payResult.rows[0];
+    if (!paymentRecord?.payment_intent_id) {
+      return { ok: false, error: 'No payment record found for this registration.' };
+    }
+
+    if (input.amountCents <= 0 || input.amountCents > paymentRecord.amount_cents) {
+      return { ok: false, error: 'Refund amount is invalid.' };
+    }
+
+    let result: Awaited<ReturnType<typeof createRefund>>;
+    try {
+      result = await createRefund({
+        paymentIntentId: paymentRecord.payment_intent_id,
+        amountCents: input.amountCents,
+        reason: input.reason,
+      });
+    } catch (err) {
+      return { ok: false, error: (err as Error).message ?? 'Stripe refund failed.' };
+    }
+
+    const newStatus = input.amountCents >= paymentRecord.amount_cents ? 'refunded' : 'partially_refunded';
+    const completedAt = result.status === 'succeeded' ? new Date().toISOString() : null;
+
+    await queryTenantLocalDb(
+      `update public.event_registrations
+       set payment_status = $2
+       where id = $1 and church_id = $3`,
+      [input.registrationId, newStatus, churchId],
+    );
+
+    await queryTenantLocalDb(
+      `update public.event_registration_payments
+       set status = $2,
+           refund_id = $3,
+           refund_amount_cents = $4,
+           refund_reason = $5,
+           refund_requested_at = now(),
+           refund_completed_at = $8,
+           reconciled_by = $6,
+           reconciled_at = now(),
+           updated_at = now()
+       where registration_id = $1 and church_id = $7`,
+      [
+        input.registrationId,
+        newStatus,
+        result.refundId,
+        input.amountCents,
+        input.reason ?? null,
+        session.profile.id,
+        churchId,
+        completedAt,
+      ],
+    );
+
+    // GL reversal — best-effort, does not fail the refund
+    try {
+      await reverseGlEntryForRefund({
+        churchId,
+        registrationId: input.registrationId,
+        amountCents: input.amountCents,
+        refundId: result.refundId,
+        refundedAt: new Date().toISOString(),
+        profileId: session.profile.id,
+      });
+    } catch (glErr) {
+      console.error("[refund-action] GL reversal failed (non-blocking):", glErr);
+    }
+
+    revalidatePath(`/app/church-admin/events/${input.eventId}`);
+    return { ok: true, refundId: result.refundId, isStub: result.isStub };
+  }
+
+  const supabase = await createTenantServerClient();
+
+  const { data: regData } = await supabase
+    .from('event_registrations')
+    .select('payment_status')
+    .eq('id', input.registrationId)
+    .eq('church_id', churchId)
+    .maybeSingle();
+  if (regData?.payment_status !== 'paid') {
+    return { ok: false, error: 'Registration is not in a paid state.' };
+  }
+
+  const { data: payData } = await supabase
+    .from('event_registration_payments')
+    .select('payment_intent_id, amount_cents')
+    .eq('registration_id', input.registrationId)
+    .eq('church_id', churchId)
+    .maybeSingle();
+  if (!payData?.payment_intent_id) {
+    return { ok: false, error: 'No payment record found for this registration.' };
+  }
+
+  if (input.amountCents <= 0 || input.amountCents > payData.amount_cents) {
+    return { ok: false, error: 'Refund amount is invalid.' };
+  }
+
+  let result: Awaited<ReturnType<typeof createRefund>>;
+  try {
+    result = await createRefund({
+      paymentIntentId: payData.payment_intent_id,
+      amountCents: input.amountCents,
+      reason: input.reason,
+    });
+  } catch (err) {
+    return { ok: false, error: (err as Error).message ?? 'Stripe refund failed.' };
+  }
+
+  const newStatus = input.amountCents >= payData.amount_cents ? 'refunded' : 'partially_refunded';
+  const now = new Date().toISOString();
+  const completedAt = result.status === 'succeeded' ? now : null;
+
+  const { error: regError } = await supabase
+    .from('event_registrations')
+    .update({ payment_status: newStatus })
+    .eq('id', input.registrationId)
+    .eq('church_id', churchId);
+  if (regError) return { ok: false, error: regError.message };
+
+  const { error: payError } = await supabase
+    .from('event_registration_payments')
+    .update({
+      status: newStatus,
+      refund_id: result.refundId,
+      refund_amount_cents: input.amountCents,
+      refund_reason: input.reason ?? null,
+      refund_requested_at: now,
+      refund_completed_at: completedAt,
+      reconciled_by: session.profile.id,
+      reconciled_at: now,
+      updated_at: now,
+    })
+    .eq('registration_id', input.registrationId)
+    .eq('church_id', churchId);
+  if (payError) return { ok: false, error: payError.message };
+
+  // GL reversal — best-effort, does not fail the refund
+  try {
+    await reverseGlEntryForRefund({
+      churchId,
+      registrationId: input.registrationId,
+      amountCents: input.amountCents,
+      refundId: result.refundId,
+      refundedAt: now,
+      profileId: session.profile.id,
+    });
+  } catch (glErr) {
+    console.error("[refund-action] GL reversal failed (non-blocking):", glErr);
+  }
+
+  revalidatePath(`/app/church-admin/events/${input.eventId}`);
+  return { ok: true, refundId: result.refundId, isStub: result.isStub };
 }
