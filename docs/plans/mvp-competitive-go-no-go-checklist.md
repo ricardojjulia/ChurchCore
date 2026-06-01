@@ -169,17 +169,23 @@ Use this scoring line in each factory run:
 	- `npm run test:e2e:onboarding` ✅ (1 passed)
 - Gate change: MVP +2 weeks moved from NO-GO to CONDITIONAL GO. All required Phase B gates now pass. Remaining soft gap: Spanish coverage for finance/communications routes (not a hard blocker). Next Phase C blockers: stripe refund flow, service-planning depth, import breadth beyond people/households.
 
-### 2026-06-12 (planned checkpoint)
+### 2026-06-12 (checkpoint — verified)
 
-- Owner: Product + Engineering (weekly readiness review in planning sync)
-- Execution brief: [docs/plans/2026-06-12-execution-brief.md](docs/plans/2026-06-12-execution-brief.md)
-- Sequence status (2026-05-31): WS-C1 worship/setlist planning, WS-C2 Stripe refund lifecycle, WS-C3 groups import are all planned.
-- MVP Today: `TARGET GO`
-- MVP +2 weeks: `TARGET GO` (promote from CONDITIONAL — close Spanish soft gap if feasible)
-- Competitive 30 days: `TARGET NO-GO` (risk reduction expected)
-- Competitive 60 days: `TARGET NO-GO`
-- Highest blocker to close by this checkpoint: service-planning depth (WS-C1).
-- Expected gate changes:
-  - Worship/setlist planning depth closed: ChurchAdmin can create a service plan with songs, readings, sermon metadata, and run-of-service ordering.
-  - Stripe refund lifecycle closed: `refunded` and `cancelled` states reconcile via webhook and ChurchAdmin operator action.
-  - Groups import available at dry-run + commit level.
+- Owner: Product + Engineering
+- MVP Today: `GO`
+- MVP +2 weeks: `CONDITIONAL GO` (hold — Spanish coverage soft gap not addressed this cycle)
+- Competitive 30 days: `NO-GO` (risk-reduced — two of three major Phase C blockers closed)
+- Competitive 60 days: `NO-GO`
+- Highest remaining blocker: events/attendance/giving import breadth; full communications provider depth.
+- Evidence:
+  - `npm run lint` ✅ (clean on source files — 0 errors in app/, lib/, components/)
+  - `npm run build` ✅ (98 routes, 0 TypeScript errors)
+  - `npm run smoke:local` ✅ (all checks passed)
+  - `npm run test:e2e:readiness` ✅ (3 passed, 1 skipped — control-plane context)
+  - `npm run test:e2e:onboarding` ✅ (1 passed)
+  - `npm run test` ✅ (371 passed, 63 files)
+- Gate changes this cycle:
+  - WS-C1: Worship/setlist planning depth closed — service-plan items support song key, duration, artist; type selector with 7 types; Move Up/Down reordering; Sermon Info block; cross-church write blocked in addRunOfServiceItemAction.
+  - WS-C2: Stripe refund lifecycle closed — `refunded`/`partially_refunded` states on both registration tables; operator-initiated refund action; `charge.refunded` webhook with idempotency guard; UNIQUE constraint on refund_id; best-effort GL reversal.
+  - WS-C3: Groups import at dry-run + commit level — source_id dedup key; adapters for generic_csv, planning_center, breeze; unmatched-leader warning (not rejection); `/app/church-admin/groups/import` route live.
+- Remaining Phase C blockers (next brief): events/attendance/giving import breadth, communications provider depth, Spanish coverage (Phase B soft gap).
