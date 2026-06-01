@@ -21,7 +21,11 @@
     "postinstall": "rm -rf node_modules/next/node_modules/postcss",
     "setup:local": "./supabase/scripts/setup-local.sh",
     "smoke:preview": "./supabase/scripts/smoke-demo.sh preview",
-    "smoke:local": "./supabase/scripts/smoke-demo.sh local"
+    "smoke:local": "./supabase/scripts/smoke-demo.sh local",
+    "lint:migrations": "node scripts/lint-migrations.mjs",
+    "check:schema": "node scripts/check-schema-alignment.mjs",
+    "audit:rls": "node scripts/audit-rls.mjs",
+    "generate:manifest": "node scripts/generate-manifest.mjs"
   },
   "dependencies": {
     "@mantine/core": "^9.0.1",

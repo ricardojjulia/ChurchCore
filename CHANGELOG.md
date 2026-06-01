@@ -8,6 +8,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 
+- Added migration confidence tooling: `lint:migrations` (static analysis for RLS coverage, duplicate timestamps, malformed filenames, bare DROP guards), `check:schema` (phantom and orphaned table detection against application code), `audit:rls` (live RLS policy coverage against local DB, graceful skip when DB unavailable), and `generate:manifest` (static schema snapshot to `supabase/schema-manifest.json`). All scripts are plain `.mjs` ES modules requiring no new dependencies.
 - Added Resend as the primary email provider (`lib/communications/resend-adapter.ts`) with stub mode for local dev, Svix webhook signature verification, and full event normalization (delivered, bounced, complained, clicked). ADR 0006 documents the decision; SendGrid remains as a documented fallback adapter.
 - Added `/api/webhooks/resend` route for Svix-verified Resend webhook ingestion, delegating to the shared `webhook-events.ts` handler for idempotent delivery-event recording and auto-suppression on bounce/complaint.
 - Added `lib/communications/unsubscribe.ts` with HMAC-SHA256 signed, 30-day expiring unsubscribe link generation and timing-safe token verification.

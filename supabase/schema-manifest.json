@@ -1,0 +1,4442 @@
+{
+  "generated_at": "2026-06-01T02:44:26.495Z",
+  "migration_count": 54,
+  "tables": {
+    "account_requests": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "email",
+          "type": "text"
+        },
+        {
+          "name": "phone",
+          "type": "text"
+        },
+        {
+          "name": "first_name",
+          "type": "text"
+        },
+        {
+          "name": "last_name",
+          "type": "text"
+        },
+        {
+          "name": "is_existing_member",
+          "type": "boolean"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "reviewed_by",
+          "type": "uuid"
+        },
+        {
+          "name": "reviewed_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "ai_interactions": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "feature",
+          "type": "text"
+        },
+        {
+          "name": "topic_text",
+          "type": "text"
+        },
+        {
+          "name": "disclaimer_shown",
+          "type": "boolean"
+        },
+        {
+          "name": "model_used",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "ai_signals": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "tenant_id",
+          "type": "uuid"
+        },
+        {
+          "name": "entity_type",
+          "type": "text"
+        },
+        {
+          "name": "entity_id",
+          "type": "uuid"
+        },
+        {
+          "name": "signal_type",
+          "type": "text"
+        },
+        {
+          "name": "signal_value",
+          "type": "numeric(104)"
+        },
+        {
+          "name": "signal_window",
+          "type": "text"
+        },
+        {
+          "name": "signal_payload_json",
+          "type": "jsonb"
+        },
+        {
+          "name": "detected_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "ai_suggestions": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "tenant_id",
+          "type": "uuid"
+        },
+        {
+          "name": "product_area",
+          "type": "text"
+        },
+        {
+          "name": "workflow_type",
+          "type": "text"
+        },
+        {
+          "name": "workflow_code",
+          "type": "text"
+        },
+        {
+          "name": "entity_type",
+          "type": "text"
+        },
+        {
+          "name": "entity_id",
+          "type": "uuid"
+        },
+        {
+          "name": "title",
+          "type": "text"
+        },
+        {
+          "name": "summary",
+          "type": "text"
+        },
+        {
+          "name": "confidence_score",
+          "type": "numeric(52)"
+        },
+        {
+          "name": "urgency",
+          "type": "text"
+        },
+        {
+          "name": "explanation_json",
+          "type": "jsonb"
+        },
+        {
+          "name": "spiritual_support_json",
+          "type": "jsonb"
+        },
+        {
+          "name": "boundary_note",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "generated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "attendance": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "event_id",
+          "type": "uuid"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "audit_log": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "table_name",
+          "type": "text"
+        },
+        {
+          "name": "record_id",
+          "type": "uuid"
+        },
+        {
+          "name": "operation",
+          "type": "text"
+        },
+        {
+          "name": "actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "changed_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "old_values",
+          "type": "jsonb"
+        },
+        {
+          "name": "new_values",
+          "type": "jsonb"
+        }
+      ]
+    },
+    "burnout_alerts": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "alert_type",
+          "type": "text"
+        },
+        {
+          "name": "message",
+          "type": "text"
+        },
+        {
+          "name": "severity",
+          "type": "text"
+        },
+        {
+          "name": "acknowledged",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "care_assignments": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid"
+        },
+        {
+          "name": "assigned_to",
+          "type": "uuid"
+        },
+        {
+          "name": "summary",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "priority",
+          "type": "text"
+        },
+        {
+          "name": "due_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "last_contact_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "ccm_authorized_pickups": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "child_profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "authorized_name",
+          "type": "text"
+        },
+        {
+          "name": "relationship",
+          "type": "text"
+        },
+        {
+          "name": "phone",
+          "type": "text"
+        },
+        {
+          "name": "photo_url",
+          "type": "text"
+        },
+        {
+          "name": "id_verified",
+          "type": "boolean"
+        },
+        {
+          "name": "is_primary",
+          "type": "boolean"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "ccm_badge_print_jobs": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "session_id",
+          "type": "uuid"
+        },
+        {
+          "name": "badge_type",
+          "type": "text"
+        },
+        {
+          "name": "printer_id",
+          "type": "text"
+        },
+        {
+          "name": "printed_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "printed_by",
+          "type": "uuid"
+        }
+      ]
+    },
+    "ccm_checkin_sessions": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "service_id",
+          "type": "uuid"
+        },
+        {
+          "name": "room_id",
+          "type": "uuid"
+        },
+        {
+          "name": "child_profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "child_name",
+          "type": "text"
+        },
+        {
+          "name": "guardian_name",
+          "type": "text"
+        },
+        {
+          "name": "guardian_phone",
+          "type": "text"
+        },
+        {
+          "name": "pin_hash",
+          "type": "text"
+        },
+        {
+          "name": "qr_token",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "current_room_id",
+          "type": "uuid"
+        },
+        {
+          "name": "last_location_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "released_to_name",
+          "type": "text"
+        },
+        {
+          "name": "is_first_visit",
+          "type": "boolean"
+        },
+        {
+          "name": "silent_page_sent_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "late_pickup_notified_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "ccm_custody_restrictions": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "child_profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "restricted_name",
+          "type": "text"
+        },
+        {
+          "name": "relationship",
+          "type": "text"
+        },
+        {
+          "name": "court_order_on_file",
+          "type": "boolean"
+        },
+        {
+          "name": "document_url",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid"
+        }
+      ]
+    },
+    "ccm_incidents": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "service_id",
+          "type": "uuid"
+        },
+        {
+          "name": "session_id",
+          "type": "uuid"
+        },
+        {
+          "name": "child_name",
+          "type": "text"
+        },
+        {
+          "name": "incident_type",
+          "type": "text"
+        },
+        {
+          "name": "severity",
+          "type": "text"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "actions_taken",
+          "type": "text"
+        },
+        {
+          "name": "guardian_notified",
+          "type": "boolean"
+        },
+        {
+          "name": "guardian_notified_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "follow_up_required",
+          "type": "boolean"
+        },
+        {
+          "name": "reported_by",
+          "type": "uuid"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "ccm_public_session_attempts": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "service_id",
+          "type": "uuid"
+        },
+        {
+          "name": "attempt_type",
+          "type": "text"
+        },
+        {
+          "name": "session_token_hash",
+          "type": "text"
+        },
+        {
+          "name": "fingerprint_hash",
+          "type": "text"
+        },
+        {
+          "name": "success",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "ccm_services": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "service_name",
+          "type": "text"
+        },
+        {
+          "name": "service_date",
+          "type": "date"
+        },
+        {
+          "name": "started_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "ended_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "ccm_session_enablement_overrides": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "service_id",
+          "type": "uuid"
+        },
+        {
+          "name": "override_reason",
+          "type": "text"
+        },
+        {
+          "name": "readiness_snapshot",
+          "type": "jsonb"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "ccm_volunteer_assignments": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "service_id",
+          "type": "uuid"
+        },
+        {
+          "name": "room_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "role",
+          "type": "text"
+        },
+        {
+          "name": "background_check_verified",
+          "type": "boolean"
+        }
+      ]
+    },
+    "children_checkins": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "room_id",
+          "type": "uuid"
+        },
+        {
+          "name": "child_profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "child_name",
+          "type": "text"
+        },
+        {
+          "name": "guardian_name",
+          "type": "text"
+        },
+        {
+          "name": "leader_count",
+          "type": "integer"
+        },
+        {
+          "name": "service_date",
+          "type": "date"
+        }
+      ]
+    },
+    "children_rooms": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "age_min",
+          "type": "integer"
+        },
+        {
+          "name": "age_max",
+          "type": "integer"
+        },
+        {
+          "name": "capacity",
+          "type": "integer"
+        },
+        {
+          "name": "target_ratio",
+          "type": "numeric(42)"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "children_sensitive_data": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "child_profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "pickup_code",
+          "type": "text"
+        },
+        {
+          "name": "authorized_guardians",
+          "type": "text[]"
+        },
+        {
+          "name": "medical_alerts",
+          "type": "text"
+        },
+        {
+          "name": "emergency_contact",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "church_memberships": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "user_id",
+          "type": "uuid"
+        },
+        {
+          "name": "role",
+          "type": "public.app_role"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "churches": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "slug",
+          "type": "citext"
+        },
+        {
+          "name": "timezone",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "communication_delivery_events": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "communication_log_id",
+          "type": "uuid"
+        },
+        {
+          "name": "provider",
+          "type": "text"
+        },
+        {
+          "name": "channel",
+          "type": "text"
+        },
+        {
+          "name": "event_type",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "in"
+        },
+        {
+          "name": "provider_event_id",
+          "type": "text"
+        },
+        {
+          "name": "provider_message_id",
+          "type": "text"
+        },
+        {
+          "name": "recipient_contact",
+          "type": "text"
+        },
+        {
+          "name": "reason",
+          "type": "text"
+        },
+        {
+          "name": "idempotency_key",
+          "type": "text"
+        },
+        {
+          "name": "raw_payload",
+          "type": "jsonb"
+        },
+        {
+          "name": "occurred_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "communication_logs": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "sent_by",
+          "type": "uuid"
+        },
+        {
+          "name": "recipient_id",
+          "type": "uuid"
+        },
+        {
+          "name": "channel",
+          "type": "text"
+        },
+        {
+          "name": "subject",
+          "type": "text"
+        },
+        {
+          "name": "body_preview",
+          "type": "text"
+        },
+        {
+          "name": "external_id",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "error_message",
+          "type": "text"
+        },
+        {
+          "name": "scheduled_for",
+          "type": "timestamptz"
+        },
+        {
+          "name": "sent_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "communication_suppressions": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "channel",
+          "type": "text"
+        },
+        {
+          "name": "contact",
+          "type": "text"
+        },
+        {
+          "name": "reason",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "suppressed_by",
+          "type": "uuid"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "consent_logs": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "consent_type",
+          "type": "text"
+        },
+        {
+          "name": "consented",
+          "type": "boolean"
+        },
+        {
+          "name": "consented_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "council_notes": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "title",
+          "type": "text"
+        },
+        {
+          "name": "content",
+          "type": "text"
+        },
+        {
+          "name": "note_type",
+          "type": "text"
+        },
+        {
+          "name": "version",
+          "type": "int"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid"
+        },
+        {
+          "name": "last_edited_by",
+          "type": "uuid"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "daily_work_items": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "item_type",
+          "type": "text"
+        },
+        {
+          "name": "title",
+          "type": "text"
+        },
+        {
+          "name": "body",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "priority",
+          "type": "text"
+        },
+        {
+          "name": "direction",
+          "type": "text"
+        },
+        {
+          "name": "related_profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "assigned_to_profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "scheduled_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "due_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "location",
+          "type": "text"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid"
+        },
+        {
+          "name": "completed_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "discernment_sessions": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "title",
+          "type": "text"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "date",
+          "type": "timestamptz"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "outcome",
+          "type": "text"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "discipleship_groups": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "leader_id",
+          "type": "uuid"
+        },
+        {
+          "name": "cadence",
+          "type": "text"
+        },
+        {
+          "name": "is_open",
+          "type": "boolean"
+        },
+        {
+          "name": "member_ids",
+          "type": "uuid[]"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "donation_gl_posts": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "donation_id",
+          "type": "uuid"
+        },
+        {
+          "name": "journal_id",
+          "type": "uuid"
+        },
+        {
+          "name": "posted_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "error_message",
+          "type": "text"
+        }
+      ]
+    },
+    "donations": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "donor_name",
+          "type": "text"
+        },
+        {
+          "name": "donor_email",
+          "type": "text"
+        },
+        {
+          "name": "amount_cents",
+          "type": "integer"
+        },
+        {
+          "name": "currency",
+          "type": "text"
+        },
+        {
+          "name": "fund_designation",
+          "type": "text"
+        },
+        {
+          "name": "stripe_payment_intent_id",
+          "type": "text"
+        },
+        {
+          "name": "stripe_subscription_id",
+          "type": "text"
+        },
+        {
+          "name": "stripe_customer_id",
+          "type": "text"
+        },
+        {
+          "name": "is_recurring",
+          "type": "boolean"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "is_anonymous",
+          "type": "boolean"
+        },
+        {
+          "name": "receipt_sent_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "note",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "education_courses": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "title",
+          "type": "text"
+        },
+        {
+          "name": "curriculum_area",
+          "type": "text"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "duration_weeks",
+          "type": "integer"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "course_order",
+          "type": "integer"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "education_enrollments": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "course_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "enrolled_at",
+          "type": "date"
+        },
+        {
+          "name": "completed_at",
+          "type": "date"
+        },
+        {
+          "name": "certificate_issued",
+          "type": "boolean"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "elder_notes": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid"
+        },
+        {
+          "name": "content",
+          "type": "text"
+        },
+        {
+          "name": "is_confidential",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "event_registration_form_fields": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "event_id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "label",
+          "type": "text"
+        },
+        {
+          "name": "field_key",
+          "type": "text"
+        },
+        {
+          "name": "field_type",
+          "type": "text"
+        },
+        {
+          "name": "is_required",
+          "type": "boolean"
+        },
+        {
+          "name": "options",
+          "type": "jsonb"
+        },
+        {
+          "name": "sort_order",
+          "type": "int"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "event_registration_payments": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "registration_id",
+          "type": "uuid"
+        },
+        {
+          "name": "event_id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "provider",
+          "type": "text"
+        },
+        {
+          "name": "payment_intent_id",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "amount_cents",
+          "type": "int"
+        },
+        {
+          "name": "currency",
+          "type": "text"
+        },
+        {
+          "name": "failure_code",
+          "type": "text"
+        },
+        {
+          "name": "failure_message",
+          "type": "text"
+        },
+        {
+          "name": "follow_up_note",
+          "type": "text"
+        },
+        {
+          "name": "followed_up_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "reconciled_by",
+          "type": "uuid"
+        },
+        {
+          "name": "reconciled_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "event_registration_settings": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "event_id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "registration_open",
+          "type": "boolean"
+        },
+        {
+          "name": "capacity",
+          "type": "int"
+        },
+        {
+          "name": "price_cents",
+          "type": "int"
+        },
+        {
+          "name": "currency",
+          "type": "text"
+        },
+        {
+          "name": "deadline",
+          "type": "timestamptz"
+        },
+        {
+          "name": "confirmation_message",
+          "type": "text"
+        },
+        {
+          "name": "waitlist_enabled",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "event_registrations": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "event_id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "registrant_name",
+          "type": "text"
+        },
+        {
+          "name": "registrant_email",
+          "type": "text"
+        },
+        {
+          "name": "registrant_phone",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "is_waitlisted",
+          "type": "boolean"
+        },
+        {
+          "name": "amount_paid_cents",
+          "type": "int"
+        },
+        {
+          "name": "stripe_payment_intent_id",
+          "type": "text"
+        },
+        {
+          "name": "custom_fields",
+          "type": "jsonb"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "registered_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "event_rosters": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "event_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "role_title",
+          "type": "text"
+        },
+        {
+          "name": "is_confirmed",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "event_rsvps": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "event_id",
+          "type": "uuid"
+        },
+        {
+          "name": "user_id",
+          "type": "uuid"
+        },
+        {
+          "name": "status",
+          "type": "public.rsvp_status"
+        },
+        {
+          "name": "note",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "events": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid"
+        },
+        {
+          "name": "title",
+          "type": "text"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "location",
+          "type": "text"
+        },
+        {
+          "name": "starts_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "ends_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "capacity",
+          "type": "integer"
+        },
+        {
+          "name": "approval_status",
+          "type": "public.approval_status"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "families": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "family_name",
+          "type": "text"
+        },
+        {
+          "name": "address",
+          "type": "text"
+        },
+        {
+          "name": "home_phone",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "finance_accounts": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "parent_id",
+          "type": "uuid"
+        },
+        {
+          "name": "account_code",
+          "type": "text"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "account_type",
+          "type": "text"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "finance_budget_lines": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "budget_id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "amount_cents",
+          "type": "integer"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "finance_budgets": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "fiscal_year",
+          "type": "integer"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "finance_imports": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "filename",
+          "type": "text"
+        },
+        {
+          "name": "format",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "total_rows",
+          "type": "integer"
+        },
+        {
+          "name": "imported_rows",
+          "type": "integer"
+        },
+        {
+          "name": "error_message",
+          "type": "text"
+        },
+        {
+          "name": "journal_id",
+          "type": "uuid"
+        },
+        {
+          "name": "imported_by",
+          "type": "uuid"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "finance_journal_lines": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "journal_id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "side",
+          "type": "text"
+        },
+        {
+          "name": "amount_cents",
+          "type": "integer"
+        },
+        {
+          "name": "memo",
+          "type": "text"
+        },
+        {
+          "name": "sort_order",
+          "type": "integer"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "finance_journals": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "journal_date",
+          "type": "date"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "journal_type",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "reference",
+          "type": "text"
+        },
+        {
+          "name": "posted_by",
+          "type": "uuid"
+        },
+        {
+          "name": "posted_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "first_time_visitors": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "full_name",
+          "type": "text"
+        },
+        {
+          "name": "email",
+          "type": "text"
+        },
+        {
+          "name": "phone",
+          "type": "text"
+        },
+        {
+          "name": "visit_date",
+          "type": "date"
+        },
+        {
+          "name": "referred_by",
+          "type": "text"
+        },
+        {
+          "name": "how_did_hear",
+          "type": "text"
+        },
+        {
+          "name": "workflow_stage",
+          "type": "text"
+        },
+        {
+          "name": "workflow_notes",
+          "type": "text"
+        },
+        {
+          "name": "converted_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "giving_fund_accounts": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "fund_designation",
+          "type": "text"
+        },
+        {
+          "name": "asset_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "income_account_id",
+          "type": "uuid"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "group_attendance": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "meeting_id",
+          "type": "uuid"
+        },
+        {
+          "name": "group_id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "group_meetings": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "group_id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "scheduled_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "location",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "group_members": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "group_id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "role",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "joined_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "group_resources": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "group_id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "title",
+          "type": "text"
+        },
+        {
+          "name": "url",
+          "type": "text"
+        },
+        {
+          "name": "resource_type",
+          "type": "text"
+        },
+        {
+          "name": "added_by",
+          "type": "uuid"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "groups": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "category",
+          "type": "text"
+        },
+        {
+          "name": "leader_profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "meeting_day",
+          "type": "text"
+        },
+        {
+          "name": "meeting_time",
+          "type": "text"
+        },
+        {
+          "name": "meeting_location",
+          "type": "text"
+        },
+        {
+          "name": "capacity",
+          "type": "int"
+        },
+        {
+          "name": "is_open",
+          "type": "boolean"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "import_batch_rows": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "batch_id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "row_number",
+          "type": "integer"
+        },
+        {
+          "name": "raw_payload",
+          "type": "jsonb"
+        },
+        {
+          "name": "normalized_payload",
+          "type": "jsonb"
+        },
+        {
+          "name": "classification",
+          "type": "text"
+        },
+        {
+          "name": "reason",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "import_batches": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "import_type",
+          "type": "text"
+        },
+        {
+          "name": "source_system",
+          "type": "text"
+        },
+        {
+          "name": "source_filename",
+          "type": "text"
+        },
+        {
+          "name": "created_by_profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "dry_run",
+          "type": "boolean"
+        },
+        {
+          "name": "summary",
+          "type": "jsonb"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "committed_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "failed_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "kingdom_impacts": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid"
+        },
+        {
+          "name": "impact_type",
+          "type": "text"
+        },
+        {
+          "name": "impact_type",
+          "type": "in"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "occurred_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "life_stage_circles": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "life_stage",
+          "type": "text"
+        },
+        {
+          "name": "leader_id",
+          "type": "uuid"
+        },
+        {
+          "name": "member_ids",
+          "type": "uuid[]"
+        },
+        {
+          "name": "meeting_cadence",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "marriage_cohorts": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "cohort_stage",
+          "type": "text"
+        },
+        {
+          "name": "mentor_couple_id",
+          "type": "uuid"
+        },
+        {
+          "name": "couple_ids",
+          "type": "uuid[]"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "marriage_pulse_entries": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "survey_week",
+          "type": "date"
+        },
+        {
+          "name": "theme",
+          "type": "text"
+        },
+        {
+          "name": "sentiment",
+          "type": "integer"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "member_change_requests": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "target_profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "requested_by_profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "change_type",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "proposed_changes",
+          "type": "jsonb"
+        },
+        {
+          "name": "reviewer_profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "reviewer_note",
+          "type": "text"
+        },
+        {
+          "name": "reviewed_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "mentor_couples": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "partner1_id",
+          "type": "uuid"
+        },
+        {
+          "name": "partner2_id",
+          "type": "uuid"
+        },
+        {
+          "name": "couple_name",
+          "type": "text"
+        },
+        {
+          "name": "years_married",
+          "type": "integer"
+        },
+        {
+          "name": "is_available",
+          "type": "boolean"
+        },
+        {
+          "name": "cohort_focus",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "mentorship_pairs": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "mentor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "mentee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "started_at",
+          "type": "date"
+        },
+        {
+          "name": "ended_at",
+          "type": "date"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "ministries": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "slug",
+          "type": "text"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "ministry_health_history": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "health_score",
+          "type": "numeric(42)"
+        },
+        {
+          "name": "assessment_date",
+          "type": "timestamptz"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "ministry_tracks": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "track_kind",
+          "type": "text"
+        },
+        {
+          "name": "role_type",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "start_date",
+          "type": "date"
+        },
+        {
+          "name": "end_date",
+          "type": "date"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "mission_partners": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "region",
+          "type": "text"
+        },
+        {
+          "name": "focus_area",
+          "type": "text"
+        },
+        {
+          "name": "relationship_status",
+          "type": "text"
+        },
+        {
+          "name": "contact_name",
+          "type": "text"
+        },
+        {
+          "name": "contact_email",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "mission_trips": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "partner_id",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "destination",
+          "type": "text"
+        },
+        {
+          "name": "departs_at",
+          "type": "date"
+        },
+        {
+          "name": "returns_at",
+          "type": "date"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "participant_ids",
+          "type": "uuid[]"
+        },
+        {
+          "name": "hours_served",
+          "type": "integer"
+        },
+        {
+          "name": "people_reached",
+          "type": "integer"
+        },
+        {
+          "name": "impact_notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "notification_preferences": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "email_opt_in",
+          "type": "boolean"
+        },
+        {
+          "name": "sms_opt_in",
+          "type": "boolean"
+        },
+        {
+          "name": "push_opt_in",
+          "type": "boolean"
+        },
+        {
+          "name": "in_app_opt_in",
+          "type": "boolean"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "outreach_events": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "event_date",
+          "type": "date"
+        },
+        {
+          "name": "location",
+          "type": "text"
+        },
+        {
+          "name": "zone_name",
+          "type": "text"
+        },
+        {
+          "name": "latitude",
+          "type": "numeric(96)"
+        },
+        {
+          "name": "longitude",
+          "type": "numeric(96)"
+        },
+        {
+          "name": "volunteer_count",
+          "type": "integer"
+        },
+        {
+          "name": "people_served",
+          "type": "integer"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "outreach_zones": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "zone_name",
+          "type": "text"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "total_events",
+          "type": "integer"
+        },
+        {
+          "name": "total_volunteers",
+          "type": "integer"
+        },
+        {
+          "name": "total_served",
+          "type": "integer"
+        },
+        {
+          "name": "last_event_date",
+          "type": "date"
+        },
+        {
+          "name": "coverage_level",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "pastoral_notes": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid"
+        },
+        {
+          "name": "content",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "platform_admins": {
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "uuid"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "prayer_acknowledgements": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "prayer_request_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "prayed_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "prayer_requests": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "discernment_session_id",
+          "type": "uuid"
+        },
+        {
+          "name": "requested_by",
+          "type": "uuid"
+        },
+        {
+          "name": "title",
+          "type": "text"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "is_anonymous",
+          "type": "boolean"
+        },
+        {
+          "name": "prayed_count",
+          "type": "int"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "profile_ministries": {
+      "columns": [
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "profile_sensitive_fields": {
+      "columns": [
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "date_of_birth",
+          "type": "date"
+        },
+        {
+          "name": "emergency_contact_name",
+          "type": "text"
+        },
+        {
+          "name": "emergency_contact_phone",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "profiles": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "email",
+          "type": "citext"
+        },
+        {
+          "name": "full_name",
+          "type": "text"
+        },
+        {
+          "name": "avatar_url",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "public_giving_pages": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "slug",
+          "type": "text"
+        },
+        {
+          "name": "headline",
+          "type": "text"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "funds",
+          "type": "jsonb"
+        },
+        {
+          "name": "stripe_account_id",
+          "type": "text"
+        },
+        {
+          "name": "is_live",
+          "type": "boolean"
+        },
+        {
+          "name": "allow_anonymous",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "service_attendance": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "service_date",
+          "type": "date"
+        },
+        {
+          "name": "service_type",
+          "type": "text"
+        },
+        {
+          "name": "headcount",
+          "type": "int"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "service_plan_items": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "plan_id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "starts_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "ends_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "title",
+          "type": "text"
+        },
+        {
+          "name": "item_type",
+          "type": "text"
+        },
+        {
+          "name": "leader_name",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "attachment_url",
+          "type": "text"
+        },
+        {
+          "name": "sort_order",
+          "type": "int"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "service_plan_positions": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "plan_id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "role_name",
+          "type": "text"
+        },
+        {
+          "name": "quantity_needed",
+          "type": "int"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "sort_order",
+          "type": "int"
+        }
+      ]
+    },
+    "service_plan_templates": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "positions",
+          "type": "jsonb"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "service_plans": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "event_id",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "service_date",
+          "type": "date"
+        },
+        {
+          "name": "service_time",
+          "type": "time"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "stripe_customers": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "stripe_customer_id",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "support_pairings": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "supporter_id",
+          "type": "uuid"
+        },
+        {
+          "name": "supported_id",
+          "type": "uuid"
+        },
+        {
+          "name": "pairing_reason",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "tenant_connections": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "tenant_id",
+          "type": "uuid"
+        },
+        {
+          "name": "backend_kind",
+          "type": "public.tenant_backend_kind"
+        },
+        {
+          "name": "project_url",
+          "type": "text"
+        },
+        {
+          "name": "db_url",
+          "type": "text"
+        },
+        {
+          "name": "connection_status",
+          "type": "public.tenant_connection_status"
+        },
+        {
+          "name": "metadata",
+          "type": "jsonb"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "tenant_view_audit_logs": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "actor_user_id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "viewed_role",
+          "type": "public.app_role"
+        },
+        {
+          "name": "event_type",
+          "type": "public.tenant_view_event_type"
+        },
+        {
+          "name": "metadata",
+          "type": "jsonb"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "tenants": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "external_tenant_id",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "slug",
+          "type": "citext"
+        },
+        {
+          "name": "timezone",
+          "type": "text"
+        },
+        {
+          "name": "tenant_status",
+          "type": "public.tenant_status"
+        },
+        {
+          "name": "billing_status",
+          "type": "public.tenant_billing_status"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "track_health_metrics": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "track_kind",
+          "type": "text"
+        },
+        {
+          "name": "vitality_score",
+          "type": "numeric(52)"
+        },
+        {
+          "name": "retention_rate",
+          "type": "numeric(52)"
+        },
+        {
+          "name": "engagement_rate",
+          "type": "numeric(52)"
+        },
+        {
+          "name": "leader_to_member_ratio",
+          "type": "numeric(63)"
+        },
+        {
+          "name": "active_member_count",
+          "type": "integer"
+        },
+        {
+          "name": "leader_pipeline_velocity_days",
+          "type": "integer"
+        },
+        {
+          "name": "calculated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "volunteer_blocked_dates": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "blocked_date",
+          "type": "date"
+        },
+        {
+          "name": "reason",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "volunteer_hours_log": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "shift_id",
+          "type": "uuid"
+        },
+        {
+          "name": "service_date",
+          "type": "date"
+        },
+        {
+          "name": "hours",
+          "type": "numeric(52)"
+        },
+        {
+          "name": "role_name",
+          "type": "text"
+        },
+        {
+          "name": "logged_by",
+          "type": "uuid"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "volunteer_match_suggestions": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "match_score",
+          "type": "numeric(52)"
+        },
+        {
+          "name": "reason_text",
+          "type": "text"
+        },
+        {
+          "name": "ai_generated",
+          "type": "boolean"
+        },
+        {
+          "name": "reviewed_by",
+          "type": "uuid"
+        },
+        {
+          "name": "reviewed_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "volunteer_profiles": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "user_id",
+          "type": "uuid"
+        },
+        {
+          "name": "skills",
+          "type": "text[]"
+        },
+        {
+          "name": "availability",
+          "type": "jsonb"
+        },
+        {
+          "name": "training",
+          "type": "jsonb"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "volunteer_shift_reminders": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "shift_id",
+          "type": "uuid"
+        },
+        {
+          "name": "reminded_profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "reminder_channel",
+          "type": "text"
+        },
+        {
+          "name": "reminder_note",
+          "type": "text"
+        },
+        {
+          "name": "sent_by",
+          "type": "uuid"
+        },
+        {
+          "name": "sent_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "volunteer_shifts": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "event_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "assigned_user_id",
+          "type": "uuid"
+        },
+        {
+          "name": "title",
+          "type": "text"
+        },
+        {
+          "name": "starts_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "ends_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "status",
+          "type": "public.volunteer_shift_status"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "workflow_actions": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "workflow_id",
+          "type": "uuid"
+        },
+        {
+          "name": "action_type",
+          "type": "text"
+        },
+        {
+          "name": "action_payload_json",
+          "type": "jsonb"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "workflow_feedback": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "workflow_id",
+          "type": "uuid"
+        },
+        {
+          "name": "user_id",
+          "type": "uuid"
+        },
+        {
+          "name": "feedback_type",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "workflows": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "tenant_id",
+          "type": "uuid"
+        },
+        {
+          "name": "suggestion_id",
+          "type": "uuid"
+        },
+        {
+          "name": "workflow_type",
+          "type": "text"
+        },
+        {
+          "name": "owner_user_id",
+          "type": "uuid"
+        },
+        {
+          "name": "assigned_to_user_id",
+          "type": "uuid"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "due_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "completed_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "worship_rehearsals": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "scheduled_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "song_ids",
+          "type": "uuid[]"
+        },
+        {
+          "name": "rsvp_count",
+          "type": "integer"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "worship_songs": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "title",
+          "type": "text"
+        },
+        {
+          "name": "artist",
+          "type": "text"
+        },
+        {
+          "name": "song_key",
+          "type": "text"
+        },
+        {
+          "name": "tempo",
+          "type": "text"
+        },
+        {
+          "name": "tags",
+          "type": "text[]"
+        },
+        {
+          "name": "last_used_at",
+          "type": "date"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "young_adult_career_mentorships": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "mentor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "mentee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "industry",
+          "type": "text"
+        },
+        {
+          "name": "focus_area",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "started_at",
+          "type": "date"
+        },
+        {
+          "name": "ended_at",
+          "type": "date"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "youth_graduation_tracking": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "profile_id",
+          "type": "uuid"
+        },
+        {
+          "name": "milestone_id",
+          "type": "uuid"
+        },
+        {
+          "name": "completed_at",
+          "type": "date"
+        },
+        {
+          "name": "graduation_year",
+          "type": "integer"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    "youth_milestones": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid"
+        },
+        {
+          "name": "church_id",
+          "type": "uuid"
+        },
+        {
+          "name": "ministry_id",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "milestone_order",
+          "type": "integer"
+        },
+        {
+          "name": "is_required",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    }
+  }
+}
