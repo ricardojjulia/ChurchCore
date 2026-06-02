@@ -10,6 +10,7 @@ import {
 } from "@/lib/supabase/tenant";
 import { sendgridAdapter } from "@/lib/communications/sendgrid-adapter";
 import { twilioAdapter } from "@/lib/communications/twilio-adapter";
+import { generateUnsubscribeLink } from "@/lib/communications/unsubscribe";
 
 /**
  * queueCommunicationAction
@@ -82,12 +83,22 @@ export async function queueCommunicationAction(
 
   if (!isScheduled) {
     if (input.channel === "email") {
+      if (!process.env.UNSUBSCRIBE_SECRET) {
+        throw new Error("UNSUBSCRIBE_SECRET must be configured before sending emails.");
+      }
+      const unsubLink = generateUnsubscribeLink(churchId, input.recipientContact, "email");
+      const finalHtml =
+        (input.html ?? "") +
+        `\n<p style="font-size:12px;color:#666;margin-top:24px;">To unsubscribe from these emails, <a href="${unsubLink}">click here</a>.</p>`;
+      const finalBody =
+        input.body +
+        `\n\nTo unsubscribe: ${unsubLink}`;
       provider = "sendgrid";
       const result = await sendgridAdapter.send({
         to: input.recipientContact,
         subject: input.subject,
-        body: input.body,
-        html: input.html,
+        body: finalBody,
+        html: finalHtml,
       });
       externalId = result.providerMessageId;
       errorCode = result.errorCode;

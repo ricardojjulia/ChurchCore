@@ -923,6 +923,10 @@ export const messages = {
       navReports: "Reports",
       navReportsDesc: "Members, events, giving",
       navLabelLeadership: "Leadership",
+      retryAllEligible: "Retry all eligible",
+      retryAllEligibleQueuedTitle: "Retry batch queued",
+      retryAllEligibleFailedTitle: "Retry batch failed",
+      retryAllEligibleFailedBody: "Unable to retry eligible communications.",
     },
     financeAccounts: {
       sectionLabel: "Finance",
@@ -1968,6 +1972,10 @@ export const messages = {
       navReports: "Informes",
       navReportsDesc: "Miembros, eventos, donaciones",
       navLabelLeadership: "Liderazgo",
+      retryAllEligible: "Reintentar todos los elegibles",
+      retryAllEligibleQueuedTitle: "Lote de reintentos en cola",
+      retryAllEligibleFailedTitle: "Error en lote de reintentos",
+      retryAllEligibleFailedBody: "No se pudieron reintentar las comunicaciones elegibles.",
     },
     financeAccounts: {
       sectionLabel: "Finanzas",

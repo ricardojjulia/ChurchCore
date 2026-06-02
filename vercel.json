@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/shepherd-ai",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/communications-retry",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

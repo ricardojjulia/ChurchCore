@@ -9,6 +9,10 @@ import {
   getCommunicationDeliveryEvents,
 } from "@/lib/communications-data";
 import { shouldRetryDelivery } from "@/lib/communications/provider-adapter";
+import {
+  type RetryEligibleResult,
+  retryEligibleCommunications,
+} from "@/lib/communications/retry-eligible";
 import { sendWithSuppression } from "@/lib/communications/send-with-suppression";
 import { insertConsentLogEntries } from "@/lib/consent-log";
 import { hasTenantBackendEnv } from "@/lib/supabase/tenant";
@@ -584,4 +588,21 @@ export async function updateNotificationPreferencesAction(
 
   revalidatePath("/app/communications");
   revalidatePath("/app/member");
+}
+
+export async function retryAllEligibleAction(): Promise<RetryEligibleResult> {
+  const session = await requireChurchSession("/app/pastor");
+  const role = session.appContext.roleId;
+  if (role !== "pastor" && role !== "church-admin") {
+    throw new Error(
+      "Only pastors and church administrators may retry communications.",
+    );
+  }
+
+  const churchId = session.appContext.church.id;
+  const result = await retryEligibleCommunications({ churchId });
+
+  revalidatePath("/app/communications");
+
+  return result;
 }

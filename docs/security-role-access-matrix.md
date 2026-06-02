@@ -27,6 +27,8 @@ This matrix records allowed roles and verification evidence for high-sensitivity
 | People import commit action | ChurchAdmin | Pastor, Ministry Leader, Secretary, Member, Public | [app/app/church-admin/people/import/actions.test.ts](app/app/church-admin/people/import/actions.test.ts) |
 | ChurchAdmin event registration approval/settings actions | ChurchAdmin, Pastor (approval path) | Ministry Leader, Secretary, Member, Public | [app/app/church-admin-actions.test.ts](app/app/church-admin-actions.test.ts) |
 | ChurchAdmin communications retry/suppression actions | ChurchAdmin, Pastor | Secretary, Ministry Leader, Member, Public | [app/app/communications-actions.test.ts](app/app/communications-actions.test.ts) |
+| `retryAllEligibleAction` (scoped bulk retry) | ChurchAdmin, Pastor | Secretary, Ministry Leader, Member, Public | [app/app/communications-actions.test.ts](app/app/communications-actions.test.ts) — `retryAllEligibleAction` describe block |
+| Communications retry cron (`/api/cron/communications-retry`) | Cron secret only (not role-based) | Any unauthenticated request | [app/api/cron/communications-retry/route.test.ts](app/api/cron/communications-retry/route.test.ts) |
 | Member event registration action | Member | ChurchAdmin, Pastor, Ministry Leader, Secretary, Public | [app/app/member-actions.test.ts](app/app/member-actions.test.ts) |
 | Public event registration action | Public | N/A (route intentionally public) | Action guards in [app/portal/actions.ts](app/portal/actions.ts) and route scoping in [app/portal/events/register/page.tsx](app/portal/events/register/page.tsx) |
 

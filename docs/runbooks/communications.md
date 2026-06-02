@@ -171,3 +171,44 @@ Links are valid for **30 days** from generation. After 30 days, clicking the lin
 > "Your unsubscribe link has expired (links are valid for 30 days). Please reply to any message from us or contact the church directly and ask to be removed from our mailing list."
 
 The church admin can then manually add the suppression via the SOP above.
+
+---
+
+## 6. Auto-Retry Cron Queue
+
+### How it works
+
+A cron job at `/api/cron/communications-retry` runs every 15 minutes (configured in `vercel.json`). It queries all `communication_logs` rows where:
+
+```sql
+status = 'failed'
+AND retry_count < 3
+AND error_code IN ('timeout','rate_limited','provider_unavailable','network_error','temporary_failure')
+```
+
+For each eligible row, it resolves the recipient contact from `profiles`, builds a synthetic session, and calls `sendWithSuppression`. Updates use conditional `WHERE retry_count < 3` to prevent race-condition double-increments.
+
+### Environment requirements
+
+| Name | Required |
+|---|---|
+| `CRON_SECRET` | Yes — must match the Vercel cron secret |
+| `UNSUBSCRIBE_SECRET` | Yes — required for all email sends |
+
+### Response codes
+
+| Status | Meaning |
+|---|---|
+| 200 | All eligible retries succeeded (or none to retry) |
+| 207 | Some retries still failed (see `failedAgain` count in body) |
+| 401 | Missing or wrong `CRON_SECRET` |
+| 503 | Tenant backend not configured |
+| 500 | Unexpected error |
+
+### Manual operator retry (scoped to one church)
+
+A church **pastor** or **church-admin** can trigger `retryAllEligibleAction()` from the server action layer. This is scoped to their `church_id` — it does not retry other tenants.
+
+### Retry limit
+
+Maximum 3 attempts per message. After 3 failures the row stays `status='failed'` with `retry_count=3` and is no longer eligible for auto-retry. A church admin can manually re-trigger delivery if appropriate.

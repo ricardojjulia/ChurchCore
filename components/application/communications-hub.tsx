@@ -36,6 +36,7 @@ import {
 import {
   broadcastMessageAction,
   getCommunicationDeliveryEventsAction,
+  retryAllEligibleAction,
   retryCommunicationAction,
   suppressContactAction,
 } from "@/app/app/communications-actions";
@@ -353,6 +354,26 @@ export function CommunicationsHub({
     });
   }
 
+  function handleRetryAllEligible() {
+    startTransition(async () => {
+      try {
+        const result = await retryAllEligibleAction();
+        notifications.show({
+          title: t("communicationsHub", "retryQueuedTitle"),
+          message: t("communicationsHub", "sendSummary", { sent: result.succeeded, skipped: result.skipped, errors: result.failedAgain }),
+          color: result.failedAgain > 0 ? "orange" : "teal",
+        });
+        router.refresh();
+      } catch (error) {
+        notifications.show({
+          title: t("communicationsHub", "retryFailedTitle"),
+          message: error instanceof Error ? error.message : t("communicationsHub", "retryFailedBody"),
+          color: "red",
+        });
+      }
+    });
+  }
+
   function handleOpenEvents(log: CommunicationLogEntry) {
     setActiveLog(log);
     setActiveEvents([]);
@@ -427,16 +448,31 @@ export function CommunicationsHub({
       navLabel={t("communicationsHub", "navLabelLeadership")}
       navItems={navItems}
       topActions={
-        <Button
-          size="xs"
-          variant="filled"
-          color="blue"
-          radius="xl"
-          leftSection={<Send size={12} />}
-          onClick={compose.open}
-        >
-          {t("communicationsHub", "compose")}
-        </Button>
+        <Group gap="xs" wrap="nowrap">
+          {session.appContext.roleId === "pastor" || session.appContext.roleId === "church-admin" ? (
+            <Button
+              size="xs"
+              variant="light"
+              color="orange"
+              radius="xl"
+              leftSection={<RefreshCcw size={12} />}
+              loading={isPending}
+              onClick={handleRetryAllEligible}
+            >
+              {t("communicationsHub", "retryAllEligible")}
+            </Button>
+          ) : null}
+          <Button
+            size="xs"
+            variant="filled"
+            color="blue"
+            radius="xl"
+            leftSection={<Send size={12} />}
+            onClick={compose.open}
+          >
+            {t("communicationsHub", "compose")}
+          </Button>
+        </Group>
       }
     >
       {readinessView ? (
