@@ -31,6 +31,9 @@ Every user-facing UI string should render in English or Spanish based on the `ch
 - ChurchAdmin portal account approval queue
 - ChurchAdmin church settings page
 - ChurchAdmin people management page, including add, invite, edit, bulk, and relationship controls
+- ChurchAdmin Communications Hub (WS-C4): all tabs, table headers, badges, toasts, compose/suppression/events drawers; readiness state titles deferred pending test update
+- ChurchAdmin Finance dashboard, accounts, and budgets (WS-C4)
+- ChurchAdmin Giving Ops admin workspace and Giving Dashboard (WS-C4)
 
 ## Remaining Surface Queue
 
@@ -38,16 +41,15 @@ Priority 1: MVP tenant workflows
 
 - Member schedule, giving, groups, ministries, and data-rights surfaces
 - ChurchAdmin Events list/detail/create workflows
-- ChurchAdmin Giving Ops and Donations dashboards
 - ChurchAdmin Reports
-- ChurchAdmin Communications
 - ChurchAdmin Volunteers and service schedules
 - ChurchAdmin Visitors pipeline
 - ChurchAdmin Suggested Workflows
+- Communications Hub readiness state titles (deferred: requires companion test update)
 
 Priority 2: Finance and specialized modules
 
-- Finance dashboard, accounts, journals, budgets, imports, and reports
+- Finance journals, imports, and reports
 - Children’s Ministry dashboard, check-in/checkout, services, rooms, incidents, volunteers, and settings
 - Public parent children session check-in/checkout routes, including guardian verification and pickup-code checkout labels
 - Ministry Forge index/detail pages and all specialized ministry track panels

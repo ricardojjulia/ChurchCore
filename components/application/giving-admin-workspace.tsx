@@ -10,6 +10,7 @@ import {
   GivingPageConfigPanel,
   GivingReadinessPanel,
 } from "@/components/application/giving-analytics";
+import { useI18n } from "@/components/i18n-provider";
 import type { ChurchAppSession } from "@/lib/auth";
 import type {
   FundMapping,
@@ -17,28 +18,6 @@ import type {
   GivingReadinessData,
 } from "@/lib/donations-data";
 import type { FinanceAccount } from "@/lib/finance-types";
-
-const NAV_ITEMS = [
-  {
-    href: "/app/church-admin",
-    label: "Home",
-    description: "Church admin",
-    icon: DollarSign,
-  },
-  {
-    href: "/app/church-admin/giving",
-    label: "Giving Admin",
-    description: "Analytics & GL config",
-    icon: BarChart2,
-    active: true,
-  },
-  {
-    href: "/app/giving",
-    label: "Giving Dashboard",
-    description: "Donation reports",
-    icon: DollarSign,
-  },
-];
 
 export function GivingAdminWorkspace({
   session,
@@ -53,16 +32,40 @@ export function GivingAdminWorkspace({
   accounts: FinanceAccount[];
   readiness: GivingReadinessData | null;
 }) {
+  const { t } = useI18n();
+
+  const NAV_ITEMS = [
+    {
+      href: "/app/church-admin",
+      label: "Home",
+      description: "Church admin",
+      icon: DollarSign,
+    },
+    {
+      href: "/app/church-admin/giving",
+      label: t("givingAdmin", "pageTitle"),
+      description: t("givingAdmin", "sidebarDescription"),
+      icon: BarChart2,
+      active: true,
+    },
+    {
+      href: "/app/giving",
+      label: t("givingAdmin", "dashPageTitle"),
+      description: "Donation reports",
+      icon: DollarSign,
+    },
+  ];
+
   return (
     <ApplicationShell
       session={session}
       workspaceHref="/app/church-admin"
       calendarHref="/app/calendar"
-      sectionLabel="Giving"
-      title="Giving Administration"
+      sectionLabel={t("givingAdmin", "sectionLabel")}
+      title={t("givingAdmin", "pageTitle")}
       description={session.appContext.church.name}
-      sidebarTitle="Giving Admin"
-      sidebarDescription="Analytics, fund->GL mappings, and public giving page settings."
+      sidebarTitle={t("givingAdmin", "sidebarTitle")}
+      sidebarDescription={t("givingAdmin", "sidebarDescription")}
       navLabel="Church admin"
       navItems={NAV_ITEMS}
     >
@@ -70,17 +73,17 @@ export function GivingAdminWorkspace({
         <Tabs.List mb="md">
           {readiness ? (
             <Tabs.Tab value="exceptions" leftSection={<Settings size={14} />}>
-              Readiness Exceptions
+              {t("givingAdmin", "tabReadinessExceptions")}
             </Tabs.Tab>
           ) : null}
           <Tabs.Tab value="analytics" leftSection={<BarChart2 size={14} />}>
-            Analytics
+            {t("givingAdmin", "tabAnalytics")}
           </Tabs.Tab>
           <Tabs.Tab value="mappings" leftSection={<Link2 size={14} />}>
-            Fund Mappings
+            {t("givingAdmin", "tabFundMappings")}
           </Tabs.Tab>
           <Tabs.Tab value="givingpage" leftSection={<Settings size={14} />}>
-            Giving Page
+            {t("givingAdmin", "tabGivingPage")}
           </Tabs.Tab>
         </Tabs.List>
 
