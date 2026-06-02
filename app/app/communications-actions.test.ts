@@ -9,6 +9,7 @@ const {
   createTenantServerClientMock,
   insertConsentLogEntriesMock,
   sendWithSuppressionMock,
+  retryEligibleCommunicationsMock,
 } = vi.hoisted(() => {
   const revalidatePath = vi.fn();
   const requireChurchSession = vi.fn();
@@ -18,6 +19,7 @@ const {
   const createTenantServerClient = vi.fn();
   const insertConsentLogEntries = vi.fn();
   const sendWithSuppression = vi.fn();
+  const retryEligibleCommunications = vi.fn();
 
   return {
     revalidatePathMock: revalidatePath,
@@ -28,6 +30,7 @@ const {
     createTenantServerClientMock: createTenantServerClient,
     insertConsentLogEntriesMock: insertConsentLogEntries,
     sendWithSuppressionMock: sendWithSuppression,
+    retryEligibleCommunicationsMock: retryEligibleCommunications,
   };
 });
 
@@ -54,9 +57,14 @@ vi.mock("@/lib/communications/send-with-suppression", () => ({
   sendWithSuppression: sendWithSuppressionMock,
 }));
 
+vi.mock("@/lib/communications/retry-eligible", () => ({
+  retryEligibleCommunications: retryEligibleCommunicationsMock,
+}));
+
 import {
   broadcastMessageAction,
   retryCommunicationAction,
+  retryAllEligibleAction,
   suppressContactAction,
   updateNotificationPreferencesAction,
 } from "@/app/app/communications-actions";
@@ -413,5 +421,77 @@ describe("communications actions", () => {
         scheduledFor: expect.stringMatching(/Z$/),
       }),
     );
+  });
+});
+
+describe("retryAllEligibleAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    shouldUseLocalTenantFallbackMock.mockReturnValue(true);
+    hasTenantBackendEnvMock.mockReturnValue(true);
+    retryEligibleCommunicationsMock.mockResolvedValue({
+      selected: 2,
+      succeeded: 2,
+      failedAgain: 0,
+      skipped: 0,
+    });
+  });
+
+  it("throws for member role", async () => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "member", church: { id: "church-1" } },
+      profile: { id: "profile-1" },
+      source: "supabase",
+      userId: "user-1",
+    });
+
+    await expect(retryAllEligibleAction()).rejects.toThrow(
+      "Only pastors and church administrators may retry communications.",
+    );
+    expect(retryEligibleCommunicationsMock).not.toHaveBeenCalled();
+  });
+
+  it("throws for secretary role", async () => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "secretary", church: { id: "church-1" } },
+      profile: { id: "profile-1" },
+      source: "supabase",
+      userId: "user-1",
+    });
+
+    await expect(retryAllEligibleAction()).rejects.toThrow(
+      "Only pastors and church administrators may retry communications.",
+    );
+    expect(retryEligibleCommunicationsMock).not.toHaveBeenCalled();
+  });
+
+  it("calls retryEligibleCommunications with churchId for pastor role and revalidates path", async () => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "pastor", church: { id: "church-1" } },
+      profile: { id: "profile-pastor" },
+      source: "supabase",
+      userId: "pastor-1",
+    });
+
+    const result = await retryAllEligibleAction();
+
+    expect(retryEligibleCommunicationsMock).toHaveBeenCalledWith({ churchId: "church-1" });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/communications");
+    expect(result).toEqual({ selected: 2, succeeded: 2, failedAgain: 0, skipped: 0 });
+  });
+
+  it("calls retryEligibleCommunications with churchId for church-admin role and revalidates path", async () => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "church-admin", church: { id: "church-2" } },
+      profile: { id: "profile-admin" },
+      source: "supabase",
+      userId: "admin-1",
+    });
+
+    const result = await retryAllEligibleAction();
+
+    expect(retryEligibleCommunicationsMock).toHaveBeenCalledWith({ churchId: "church-2" });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/communications");
+    expect(result).toEqual({ selected: 2, succeeded: 2, failedAgain: 0, skipped: 0 });
   });
 });

@@ -11,6 +11,7 @@ import Link from "next/link";
 
 import { ApplicationShell } from "@/components/application/app-shell";
 import { financeNavItems } from "@/components/application/finance-nav";
+import { useI18n } from "@/components/i18n-provider";
 import { createBudgetAction, upsertBudgetLinesAction } from "@/app/app/finance-actions";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { FinanceAccount, FinanceBudget, FinanceBudgetLine, BudgetVarianceRow } from "@/lib/finance-types";
@@ -34,6 +35,7 @@ export function FinanceBudgetWorkspace({
   varianceRows: BudgetVarianceRow[];
   accounts: FinanceAccount[];
 }) {
+  const { t } = useI18n();
   const [opened, { open, close }] = useDisclosure(false);
   const [isPending, startTransition] = useTransition();
 
@@ -50,11 +52,14 @@ export function FinanceBudgetWorkspace({
   const incomeAccounts = accounts.filter((a) => a.accountType === "income" && a.isActive);
 
   function handleCreateBudget() {
-    if (!budgetName.trim()) { notifications.show({ color: "red", message: "Budget name is required" }); return; }
+    if (!budgetName.trim()) {
+      notifications.show({ color: "red", message: t("financeBudget", "nameRequired") });
+      return;
+    }
     startTransition(async () => {
       try {
         const { id } = await createBudgetAction({ name: budgetName.trim(), fiscalYear: parseInt(fiscalYear) });
-        notifications.show({ color: "green", message: "Budget created" });
+        notifications.show({ color: "green", message: t("financeBudget", "budgetCreated") });
         setBudgetName("");
         close();
         window.location.href = `/app/church-admin/finance/budgets/${id}`;
@@ -69,7 +74,7 @@ export function FinanceBudgetWorkspace({
     startTransition(async () => {
       try {
         await upsertBudgetLinesAction(selectedBudgetId, Object.entries(editedLines).map(([accountId, amountCents]) => ({ accountId, amountCents })));
-        notifications.show({ color: "green", message: "Budget lines saved" });
+        notifications.show({ color: "green", message: t("financeBudget", "linesSaved") });
       } catch (err) {
         notifications.show({ color: "red", message: String(err) });
       }
@@ -86,34 +91,39 @@ export function FinanceBudgetWorkspace({
       session={session}
       workspaceHref="/app/church-admin"
       calendarHref="/app/calendar"
-      sectionLabel="Finance"
-      title="Budgets"
+      sectionLabel={t("financeBudget", "sectionLabel")}
+      title={t("financeBudget", "pageTitle")}
       description={session.appContext.church.name}
-      sidebarTitle="Finance"
-      sidebarDescription="Create and manage annual budgets."
+      sidebarTitle={t("financeBudget", "sidebarTitle")}
+      sidebarDescription={t("financeBudget", "sidebarDescription")}
       navLabel="Finance"
       navItems={financeNavItems("/app/church-admin/finance/budgets")}
     >
       <Stack gap="lg">
         <Group justify="space-between" align="center">
-          <Group gap="xs"><BookOpen size={20} /><Title order={3}>Budgets</Title></Group>
-          <Button leftSection={<Plus size={16} />} onClick={open} size="sm">New Budget</Button>
+          <Group gap="xs">
+            <BookOpen size={20} />
+            <Title order={3}>{t("financeBudget", "pageTitle")}</Title>
+          </Group>
+          <Button leftSection={<Plus size={16} />} onClick={open} size="sm">
+            {t("financeBudget", "newBudget")}
+          </Button>
         </Group>
 
         {!selectedBudget && (
           <>
             {budgets.length === 0 ? (
               <Paper withBorder p="xl" radius="md" ta="center">
-                <Text c="dimmed">No budgets yet. Create your first budget.</Text>
+                <Text c="dimmed">{t("financeBudget", "noBudgetsYet")}</Text>
               </Paper>
             ) : (
               <Paper withBorder p="md" radius="md">
                 <Table striped highlightOnHover>
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th>Name</Table.Th>
-                      <Table.Th>Fiscal Year</Table.Th>
-                      <Table.Th>Status</Table.Th>
+                      <Table.Th>{t("financeBudget", "thName")}</Table.Th>
+                      <Table.Th>{t("financeBudget", "thFiscalYear")}</Table.Th>
+                      <Table.Th>{t("financeBudget", "thStatus")}</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
@@ -121,7 +131,11 @@ export function FinanceBudgetWorkspace({
                       <Table.Tr key={b.id}>
                         <Table.Td><Link href={`/app/church-admin/finance/budgets/${b.id}`}>{b.name}</Link></Table.Td>
                         <Table.Td>{b.fiscalYear}</Table.Td>
-                        <Table.Td><Badge color={b.isActive ? "green" : "gray"} size="sm">{b.isActive ? "Active" : "Inactive"}</Badge></Table.Td>
+                        <Table.Td>
+                          <Badge color={b.isActive ? "green" : "gray"} size="sm">
+                            {b.isActive ? t("financeBudget", "statusActive") : t("financeBudget", "statusInactive")}
+                          </Badge>
+                        </Table.Td>
                       </Table.Tr>
                     ))}
                   </Table.Tbody>
@@ -134,23 +148,23 @@ export function FinanceBudgetWorkspace({
         {selectedBudget && (
           <Stack gap="md">
             <Group gap="xs">
-              <Text c="dimmed" size="sm"><Link href="/app/church-admin/finance/budgets">Budgets</Link> /</Text>
+              <Text c="dimmed" size="sm"><Link href="/app/church-admin/finance/budgets">{t("financeBudget", "pageTitle")}</Link> /</Text>
               <Text size="sm" fw={600}>{selectedBudget.name}</Text>
               <Badge size="sm">{selectedBudget.fiscalYear}</Badge>
             </Group>
 
             {varianceRows.length > 0 ? (
               <Paper withBorder p="md" radius="md">
-                <Text fw={600} mb="sm">Actuals vs. Budget</Text>
+                <Text fw={600} mb="sm">{t("financeBudget", "actualsHeading")}</Text>
                 <Table striped highlightOnHover>
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th>Code</Table.Th>
-                      <Table.Th>Account</Table.Th>
-                      <Table.Th>Type</Table.Th>
-                      <Table.Th style={{ textAlign: "right" }}>Budgeted</Table.Th>
-                      <Table.Th style={{ textAlign: "right" }}>Actual</Table.Th>
-                      <Table.Th style={{ textAlign: "right" }}>Variance</Table.Th>
+                      <Table.Th>{t("financeBudget", "thCode")}</Table.Th>
+                      <Table.Th>{t("financeBudget", "thAccount")}</Table.Th>
+                      <Table.Th>{t("financeBudget", "thType")}</Table.Th>
+                      <Table.Th style={{ textAlign: "right" }}>{t("financeBudget", "thBudgeted")}</Table.Th>
+                      <Table.Th style={{ textAlign: "right" }}>{t("financeBudget", "thActual")}</Table.Th>
+                      <Table.Th style={{ textAlign: "right" }}>{t("financeBudget", "thVariance")}</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
@@ -171,7 +185,7 @@ export function FinanceBudgetWorkspace({
               </Paper>
             ) : (
               <Paper withBorder p="md" radius="md">
-                <Text fw={600} mb="sm">Set Budget Lines</Text>
+                <Text fw={600} mb="sm">{t("financeBudget", "setBudgetLinesHeading")}</Text>
                 <Stack gap="xs">
                   {[...incomeAccounts, ...expenseAccounts].map((acct) => (
                     <Group key={acct.id} justify="space-between">
@@ -185,7 +199,9 @@ export function FinanceBudgetWorkspace({
                   ))}
                 </Stack>
                 <Group justify="flex-end" mt="md">
-                  <Button loading={isPending} onClick={handleSaveLines}>Save Budget Lines</Button>
+                  <Button loading={isPending} onClick={handleSaveLines}>
+                    {t("financeBudget", "saveBudgetLines")}
+                  </Button>
                 </Group>
               </Paper>
             )}
@@ -193,13 +209,24 @@ export function FinanceBudgetWorkspace({
         )}
       </Stack>
 
-      <Modal opened={opened} onClose={close} title="New Budget">
+      <Modal opened={opened} onClose={close} title={t("financeBudget", "modalTitle")}>
         <Stack gap="sm">
-          <TextInput label="Name" placeholder="e.g. 2026 Annual Budget" value={budgetName} onChange={(e) => setBudgetName(e.currentTarget.value)} required />
-          <Select label="Fiscal Year" data={yearOptions} value={fiscalYear} onChange={(v) => setFiscalYear(v ?? fiscalYear)} />
+          <TextInput
+            label={t("financeBudget", "nameLabel")}
+            placeholder={t("financeBudget", "namePlaceholder")}
+            value={budgetName}
+            onChange={(e) => setBudgetName(e.currentTarget.value)}
+            required
+          />
+          <Select
+            label={t("financeBudget", "fiscalYearLabel")}
+            data={yearOptions}
+            value={fiscalYear}
+            onChange={(v) => setFiscalYear(v ?? fiscalYear)}
+          />
           <Group justify="flex-end" mt="sm">
-            <Button variant="subtle" onClick={close}>Cancel</Button>
-            <Button loading={isPending} onClick={handleCreateBudget}>Create</Button>
+            <Button variant="subtle" onClick={close}>{t("financeBudget", "cancel")}</Button>
+            <Button loading={isPending} onClick={handleCreateBudget}>{t("financeBudget", "create")}</Button>
           </Group>
         </Stack>
       </Modal>

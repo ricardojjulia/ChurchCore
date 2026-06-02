@@ -13,6 +13,7 @@ import {
 import { BarChart2, DollarSign, RefreshCw, TrendingUp } from "lucide-react";
 
 import { ApplicationShell } from "@/components/application/app-shell";
+import { useI18n } from "@/components/i18n-provider";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { GivingAnalyticsData, GivingDashboardData, DonationEntry } from "@/lib/donations-data";
 import { GivingAnalyticsPanel } from "@/components/application/giving-analytics";
@@ -50,7 +51,16 @@ export function GivingDashboard({
   data: GivingDashboardData;
   analytics?: GivingAnalyticsData;
 }) {
+  const { t } = useI18n();
   const { recentDonations, reportByFund, totalThisMonth, totalAllTime, recurringCount } = data;
+
+  const donationStatusLabel: Record<string, string> = {
+    pending: t("givingAdmin", "donationStatusPending"),
+    succeeded: t("givingAdmin", "donationStatusSucceeded"),
+    failed: t("givingAdmin", "donationStatusFailed"),
+    refunded: t("givingAdmin", "donationStatusRefunded"),
+    cancelled: t("givingAdmin", "donationStatusCancelled"),
+  };
 
   const navItems = [
     {
@@ -61,7 +71,7 @@ export function GivingDashboard({
     },
     {
       href: "/app/giving",
-      label: "Giving",
+      label: t("givingAdmin", "dashPageTitle"),
       description: "Donation reports",
       icon: BarChart2,
       active: true,
@@ -79,19 +89,19 @@ export function GivingDashboard({
       session={session}
       workspaceHref="/app/pastor"
       calendarHref="/app/calendar"
-      sectionLabel="Leadership"
-      title="Giving Overview"
+      sectionLabel={t("givingAdmin", "dashSectionLabel")}
+      title={t("givingAdmin", "dashPageTitle")}
       description={session.appContext.church.name}
-      sidebarTitle="Giving Dashboard"
-      sidebarDescription="Voluntary giving summaries and fund trends. All donor data is handled with care."
-      navLabel="Leadership"
+      sidebarTitle={t("givingAdmin", "dashSidebarTitle")}
+      sidebarDescription={t("givingAdmin", "dashSidebarDescription")}
+      navLabel={t("givingAdmin", "dashSectionLabel")}
       navItems={navItems}
     >
       {/* Summary cards */}
       <Group grow mb="lg" align="stretch">
         <Paper withBorder p="md" radius="md">
           <Text fz="xs" c="dimmed">
-            This month
+            {t("givingAdmin", "thisMonth")}
           </Text>
           <Text fz="xl" fw={700}>
             {formatCents(totalThisMonth)}
@@ -99,7 +109,7 @@ export function GivingDashboard({
         </Paper>
         <Paper withBorder p="md" radius="md">
           <Text fz="xs" c="dimmed">
-            All time
+            {t("givingAdmin", "allTime")}
           </Text>
           <Text fz="xl" fw={700}>
             {formatCents(totalAllTime)}
@@ -110,7 +120,7 @@ export function GivingDashboard({
             <RefreshCw size={16} color="var(--mantine-color-blue-6)" />
             <Stack gap={0}>
               <Text fz="xs" c="dimmed">
-                Active recurring
+                {t("givingAdmin", "activeRecurring")}
               </Text>
               <Text fz="xl" fw={700}>
                 {recurringCount}
@@ -123,14 +133,14 @@ export function GivingDashboard({
       <Tabs defaultValue="recent" radius="xl">
         <Tabs.List>
           <Tabs.Tab value="recent" leftSection={<DollarSign size={14} />}>
-            Recent Gifts
+            {t("givingAdmin", "tabRecentGifts")}
           </Tabs.Tab>
           <Tabs.Tab value="funds" leftSection={<BarChart2 size={14} />}>
-            By Fund
+            {t("givingAdmin", "tabByFund")}
           </Tabs.Tab>
           {analytics && (
             <Tabs.Tab value="analytics" leftSection={<TrendingUp size={14} />}>
-              Analytics
+              {t("givingAdmin", "tabAnalyticsDash")}
             </Tabs.Tab>
           )}
         </Tabs.List>
@@ -141,12 +151,12 @@ export function GivingDashboard({
             <Table striped highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Date</Table.Th>
-                  <Table.Th>Amount</Table.Th>
-                  <Table.Th>Fund</Table.Th>
-                  <Table.Th>Donor</Table.Th>
-                  <Table.Th>Type</Table.Th>
-                  <Table.Th>Status</Table.Th>
+                  <Table.Th>{t("givingAdmin", "thDate")}</Table.Th>
+                  <Table.Th>{t("givingAdmin", "thAmount")}</Table.Th>
+                  <Table.Th>{t("givingAdmin", "thFund")}</Table.Th>
+                  <Table.Th>{t("givingAdmin", "thDonor")}</Table.Th>
+                  <Table.Th>{t("givingAdmin", "thType")}</Table.Th>
+                  <Table.Th>{t("givingAdmin", "thStatus")}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -154,7 +164,7 @@ export function GivingDashboard({
                   <Table.Tr>
                     <Table.Td colSpan={6}>
                       <Text fz="sm" c="dimmed" ta="center" py="sm">
-                        No donations recorded yet.
+                        {t("givingAdmin", "noDonationsYet")}
                       </Text>
                     </Table.Td>
                   </Table.Tr>
@@ -170,23 +180,23 @@ export function GivingDashboard({
                         </Text>
                       </Table.Td>
                       <Table.Td>
-                        <Text fz="xs">{d.fundDesignation ?? "General"}</Text>
+                        <Text fz="xs">{d.fundDesignation ?? t("givingAdmin", "fundFallback")}</Text>
                       </Table.Td>
                       <Table.Td>
                         <Text fz="xs" c="dimmed">
                           {d.isAnonymous
-                            ? "Anonymous"
-                            : (d.donorName ?? "Member")}
+                            ? t("givingAdmin", "donorAnonymous")
+                            : (d.donorName ?? t("givingAdmin", "donorFallback"))}
                         </Text>
                       </Table.Td>
                       <Table.Td>
                         {d.isRecurring ? (
                           <Badge size="xs" color="blue" variant="light">
-                            Recurring
+                            {t("givingAdmin", "typeRecurring")}
                           </Badge>
                         ) : (
                           <Badge size="xs" color="gray" variant="light">
-                            One-time
+                            {t("givingAdmin", "typeOneTime")}
                           </Badge>
                         )}
                       </Table.Td>
@@ -196,7 +206,7 @@ export function GivingDashboard({
                           color={STATUS_COLORS[d.status]}
                           variant="dot"
                         >
-                          {d.status}
+                          {donationStatusLabel[d.status] ?? d.status}
                         </Badge>
                       </Table.Td>
                     </Table.Tr>
@@ -211,7 +221,7 @@ export function GivingDashboard({
         <Tabs.Panel value="funds" pt="lg">
           {reportByFund.length === 0 ? (
             <Text fz="sm" c="dimmed" ta="center" py="lg">
-              No fund data yet.
+              {t("givingAdmin", "noFundDataYet")}
             </Text>
           ) : (
             <Stack gap="sm">
@@ -241,11 +251,13 @@ export function GivingDashboard({
                         />
                         <Stack gap={2}>
                           <Text fz="sm" fw={600}>
-                            {row.fundDesignation ?? "General Fund"}
+                            {row.fundDesignation ?? t("givingAdmin", "generalFund")}
                           </Text>
                           <Text fz="xs" c="dimmed">
-                            {row.count} gift{row.count !== 1 ? "s" : ""} ·{" "}
-                            {row.recurringCount} recurring
+                            {row.count === 1
+                              ? t("givingAdmin", "giftSingular", { count: row.count })
+                              : t("givingAdmin", "giftPlural", { count: row.count })}{" "}
+                            · {row.recurringCount} {t("givingAdmin", "recurringLabel")}
                           </Text>
                         </Stack>
                       </Group>
@@ -268,7 +280,7 @@ export function GivingDashboard({
 
       {/* Privacy note */}
       <Text fz="xs" c="dimmed" ta="center" mt="xl">
-        Anonymous donations are shown without donor identity. All giving is voluntary and 100% church-controlled — ChurchCore takes no platform fees.
+        {t("givingAdmin", "privacyNote")}
       </Text>
     </ApplicationShell>
   );
