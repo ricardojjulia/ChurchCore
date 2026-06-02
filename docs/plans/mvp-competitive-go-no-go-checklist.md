@@ -112,23 +112,23 @@ Use this scoring line in each factory run:
 - Competitive 60 days: `NO-GO`
 - Highest blocker this week: service-planning depth remains the closest unresolved blocker for the MVP +2 weeks gate now that security evidence maintenance is consolidated.
 - Evidence links:
-	- [docs/plans/competitive-readiness-30-day-execution.md](docs/plans/competitive-readiness-30-day-execution.md)
-	- [docs/plans/competitive-readiness-roadmap.md](docs/plans/competitive-readiness-roadmap.md)
-	- [docs/mvp-readiness-audit.md](docs/mvp-readiness-audit.md)
-	- [docs/security-role-access-matrix.md](docs/security-role-access-matrix.md)
-	- [docs/security-assessment.md](docs/security-assessment.md)
-	- [docs/security-mitigation-plan.md](docs/security-mitigation-plan.md)
-	- [docs/testing-schema.md](docs/testing-schema.md)
-	- [docs/factory-runs/2026-05-29-findings4-5-6-depth-batch.md](docs/factory-runs/2026-05-29-findings4-5-6-depth-batch.md)
-	- `npm run setup:local` ✅
-	- `npm run smoke:local` ✅
-	- `npm run test:e2e:readiness` ✅ (3 passed, 1 skipped control-plane-context test)
-	- `npm run test:e2e:onboarding` ✅ (1 passed)
-	- `npm run test -- app/app/church-admin-actions.test.ts app/sign-in/actions.test.ts` ✅ (29 passed)
-	- `npm run lint` ✅
-	- `npm run test -- lib/communications-closure-guidance.test.ts lib/church-admin-readiness-modules.test.ts app/app/communications-actions.test.ts` ✅ (35 passed)
-	- `npm run build` ✅
-	- `npm run test -- app/app/church-admin/people/import/actions.test.ts app/app/church-admin-actions.test.ts app/app/communications-actions.test.ts app/app/member-actions.test.ts` ✅
+  - [docs/plans/competitive-readiness-30-day-execution.md](docs/plans/competitive-readiness-30-day-execution.md)
+  - [docs/plans/competitive-readiness-roadmap.md](docs/plans/competitive-readiness-roadmap.md)
+  - [docs/mvp-readiness-audit.md](docs/mvp-readiness-audit.md)
+  - [docs/security-role-access-matrix.md](docs/security-role-access-matrix.md)
+  - [docs/security-assessment.md](docs/security-assessment.md)
+  - [docs/security-mitigation-plan.md](docs/security-mitigation-plan.md)
+  - [docs/testing-schema.md](docs/testing-schema.md)
+  - [docs/factory-runs/2026-05-29-findings4-5-6-depth-batch.md](docs/factory-runs/2026-05-29-findings4-5-6-depth-batch.md)
+  - `npm run setup:local` ✅
+  - `npm run smoke:local` ✅
+  - `npm run test:e2e:readiness` ✅ (3 passed, 1 skipped control-plane-context test)
+  - `npm run test:e2e:onboarding` ✅ (1 passed)
+  - `npm run test -- app/app/church-admin-actions.test.ts app/sign-in/actions.test.ts` ✅ (29 passed)
+  - `npm run lint` ✅
+  - `npm run test -- lib/communications-closure-guidance.test.ts lib/church-admin-readiness-modules.test.ts app/app/communications-actions.test.ts` ✅ (35 passed)
+  - `npm run build` ✅
+  - `npm run test -- app/app/church-admin/people/import/actions.test.ts app/app/church-admin-actions.test.ts app/app/communications-actions.test.ts app/app/member-actions.test.ts` ✅
 
 ### Gate notes
 
@@ -148,10 +148,10 @@ Use this scoring line in each factory run:
 - Competitive 60 days: `TARGET NO-GO`
 - Highest blocker to close by this checkpoint: service-planning depth validation.
 - Expected gate changes:
-	- MVP Today local reliability gate moved to passing on clean-machine execution (`setup:local`, `smoke:local`, `test:e2e:readiness`).
-	- Onboarding browser path moved to passing with an executable end-to-end check from public registration through first sign-in (`npm run test:e2e:onboarding`).
-	- Communications unresolved-lane operations moved to passing with explicit operator closure workflow notes tied to tests/docs.
-	- Security evidence maintenance moved to passing with consolidated evidence links across the matrix, assessment, mitigation, and testing schema docs.
+  - MVP Today local reliability gate moved to passing on clean-machine execution (`setup:local`, `smoke:local`, `test:e2e:readiness`).
+  - Onboarding browser path moved to passing with an executable end-to-end check from public registration through first sign-in (`npm run test:e2e:onboarding`).
+  - Communications unresolved-lane operations moved to passing with explicit operator closure workflow notes tied to tests/docs.
+  - Security evidence maintenance moved to passing with consolidated evidence links across the matrix, assessment, mitigation, and testing schema docs.
 
 ### 2026-05-31 (interim verification run)
 
@@ -162,11 +162,11 @@ Use this scoring line in each factory run:
 - Competitive 60 days: `NO-GO`
 - Highest blocker this week: service-planning depth (worship/setlist planning unstarted); stripe refund lifecycle gap is Phase C.
 - Evidence:
-	- `npm run lint` ✅ (clean)
-	- `npm run build` ✅ (92 routes, 0 errors)
-	- `npm run smoke:local` ✅ (all 21 smoke checks passed)
-	- `npm run test:e2e:readiness` ✅ (3 passed, 1 skipped — control-plane context)
-	- `npm run test:e2e:onboarding` ✅ (1 passed)
+  - `npm run lint` ✅ (clean)
+  - `npm run build` ✅ (92 routes, 0 errors)
+  - `npm run smoke:local` ✅ (all 21 smoke checks passed)
+  - `npm run test:e2e:readiness` ✅ (3 passed, 1 skipped — control-plane context)
+  - `npm run test:e2e:onboarding` ✅ (1 passed)
 - Gate change: MVP +2 weeks moved from NO-GO to CONDITIONAL GO. All required Phase B gates now pass. Remaining soft gap: Spanish coverage for finance/communications routes (not a hard blocker). Next Phase C blockers: stripe refund flow, service-planning depth, import breadth beyond people/households.
 
 ### 2026-06-12 (checkpoint — verified)
@@ -204,3 +204,24 @@ Use this scoring line in each factory run:
   - MVP +2 weeks promoted to full GO: all ChurchAdmin communications and remaining finance route strings covered by i18n.
   - Communications operational depth improved: auto-retry for failed sends, unsubscribe link auto-injection into outbound emails.
   - Events import available at dry-run + commit level.
+
+### 2026-06-19 (checkpoint — verified)
+
+- Owner: Product + Engineering
+- MVP Today: `GO`
+- MVP +2 weeks: `GO` (promoted from CONDITIONAL GO — Spanish coverage closed)
+- Competitive 30 days: `NO-GO` (further risk-reduced — comms depth closed, events import added)
+- Competitive 60 days: `NO-GO`
+- Highest remaining blocker: giving/attendance import breadth; full communications provider depth (Twilio SMS production path); member mobile hardening.
+- Evidence:
+  - `npm run lint` ✅ (clean on source files)
+  - `npm run build` ✅ (94 routes, 0 errors)
+  - `npm run smoke:local` ✅ (all checks passed)
+  - `npm run test:e2e:readiness` ✅ (3 passed, 1 skipped — control-plane context)
+  - `npm run test:e2e:onboarding` ✅ (1 passed)
+  - `npm run test` ✅ (559 passed, 70 files)
+- Gate changes this cycle:
+  - WS-C4: Spanish coverage closed — 6 components fully covered (communications, finance accounts, finance budget, finance dashboard, giving admin, giving dashboard); 186 translated keys across 5 namespaces; MVP +2 weeks promoted to full GO.
+  - WS-C5: Communications operational depth closed — Vercel cron auto-retries transient failures every 15 min; unsubscribe link auto-injected into every outbound email; operator bulk-retry action added to comms hub.
+  - WS-C6: Events import at dry-run + commit level — source_id dedup, 3 source adapters, ISO 8601 validation, ministry matching with warning; `/app/church-admin/events/import` route live.
+- Remaining Phase C blockers (next brief): giving/attendance import, Twilio SMS production depth, member mobile hardening for competitive readiness.
