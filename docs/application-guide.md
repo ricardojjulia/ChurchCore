@@ -194,6 +194,8 @@ Admins can review donation activity, giving analytics, fund mappings, receipt ga
 
 The readiness link `/app/church-admin/giving?view=exceptions` opens a focused exception view for failed gifts, unposted gifts, unsent receipts, draft journal count, and public giving page status. Mapped unposted gifts can be posted to the general ledger from the readiness view; failed gifts and receipt gaps link to the next review workflow.
 
+Donations can be bulk-imported from CSV files exported from Planning Center, Breeze, or any generic CSV source. The import flow runs a dry-run classification first (showing `create`, `update`, `skip`, and `reject` rows with reasons) before committing. Each row is matched to an existing donation by `source_id` for idempotent re-imports. Rows are rejected for missing or blank amounts, invalid amounts (zero, negative, or non-numeric), or non-ISO 8601 `donated_at`. Duplicate source IDs within the same file are skipped. Donor emails are resolved against existing church profiles; unmatched donors are flagged in the dry-run preview and the donation is recorded as anonymous on create. On update, the existing `is_anonymous` value is preserved and not overwritten. Imported donations use `status='succeeded'` (all historical giving), `currency='usd'` (single-currency MVP), and `created_at` from the `donated_at` field if provided. Stripe fields (`stripe_payment_intent_id`, `stripe_subscription_id`, `stripe_customer_id`, `receipt_sent_at`) are not set during import. The `autoPostToGl` path is never triggered by this import. The import entry point for UI wiring is `/app/church-admin/giving/import`.
+
 ### Finance
 
 Path: `/app/church-admin/finance`

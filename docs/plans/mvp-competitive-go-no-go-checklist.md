@@ -225,3 +225,18 @@ Use this scoring line in each factory run:
   - WS-C5: Communications operational depth closed — Vercel cron auto-retries transient failures every 15 min; unsubscribe link auto-injected into every outbound email; operator bulk-retry action added to comms hub.
   - WS-C6: Events import at dry-run + commit level — source_id dedup, 3 source adapters, ISO 8601 validation, ministry matching with warning; `/app/church-admin/events/import` route live.
 - Remaining Phase C blockers (next brief): giving/attendance import, Twilio SMS production depth, member mobile hardening for competitive readiness.
+
+### 2026-06-26 (planned checkpoint)
+
+- Owner: Product + Engineering (weekly readiness review in planning sync)
+- Execution brief: [docs/plans/2026-06-26-execution-brief.md](docs/plans/2026-06-26-execution-brief.md)
+- Sequence status (2026-06-02): WS-C7 attendance import, WS-C8 giving import, WS-C9 SMS depth are all planned.
+- MVP Today: `TARGET GO`
+- MVP +2 weeks: `TARGET GO`
+- Competitive 30 days: `TARGET GO` (all required Phase C gates closed)
+- Competitive 60 days: `TARGET NO-GO`
+- Highest blocker to close by this checkpoint: import breadth gate (attendance + giving).
+- Expected gate changes:
+  - Phase C import gate fully satisfied: attendance and giving imports at dry-run + commit level.
+  - SMS channel depth closed: retry cron covers SMS, suppression UI extended.
+  - Competitive 30 days promotes to GO.

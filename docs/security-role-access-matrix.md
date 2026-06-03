@@ -22,6 +22,8 @@ This matrix records allowed roles and verification evidence for high-sensitivity
 
 | Surface | Allowed roles | Denied roles | Evidence |
 | --- | --- | --- | --- |
+| ChurchAdmin giving import dry-run action | ChurchAdmin | Pastor, Ministry Leader, Secretary, Member, Public | [app/app/church-admin/giving/import/actions.test.ts](app/app/church-admin/giving/import/actions.test.ts) |
+| ChurchAdmin giving import commit action | ChurchAdmin | Pastor, Ministry Leader, Secretary, Member, Public | [app/app/church-admin/giving/import/actions.test.ts](app/app/church-admin/giving/import/actions.test.ts) |
 | ChurchAdmin people import route (`/app/church-admin/people/import`) | ChurchAdmin | Pastor, Ministry Leader, Secretary, Member, Public | Route gate in [app/app/church-admin/people/import/page.tsx](app/app/church-admin/people/import/page.tsx) and action tests in [app/app/church-admin/people/import/actions.test.ts](app/app/church-admin/people/import/actions.test.ts) |
 | People import dry-run action | ChurchAdmin | Pastor, Ministry Leader, Secretary, Member, Public | [app/app/church-admin/people/import/actions.test.ts](app/app/church-admin/people/import/actions.test.ts) |
 | People import commit action | ChurchAdmin | Pastor, Ministry Leader, Secretary, Member, Public | [app/app/church-admin/people/import/actions.test.ts](app/app/church-admin/people/import/actions.test.ts) |
