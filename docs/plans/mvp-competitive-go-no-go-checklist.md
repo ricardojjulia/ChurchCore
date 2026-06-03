@@ -262,3 +262,18 @@ Use this scoring line in each factory run:
   - Phase C import gate: people/households ✅ groups ✅ events ✅ attendance ✅ giving ✅ — all five entities covered.
   - **Competitive 30 days: GO.**
 - Remaining Phase D blockers (next cycle): communications provider depth at production depth (idempotent webhooks production-wired), mobile member workflow reliability, migration/import vendor adapter breadth for Phase D.
+
+### 2026-07-03 (planned checkpoint)
+
+- Owner: Product + Engineering (weekly readiness review in planning sync)
+- Execution brief: [docs/plans/2026-07-03-execution-brief.md](docs/plans/2026-07-03-execution-brief.md)
+- Sequence status (2026-06-03): WS-D1 production deployment readiness, WS-D2 buyer-facing proof package, WS-D3 security proof operationalization are all planned.
+- MVP Today: `TARGET GO`
+- MVP +2 weeks: `TARGET GO`
+- Competitive 30 days: `TARGET GO`
+- Competitive 60 days: `TARGET NO-GO` (risk reduction expected)
+- Highest blocker to close by this checkpoint: production deployment docs (WS-D1).
+- Expected gate changes:
+  - Production deployment documented end-to-end; Stripe refund webhook Supabase path closed.
+  - Buyer-facing positioning and security story published.
+  - Security matrix refreshed for Phase C; RELEASE_CHECKLIST.md codified.
