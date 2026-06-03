@@ -240,3 +240,25 @@ Use this scoring line in each factory run:
   - Phase C import gate fully satisfied: attendance and giving imports at dry-run + commit level.
   - SMS channel depth closed: retry cron covers SMS, suppression UI extended.
   - Competitive 30 days promotes to GO.
+
+### 2026-06-26 (checkpoint — verified)
+
+- Owner: Product + Engineering
+- MVP Today: `GO`
+- MVP +2 weeks: `GO`
+- Competitive 30 days: `GO` (all required Phase C gates closed)
+- Competitive 60 days: `NO-GO`
+- Evidence:
+  - `npm run lint` ✅ (clean on source files)
+  - `npm run build` ✅ (96 routes, 0 errors)
+  - `npm run smoke:local` ✅ (all checks passed)
+  - `npm run test:e2e:readiness` ✅ (3 passed, 1 skipped — control-plane context)
+  - `npm run test:e2e:onboarding` ✅ (1 passed)
+  - `npm run test` ✅ (682 passed, 76 files)
+- Gate changes this cycle:
+  - WS-C7: Attendance import at dry-run + commit — source_id dedup, 3 adapters, in-file and DB present-dup guards, unmatched profile/event warnings.
+  - WS-C8: Giving import at dry-run + commit — amount validation, donor matching, is_anonymous preserved on update, no GL posting, GL reconciliation notice.
+  - WS-C9: Verified complete — retry cron covers SMS channel, suppression UI supports SMS (no new code needed).
+  - Phase C import gate: people/households ✅ groups ✅ events ✅ attendance ✅ giving ✅ — all five entities covered.
+  - **Competitive 30 days: GO.**
+- Remaining Phase D blockers (next cycle): communications provider depth at production depth (idempotent webhooks production-wired), mobile member workflow reliability, migration/import vendor adapter breadth for Phase D.
