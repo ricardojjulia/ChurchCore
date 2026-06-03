@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 
 import {
+  createTenantAdminClient,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
@@ -135,18 +136,71 @@ async function handlePaymentIntentSucceeded(pi: {
     return;
   }
 
-  // Supabase path — requires createTenantServerClient which needs
-  // churchId resolution. The webhook arrives without a session, so we
-  // use the platform-level Supabase service client to route to the
-  // correct tenant.  This is a future integration point; for now the
-  // local-fallback path above handles dev/staging and the confirmation
-  // client-action (confirmDonationAction) handles prod until the
-  // tenant routing plumbing is wired.
-  //
-  // When full multi-tenant routing via the control-plane is ready,
-  // replace this comment with:
-  //   const tenantClient = await createTenantClientForChurch(churchId);
-  //   then call the same update + GL post + receipt flow.
+  // Supabase path
+  const supabase = createTenantAdminClient();
+
+  const resolvedRegistrationId =
+    registrationId ??
+    (await resolveRegistrationIdFromPaymentIntent(pi.id, churchId));
+
+  if (resolvedRegistrationId) {
+    await supabase
+      .from("event_registrations")
+      .update({
+        payment_status: "paid",
+        stripe_payment_intent_id: pi.id,
+        amount_paid_cents: pi.amount,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", resolvedRegistrationId)
+      .eq("church_id", churchId);
+
+    await supabase
+      .from("event_registration_payments")
+      .update({
+        status: "succeeded",
+        payment_intent_id: pi.id,
+        amount_cents: pi.amount,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("registration_id", resolvedRegistrationId)
+      .eq("church_id", churchId);
+  }
+
+  const { data: donation } = await supabase
+    .from("donations")
+    .update({ status: "succeeded", updated_at: new Date().toISOString() })
+    .eq("church_id", churchId)
+    .eq("stripe_payment_intent_id", pi.id)
+    .select("id, donor_email, donor_name, amount_cents, fund_designation")
+    .maybeSingle();
+
+  if (!donation) return;
+
+  // autoPostToGl uses local SQL only — deferred for Supabase path (Q1 accepted)
+
+  const d = donation as {
+    id: string;
+    donor_email: string | null;
+    donor_name: string | null;
+    amount_cents: number;
+    fund_designation: string | null;
+  };
+
+  const recipientEmail = d.donor_email ?? pi.receipt_email;
+  if (recipientEmail) {
+    await sendReceiptEmail(
+      recipientEmail,
+      d.donor_name,
+      d.amount_cents,
+      d.fund_designation,
+      d.id,
+    );
+    await supabase
+      .from("donations")
+      .update({ receipt_sent_at: new Date().toISOString() })
+      .eq("id", d.id);
+  }
 }
 
 async function handlePaymentIntentFailed(pi: {
@@ -162,66 +216,116 @@ async function handlePaymentIntentFailed(pi: {
   };
 }) {
   const churchId = pi.metadata?.church_id;
-  if (!churchId || !shouldUseLocalTenantFallback()) return;
+  if (!churchId) return;
 
   const registrationId =
     pi.metadata?.event_registration_id ?? pi.metadata?.registration_id;
 
-  const resolvedRegistrationId = registrationId ?? await resolveRegistrationIdFromPaymentIntent(
-    pi.id,
-    churchId,
-  );
-
-  if (resolvedRegistrationId) {
-    await queryTenantLocalDb(
-      `update public.event_registrations
-       set payment_status = 'failed',
-           stripe_payment_intent_id = $3,
-           updated_at = now()
-       where id = $1 and church_id = $2`,
-      [resolvedRegistrationId, churchId, pi.id],
+  if (shouldUseLocalTenantFallback()) {
+    const resolvedRegistrationId = registrationId ?? await resolveRegistrationIdFromPaymentIntent(
+      pi.id,
+      churchId,
     );
 
+    if (resolvedRegistrationId) {
+      await queryTenantLocalDb(
+        `update public.event_registrations
+         set payment_status = 'failed',
+             stripe_payment_intent_id = $3,
+             updated_at = now()
+         where id = $1 and church_id = $2`,
+        [resolvedRegistrationId, churchId, pi.id],
+      );
+
+      await queryTenantLocalDb(
+        `update public.event_registration_payments
+         set status = 'failed',
+             payment_intent_id = $3,
+             failure_code = $4,
+             failure_message = $5,
+             reconciled_at = now(),
+             updated_at = now()
+         where registration_id = $1 and church_id = $2`,
+        [
+          resolvedRegistrationId,
+          churchId,
+          pi.id,
+          pi.last_payment_error?.code ?? null,
+          pi.last_payment_error?.message ?? null,
+        ],
+      );
+    }
+
     await queryTenantLocalDb(
-      `update public.event_registration_payments
-       set status = 'failed',
-           payment_intent_id = $3,
-           failure_code = $4,
-           failure_message = $5,
-           reconciled_at = now(),
-           updated_at = now()
-       where registration_id = $1 and church_id = $2`,
-      [
-        resolvedRegistrationId,
-        churchId,
-        pi.id,
-        pi.last_payment_error?.code ?? null,
-        pi.last_payment_error?.message ?? null,
-      ],
+      `update public.donations
+       set status = 'failed', updated_at = now()
+       where stripe_payment_intent_id = $1 and church_id = $2 and status = 'pending'`,
+      [pi.id, churchId],
     );
+    return;
   }
 
-  await queryTenantLocalDb(
-    `update public.donations
-     set status = 'failed', updated_at = now()
-     where stripe_payment_intent_id = $1 and church_id = $2 and status = 'pending'`,
-    [pi.id, churchId],
-  );
+  // Supabase path
+  const supabase = createTenantAdminClient();
+
+  const resolvedRegistrationId =
+    registrationId ??
+    (await resolveRegistrationIdFromPaymentIntent(pi.id, churchId));
+
+  if (resolvedRegistrationId) {
+    await supabase
+      .from("event_registrations")
+      .update({
+        payment_status: "failed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", resolvedRegistrationId)
+      .eq("church_id", churchId);
+
+    await supabase
+      .from("event_registration_payments")
+      .update({
+        status: "failed",
+        failure_code: pi.last_payment_error?.code ?? null,
+        failure_message: pi.last_payment_error?.message ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("registration_id", resolvedRegistrationId)
+      .eq("church_id", churchId);
+  }
+
+  await supabase
+    .from("donations")
+    .update({ status: "failed", updated_at: new Date().toISOString() })
+    .eq("church_id", churchId)
+    .eq("stripe_payment_intent_id", pi.id);
 }
 
 async function resolveRegistrationIdFromPaymentIntent(
   paymentIntentId: string,
   churchId: string,
 ) {
-  const result = await queryTenantLocalDb<{ registration_id: string }>(
-    `select registration_id
-     from public.event_registration_payments
-     where payment_intent_id = $1 and church_id = $2
-     limit 1`,
-    [paymentIntentId, churchId],
-  );
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ registration_id: string }>(
+      `select registration_id
+       from public.event_registration_payments
+       where payment_intent_id = $1 and church_id = $2
+       limit 1`,
+      [paymentIntentId, churchId],
+    );
 
-  return result.rows[0]?.registration_id ?? null;
+    return result.rows[0]?.registration_id ?? null;
+  }
+
+  // Supabase path
+  const supabase = createTenantAdminClient();
+  const { data } = await supabase
+    .from("event_registration_payments")
+    .select("registration_id")
+    .eq("church_id", churchId)
+    .eq("payment_intent_id", paymentIntentId)
+    .maybeSingle();
+  return (data as { registration_id: string } | null)?.registration_id ?? null;
 }
 
 async function handleChargeRefunded(charge: {
@@ -246,8 +350,6 @@ async function handleChargeRefunded(charge: {
     return;
   }
 
-  if (!shouldUseLocalTenantFallback()) return;
-
   const paymentIntentId = charge.payment_intent;
   if (!paymentIntentId) return;
 
@@ -264,39 +366,89 @@ async function handleChargeRefunded(charge: {
   const refundId = refund.id;
   const refundAmountCents = refund.amount;
 
-  // Idempotency: skip if this refund has already been recorded
-  const existing = await queryTenantLocalDb<{ registration_id: string }>(
-    `select registration_id
-     from public.event_registration_payments
-     where refund_id = $1
-     limit 1`,
-    [refundId],
-  );
-  if (existing.rows[0]) return;
-
   const status =
-    charge.amount_refunded >= charge.amount ? 'refunded' : 'partially_refunded';
+    charge.amount_refunded >= charge.amount ? "refunded" : "partially_refunded";
 
-  await queryTenantLocalDb(
-    `update public.event_registrations
-     set payment_status = $2,
-         updated_at = now()
-     where id = $1 and church_id = $3`,
-    [registrationId, status, churchId],
-  );
+  if (shouldUseLocalTenantFallback()) {
+    // Idempotency: skip if this refund has already been recorded
+    const existing = await queryTenantLocalDb<{ registration_id: string }>(
+      `select registration_id
+       from public.event_registration_payments
+       where refund_id = $1
+       limit 1`,
+      [refundId],
+    );
+    if (existing.rows[0]) return;
 
-  await queryTenantLocalDb(
-    `update public.event_registration_payments
-     set status = $2,
-         refund_id = $3,
-         refund_amount_cents = $4,
-         refund_completed_at = now(),
-         updated_at = now()
-     where registration_id = $1 and church_id = $5`,
-    [registrationId, status, refundId, refundAmountCents, churchId],
-  );
+    await queryTenantLocalDb(
+      `update public.event_registrations
+       set payment_status = $2,
+           updated_at = now()
+       where id = $1 and church_id = $3`,
+      [registrationId, status, churchId],
+    );
 
-  // GL reversal — best-effort, does not fail the webhook acknowledgement
+    await queryTenantLocalDb(
+      `update public.event_registration_payments
+       set status = $2,
+           refund_id = $3,
+           refund_amount_cents = $4,
+           refund_completed_at = now(),
+           updated_at = now()
+       where registration_id = $1 and church_id = $5`,
+      [registrationId, status, refundId, refundAmountCents, churchId],
+    );
+
+    // GL reversal — best-effort, does not fail the webhook acknowledgement
+    try {
+      await reverseGlEntryForRefund({
+        churchId,
+        registrationId,
+        amountCents: refundAmountCents,
+        refundId,
+        refundedAt: new Date().toISOString(),
+        profileId: null, // no actor session available in webhook context
+      });
+    } catch (glErr) {
+      console.error("[stripe-webhook] GL reversal failed (non-blocking):", glErr);
+    }
+    return;
+  }
+
+  // Supabase path
+  const supabase = createTenantAdminClient();
+
+  // Idempotency: skip if this refund has already been recorded
+  const { data: existingRefund } = await supabase
+    .from("event_registration_payments")
+    .select("id")
+    .eq("church_id", churchId)
+    .eq("refund_id", refundId)
+    .maybeSingle();
+  if (existingRefund) return;
+
+  await supabase
+    .from("event_registrations")
+    .update({
+      payment_status: status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", registrationId)
+    .eq("church_id", churchId);
+
+  await supabase
+    .from("event_registration_payments")
+    .update({
+      status,
+      refund_id: refundId,
+      refund_amount_cents: refundAmountCents,
+      refund_completed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("registration_id", registrationId)
+    .eq("church_id", churchId);
+
+  // GL reversal — best-effort, will be a no-op until GL is wired for Supabase
   try {
     await reverseGlEntryForRefund({
       churchId,
@@ -304,7 +456,7 @@ async function handleChargeRefunded(charge: {
       amountCents: refundAmountCents,
       refundId,
       refundedAt: new Date().toISOString(),
-      profileId: null, // no actor session available in webhook context
+      profileId: null,
     });
   } catch (glErr) {
     console.error("[stripe-webhook] GL reversal failed (non-blocking):", glErr);
