@@ -277,3 +277,21 @@ Use this scoring line in each factory run:
   - Production deployment documented end-to-end; Stripe refund webhook Supabase path closed.
   - Buyer-facing positioning and security story published.
   - Security matrix refreshed for Phase C; RELEASE_CHECKLIST.md codified.
+
+### 2026-07-03 (checkpoint — verified)
+
+- Owner: Product + Engineering
+- MVP Today: `GO`
+- MVP +2 weeks: `GO`
+- Competitive 30 days: `GO`
+- Competitive 60 days: `NO-GO` (risk-reduced)
+- Evidence:
+  - `npm run lint` ✅ (clean on source files)
+  - `npm run build` ✅ (96 routes, 0 errors)
+  - `npm run smoke:local` ✅ (all checks passed)
+  - `npm run test` ✅ (689 passed, 76 files)
+- Gate changes this cycle:
+  - WS-D1: Stripe webhook Supabase paths closed — handleChargeRefunded, handlePaymentIntentSucceeded, handlePaymentIntentFailed all production-ready; docs/setup/production-deployment.md published.
+  - WS-D2: Buyer-facing proof package published — docs/buyer/competitive-overview.md (honest feature matrix vs incumbents) and docs/buyer/security-privacy-story.md (plain-language trust doc).
+  - WS-D3: Security proof operationalized — RELEASE_CHECKLIST.md at repo root; security role-access matrix refreshed for 9 Phase C surfaces.
+- Remaining Phase D blockers: push notification delivery (native or web-push), deeper mobile member analytics, broader release-gate automation in CI, autoPostToGl Supabase path.
