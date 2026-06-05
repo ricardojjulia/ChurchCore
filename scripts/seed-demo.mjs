@@ -172,6 +172,32 @@ function sundayDate(weeksBack) {
   return sundaysAgo(weeksBack).slice(0, 10);
 }
 
+function hoursAfter(isoString, h) {
+  return new Date(new Date(isoString).getTime() + h * 3600000).toISOString();
+}
+
+// ── Step 0: Delete auto-created profiles from auth trigger ───────────────────
+// Supabase auth triggers can auto-create profiles on user creation.
+// Delete them first so we can insert with our stable fixed IDs.
+
+async function deleteAutoCreatedProfiles() {
+  const demoEmails = DEMO_USERS.map(u => u.email);
+  // Delete FK dependents before deleting profiles
+  await supabase.from('ccm_volunteer_assignments').delete().eq('church_id', CHURCH_ID);
+  const { error } = await supabase.from('profiles').delete().in('email', demoEmails);
+  if (error) console.warn(`  WARN pre-delete profiles: ${error.message}`);
+}
+
+async function deleteFinanceData() {
+  // Delete in reverse FK order so no constraint violations
+  await supabase.from('finance_budget_lines').delete().eq('church_id', CHURCH_ID);
+  await supabase.from('finance_budgets').delete().eq('church_id', CHURCH_ID);
+  await supabase.from('finance_journal_lines').delete().eq('church_id', CHURCH_ID);
+  await supabase.from('finance_journals').delete().eq('church_id', CHURCH_ID);
+  await supabase.from('giving_fund_accounts').delete().eq('church_id', CHURCH_ID);
+  await supabase.from('finance_accounts').delete().eq('church_id', CHURCH_ID);
+}
+
 // ── Step 1: Create auth users ──────────────────────────────────────────────────
 
 const DEMO_USERS = [
@@ -331,52 +357,52 @@ async function seedProfiles(authIds) {
   const directoryProfiles = [
     {
       id: PROFILE_IDS.james,  church_id: CHURCH_ID, full_name: 'James Ortega',   email: 'james@graceharbor.church',  phone: '555-1103',
-      role: 'member_volunteer', display_title: 'Worship Leader', membership_status: 'active', account_status: 'active',
+      role: 'member_volunteer', display_title: 'Worship Leader', is_pastoral: false, membership_status: 'active', account_status: 'active',
       member_number: 'GH-D006', family_id: FAMILY_IDS.ortega, is_roster_eligible: true, preferred_contact_method: 'email', directory_visible: true, contact_allowed: true, joined_date: '2022-09-18',
     },
     {
       id: PROFILE_IDS.aisha,  church_id: CHURCH_ID, full_name: 'Aisha Thompson', email: 'aisha@graceharbor.church',  phone: '555-1104',
-      role: 'member_volunteer', display_title: null, membership_status: 'active', account_status: 'active',
+      role: 'member_volunteer', display_title: null, is_pastoral: false, membership_status: 'active', account_status: 'active',
       member_number: 'GH-D007', family_id: null, is_roster_eligible: true, preferred_contact_method: 'sms', directory_visible: true, contact_allowed: true, joined_date: '2023-01-22',
     },
     {
       id: PROFILE_IDS.marcus, church_id: CHURCH_ID, full_name: 'Marcus Williams', email: 'marcus@graceharbor.church', phone: '555-1106',
-      role: 'member_volunteer', display_title: null, membership_status: 'active', account_status: 'active',
+      role: 'member_volunteer', display_title: null, is_pastoral: false, membership_status: 'active', account_status: 'active',
       member_number: 'GH-D008', family_id: null, is_roster_eligible: true, preferred_contact_method: 'sms', directory_visible: true, contact_allowed: true, joined_date: '2023-11-05',
     },
     {
       id: PROFILE_IDS.linda,  church_id: CHURCH_ID, full_name: 'Linda Nguyen',    email: 'linda@graceharbor.church',  phone: '555-1107',
-      role: 'ministry_leader', display_title: "Women's Ministry Lead", membership_status: 'active', account_status: 'active',
+      role: 'ministry_leader', display_title: "Women's Ministry Lead", is_pastoral: false, membership_status: 'active', account_status: 'active',
       member_number: 'GH-D009', family_id: FAMILY_IDS.nguyen, is_roster_eligible: true, preferred_contact_method: 'email', directory_visible: true, contact_allowed: true, joined_date: '2020-04-19',
     },
     {
       id: PROFILE_IDS.grace,  church_id: CHURCH_ID, full_name: 'Grace Adeyemi',   email: 'grace@graceharbor.church',  phone: '555-1108',
-      role: 'member_volunteer', display_title: null, membership_status: 'active', account_status: 'active',
+      role: 'member_volunteer', display_title: null, is_pastoral: false, membership_status: 'active', account_status: 'active',
       member_number: 'GH-D010', family_id: null, is_roster_eligible: true, preferred_contact_method: 'email', directory_visible: true, contact_allowed: true, joined_date: '2024-02-04',
     },
     {
       id: PROFILE_IDS.elena,  church_id: CHURCH_ID, full_name: 'Elena Martinez',  email: 'elena@graceharbor.church',  phone: '555-1109',
-      role: 'member_volunteer', display_title: 'Hospitality Coordinator', membership_status: 'active', account_status: 'active',
+      role: 'member_volunteer', display_title: 'Hospitality Coordinator', is_pastoral: false, membership_status: 'active', account_status: 'active',
       member_number: 'GH-D011', family_id: null, is_roster_eligible: true, preferred_contact_method: 'email', directory_visible: true, contact_allowed: true, joined_date: '2022-02-27',
     },
     {
       id: PROFILE_IDS.noah,   church_id: CHURCH_ID, full_name: 'Noah Brooks',     email: 'noah@graceharbor.church',   phone: '555-1112',
-      role: 'member_volunteer', display_title: null, membership_status: 'visitor', account_status: 'pending',
+      role: 'member_volunteer', display_title: null, is_pastoral: false, membership_status: 'visitor', account_status: 'pending',
       member_number: 'GH-D012', family_id: null, is_roster_eligible: false, preferred_contact_method: 'email', directory_visible: true, contact_allowed: true, joined_date: '2026-04-12',
     },
     {
       id: PROFILE_IDS.peter,  church_id: CHURCH_ID, full_name: 'Peter Stone',     email: 'peter@graceharbor.church',  phone: null,
-      role: 'member_volunteer', display_title: null, membership_status: 'visitor', account_status: 'pending',
+      role: 'member_volunteer', display_title: null, is_pastoral: false, membership_status: 'visitor', account_status: 'pending',
       member_number: 'GH-D013', family_id: null, is_roster_eligible: false, preferred_contact_method: 'email', directory_visible: true, contact_allowed: true, joined_date: '2026-05-03',
     },
     {
       id: PROFILE_IDS.maya,   church_id: CHURCH_ID, full_name: 'Maya Martinez',   email: 'maya@graceharbor.church',   phone: null,
-      role: 'member_volunteer', display_title: null, membership_status: 'active', account_status: 'pending',
+      role: 'member_volunteer', display_title: null, is_pastoral: false, membership_status: 'active', account_status: 'pending',
       member_number: 'GH-D014', family_id: null, is_roster_eligible: false, preferred_contact_method: 'app', directory_visible: true, contact_allowed: true, joined_date: '2025-09-07',
     },
     {
       id: PROFILE_IDS.samuel, church_id: CHURCH_ID, full_name: 'Samuel Price',    email: 'samuel@graceharbor.church', phone: '555-1116',
-      role: 'member_volunteer', display_title: 'Prayer Team Lead', membership_status: 'active', account_status: 'active',
+      role: 'member_volunteer', display_title: 'Prayer Team Lead', is_pastoral: false, membership_status: 'active', account_status: 'active',
       member_number: 'GH-D015', family_id: null, is_roster_eligible: true, preferred_contact_method: 'email', directory_visible: true, contact_allowed: true, joined_date: '2020-10-11',
     },
   ];
@@ -498,7 +524,7 @@ async function seedEvents() {
       description: 'Student worship, small groups, and parent pickup coordination.',
       location: 'Youth Room',
       starts_at: daysFromNow(5),
-      ends_at: daysFromNow(5),
+      ends_at: hoursAfter(daysFromNow(5), 2),
       category: 'ministry',
       visibility: 'members',
       rsvp_enabled: true,
@@ -514,7 +540,7 @@ async function seedEvents() {
       description: 'Monthly pantry distribution — waitlist registrations present.',
       location: 'Community Hall',
       starts_at: daysFromNow(8),
-      ends_at: daysFromNow(8),
+      ends_at: hoursAfter(daysFromNow(8), 3),
       category: 'outreach',
       visibility: 'public',
       rsvp_enabled: true,
@@ -530,7 +556,7 @@ async function seedEvents() {
       description: 'Six-week foundations class for new members and seekers.',
       location: 'Room 204',
       starts_at: daysFromNow(10),
-      ends_at: daysFromNow(10),
+      ends_at: hoursAfter(daysFromNow(10), 2),
       category: 'informational',
       visibility: 'members',
       rsvp_enabled: true,
@@ -732,7 +758,7 @@ async function seedFinanceAccounts() {
     { id: FINANCE_IDS.general,   church_id: CHURCH_ID, account_code: '4000', name: 'General Contributions',    description: 'General fund giving income.',           account_type: 'income', is_active: true },
     { id: FINANCE_IDS.missions,  church_id: CHURCH_ID, account_code: '4010', name: 'Missions Contributions',   description: 'Designated missions giving.',           account_type: 'income', is_active: true },
     { id: FINANCE_IDS.building,  church_id: CHURCH_ID, account_code: '4020', name: 'Building Fund Contributions', description: 'Designated building fund giving.',   account_type: 'income', is_active: true },
-  ], 'church_id,account_code');
+  ]);
 }
 
 // ── Step 16: Giving fund accounts ────────────────────────────────────────────
@@ -742,7 +768,7 @@ async function seedGivingFundAccounts() {
   await upsert('giving_fund_accounts', [
     { id: FINANCE_IDS.givingGeneral,  church_id: CHURCH_ID, fund_designation: 'General Fund', asset_account_id: FINANCE_IDS.operating, income_account_id: FINANCE_IDS.general,  is_active: true },
     { id: FINANCE_IDS.givingMissions, church_id: CHURCH_ID, fund_designation: 'Missions Fund', asset_account_id: FINANCE_IDS.operating, income_account_id: FINANCE_IDS.missions, is_active: true },
-  ], 'church_id,fund_designation');
+  ]);
 }
 
 // ── Step 17: Public giving page ───────────────────────────────────────────────
@@ -819,12 +845,12 @@ async function seedFinanceJournalLines() {
 
   // Draft journal lines — use side/amount_cents/memo/sort_order (NOT debit_cents/credit_cents)
   await upsert('finance_journal_lines', [
-    { id: 'jl100000-0000-0000-0000-100000000001', journal_id: FINANCE_IDS.journal1, church_id: CHURCH_ID, account_id: FINANCE_IDS.operating, side: 'debit',  amount_cents: 500000, memo: 'Payroll deposit — pending', sort_order: 1 },
-    { id: 'jl100000-0000-0000-0000-100000000002', journal_id: FINANCE_IDS.journal1, church_id: CHURCH_ID, account_id: FINANCE_IDS.general,   side: 'credit', amount_cents: 500000, memo: 'General fund payroll',      sort_order: 2 },
+    { id: 'f1100000-0000-0000-0000-100000000001', journal_id: FINANCE_IDS.journal1, church_id: CHURCH_ID, account_id: FINANCE_IDS.operating, side: 'debit',  amount_cents: 500000, memo: 'Payroll deposit — pending', sort_order: 1 },
+    { id: 'f1100000-0000-0000-0000-100000000002', journal_id: FINANCE_IDS.journal1, church_id: CHURCH_ID, account_id: FINANCE_IDS.general,   side: 'credit', amount_cents: 500000, memo: 'General fund payroll',      sort_order: 2 },
     // Posted journal lines
-    { id: 'jl100000-0000-0000-0000-100000000003', journal_id: FINANCE_IDS.journal2, church_id: CHURCH_ID, account_id: FINANCE_IDS.operating, side: 'debit',  amount_cents: 185000, memo: 'Deposited Sunday tithes',   sort_order: 1 },
-    { id: 'jl100000-0000-0000-0000-100000000004', journal_id: FINANCE_IDS.journal2, church_id: CHURCH_ID, account_id: FINANCE_IDS.general,   side: 'credit', amount_cents: 150000, memo: 'General fund receipts',     sort_order: 2 },
-    { id: 'jl100000-0000-0000-0000-100000000005', journal_id: FINANCE_IDS.journal2, church_id: CHURCH_ID, account_id: FINANCE_IDS.missions,  side: 'credit', amount_cents:  35000, memo: 'Missions designation',      sort_order: 3 },
+    { id: 'f1100000-0000-0000-0000-100000000003', journal_id: FINANCE_IDS.journal2, church_id: CHURCH_ID, account_id: FINANCE_IDS.operating, side: 'debit',  amount_cents: 185000, memo: 'Deposited Sunday tithes',   sort_order: 1 },
+    { id: 'f1100000-0000-0000-0000-100000000004', journal_id: FINANCE_IDS.journal2, church_id: CHURCH_ID, account_id: FINANCE_IDS.general,   side: 'credit', amount_cents: 150000, memo: 'General fund receipts',     sort_order: 2 },
+    { id: 'f1100000-0000-0000-0000-100000000005', journal_id: FINANCE_IDS.journal2, church_id: CHURCH_ID, account_id: FINANCE_IDS.missions,  side: 'credit', amount_cents:  35000, memo: 'Missions designation',      sort_order: 3 },
   ]);
 }
 
@@ -845,10 +871,10 @@ async function seedFinanceBudget() {
   ]);
 
   await upsert('finance_budget_lines', [
-    { id: 'bl100000-0000-0000-0000-100000000001', budget_id: FINANCE_IDS.budget, church_id: CHURCH_ID, account_id: FINANCE_IDS.general,  amount_cents: 7200000, notes: 'Annual general giving projection' },
-    { id: 'bl100000-0000-0000-0000-100000000002', budget_id: FINANCE_IDS.budget, church_id: CHURCH_ID, account_id: FINANCE_IDS.missions, amount_cents:  960000, notes: 'Global partner support and trips' },
-    { id: 'bl100000-0000-0000-0000-100000000003', budget_id: FINANCE_IDS.budget, church_id: CHURCH_ID, account_id: FINANCE_IDS.building, amount_cents:  480000, notes: 'Building fund campaign target' },
-    { id: 'bl100000-0000-0000-0000-100000000004', budget_id: FINANCE_IDS.budget, church_id: CHURCH_ID, account_id: FINANCE_IDS.operating,amount_cents: 1200000, notes: 'Operating reserve target' },
+    { id: 'b1100000-0000-0000-0000-100000000001', budget_id: FINANCE_IDS.budget, church_id: CHURCH_ID, account_id: FINANCE_IDS.general,  amount_cents: 7200000, notes: 'Annual general giving projection' },
+    { id: 'b1100000-0000-0000-0000-100000000002', budget_id: FINANCE_IDS.budget, church_id: CHURCH_ID, account_id: FINANCE_IDS.missions, amount_cents:  960000, notes: 'Global partner support and trips' },
+    { id: 'b1100000-0000-0000-0000-100000000003', budget_id: FINANCE_IDS.budget, church_id: CHURCH_ID, account_id: FINANCE_IDS.building, amount_cents:  480000, notes: 'Building fund campaign target' },
+    { id: 'b1100000-0000-0000-0000-100000000004', budget_id: FINANCE_IDS.budget, church_id: CHURCH_ID, account_id: FINANCE_IDS.operating,amount_cents: 1200000, notes: 'Operating reserve target' },
   ]);
 }
 
@@ -859,7 +885,7 @@ async function seedGroups() {
   await upsert('groups', [
     { id: GROUP_IDS.mensBible,   church_id: CHURCH_ID, name: "Men's Bible Study",      description: 'Weekly discipleship and prayer — Tuesdays 7 PM.', category: 'discipleship', leader_profile_id: PROFILE_IDS.leader, meeting_day: 'Tuesday',   meeting_time: '7:00 PM', meeting_location: 'Room B4',    capacity: 16, is_open: true,  is_active: true },
     { id: GROUP_IDS.youngAdults, church_id: CHURCH_ID, name: 'Young Adults Connect',   description: 'Faith, work, and calling for young adults.',       category: 'life_stage',   leader_profile_id: PROFILE_IDS.grace,  meeting_day: 'Thursday',  meeting_time: '6:30 PM', meeting_location: 'Coffee Loft',capacity: 18, is_open: true,  is_active: true },
-    { id: GROUP_IDS.sundaySchool,church_id: CHURCH_ID, name: 'Sunday School',          description: 'Adult Sunday school — Room 204.',                  category: 'education',    leader_profile_id: PROFILE_IDS.samuel, meeting_day: 'Sunday',    meeting_time: '9:00 AM', meeting_location: 'Room 204',   capacity: 30, is_open: false, is_active: true },
+    { id: GROUP_IDS.sundaySchool,church_id: CHURCH_ID, name: 'Sunday School',          description: 'Adult Sunday school — Room 204.',                  category: 'discipleship', leader_profile_id: PROFILE_IDS.samuel, meeting_day: 'Sunday',    meeting_time: '9:00 AM', meeting_location: 'Room 204',   capacity: 30, is_open: false, is_active: true },
   ]);
 }
 
@@ -889,7 +915,7 @@ async function seedServicePlans() {
     {
       id: SERVICE_PLAN_ID,
       church_id: CHURCH_ID,
-      title: `Sunday Worship Plan — ${planDate}`,
+      name: `Sunday Worship Plan — ${planDate}`,
       service_date: planDate,
       notes: 'Confirm all positions before Thursday.',
       status: 'draft',
@@ -898,27 +924,9 @@ async function seedServicePlans() {
   ]);
 
   await upsert('service_plan_positions', [
-    { id: '7d100000-0000-0000-0000-100000000001', service_plan_id: SERVICE_PLAN_ID, church_id: CHURCH_ID, role_title: 'Worship Leader',  is_required: true,  sort_order: 1 },
-    { id: '7d100000-0000-0000-0000-100000000002', service_plan_id: SERVICE_PLAN_ID, church_id: CHURCH_ID, role_title: 'Tech / Slides',   is_required: true,  sort_order: 2 },
-    { id: '7d100000-0000-0000-0000-100000000003', service_plan_id: SERVICE_PLAN_ID, church_id: CHURCH_ID, role_title: 'Greeter',         is_required: false, sort_order: 3 },
-  ]);
-
-  await upsert('service_plan_assignments', [
-    { id: '7e100000-0000-0000-0000-100000000001', service_plan_id: SERVICE_PLAN_ID, position_id: '7d100000-0000-0000-0000-100000000001', church_id: CHURCH_ID, profile_id: PROFILE_IDS.james,  status: 'confirmed', response_note: null },
-    { id: '7e100000-0000-0000-0000-100000000002', service_plan_id: SERVICE_PLAN_ID, position_id: '7d100000-0000-0000-0000-100000000002', church_id: CHURCH_ID, profile_id: PROFILE_IDS.marcus, status: 'confirmed', response_note: null },
-    // Pending response — triggers readiness flag
-    { id: '7e100000-0000-0000-0000-100000000003', service_plan_id: SERVICE_PLAN_ID, position_id: '7d100000-0000-0000-0000-100000000003', church_id: CHURCH_ID, profile_id: PROFILE_IDS.member, status: 'pending',   response_note: null },
-  ]);
-
-  await upsertIgnore('volunteer_shift_reminders', [
-    {
-      church_id: CHURCH_ID,
-      assignment_id: '7e100000-0000-0000-0000-100000000003',
-      profile_id: PROFILE_IDS.member,
-      sent_at: daysFromNow(-1),
-      channel: 'email',
-      status: 'sent',
-    },
+    { id: '7d100000-0000-0000-0000-100000000001', plan_id: SERVICE_PLAN_ID, church_id: CHURCH_ID, role_name: 'Worship Leader', quantity_needed: 1, sort_order: 1 },
+    { id: '7d100000-0000-0000-0000-100000000002', plan_id: SERVICE_PLAN_ID, church_id: CHURCH_ID, role_name: 'Tech / Slides',  quantity_needed: 1, sort_order: 2 },
+    { id: '7d100000-0000-0000-0000-100000000003', plan_id: SERVICE_PLAN_ID, church_id: CHURCH_ID, role_name: 'Greeter',        quantity_needed: 1, sort_order: 3 },
   ]);
 }
 
@@ -951,11 +959,11 @@ async function seedCommunications() {
   await upsertIgnore('communication_suppressions', [
     {
       church_id: CHURCH_ID,
-      email: 'unsubscribed-demo@example.com',
-      reason: 'unsubscribed',
-      suppressed_at: daysFromNow(-30),
+      channel: 'email',
+      contact: 'unsubscribed-demo@example.com',
+      reason: 'unsubscribe',
     },
-  ], 'church_id,email');
+  ], 'church_id,channel,contact');
 }
 
 // ── Step 26: Account requests ─────────────────────────────────────────────────
@@ -964,10 +972,10 @@ async function seedAccountRequests() {
   console.log('Upserting account_requests...');
   await upsertIgnore('account_requests', [
     // 2 new visitors
-    { id: 'ar100000-0000-0000-0000-100000000001', church_id: CHURCH_ID, profile_id: null,             email: 'talia.grant@example.com',   phone: '555-1301', first_name: 'Talia',  last_name: 'Grant',   is_existing_member: false, status: 'pending' },
-    { id: 'ar100000-0000-0000-0000-100000000002', church_id: CHURCH_ID, profile_id: null,             email: 'brandon.price@example.com', phone: '555-1302', first_name: 'Brandon',last_name: 'Price',   is_existing_member: false, status: 'pending' },
+    { id: 'a3100000-0000-0000-0000-100000000001', church_id: CHURCH_ID, profile_id: null,             email: 'talia.grant@example.com',   phone: '555-1301', first_name: 'Talia',  last_name: 'Grant',   is_existing_member: false, status: 'pending' },
+    { id: 'a3100000-0000-0000-0000-100000000002', church_id: CHURCH_ID, profile_id: null,             email: 'brandon.price@example.com', phone: '555-1302', first_name: 'Brandon',last_name: 'Price',   is_existing_member: false, status: 'pending' },
     // 1 existing member match
-    { id: 'ar100000-0000-0000-0000-100000000003', church_id: CHURCH_ID, profile_id: PROFILE_IDS.maya, email: 'maya@graceharbor.church',   phone: null,       first_name: 'Maya',   last_name: 'Martinez',is_existing_member: true,  status: 'pending' },
+    { id: 'a3100000-0000-0000-0000-100000000003', church_id: CHURCH_ID, profile_id: PROFILE_IDS.maya, email: 'maya@graceharbor.church',   phone: null,       first_name: 'Maya',   last_name: 'Martinez',is_existing_member: true,  status: 'pending' },
   ]);
 }
 
@@ -979,7 +987,7 @@ async function seedCareAssignments() {
     // Open hospital follow-up
     { id: 'ca100000-0000-0000-0000-100000000001', church_id: CHURCH_ID, profile_id: PROFILE_IDS.elena, created_by: PROFILE_IDS.admin, assigned_to: PROFILE_IDS.pastor, summary: 'Hospital follow-up and meal train coordination after surgery.', status: 'open',     priority: 'urgent',  due_at: daysFromNow(1), last_contact_at: null },
     // Closed reconnect
-    { id: 'ca100000-0000-0000-0000-100000000002', church_id: CHURCH_ID, profile_id: PROFILE_IDS.noah,  created_by: PROFILE_IDS.admin, assigned_to: PROFILE_IDS.admin, summary: 'First-time visitor follow-up after Sunday registration.',       status: 'completed', priority: 'high',    due_at: daysFromNow(2), last_contact_at: daysFromNow(-1) },
+    { id: 'ca100000-0000-0000-0000-100000000002', church_id: CHURCH_ID, profile_id: PROFILE_IDS.noah,  created_by: PROFILE_IDS.admin, assigned_to: PROFILE_IDS.admin, summary: 'First-time visitor follow-up after Sunday registration.',       status: 'closed',    priority: 'high',    due_at: daysFromNow(2), last_contact_at: daysFromNow(-1) },
   ]);
 }
 
@@ -997,59 +1005,62 @@ async function seedDailyWorkItems() {
 // ── Step 29: Workflows / AI suggestions ───────────────────────────────────────
 
 async function seedWorkflows() {
-  console.log('Upserting workflows...');
-  await upsertIgnore('workflows', [
+  console.log('Upserting ai_suggestions (if table exists)...');
+  await upsertIgnore('ai_suggestions', [
     {
-      id: 'wf100000-0000-0000-0000-100000000001',
-      church_id: CHURCH_ID,
-      title: 'Visitor Follow-Up: Talia Grant',
-      description: 'New visitor submitted a portal request. Recommend day-1 follow-up call and tour invitation.',
-      workflow_type: 'visitor_followup',
-      status: 'open',
-      priority: 'high',
-      assigned_to: PROFILE_IDS.secretary,
-      related_profile_id: null,
-      source: 'ai_suggested',
+      id: 'a4100000-0000-0000-0000-100000000001',
+      tenant_id: CHURCH_ID,
+      workflow_code: 'first_time_visitor_follow_up',
+      entity_type: 'account_request',
+      entity_id: 'a3100000-0000-0000-0000-100000000001',
+      title: 'Follow up with Talia Grant within 48 hours',
+      summary: 'Talia submitted a portal request 1 day ago. Research shows response within 48 hours increases first-time retention by 60%.',
+      confidence_score: 0.87,
+      urgency: 'high',
+      explanation_json: { trigger: 'new_account_request', hours_since_submission: 24 },
+      boundary_note: 'Contact only through official church channels. Respect any opt-out.',
+      status: 'suggested',
       created_at: daysFromNow(-1),
     },
     {
-      id: 'wf100000-0000-0000-0000-100000000002',
-      church_id: CHURCH_ID,
-      title: 'Volunteer Coverage Gap: Greeter role unconfirmed',
-      description: 'Service plan for next Sunday has one pending volunteer response in the Greeter position. Send reminder or recruit a replacement.',
-      workflow_type: 'volunteer_gap',
-      status: 'open',
-      priority: 'normal',
-      assigned_to: PROFILE_IDS.leader,
-      related_profile_id: PROFILE_IDS.member,
-      source: 'ai_suggested',
+      id: 'a4100000-0000-0000-0000-100000000002',
+      tenant_id: CHURCH_ID,
+      workflow_code: 'volunteer_fatigue',
+      entity_type: 'profile',
+      entity_id: PROFILE_IDS.member,
+      title: 'Resolve Greeter coverage before Thursday',
+      summary: 'Service plan has one unconfirmed position. Consider sending David Chen a direct reminder or recruiting from the Young Adults group.',
+      confidence_score: 0.72,
+      urgency: 'medium',
+      explanation_json: { trigger: 'unconfirmed_assignment', days_until_service: 7 },
+      boundary_note: 'Do not pressure volunteers. Frame as a gentle reminder.',
+      status: 'suggested',
       created_at: daysFromNow(-0.5),
     },
   ]);
 
-  console.log('Upserting ai_suggestions (if table exists)...');
-  await upsertIgnore('ai_suggestions', [
+  console.log('Upserting workflows...');
+  await upsertIgnore('workflows', [
     {
-      id: 'ai100000-0000-0000-0000-100000000001',
-      church_id: CHURCH_ID,
-      suggestion_type: 'visitor_followup',
-      title: 'Follow up with Talia Grant within 48 hours',
-      body: 'Talia submitted a portal request 1 day ago. Research shows response within 48 hours increases first-time retention by 60%.',
+      id: 'cf100000-0000-0000-0000-100000000001',
+      tenant_id: CHURCH_ID,
+      suggestion_id: 'a4100000-0000-0000-0000-100000000001',
+      workflow_type: 'ministry',
+      assigned_to_user_id: PROFILE_IDS.secretary,
       status: 'open',
-      profile_id: null,
       created_at: daysFromNow(-1),
     },
     {
-      id: 'ai100000-0000-0000-0000-100000000002',
-      church_id: CHURCH_ID,
-      suggestion_type: 'volunteer_coverage',
-      title: 'Resolve Greeter coverage before Thursday',
-      body: 'Service plan has one unconfirmed position. Consider sending David Chen a direct reminder or recruiting from the Young Adults group.',
+      id: 'cf100000-0000-0000-0000-100000000002',
+      tenant_id: CHURCH_ID,
+      suggestion_id: 'a4100000-0000-0000-0000-100000000002',
+      workflow_type: 'ministry',
+      assigned_to_user_id: PROFILE_IDS.leader,
       status: 'open',
-      profile_id: PROFILE_IDS.member,
       created_at: daysFromNow(-0.5),
     },
   ]);
+
 }
 
 // ── Step 30: Profile sensitive fields ─────────────────────────────────────────
@@ -1085,6 +1096,7 @@ async function main() {
     console.error('Continuing with data seed using null user_ids...');
   }
 
+  await deleteAutoCreatedProfiles();
   await seedChurch();
   await seedFamilies();
   await seedProfiles(authIds);
@@ -1099,6 +1111,7 @@ async function main() {
   await seedEventRosters();
   await seedAttendance();
   await seedCCM();
+  await deleteFinanceData();
   await seedFinanceAccounts();
   await seedGivingFundAccounts();
   await seedPublicGivingPage();

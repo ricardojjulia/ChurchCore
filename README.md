@@ -13,6 +13,22 @@ ChurchCore is part of a broader product family:
 [![Supabase](https://img.shields.io/badge/Supabase-split%20control%2Ftenant-16a34a.svg)](docs/adr/0002-control-plane-and-tenant-separation.md)
 [![Vercel](https://img.shields.io/badge/Vercel-ready-000000.svg)](vercel.json)
 
+## Try the Demo
+
+The hosted demo is available at `https://demo.churchcore.app`. No installation required — open it in any modern browser.
+
+**All demo accounts use the password: `ChurchCoreDemo2026!`**
+
+| Role | Email | Access |
+|------|-------|--------|
+| Church Administrator | `admin@graceharbor.church` | Full dashboard, readiness, finance, reports, settings |
+| Secretary / Office Admin | `secretary@graceharbor.church` | Daily desk, task queue, account approvals, calendar |
+| Pastor / Elder | `pastor@graceharbor.church` | Care assignments, pastoral notes, ministry oversight |
+| Ministry Leader | `leader@graceharbor.church` | Ministry Forge, volunteer scheduling, service plan |
+| Member / Volunteer | `member@graceharbor.church` | Member portal, giving history, groups, events |
+
+The demo church is **Grace Harbor Church** with pre-seeded data across all modules. For a full guided walkthrough — weekly readiness, children's ministry safety, GL posting, ShepherdAI workflows, and more — see [docs/setup/demo-install.md](docs/setup/demo-install.md).
+
 ## Technical Blueprint
 
 ChurchCore is built around a hard boundary between platform operations and church runtime data:
