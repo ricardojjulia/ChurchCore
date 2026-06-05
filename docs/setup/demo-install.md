@@ -6,13 +6,9 @@ Welcome. This document is written for church staff and evaluators who want to ex
 
 ## Getting access
 
-Contact the ChurchCore team for the demo URL. The format is:
+Open the demo in any modern browser — no software installation required:
 
-```
-https://demo.churchcore.app
-```
-
-Once you have the URL, open it in any modern browser. No software installation is required.
+**[https://church-core-ops.vercel.app](https://church-core-ops.vercel.app)**
 
 ---
 
