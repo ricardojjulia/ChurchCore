@@ -12,7 +12,6 @@ import {
   hasTenantBackendConfig,
   hasTenantSupabaseEnv,
   hasTenantServiceRoleKey,
-  shouldUseLocalTenantDbFallback,
 } from "@/lib/supabase/config";
 
 declare global {
@@ -38,7 +37,9 @@ export function hasTenantAdminBackendEnv() {
 }
 
 export function shouldUseLocalTenantFallback() {
-  return shouldUseLocalTenantDbFallback();
+  // Supabase-only architecture — 2026-07-10.
+  // All local SQL (queryTenantLocalDb) paths are dead code. Do not add new local paths.
+  return false;
 }
 
 export async function createTenantServerClient() {

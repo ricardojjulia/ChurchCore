@@ -3080,7 +3080,7 @@ export async function inviteUserAction(input: InviteUserInput) {
   const session = await requireChurchAdminSession("/app/church-admin/people");
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
-    return { previewMode: true };
+    return { ok: false, error: "Backend not configured. Supabase connection required." };
   }
 
   const email = input.email.trim().toLowerCase();
@@ -3103,7 +3103,7 @@ export async function inviteUserAction(input: InviteUserInput) {
           : "member_volunteer";
 
   if (!hasTenantAdminBackendEnv()) {
-    return { previewMode: true };
+    return { ok: false, error: "Backend not configured. Supabase connection required." };
   }
 
   const admin = createTenantAdminClient();

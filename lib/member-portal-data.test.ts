@@ -177,6 +177,218 @@ describe("getMemberPortalData pending-review status", () => {
     expect(data.familyChangeReviewerNote).toBe("Please include full home phone.");
   });
 
+  it("loads giving summary with YTD total and gift count", async () => {
+    queryTenantLocalDbMock.mockImplementation(async (sql: string) => {
+      if (sql.includes("from public.profiles profile")) {
+        return {
+          rows: [
+            {
+              id: "profile-1",
+              full_name: "Ada Lovelace",
+              member_number: null,
+              email: "ada@example.com",
+              phone: null,
+              address: null,
+              display_title: "Member",
+              role: "member_volunteer",
+              is_pastoral: false,
+              membership_status: "active",
+              joined_date: null,
+              directory_visible: true,
+              contact_allowed: true,
+              preferred_contact_method: "email",
+              interests: [],
+              emergency_contact_name: null,
+              emergency_contact_phone: null,
+              family_id: null,
+              family_name: null,
+            },
+          ],
+        };
+      }
+      if (sql.includes("coalesce(sum(amount_cents)")) {
+        return { rows: [{ total_cents: "12500", gift_count: "3" }] };
+      }
+      return { rows: [] };
+    });
+
+    const data = await getMemberPortalData(session);
+
+    expect(data.givingSummary).toEqual({ totalCents: 12500, giftCount: 3 });
+  });
+
+  it("returns null giving summary when no gifts found", async () => {
+    queryTenantLocalDbMock.mockImplementation(async (sql: string) => {
+      if (sql.includes("from public.profiles profile")) {
+        return {
+          rows: [
+            {
+              id: "profile-1",
+              full_name: "Ada Lovelace",
+              member_number: null,
+              email: null,
+              phone: null,
+              address: null,
+              display_title: null,
+              role: "member_volunteer",
+              is_pastoral: false,
+              membership_status: "active",
+              joined_date: null,
+              directory_visible: true,
+              contact_allowed: true,
+              preferred_contact_method: null,
+              interests: [],
+              emergency_contact_name: null,
+              emergency_contact_phone: null,
+              family_id: null,
+              family_name: null,
+            },
+          ],
+        };
+      }
+      if (sql.includes("coalesce(sum(amount_cents)")) {
+        return { rows: [{ total_cents: "0", gift_count: "0" }] };
+      }
+      return { rows: [] };
+    });
+
+    const data = await getMemberPortalData(session);
+
+    expect(data.givingSummary).toBeNull();
+  });
+
+  it("loads my groups with active memberships", async () => {
+    queryTenantLocalDbMock.mockImplementation(async (sql: string) => {
+      if (sql.includes("from public.profiles profile")) {
+        return {
+          rows: [
+            {
+              id: "profile-1",
+              full_name: "Ada Lovelace",
+              member_number: null,
+              email: "ada@example.com",
+              phone: null,
+              address: null,
+              display_title: "Member",
+              role: "member_volunteer",
+              is_pastoral: false,
+              membership_status: "active",
+              joined_date: null,
+              directory_visible: true,
+              contact_allowed: true,
+              preferred_contact_method: "email",
+              interests: [],
+              emergency_contact_name: null,
+              emergency_contact_phone: null,
+              family_id: null,
+              family_name: null,
+            },
+          ],
+        };
+      }
+      if (sql.includes("from public.group_members gm")) {
+        return {
+          rows: [
+            { role: "leader", group_id: "group-1", group_name: "Men's Bible Study" },
+            { role: "member", group_id: "group-2", group_name: "Sunday School" },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const data = await getMemberPortalData(session);
+
+    expect(data.myGroups).toHaveLength(2);
+    expect(data.myGroups[0]).toEqual({ id: "group-1", name: "Men's Bible Study", role: "leader" });
+  });
+
+  it("returns empty my groups when group_members table is unavailable", async () => {
+    queryTenantLocalDbMock.mockImplementation(async (sql: string) => {
+      if (sql.includes("from public.profiles profile")) {
+        return {
+          rows: [
+            {
+              id: "profile-1",
+              full_name: "Ada Lovelace",
+              member_number: null,
+              email: null,
+              phone: null,
+              address: null,
+              display_title: null,
+              role: "member_volunteer",
+              is_pastoral: false,
+              membership_status: "active",
+              joined_date: null,
+              directory_visible: true,
+              contact_allowed: true,
+              preferred_contact_method: null,
+              interests: [],
+              emergency_contact_name: null,
+              emergency_contact_phone: null,
+              family_id: null,
+              family_name: null,
+            },
+          ],
+        };
+      }
+      if (sql.includes("from public.group_members gm")) {
+        throw new Error('relation "public.group_members" does not exist');
+      }
+      return { rows: [] };
+    });
+
+    const data = await getMemberPortalData(session);
+
+    expect(data.myGroups).toEqual([]);
+  });
+
+  it("derives attendance trend from attendance history records", async () => {
+    queryTenantLocalDbMock.mockImplementation(async (sql: string) => {
+      if (sql.includes("from public.profiles profile")) {
+        return {
+          rows: [
+            {
+              id: "profile-1",
+              full_name: "Ada Lovelace",
+              member_number: null,
+              email: null,
+              phone: null,
+              address: null,
+              display_title: null,
+              role: "member_volunteer",
+              is_pastoral: false,
+              membership_status: "active",
+              joined_date: null,
+              directory_visible: true,
+              contact_allowed: true,
+              preferred_contact_method: null,
+              interests: [],
+              emergency_contact_name: null,
+              emergency_contact_phone: null,
+              family_id: null,
+              family_name: null,
+            },
+          ],
+        };
+      }
+      if (sql.includes("from public.attendance attendance")) {
+        return {
+          rows: [
+            { id: "att-1", checked_in_at: "2026-07-06T10:00:00Z", status: "present", check_in_method: "staff", event_title: "Sunday Service" },
+            { id: "att-2", checked_in_at: "2026-06-29T10:00:00Z", status: "present", check_in_method: "staff", event_title: "Sunday Service" },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const data = await getMemberPortalData(session);
+
+    expect(data.attendanceTrend).toHaveLength(2);
+    expect(data.attendanceTrend[0]).toEqual({ serviceDate: "2026-07-06T10:00:00Z" });
+  });
+
   it("falls back to no review state when change-request table is unavailable", async () => {
     queryTenantLocalDbMock.mockImplementation(async (sql: string) => {
       if (sql.includes("from public.profiles profile")) {

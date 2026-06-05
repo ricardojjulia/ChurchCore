@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import webpush from "web-push";
 
 import type { ChurchAppSession } from "@/lib/auth";
 import {
+  createTenantAdminClient,
   createTenantServerClient,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
@@ -112,8 +114,15 @@ export async function queueCommunicationAction(
       externalId = result.providerMessageId;
       errorCode = result.errorCode;
       if (!result.accepted) sendError = result.errorMessage;
+    } else if (input.channel === "push") {
+      await dispatchPush(
+        churchId,
+        input.recipientProfileId,
+        input.subject ?? "ChurchCore",
+        input.body,
+      );
     }
-    // push and in_app: handled by in-app notification system (Phase 7)
+    // in_app: handled by in-app notification system (future phase)
   }
 
   const status = isScheduled
@@ -153,6 +162,72 @@ export async function queueCommunicationAction(
 }
 
 // ── Helpers ──────────────────────────────────────────────────
+
+type PushSubscriptionRow = {
+  endpoint: string;
+  p256dh: string;
+  auth_secret: string;
+};
+
+async function dispatchPush(
+  churchId: string,
+  profileId: string | null,
+  title: string,
+  body: string,
+): Promise<void> {
+  if (
+    !process.env.VAPID_PUBLIC_KEY ||
+    !process.env.VAPID_PRIVATE_KEY
+  ) {
+    console.warn("[push] VAPID keys not configured — skipping push dispatch");
+    return;
+  }
+
+  const subject = process.env.VAPID_SUBJECT ?? "mailto:noreply@example.com";
+  webpush.setVapidDetails(subject, process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
+
+  let subscriptions: PushSubscriptionRow[] = [];
+
+  if (shouldUseLocalTenantFallback()) {
+    const where = profileId
+      ? "where church_id = $1 and profile_id = $2"
+      : "where church_id = $1";
+    const params = profileId ? [churchId, profileId] : [churchId];
+    try {
+      const result = await queryTenantLocalDb<PushSubscriptionRow>(
+        `select endpoint, p256dh, auth_secret from public.push_subscriptions ${where}`,
+        params,
+      );
+      subscriptions = result.rows;
+    } catch {
+      return; // Table may not exist in older environments
+    }
+  } else {
+    const supabase = createTenantAdminClient();
+    const { data } = profileId
+      ? await supabase
+          .from("push_subscriptions")
+          .select("endpoint, p256dh, auth_secret")
+          .eq("church_id", churchId)
+          .eq("profile_id", profileId)
+      : await supabase
+          .from("push_subscriptions")
+          .select("endpoint, p256dh, auth_secret")
+          .eq("church_id", churchId);
+    subscriptions = (data ?? []) as PushSubscriptionRow[];
+  }
+
+  const payload = JSON.stringify({ title, body, url: "/app/member" });
+
+  await Promise.allSettled(
+    subscriptions.map((sub) =>
+      webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_secret } },
+        payload,
+      ),
+    ),
+  );
+}
 
 async function checkOptIn(
   churchId: string,

@@ -227,19 +227,28 @@ export async function voidJournalAction(journalId: string): Promise<void> {
   if (session.appContext.roleId !== "church-admin") throw new Error("Unauthorized");
 
   const churchId = session.appContext.church.id;
+  const profileId = session.profile.id;
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
       `update public.finance_journals
-       set status = 'voided', updated_at = now()
+       set status = 'voided',
+           voided_at = now(),
+           voided_by = $3,
+           updated_at = now()
        where id = $1 and church_id = $2`,
-      [journalId, churchId],
+      [journalId, churchId, profileId ?? "system"],
     );
   } else {
     const supabase = await createTenantServerClient();
     await supabase
       .from("finance_journals")
-      .update({ status: "voided", updated_at: new Date().toISOString() })
+      .update({
+        status: "voided",
+        voided_at: new Date().toISOString(),
+        voided_by: profileId ?? "system",
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", journalId)
       .eq("church_id", churchId);
   }

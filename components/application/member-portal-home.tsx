@@ -320,6 +320,7 @@ export function MemberPortalHome({
         {profile ? (
           <NotificationPreferencesForm
             profileId={profile.id}
+            churchId={session.appContext.church.id}
             initial={
               data.notificationPreferences ?? {
                 emailOptIn: true,
@@ -330,6 +331,116 @@ export function MemberPortalHome({
             }
             isInitialSetup={data.needsCommunicationPreferencesSetup}
           />
+        ) : null}
+
+        {(data.givingSummary || data.attendanceTrend.length > 0 || data.myGroups.length > 0) ? (
+          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+            {data.givingSummary ? (
+              <Paper withBorder radius="xl" p="xl">
+                <Group justify="space-between" align="flex-start" mb="sm">
+                  <ThemeIcon color="grape" variant="light" radius="xl" size="lg">
+                    <Wallet size={18} />
+                  </ThemeIcon>
+                  <Badge color="grape" variant="light">
+                    {new Intl.NumberFormat(locale === "es" ? "es-US" : "en-US", {
+                      style: "currency",
+                      currency: "USD",
+                      maximumFractionDigits: 0,
+                    }).format(data.givingSummary.totalCents / 100)}
+                  </Badge>
+                </Group>
+                <Title order={4} size="h5" mt="xs">
+                  {translateMember("givingThisYear")}
+                </Title>
+                <Text size="sm" c="dimmed" mt={4}>
+                  {translateMember("giftCount", {
+                    count: data.givingSummary.giftCount,
+                    plural: data.givingSummary.giftCount === 1 ? "" : "s",
+                  })}
+                </Text>
+                <Button
+                  component={Link}
+                  href="/app/member/giving"
+                  variant="subtle"
+                  radius="xl"
+                  size="xs"
+                  mt="sm"
+                  px={0}
+                >
+                  {translateMember("openGiving")}
+                </Button>
+              </Paper>
+            ) : null}
+
+            {data.attendanceTrend.length > 0 ? (
+              <Paper withBorder radius="xl" p="xl">
+                <Group justify="space-between" align="flex-start" mb="sm">
+                  <ThemeIcon color="teal" variant="light" radius="xl" size="lg">
+                    <CalendarCheck size={18} />
+                  </ThemeIcon>
+                  <Badge color="teal" variant="light">
+                    {data.attendanceTrend.length}
+                  </Badge>
+                </Group>
+                <Title order={4} size="h5" mt="xs">
+                  {translateMember("myHistory")}
+                </Title>
+                <Group gap={4} mt="sm" align="flex-end" style={{ height: 32 }}>
+                  {data.attendanceTrend.slice(0, 8).reverse().map((entry, i) => (
+                    <Box
+                      key={i}
+                      style={{
+                        width: 10,
+                        height: `${Math.max(30, 40 + (i * 8))}%`,
+                        background: "var(--mantine-color-teal-5)",
+                        borderRadius: 3,
+                        opacity: 0.7 + i * 0.04,
+                      }}
+                    />
+                  ))}
+                </Group>
+              </Paper>
+            ) : null}
+
+            {data.myGroups.length > 0 ? (
+              <Paper withBorder radius="xl" p="xl">
+                <Group justify="space-between" align="flex-start" mb="sm">
+                  <ThemeIcon color="blue" variant="light" radius="xl" size="lg">
+                    <Users size={18} />
+                  </ThemeIcon>
+                  <Badge color="blue" variant="light">
+                    {data.myGroups.length}
+                  </Badge>
+                </Group>
+                <Title order={4} size="h5" mt="xs">
+                  {translateMember("myGroups")}
+                </Title>
+                <Stack gap={4} mt="sm">
+                  {data.myGroups.slice(0, 3).map((group) => (
+                    <Group key={group.id} justify="space-between" gap="xs">
+                      <Text size="sm" lineClamp={1}>
+                        {group.name}
+                      </Text>
+                      <Badge color="gray" variant="outline" size="xs">
+                        {translateKnown(group.role)}
+                      </Badge>
+                    </Group>
+                  ))}
+                </Stack>
+                <Button
+                  component={Link}
+                  href="/app/member/groups"
+                  variant="subtle"
+                  radius="xl"
+                  size="xs"
+                  mt="sm"
+                  px={0}
+                >
+                  {translateMember("openGroups")}
+                </Button>
+              </Paper>
+            ) : null}
+          </SimpleGrid>
         ) : null}
 
         <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }} spacing="md">

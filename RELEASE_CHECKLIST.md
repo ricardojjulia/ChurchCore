@@ -2,18 +2,24 @@
 
 Run these gates before any production deploy. All must pass.
 
-## Pre-merge (every PR)
-- [ ] `npm run lint` — zero errors on source files
-- [ ] `npm run build` — TypeScript clean, all routes compile
-- [ ] `npm run test` — all tests pass, no regressions
+## Pre-merge (every PR) — automated in CI
 
-## Pre-release (before promoting to production)
+These run automatically on every PR via `.github/workflows/ci.yml`:
+
+- `npm run lint` — zero errors on source files
+- `npm run build` — TypeScript clean, all routes compile
+- `npm run test` — all unit tests pass (Vitest)
+- `npm run audit:rls` — advisory; exits 0 when DB unavailable in CI, surfaces failures when DB is reachable
+
+## Pre-release (before promoting to production) — manual gates
+
+E2E and smoke tests require a running local Supabase + seeded demo data. Run before any production deploy:
+
 - [ ] `npm run smoke:local` — all smoke checks pass
 - [ ] `npm run test:e2e:readiness` — 3+ passed, control-plane skip is expected
 - [ ] `npm run test:e2e:onboarding` — 1 passed
 - [ ] `npm run lint:migrations` — zero migration linter errors
 - [ ] `npm run check:schema` — no phantom tables (`burnout_category_counts` and `discipleship_velocity` are known expected phantoms)
-- [ ] `npm run audit:rls` — zero missing-RLS warnings (requires local Supabase; skip gracefully if DB unavailable)
 
 ## Security gates
 - [ ] gitleaks secret scan passes in CI

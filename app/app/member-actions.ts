@@ -178,7 +178,7 @@ export async function memberMobileCheckInAction(
   }
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
-    return { ok: true, previewMode: true };
+    return { ok: false, error: "Backend not configured. Supabase connection required." };
   }
 
   const churchId = session.appContext.church.id;
@@ -467,7 +467,7 @@ export async function memberRegisterForEventAction(
   }
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
-    return { ok: true, previewMode: true };
+    return { ok: false, error: "Backend not configured. Supabase connection required." };
   }
 
   const churchId = session.appContext.church.id;

@@ -853,4 +853,296 @@ describe("stripe webhook route", () => {
       expect(body.warning).toBeDefined();
     });
   });
+
+  // ── Supabase path — autoPostToGlSupabase & reverseGlEntryForRefundSupabase ──
+
+  describe("GL auto-post — Supabase path", () => {
+    beforeEach(() => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+    });
+
+    function makeGlChainProxy() {
+      const fromMock = vi.fn();
+      const selectMock = vi.fn();
+      const updateMock = vi.fn();
+      const insertMock = vi.fn();
+      const eqMock = vi.fn();
+      const maybeSingleMock = vi.fn();
+      const singleMock = vi.fn();
+
+      const chainProxy = {
+        from: fromMock,
+        select: selectMock,
+        update: updateMock,
+        insert: insertMock,
+        eq: eqMock,
+        maybeSingle: maybeSingleMock,
+        single: singleMock,
+      };
+
+      fromMock.mockReturnValue(chainProxy);
+      selectMock.mockReturnValue(chainProxy);
+      updateMock.mockReturnValue(chainProxy);
+      insertMock.mockReturnValue(chainProxy);
+      eqMock.mockReturnValue(chainProxy);
+
+      return { chainProxy, fromMock, insertMock, updateMock, maybeSingleMock, singleMock };
+    }
+
+    it("handlePaymentIntentSucceeded — Supabase: posts to GL when fund mapping found", async () => {
+      const { chainProxy, fromMock, insertMock, maybeSingleMock, singleMock } = makeGlChainProxy();
+
+      // Sequence:
+      // 1. donations update → maybySingle → donation record
+      // 2. autoPostToGlSupabase: donation_gl_posts idempotency → null
+      // 3. autoPostToGlSupabase: giving_fund_accounts fund mapping → found
+      maybeSingleMock
+        .mockResolvedValueOnce({
+          data: { id: "don-gl-1", donor_email: null, donor_name: null, amount_cents: 5000, fund_designation: "General" },
+          error: null,
+        })
+        .mockResolvedValueOnce({ data: null, error: null }) // gl idempotency: not posted yet
+        .mockResolvedValueOnce({
+          data: { asset_account_id: "acc-asset-1", income_account_id: "acc-income-1" },
+          error: null,
+        });
+
+      // autoPostToGlSupabase: finance_journals insert → single → journal id
+      singleMock.mockResolvedValue({ data: { id: "journal-gl-1" }, error: null });
+
+      createTenantAdminClientMock.mockReturnValue(chainProxy);
+
+      const response = await stripeWebhookPost(
+        new NextRequest("http://localhost/api/webhooks/stripe", {
+          method: "POST",
+          body: JSON.stringify({
+            type: "payment_intent.succeeded",
+            data: {
+              object: {
+                id: "pi_gl_post_1",
+                amount: 5000,
+                currency: "usd",
+                metadata: {
+                  church_id: "church-gl-1",
+                  event_registration_id: "reg-gl-1",
+                },
+              },
+            },
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+      // finance_journals and finance_journal_lines were inserted
+      expect(fromMock).toHaveBeenCalledWith("finance_journals");
+      expect(fromMock).toHaveBeenCalledWith("finance_journal_lines");
+      expect(insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({ journal_type: "giving", status: "posted" }),
+      );
+      expect(insertMock).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ side: "debit", amount_cents: 5000 }),
+          expect.objectContaining({ side: "credit", amount_cents: 5000 }),
+        ]),
+      );
+    });
+
+    it("handlePaymentIntentSucceeded — Supabase: skips GL post when fund mapping missing", async () => {
+      const { chainProxy, fromMock, insertMock, maybeSingleMock } = makeGlChainProxy();
+
+      // donations → donation found; gl idempotency → not posted; fund mapping → null
+      maybeSingleMock
+        .mockResolvedValueOnce({
+          data: { id: "don-gl-2", donor_email: null, donor_name: null, amount_cents: 3000, fund_designation: "Special" },
+          error: null,
+        })
+        .mockResolvedValueOnce({ data: null, error: null }) // gl idempotency
+        .mockResolvedValueOnce({ data: null, error: null }); // fund mapping missing
+
+      createTenantAdminClientMock.mockReturnValue(chainProxy);
+
+      const response = await stripeWebhookPost(
+        new NextRequest("http://localhost/api/webhooks/stripe", {
+          method: "POST",
+          body: JSON.stringify({
+            type: "payment_intent.succeeded",
+            data: {
+              object: {
+                id: "pi_gl_nofund_1",
+                amount: 3000,
+                currency: "usd",
+                metadata: {
+                  church_id: "church-gl-1",
+                  event_registration_id: "reg-gl-2",
+                },
+              },
+            },
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      // No journal or line inserts when fund mapping is absent
+      expect(fromMock).not.toHaveBeenCalledWith("finance_journals");
+      expect(insertMock).not.toHaveBeenCalledWith(
+        expect.objectContaining({ journal_type: "giving" }),
+      );
+    });
+
+    it("handlePaymentIntentSucceeded — Supabase: is idempotent when donation_gl_posts row exists", async () => {
+      const { chainProxy, fromMock, insertMock, maybeSingleMock } = makeGlChainProxy();
+
+      // donations → donation found; gl idempotency → already posted (truthy data)
+      maybeSingleMock
+        .mockResolvedValueOnce({
+          data: { id: "don-gl-3", donor_email: null, donor_name: null, amount_cents: 2000, fund_designation: "General" },
+          error: null,
+        })
+        .mockResolvedValueOnce({ data: { id: "existing-gl-post" }, error: null }); // already posted
+
+      createTenantAdminClientMock.mockReturnValue(chainProxy);
+
+      const response = await stripeWebhookPost(
+        new NextRequest("http://localhost/api/webhooks/stripe", {
+          method: "POST",
+          body: JSON.stringify({
+            type: "payment_intent.succeeded",
+            data: {
+              object: {
+                id: "pi_gl_idem_1",
+                amount: 2000,
+                currency: "usd",
+                metadata: {
+                  church_id: "church-gl-1",
+                  event_registration_id: "reg-gl-3",
+                },
+              },
+            },
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      // GL was already posted — no new journal insert
+      expect(fromMock).not.toHaveBeenCalledWith("finance_journals");
+      expect(insertMock).not.toHaveBeenCalledWith(
+        expect.objectContaining({ journal_type: "giving" }),
+      );
+    });
+
+    it("handleChargeRefunded — Supabase: voids GL journal on refund", async () => {
+      const { chainProxy, fromMock, updateMock, maybeSingleMock } = makeGlChainProxy();
+
+      // Charge refunded path (Supabase):
+      // 1. idempotency check on event_registration_payments by refund_id → null
+      // 2. event_registrations update
+      // 3. event_registration_payments update
+      // 4. reverseGlEntryForRefundSupabase: donations lookup → donation found
+      // 5. reverseGlEntryForRefundSupabase: donation_gl_posts lookup → journal found
+      maybeSingleMock
+        .mockResolvedValueOnce({ data: null, error: null }) // idempotency: no existing refund row
+        .mockResolvedValueOnce({ data: { id: "don-ref-1" }, error: null }) // donations lookup
+        .mockResolvedValueOnce({ data: { journal_id: "journal-ref-1" }, error: null }); // donation_gl_posts
+
+      createTenantAdminClientMock.mockReturnValue(chainProxy);
+
+      const response = await stripeWebhookPost(
+        new NextRequest("http://localhost/api/webhooks/stripe", {
+          method: "POST",
+          body: JSON.stringify({
+            type: "charge.refunded",
+            data: {
+              object: {
+                payment_intent: "pi_gl_ref_1",
+                amount: 5000,
+                amount_refunded: 5000,
+                metadata: {
+                  church_id: "church-gl-1",
+                  event_registration_id: "reg-gl-ref-1",
+                },
+                refunds: {
+                  data: [{ id: "re_gl_ref_1", amount: 5000 }],
+                },
+              },
+            },
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+      // Journal voided via update on finance_journals
+      expect(fromMock).toHaveBeenCalledWith("finance_journals");
+      expect(updateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "voided", voided_by: "system-webhook-refund" }),
+      );
+    });
+  });
+
+  // ── Supabase path — handleSubscriptionDeleted ─────────────────────────────
+
+  describe("handleSubscriptionDeleted — Supabase path", () => {
+    beforeEach(() => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+    });
+
+    it("handleSubscriptionDeleted — Supabase: cancels donations on subscription deletion", async () => {
+      const fromMock = vi.fn();
+      const updateMock = vi.fn();
+      const eqMock = vi.fn();
+
+      const chainProxy = { from: fromMock, update: updateMock, eq: eqMock };
+      fromMock.mockReturnValue(chainProxy);
+      updateMock.mockReturnValue(chainProxy);
+      eqMock.mockReturnValue(chainProxy);
+
+      createTenantAdminClientMock.mockReturnValue(chainProxy);
+
+      const response = await stripeWebhookPost(
+        new NextRequest("http://localhost/api/webhooks/stripe", {
+          method: "POST",
+          body: JSON.stringify({
+            type: "customer.subscription.deleted",
+            data: {
+              object: {
+                id: "sub_cancelled_1",
+                metadata: { church_id: "church-sb-1" },
+              },
+            },
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+      expect(fromMock).toHaveBeenCalledWith("donations");
+      expect(updateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "cancelled" }),
+      );
+      expect(eqMock).toHaveBeenCalledWith("stripe_subscription_id", "sub_cancelled_1");
+      expect(eqMock).toHaveBeenCalledWith("church_id", "church-sb-1");
+    });
+
+    it("handleSubscriptionDeleted — Supabase: skips when no church_id in metadata", async () => {
+      const response = await stripeWebhookPost(
+        new NextRequest("http://localhost/api/webhooks/stripe", {
+          method: "POST",
+          body: JSON.stringify({
+            type: "customer.subscription.deleted",
+            data: {
+              object: {
+                id: "sub_nochurch_1",
+                metadata: {},
+              },
+            },
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(createTenantAdminClientMock).not.toHaveBeenCalled();
+      expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+    });
+  });
 });

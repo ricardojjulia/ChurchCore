@@ -103,7 +103,7 @@ export async function getChurchAdminAccountsData(
   const supabase = await createTenantServerClient();
   const { data } = await supabase
     .from("account_requests")
-    .select("id, email, phone, first_name, last_name, is_existing_member, created_at, profile_id, profiles(full_name, member_number, account_status)")
+    .select("id, email, phone, first_name, last_name, is_existing_member, created_at, profile_id, profiles!account_requests_profile_id_fkey(full_name, member_number, account_status)")
     .eq("church_id", session.appContext.church.id)
     .eq("status", "pending")
     .order("created_at", { ascending: true });

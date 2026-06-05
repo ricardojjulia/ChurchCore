@@ -394,8 +394,7 @@ export async function updateNotificationPreferencesAction(
   } = await import("@/lib/supabase/tenant");
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
-    revalidatePath("/app/member");
-    return;
+    throw new Error("Backend not configured. Supabase connection required.");
   }
 
   if (shouldUseLocalTenantFallback()) {

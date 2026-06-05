@@ -142,7 +142,7 @@ export async function createDailyWorkItemAction(input: CreateDailyWorkItemInput)
   const churchId = session.appContext.church.id;
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
-    return { ok: true, previewMode: true };
+    return { ok: false, error: "Backend not configured. Supabase connection required." };
   }
 
   const title = input.title.trim();
@@ -230,7 +230,7 @@ export async function updateDailyWorkItemStatusAction(input: UpdateDailyWorkItem
   const churchId = session.appContext.church.id;
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
-    return { ok: true, previewMode: true };
+    return { ok: false, error: "Backend not configured. Supabase connection required." };
   }
 
   if (shouldUseLocalTenantFallback()) {

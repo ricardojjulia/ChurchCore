@@ -52,12 +52,12 @@ describe("memberMobileCheckInAction", () => {
     shouldUseLocalTenantFallbackMock.mockReturnValue(true);
   });
 
-  it("returns preview mode when tenant backend is unavailable", async () => {
+  it("returns error when tenant backend is unavailable", async () => {
     hasTenantBackendEnvMock.mockReturnValue(false);
 
     const result = await memberMobileCheckInAction({ eventId: "event-1" });
 
-    expect(result).toEqual({ ok: true, previewMode: true });
+    expect(result).toEqual({ ok: false, error: "Backend not configured. Supabase connection required." });
   });
 
   it("rejects non-member roles", async () => {
@@ -388,12 +388,12 @@ describe("memberRegisterForEventAction", () => {
     shouldUseLocalTenantFallbackMock.mockReturnValue(true);
   });
 
-  it("returns preview mode when backend is unavailable", async () => {
+  it("returns error when backend is unavailable", async () => {
     hasTenantBackendEnvMock.mockReturnValue(false);
 
     const result = await memberRegisterForEventAction({ eventId: "event-1" });
 
-    expect(result).toEqual({ ok: true, previewMode: true });
+    expect(result).toEqual({ ok: false, error: "Backend not configured. Supabase connection required." });
   });
 
   it("creates pending approval registration when approval is required", async () => {

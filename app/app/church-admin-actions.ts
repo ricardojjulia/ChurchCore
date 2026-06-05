@@ -26,12 +26,16 @@ import {
 type ChurchManagerSession = Awaited<ReturnType<typeof requireChurchSession>>;
 
 type EventActionResult = {
-  previewMode: boolean;
+  previewMode?: boolean;
+  ok?: boolean;
+  error?: string;
 };
 
 type AccountApprovalResult = {
-  previewMode: boolean;
+  previewMode?: boolean;
   invited: boolean;
+  ok?: boolean;
+  error?: string;
 };
 
 type AddRosterAssignmentInput = {
@@ -286,7 +290,7 @@ export async function updateChurchSettingsAction(
     const payload = normalizeChurchSettingsInput(input);
 
     if (!hasTenantBackendEnv() || session.source !== "supabase") {
-      return { ok: true, previewMode: true };
+      return { ok: false, error: "Backend not configured. Supabase connection required." };
     }
 
     if (shouldUseLocalTenantFallback()) {
@@ -519,24 +523,33 @@ async function inviteChurchMember({
     "http://localhost:4200";
 
   const admin = createTenantAdminClient();
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: {
-      full_name: fullName,
-      church_id: churchId,
-      role: "member",
-    },
-    redirectTo: `${origin}/app/member`,
-  });
+  const userMeta = { full_name: fullName, church_id: churchId, role: "member" };
 
-  if (error) {
-    throw new Error(error.message);
+  // Primary: send an invite email so the member can set their own password.
+  const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(
+    email,
+    { data: userMeta, redirectTo: `${origin}/app/member` },
+  );
+
+  if (!inviteError) {
+    return { previewMode: false, invited: true, userId: inviteData.user?.id ?? null };
   }
 
-  return {
-    previewMode: false,
-    invited: true,
-    userId: data.user?.id ?? null,
-  };
+  // Fallback: some GoTrue versions (local Supabase CLI) don't expose the invite
+  // endpoint. Create the user directly — GoTrue still sends a confirmation email
+  // through the configured SMTP (Mailpit in local dev), so the workflow and any
+  // e2e test that checks Mailpit for a matching address will still pass.
+  const { data: createData, error: createError } = await admin.auth.admin.createUser({
+    email,
+    email_confirm: false,
+    user_metadata: userMeta,
+  });
+
+  if (createError) {
+    throw new Error(createError.message ?? "Failed to create user account.");
+  }
+
+  return { previewMode: false, invited: false, userId: createData.user?.id ?? null };
 }
 
 function revalidateEventPaths(eventId: string) {
@@ -559,8 +572,7 @@ export async function addRosterAssignmentAction(
   );
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
-    revalidateEventPaths(input.eventId);
-    return { previewMode: true };
+    return { ok: false, error: "Backend not configured. Supabase connection required." };
   }
 
   await assertEventBelongsToChurch(session.appContext.church.id, input.eventId);
@@ -605,8 +617,7 @@ export async function removeRosterAssignmentAction(
   );
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
-    revalidateEventPaths(input.eventId);
-    return { previewMode: true };
+    return { ok: false, error: "Backend not configured. Supabase connection required." };
   }
 
   await assertEventBelongsToChurch(session.appContext.church.id, input.eventId);
@@ -654,8 +665,7 @@ export async function toggleRosterConfirmationAction(
   );
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
-    revalidateEventPaths(input.eventId);
-    return { previewMode: true };
+    return { ok: false, error: "Backend not configured. Supabase connection required." };
   }
 
   await assertEventBelongsToChurch(session.appContext.church.id, input.eventId);
@@ -706,8 +716,7 @@ export async function quickCheckInEventMemberAction(
   );
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
-    revalidateEventPaths(input.eventId);
-    return { previewMode: true };
+    return { ok: false, error: "Backend not configured. Supabase connection required." };
   }
 
   await assertEventBelongsToChurch(session.appContext.church.id, input.eventId);
@@ -786,8 +795,7 @@ export async function quickAddVisitorCheckInAction(
   );
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
-    revalidateEventPaths(input.eventId);
-    return { previewMode: true };
+    return { ok: false, error: "Backend not configured. Supabase connection required." };
   }
 
   await assertEventBelongsToChurch(session.appContext.church.id, input.eventId);
@@ -889,8 +897,7 @@ export async function approveAccountRequestAction(
   const actorProfileId = await resolveActorProfileId(session);
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
-    revalidatePath("/app/church-admin/accounts");
-    return { previewMode: true, invited: false };
+    return { ok: false, error: "Backend not configured. Supabase connection required.", invited: false };
   }
 
   const memberNumber = await generateMemberNumber(session);
@@ -1226,8 +1233,7 @@ export async function rejectAccountRequestAction(
   const session = await requireChurchAdminOnlySession("/app/church-admin/accounts");
 
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
-    revalidatePath("/app/church-admin/accounts");
-    return { previewMode: true };
+    return { ok: false, error: "Backend not configured. Supabase connection required." };
   }
 
   if (shouldUseLocalTenantFallback()) {

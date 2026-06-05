@@ -97,6 +97,19 @@ Set all of the following in Vercel under **Project → Settings → Environment 
 | `TWILIO_ACCOUNT_SID` | Twilio account SID (if using Twilio) |
 | `TWILIO_AUTH_TOKEN` | Twilio auth token |
 
+### Web-Push Notifications (optional)
+
+Generate a VAPID key pair with `npx web-push generate-vapid-keys` and set:
+
+| Variable | Description |
+|---|---|
+| `VAPID_PUBLIC_KEY` | VAPID public key (URL-safe base64) — used by the server for signing |
+| `VAPID_PRIVATE_KEY` | VAPID private key (URL-safe base64) — keep secret |
+| `VAPID_SUBJECT` | Contact URI for the push provider: `mailto:admin@example.com` or your HTTPS origin |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Same value as `VAPID_PUBLIC_KEY` — must be set for the browser to subscribe |
+
+If these are not set, push notification dispatch is skipped gracefully and all other features continue to work.
+
 ### Application
 
 | Variable | Description |
@@ -248,3 +261,26 @@ If a bad env var was deployed:
 
 1. In Vercel, edit the variable back to the last known-good value.
 2. Redeploy by clicking **Redeploy** on the last-good deployment (not the current one).
+
+---
+
+## Local Development — Required `.env.local` Configuration
+
+The following `.env.local` settings are required for the local dev environment to function correctly under the Supabase-only architecture (v3.2.0+):
+
+```
+# Tenant Supabase (local, started with `supabase start`)
+TENANT_SUPABASE_URL=http://127.0.0.1:4201
+TENANT_SUPABASE_PUBLISHABLE_KEY=<local anon key from `supabase status`>
+TENANT_SUPABASE_SERVICE_ROLE_KEY=<local service_role key from `supabase status`>
+TENANT_DB_URL=postgresql://postgres:postgres@127.0.0.1:4202/postgres
+
+# Control plane — MUST use a local URL pattern in local dev (even if control plane isn't running)
+# This makes shouldUseLocalControlPlaneFallback() return true, enabling auth session building
+# from the local tenant DB for demo users. In production Vercel, use the real production URL.
+CONTROL_PLANE_SUPABASE_URL=http://127.0.0.1:4211
+```
+
+**Important:** If `CONTROL_PLANE_SUPABASE_URL` is set to the production URL (`https://<ref>.supabase.co`) in `.env.local`, auth session building will try to load demo user memberships from the production control plane, where they don't exist. This causes all sign-in sessions to resolve as preview (no data). Always use a local URL pattern (`http://127.0.0.1:4211`) for `CONTROL_PLANE_SUPABASE_URL` in local development.
+
+The local control plane Supabase at port 4211 does not need to be running — the URL just needs to be a local pattern so `shouldUseLocalControlPlaneFallback()` evaluates to `true` and the auth system uses the local tenant DB for demo user session building.

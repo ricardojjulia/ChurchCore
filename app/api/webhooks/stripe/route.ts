@@ -172,12 +172,20 @@ async function handlePaymentIntentSucceeded(pi: {
     .update({ status: "succeeded", updated_at: new Date().toISOString() })
     .eq("church_id", churchId)
     .eq("stripe_payment_intent_id", pi.id)
+    .eq("status", "pending")
     .select("id, donor_email, donor_name, amount_cents, fund_designation")
     .maybeSingle();
 
   if (!donation) return;
 
-  // autoPostToGl uses local SQL only — deferred for Supabase path (Q1 accepted)
+  // Auto-post to GL via Supabase path (mirrors local autoPostToGl)
+  await autoPostToGlSupabase(
+    supabase,
+    donation.id as string,
+    churchId,
+    (donation as { amount_cents: number }).amount_cents,
+    (donation as { fund_designation: string | null }).fund_designation,
+  );
 
   const d = donation as {
     id: string;
@@ -448,19 +456,8 @@ async function handleChargeRefunded(charge: {
     .eq("registration_id", registrationId)
     .eq("church_id", churchId);
 
-  // GL reversal — best-effort, will be a no-op until GL is wired for Supabase
-  try {
-    await reverseGlEntryForRefund({
-      churchId,
-      registrationId,
-      amountCents: refundAmountCents,
-      refundId,
-      refundedAt: new Date().toISOString(),
-      profileId: null,
-    });
-  } catch (glErr) {
-    console.error("[stripe-webhook] GL reversal failed (non-blocking):", glErr);
-  }
+  // GL reversal via Supabase path — best-effort, does not fail webhook acknowledgement
+  await reverseGlEntryForRefundSupabase(supabase, paymentIntentId, churchId);
 }
 
 async function handleSubscriptionDeleted(sub: {
@@ -468,82 +465,159 @@ async function handleSubscriptionDeleted(sub: {
   metadata?: { church_id?: string };
 }) {
   const churchId = sub.metadata?.church_id;
-  if (!churchId || !shouldUseLocalTenantFallback()) return;
+  if (!churchId) return;
 
-  await queryTenantLocalDb(
-    `update public.donations
-     set status = 'cancelled', updated_at = now()
-     where stripe_subscription_id = $1 and church_id = $2`,
-    [sub.id, churchId],
-  );
+  if (shouldUseLocalTenantFallback()) {
+    await queryTenantLocalDb(
+      `update public.donations
+       set status = 'cancelled', updated_at = now()
+       where stripe_subscription_id = $1 and church_id = $2`,
+      [sub.id, churchId],
+    );
+    return;
+  }
+
+  // Supabase path
+  const supabase = createTenantAdminClient();
+  await supabase
+    .from("donations")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("stripe_subscription_id", sub.id)
+    .eq("church_id", churchId);
 }
 
 // ── GL auto-post ──────────────────────────────────────────────
+// Dead code — Supabase-only architecture (2026-07-10). Use autoPostToGlSupabase.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function autoPostToGl(..._args: unknown[]) { return; }
 
-async function autoPostToGl(
+// ── GL auto-post (Supabase path) ──────────────────────────────
+
+async function autoPostToGlSupabase(
+  supabase: ReturnType<typeof createTenantAdminClient>,
   donationId: string,
   churchId: string,
   amountCents: number,
   fundDesignation: string | null,
 ) {
-  // Skip if already posted
-  const existing = await queryTenantLocalDb<{ id: string }>(
-    `select id from public.donation_gl_posts where donation_id = $1`,
-    [donationId],
-  );
-  if (existing.rows[0]) return;
+  try {
+    // Idempotency: skip if already posted
+    const { data: existing } = await supabase
+      .from("donation_gl_posts")
+      .select("id")
+      .eq("donation_id", donationId)
+      .maybeSingle();
+    if (existing) return;
 
-  // Look up fund mapping
-  const mapping = await queryTenantLocalDb<{
-    asset_account_id: string;
-    income_account_id: string;
-  }>(
-    `select asset_account_id, income_account_id
-     from public.giving_fund_accounts
-     where church_id = $1 and fund_designation = $2 and is_active = true`,
-    [churchId, fundDesignation ?? "General"],
-  );
-  if (!mapping.rows[0]) return; // No mapping — skip silently (admin must configure)
+    // Fund → GL account mapping
+    const { data: mapping } = await supabase
+      .from("giving_fund_accounts")
+      .select("asset_account_id, income_account_id")
+      .eq("church_id", churchId)
+      .eq("fund_designation", fundDesignation ?? "General")
+      .eq("is_active", true)
+      .maybeSingle();
+    if (!mapping) return; // No mapping configured — skip silently
 
-  const { asset_account_id, income_account_id } = mapping.rows[0];
+    const { asset_account_id, income_account_id } = mapping as {
+      asset_account_id: string;
+      income_account_id: string;
+    };
 
-  // Create journal
-  const journal = await queryTenantLocalDb<{ id: string }>(
-    `insert into public.finance_journals
-       (church_id, journal_date, description, journal_type, status, reference)
-     values ($1, current_date, $2, 'giving', 'posted', $3)
-     returning id`,
-    [
-      churchId,
-      `Online giving — ${fundDesignation ?? "General Fund"}`,
-      donationId,
-    ],
-  );
-  const journalId = journal.rows[0]?.id;
-  if (!journalId) return;
+    // Create journal
+    const { data: journal } = await supabase
+      .from("finance_journals")
+      .insert({
+        church_id: churchId,
+        journal_date: new Date().toISOString().slice(0, 10),
+        description: `Online giving — ${fundDesignation ?? "General Fund"}`,
+        journal_type: "giving",
+        status: "posted",
+        reference: donationId,
+      })
+      .select("id")
+      .single();
+    if (!journal) return;
 
-  // Balanced journal lines: debit asset, credit income
-  await queryTenantLocalDb(
-    `insert into public.finance_journal_lines
-       (journal_id, account_id, description, debit_cents, credit_cents)
-     values
-       ($1, $2, $3, $4, 0),
-       ($1, $5, $3, 0, $4)`,
-    [
-      journalId,
-      asset_account_id,
-      `Donation ${donationId.slice(-8)}`,
-      amountCents,
-      income_account_id,
-    ],
-  );
+    const journalId = (journal as { id: string }).id;
+    const lineMemo = `Donation ${donationId.slice(-8)}`;
 
-  // Record post
-  await queryTenantLocalDb(
-    `insert into public.donation_gl_posts (church_id, donation_id, journal_id, status)
-     values ($1, $2, $3, 'posted')`,
-    [churchId, donationId, journalId],
-  );
+    // Balanced journal lines: debit asset, credit income
+    // Columns: journal_id, church_id, account_id, side ('debit'|'credit'), amount_cents, memo, sort_order
+    await supabase.from("finance_journal_lines").insert([
+      {
+        journal_id: journalId,
+        church_id: churchId,
+        account_id: asset_account_id,
+        side: "debit",
+        amount_cents: amountCents,
+        memo: lineMemo,
+        sort_order: 0,
+      },
+      {
+        journal_id: journalId,
+        church_id: churchId,
+        account_id: income_account_id,
+        side: "credit",
+        amount_cents: amountCents,
+        memo: lineMemo,
+        sort_order: 1,
+      },
+    ]);
+
+    // Audit record
+    await supabase.from("donation_gl_posts").insert({
+      church_id: churchId,
+      donation_id: donationId,
+      journal_id: journalId,
+      status: "posted",
+    });
+  } catch (err) {
+    console.error("[stripe-webhook] autoPostToGlSupabase failed (non-blocking):", err);
+  }
+}
+
+async function reverseGlEntryForRefundSupabase(
+  supabase: ReturnType<typeof createTenantAdminClient>,
+  paymentIntentId: string,
+  churchId: string,
+) {
+  try {
+    // Find the donation by payment intent
+    const { data: donation } = await supabase
+      .from("donations")
+      .select("id")
+      .eq("church_id", churchId)
+      .eq("stripe_payment_intent_id", paymentIntentId)
+      .maybeSingle();
+    if (!donation) return;
+
+    const donationId = (donation as { id: string }).id;
+
+    // Find the GL post record
+    const { data: glPost } = await supabase
+      .from("donation_gl_posts")
+      .select("journal_id")
+      .eq("donation_id", donationId)
+      .maybeSingle();
+    if (!glPost) return; // No GL post to reverse
+
+    const journalId = (glPost as { journal_id: string | null }).journal_id;
+    if (!journalId) return;
+
+    // Void the journal
+    await supabase
+      .from("finance_journals")
+      .update({
+        status: "voided",
+        voided_at: new Date().toISOString(),
+        voided_by: "system-webhook-refund",
+      })
+      .eq("id", journalId)
+      .eq("church_id", churchId);
+  } catch (err) {
+    console.error("[stripe-webhook] reverseGlEntryForRefundSupabase failed (non-blocking):", err);
+  }
 }
 
 // ── Receipt email ─────────────────────────────────────────────
