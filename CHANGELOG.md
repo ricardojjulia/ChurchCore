@@ -6,6 +6,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Added
+
+- Added `scripts/seed-demo.mjs` — a complete hosted demo seed script targeting any Supabase project via `TENANT_SUPABASE_URL` and `TENANT_SUPABASE_SERVICE_ROLE_KEY`. Creates five fixed-credential auth users (admin, member, secretary, pastor, ministry leader), upserts Grace Harbor Church with 15+ tables of demo data (families, profiles, ministries, events, CCM service, finance accounts, giving journals using the correct `side`/`amount_cents` schema, donations, groups, service plans, care assignments, workflows, and communications), and prints a per-table upsert count summary. The script is idempotent — re-running it is safe. Replaces the broken `supabase/scripts/hosted-seed-supplement.js` (which incorrectly referenced non-existent `debit_cents`/`credit_cents` columns). Run with `npm run setup:demo` after setting the two required env vars. Demo data is designed to trigger non-trivial states in every readiness panel: pending account requests, incomplete profiles, unconfirmed roster positions, open CCM service with 2-adult coverage + an open incident, failed/unposted donations, a draft finance journal, bounced and failed comms, and open ShepherdAI suggested workflows (`scripts/seed-demo.mjs`, `docs/setup/demo-install.md`, `package.json`).
+
+- Added `docs/setup/demo-install.md` — a non-technical tester guide with the five demo credentials, a ten-step tour through the most important flows (dashboard readiness, children's ministry safety, GL posting, import, ShepherdAI workflows, public giving page), an inline sample CSV for the people import demo, and a "What you are evaluating" section covering the key product differentiators.
+
 ## [3.2.0] - 2026-07-10
 
 ### Release Rationale

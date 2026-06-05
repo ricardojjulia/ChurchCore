@@ -25,7 +25,8 @@
     "lint:migrations": "node scripts/lint-migrations.mjs",
     "check:schema": "node scripts/check-schema-alignment.mjs",
     "audit:rls": "node scripts/audit-rls.mjs",
-    "generate:manifest": "node scripts/generate-manifest.mjs"
+    "generate:manifest": "node scripts/generate-manifest.mjs",
+    "setup:demo": "node scripts/seed-demo.mjs"
   },
   "dependencies": {
     "@mantine/core": "^9.0.1",
