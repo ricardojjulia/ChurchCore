@@ -8,6 +8,9 @@ import "@mantine/notifications/styles.css";
 import { I18nProvider } from "@/components/i18n-provider";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import { ThemeProvider } from "@/components/theme-provider";
+import { DemoSessionProvider } from "@/lib/demo/context";
+import { DemoErrorBoundary } from "@/components/demo/demo-error-boundary";
+import { FeedbackButton } from "@/components/demo/feedback-button";
 import { localeCookieName, normalizeLocale } from "@/lib/i18n";
 import { siteConfig } from "@/lib/site";
 
@@ -55,7 +58,12 @@ export default async function RootLayout({
       <body className="min-h-full bg-background font-sans text-foreground">
         <ServiceWorkerRegistration />
         <ThemeProvider>
-          <I18nProvider locale={locale}>{children}</I18nProvider>
+          <DemoSessionProvider>
+            <DemoErrorBoundary>
+              <I18nProvider locale={locale}>{children}</I18nProvider>
+              <FeedbackButton />
+            </DemoErrorBoundary>
+          </DemoSessionProvider>
         </ThemeProvider>
       </body>
     </html>

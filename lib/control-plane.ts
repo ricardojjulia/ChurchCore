@@ -2,7 +2,8 @@ export type ControlPlaneSectionId =
   | "overview"
   | "tenants"
   | "billing"
-  | "support";
+  | "support"
+  | "demo-feedback";
 
 export type ControlPlaneMetric = {
   label: string;
@@ -51,6 +52,11 @@ export const controlPlaneSections = [
     id: "support",
     label: "Support",
     description: "Escalations, access reviews, and queue health",
+  },
+  {
+    id: "demo-feedback",
+    label: "Demo Feedback",
+    description: "Bugs, errors, and improvement signals from the hosted demo",
   },
 ] as const;
 

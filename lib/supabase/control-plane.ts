@@ -1,11 +1,13 @@
 import "server-only";
 
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { Pool, type QueryResultRow } from "pg";
 
 import {
   getControlPlaneDbUrl,
+  getControlPlaneServiceRoleKey,
   getControlPlaneSupabaseEnv,
   hasControlPlaneBackendConfig,
   shouldUseLocalControlPlaneDbFallback,
@@ -51,6 +53,17 @@ export async function createControlPlaneServerClient() {
           // Request-time refresh is handled elsewhere when writes are not allowed.
         }
       },
+    },
+  });
+}
+
+export function createControlPlaneAdminClient() {
+  const { url } = getControlPlaneSupabaseEnv();
+
+  return createClient(url, getControlPlaneServiceRoleKey(), {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
     },
   });
 }
