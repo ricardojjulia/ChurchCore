@@ -111,7 +111,7 @@ Click either workflow to assign it, act on it, or dismiss it.
 Open a new browser tab and go to:
 
 ```
-https://demo.churchcore.app/give/grace-harbor
+https://church-core-ops.vercel.app/give/grace-harbor
 ```
 
 This is the public-facing giving page for Grace Harbor. Anyone with the URL can give without signing in. Try selecting a fund and entering a test amount. No real card is charged in demo mode.
