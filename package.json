@@ -1,6 +1,6 @@
 {
   "name": "churchcore",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "private": true,
   "license": "MIT",
   "description": "ChurchCore is a professional, compliance-first platform for modern church operations, combining secure architecture with end-to-end workflows across member care, events, giving, finance, and reporting.",
@@ -48,7 +48,8 @@
     "react-dom": "19.2.4",
     "read-excel-file": "^9.0.6",
     "svix": "^1.95.1",
-    "tailwind-merge": "^3.5.0"
+    "tailwind-merge": "^3.5.0",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
@@ -61,6 +62,7 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/web-push": "^3.6.4",
     "@vitest/coverage-v8": "^4.1.8",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",

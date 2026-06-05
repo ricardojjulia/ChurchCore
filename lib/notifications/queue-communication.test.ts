@@ -7,6 +7,8 @@ const {
   sendgridAdapterSendMock,
   twilioAdapterSendMock,
   generateUnsubscribeLinkMock,
+  createTenantAdminClientMock,
+  webpushSendNotificationMock,
 } = vi.hoisted(() => ({
   revalidatePathMock: vi.fn(),
   queryTenantLocalDbMock: vi.fn(),
@@ -14,6 +16,8 @@ const {
   sendgridAdapterSendMock: vi.fn(),
   twilioAdapterSendMock: vi.fn(),
   generateUnsubscribeLinkMock: vi.fn(),
+  createTenantAdminClientMock: vi.fn(),
+  webpushSendNotificationMock: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({
@@ -24,6 +28,14 @@ vi.mock("@/lib/supabase/tenant", () => ({
   shouldUseLocalTenantFallback: shouldUseLocalTenantFallbackMock,
   queryTenantLocalDb: queryTenantLocalDbMock,
   createTenantServerClient: vi.fn(),
+  createTenantAdminClient: createTenantAdminClientMock,
+}));
+
+vi.mock("web-push", () => ({
+  default: {
+    setVapidDetails: vi.fn(),
+    sendNotification: webpushSendNotificationMock,
+  },
 }));
 
 vi.mock("@/lib/communications/sendgrid-adapter", () => ({
@@ -240,6 +252,58 @@ describe("queueCommunicationAction", () => {
       const bodyPreview = writeLogArgs[5];
       expect(bodyPreview).toBe(originalBody.slice(0, 500));
       expect(bodyPreview).not.toContain("unsubscribe");
+    });
+  });
+
+  describe("push channel dispatch", () => {
+    it("skips push dispatch when VAPID keys missing", async () => {
+      process.env.UNSUBSCRIBE_SECRET = "test-secret";
+
+      const result = await queueCommunicationAction({
+        session: makeSession(),
+        recipientProfileId: "profile-1",
+        recipientContact: "device-endpoint",
+        channel: "push",
+        body: "You have a new update",
+      });
+
+      expect(result.sent).toBe(true);
+      expect(webpushSendNotificationMock).not.toHaveBeenCalled();
+    });
+
+    it("dispatches push to subscriptions via local DB when VAPID keys set", async () => {
+      process.env.VAPID_PUBLIC_KEY = "BTest...";
+      process.env.VAPID_PRIVATE_KEY = "PrivTest...";
+      process.env.UNSUBSCRIBE_SECRET = "test-secret";
+
+      // consent check → no prefs (default opted in); subscriptions query; writeLog
+      queryTenantLocalDbMock
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({
+          rows: [
+            { endpoint: "https://push.example.com/1", p256dh: "key1", auth_secret: "auth1" },
+          ],
+        })
+        .mockResolvedValueOnce({ rows: [{ id: "log-1" }] });
+
+      webpushSendNotificationMock.mockResolvedValue({ statusCode: 201 });
+
+      await queueCommunicationAction({
+        session: makeSession(),
+        recipientProfileId: "profile-1",
+        recipientContact: "device-endpoint",
+        channel: "push",
+        body: "Test push body",
+        subject: "Test Title",
+      });
+
+      expect(webpushSendNotificationMock).toHaveBeenCalledWith(
+        expect.objectContaining({ endpoint: "https://push.example.com/1" }),
+        expect.stringContaining("Test push body"),
+      );
+
+      delete process.env.VAPID_PUBLIC_KEY;
+      delete process.env.VAPID_PRIVATE_KEY;
     });
   });
 });

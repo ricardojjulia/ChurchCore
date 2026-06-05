@@ -17,6 +17,7 @@ import { useI18n } from "@/components/i18n-provider";
 
 export interface NotificationPreferencesFormProps {
   profileId: string;
+  churchId?: string;
   initial: {
     emailOptIn: boolean;
     smsOptIn: boolean;
@@ -26,8 +27,35 @@ export interface NotificationPreferencesFormProps {
   isInitialSetup?: boolean;
 }
 
+async function subscribeBrowserPush(churchId: string, profileId: string): Promise<void> {
+  if (typeof window === "undefined" || !("PushManager" in window)) return;
+
+  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  if (!vapidPublicKey) return;
+
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return;
+
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: vapidPublicKey,
+    });
+
+    await fetch("/api/push/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subscription: subscription.toJSON(), churchId, profileId }),
+    });
+  } catch {
+    // Browser push subscription is best-effort — never block the form save
+  }
+}
+
 export function NotificationPreferencesForm({
   profileId,
+  churchId,
   initial,
   isInitialSetup = false,
 }: NotificationPreferencesFormProps) {
@@ -35,6 +63,9 @@ export function NotificationPreferencesForm({
   const [smsOptIn, setSmsOptIn] = useState(initial.smsOptIn);
   const [pushOptIn, setPushOptIn] = useState(initial.pushOptIn);
   const [inAppOptIn, setInAppOptIn] = useState(initial.inAppOptIn);
+  const [browserPushSupported] = useState(
+    typeof window !== "undefined" && "PushManager" in window,
+  );
 
   const [isPending, startTransition] = useTransition();
   const { t } = useI18n();
@@ -94,13 +125,21 @@ export function NotificationPreferencesForm({
             description={translateMember("smsNotificationsDescription")}
             size="sm"
           />
-          <Switch
-            checked={pushOptIn}
-            onChange={(e) => setPushOptIn(e.currentTarget.checked)}
-            label={translateMember("pushNotifications")}
-            description={translateMember("pushNotificationsDescription")}
-            size="sm"
-          />
+          {browserPushSupported ? (
+            <Switch
+              checked={pushOptIn}
+              onChange={(e) => {
+                const checked = e.currentTarget.checked;
+                setPushOptIn(checked);
+                if (checked && churchId) {
+                  void subscribeBrowserPush(churchId, profileId);
+                }
+              }}
+              label={translateMember("pushNotifications")}
+              description={translateMember("pushNotificationsDescription")}
+              size="sm"
+            />
+          ) : null}
           <Switch
             checked={inAppOptIn}
             onChange={(e) => setInAppOptIn(e.currentTarget.checked)}

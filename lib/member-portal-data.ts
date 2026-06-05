@@ -102,11 +102,23 @@ export type MemberNotificationPreferences = {
 
 export type MemberSelfServiceReviewStatus = "none" | "pending" | "rejected";
 
+export type MemberGivingSummary = {
+  totalCents: number;
+  giftCount: number;
+};
+
+export type MemberGroupMembership = {
+  id: string;
+  name: string;
+  role: string;
+};
+
 export type MemberPortalData = {
   profile: MemberPortalProfile | null;
   ministries: MemberPortalMinistry[];
   upcomingEvents: MemberPortalEvent[];
   attendanceHistory: MemberAttendanceRecord[];
+  attendanceTrend: Array<{ serviceDate: string }>;
   upcomingServing: MemberServingAssignment[];
   family: MemberPortalFamily | null;
   directory: MemberDirectoryEntry[];
@@ -116,6 +128,8 @@ export type MemberPortalData = {
   profileChangeReviewerNote: string | null;
   familyChangeStatus: MemberSelfServiceReviewStatus;
   familyChangeReviewerNote: string | null;
+  givingSummary: MemberGivingSummary | null;
+  myGroups: MemberGroupMembership[];
 };
 
 function buildPreviewMemberPortalData(session: ChurchAppSession): MemberPortalData {
@@ -156,6 +170,7 @@ function buildPreviewMemberPortalData(session: ChurchAppSession): MemberPortalDa
         ministryName: null,
       })) ?? [],
     attendanceHistory: [],
+    attendanceTrend: [],
     upcomingServing: [],
     family: null,
     directory: [],
@@ -165,6 +180,8 @@ function buildPreviewMemberPortalData(session: ChurchAppSession): MemberPortalDa
     profileChangeReviewerNote: null,
     familyChangeStatus: "none",
     familyChangeReviewerNote: null,
+    givingSummary: null,
+    myGroups: [],
   };
 }
 
@@ -205,8 +222,10 @@ export async function getMemberPortalData(
   const churchId = session.appContext.church.id;
   const activeProfileId = await resolveActiveChurchProfileId(session);
 
+  const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString();
+
   if (shouldUseLocalTenantFallback()) {
-    const [profileResult, ministriesResult, eventsResult, directoryResult] = await Promise.all([
+    const [profileResult, ministriesResult, eventsResult, directoryResult, givingSummaryResult, myGroupsResult] = await Promise.all([
       activeProfileId
         ? queryTenantLocalDb<{
         id: string;
@@ -364,6 +383,36 @@ export async function getMemberPortalData(
         `,
         [churchId],
       ),
+      activeProfileId
+        ? queryTenantLocalDb<{ total_cents: string; gift_count: string }>(
+          `
+            select
+              coalesce(sum(amount_cents), 0)::text as total_cents,
+              count(*)::text as gift_count
+            from public.donations
+            where church_id = $1
+              and profile_id = $2
+              and status = 'succeeded'
+              and donated_at >= $3
+          `,
+          [churchId, activeProfileId, yearStart],
+        )
+        : { rows: [] as Array<{ total_cents: string; gift_count: string }> },
+      activeProfileId
+        ? queryTenantLocalDb<{ role: string; group_id: string; group_name: string }>(
+          `
+            select gm.role, g.id as group_id, g.name as group_name
+            from public.group_members gm
+            join public.groups g on g.id = gm.group_id
+            where gm.profile_id = $1
+              and gm.church_id = $2
+              and gm.status != 'pending'
+            order by g.name
+            limit 10
+          `,
+          [activeProfileId, churchId],
+        ).catch(() => ({ rows: [] as Array<{ role: string; group_id: string; group_name: string }> }))
+        : { rows: [] as Array<{ role: string; group_id: string; group_name: string }> },
     ]);
 
     const profileRow = profileResult.rows[0];
@@ -605,6 +654,9 @@ export async function getMemberPortalData(
         checkInMethod: row.check_in_method,
         eventTitle: row.event_title,
       })),
+      attendanceTrend: attendanceHistoryResult.rows.map((row) => ({
+        serviceDate: row.checked_in_at,
+      })),
       upcomingServing: servingResult.rows.map((row) => ({
         id: row.id,
         roleTitle: row.role_title,
@@ -662,6 +714,17 @@ export async function getMemberPortalData(
             ? "rejected"
             : "none",
       familyChangeReviewerNote: familyRequest?.reviewer_note ?? null,
+      givingSummary: (() => {
+        const row = givingSummaryResult.rows[0];
+        const total = row ? parseInt(row.total_cents, 10) || 0 : 0;
+        const count = row ? parseInt(row.gift_count, 10) || 0 : 0;
+        return count > 0 ? { totalCents: total, giftCount: count } : null;
+      })(),
+      myGroups: myGroupsResult.rows.map((row) => ({
+        id: row.group_id,
+        name: row.group_name,
+        role: row.role,
+      })),
     };
   }
 
@@ -731,7 +794,7 @@ export async function getMemberPortalData(
           .order("full_name")
       : { data: [] as Array<{ id: string; full_name: string; display_title: string | null }> };
 
-  const [attendanceHistoryResult, servingResult] = profileRow
+  const [attendanceHistoryResult, servingResult, givingDonatonsResult, myGroupsResult] = profileRow
     ? await Promise.all([
         supabase
           .from("attendance")
@@ -748,10 +811,26 @@ export async function getMemberPortalData(
           .gte("events.starts_at", new Date().toISOString())
           .order("created_at", { ascending: true })
           .limit(8),
+        supabase
+          .from("donations")
+          .select("amount_cents")
+          .eq("profile_id", profileRow.id)
+          .eq("church_id", churchId)
+          .eq("status", "succeeded")
+          .gte("donated_at", yearStart),
+        supabase
+          .from("group_members")
+          .select("role, groups(id, name)")
+          .eq("profile_id", profileRow.id)
+          .eq("church_id", churchId)
+          .neq("status", "pending")
+          .limit(10),
       ])
     : [
         { data: [] as Array<{ id: string; checked_in_at: string; status: string; check_in_method: string; events: { title?: string | null } | { title?: string | null }[] | null }> },
         { data: [] as Array<{ id: string; role_title: string; is_confirmed: boolean; events: { title?: string | null; starts_at?: string | null } | { title?: string | null; starts_at?: string | null }[] | null }> },
+        { data: [] as Array<{ amount_cents: number }> },
+        { data: [] as Array<{ role: string; groups: { id: string; name: string } | null }> },
       ];
 
   const notificationPreferencesResult =
@@ -933,6 +1012,8 @@ export async function getMemberPortalData(
               ? String((row.events[0] as { title: unknown }).title)
               : null,
       })) ?? [],
+    attendanceTrend:
+      attendanceHistoryResult.data?.map((row) => ({ serviceDate: row.checked_in_at })) ?? [],
     upcomingServing:
       servingResult.data?.flatMap((row) => {
         const eventRecord = Array.isArray(row.events) ? row.events[0] : row.events;
@@ -1016,5 +1097,15 @@ export async function getMemberPortalData(
           ? "rejected"
           : "none",
     familyChangeReviewerNote: latestFamilyRequest?.reviewer_note ?? null,
+    givingSummary: (() => {
+      const rows = givingDonatonsResult.data ?? [];
+      const total = rows.reduce((sum, row) => sum + (row.amount_cents ?? 0), 0);
+      return rows.length > 0 ? { totalCents: total, giftCount: rows.length } : null;
+    })(),
+    myGroups: (myGroupsResult.data ?? []).flatMap((row) => {
+      const group = row.groups && typeof row.groups === "object" && "id" in row.groups ? row.groups as { id: string; name: string } : null;
+      if (!group) return [];
+      return [{ id: group.id, name: group.name, role: row.role }];
+    }),
   };
 }

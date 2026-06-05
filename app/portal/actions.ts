@@ -66,7 +66,7 @@ export async function submitPortalAccountRequestAction(
   }
 
   if (!hasTenantBackendEnv() && !hasTenantDbUrl()) {
-    return { previewMode: true };
+    return { ok: false, error: "Backend not configured. Supabase connection required." };
   }
 
   if (shouldUseLocalTenantFallback() || !hasTenantBackendEnv()) {
@@ -82,11 +82,11 @@ export async function submitPortalAccountRequestAction(
 
   const supabase = await createTenantServerClient();
   const { error } = await supabase.rpc("submit_account_request", {
+    target_church_id: churchId,
     request_email: email,
     request_first_name: firstName,
     request_last_name: lastName,
     request_phone: phone,
-    request_church_id: churchId,
   });
 
   if (error) {
@@ -119,7 +119,7 @@ export async function submitPublicEventRegistrationAction(
   }
 
   if (!hasTenantBackendEnv() && !hasTenantDbUrl()) {
-    return { ok: true, previewMode: true };
+    return { ok: false, error: "Backend not configured. Supabase connection required." };
   }
 
   if (shouldUseLocalTenantFallback() || !hasTenantBackendEnv()) {

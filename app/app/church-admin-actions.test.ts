@@ -495,7 +495,7 @@ describe("church-admin actions", () => {
       roleTitle: "Greeter",
     });
 
-    expect(result).toEqual({ previewMode: true });
+    expect(result).toEqual({ ok: false, error: "Backend not configured. Supabase connection required." });
     expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
   });
 

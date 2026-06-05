@@ -41,6 +41,7 @@ import {
   createJournalAction,
   importFinanceRowsAction,
   postJournalAction,
+  voidJournalAction,
 } from "@/app/app/finance-actions";
 
 describe("finance actions", () => {
@@ -149,5 +150,56 @@ describe("finance actions", () => {
         defaultCreditAccountId: "acct-2",
       }),
     ).rejects.toThrow("No valid rows to import");
+  });
+
+  describe("voidJournalAction", () => {
+    const baseSession = {
+      appContext: { roleId: "church-admin", church: { id: "church-1" } },
+      profile: { id: "profile-actor-1" },
+      source: "supabase",
+    };
+
+    it("sets voided_at and voided_by on the Supabase path", async () => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+      requireChurchSessionMock.mockResolvedValue(baseSession);
+
+      const eqMock = vi.fn().mockReturnThis();
+      const updateMock = vi.fn().mockReturnValue({ eq: eqMock });
+      eqMock.mockReturnValue({ eq: eqMock });
+      const fromMock = vi.fn().mockReturnValue({ update: updateMock, eq: eqMock });
+      createTenantServerClientMock.mockResolvedValue({ from: fromMock });
+
+      await voidJournalAction("journal-1");
+
+      expect(updateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "voided",
+          voided_by: "profile-actor-1",
+        }),
+      );
+      expect(updateMock.mock.calls[0][0]).toHaveProperty("voided_at");
+    });
+
+    it("sets voided_at and voided_by on the local fallback path", async () => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(true);
+      requireChurchSessionMock.mockResolvedValue(baseSession);
+      queryTenantLocalDbMock.mockResolvedValue({ rows: [] });
+
+      await voidJournalAction("journal-1");
+
+      expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+        expect.stringContaining("voided_at"),
+        expect.arrayContaining(["journal-1", "church-1", "profile-actor-1"]),
+      );
+    });
+
+    it("throws when role is not church-admin", async () => {
+      requireChurchSessionMock.mockResolvedValue({
+        ...baseSession,
+        appContext: { ...baseSession.appContext, roleId: "member" },
+      });
+
+      await expect(voidJournalAction("journal-1")).rejects.toThrow("Unauthorized");
+    });
   });
 });

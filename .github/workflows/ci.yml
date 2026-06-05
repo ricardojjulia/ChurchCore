@@ -27,3 +27,10 @@ jobs:
 
       - name: Verify
         run: npm run check
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: RLS audit (advisory)
+        run: npm run audit:rls
+        continue-on-error: true
