@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Banknote, Building2, Headset, ShieldCheck } from "lucide-react";
+import { Banknote, Building2, Headset, MessageSquare, ShieldCheck } from "lucide-react";
 import {
   Badge,
   Button,
@@ -30,6 +30,7 @@ const sectionIcons = {
   tenants: Building2,
   billing: Banknote,
   support: Headset,
+  "demo-feedback": MessageSquare,
 } as const;
 
 const priorityColor = {

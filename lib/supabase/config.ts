@@ -154,6 +154,20 @@ export function getTenantSupabaseEnv() {
   return getSupabaseEnvForSurface("tenant");
 }
 
+export function hasControlPlaneServiceRoleKey() {
+  return Boolean(getNamedServiceRoleKey("CONTROL_PLANE"));
+}
+
+export function getControlPlaneServiceRoleKey() {
+  const key = getNamedServiceRoleKey("CONTROL_PLANE");
+
+  if (!key) {
+    throw new Error("CONTROL_PLANE_SUPABASE_SERVICE_ROLE_KEY is missing.");
+  }
+
+  return key;
+}
+
 export function hasTenantServiceRoleKey() {
   return Boolean(getNamedServiceRoleKey("TENANT") || getSharedServiceRoleKey());
 }
