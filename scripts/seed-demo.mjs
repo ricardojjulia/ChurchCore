@@ -263,7 +263,16 @@ async function seedAuthUsers() {
     const found = existing?.users?.find(u => u.email === user.email);
 
     if (found) {
-      console.log(`  EXISTS  ${user.email}`);
+      // Always reset password so demo credentials stay consistent
+      const { error: updateError } = await supabase.auth.admin.updateUserById(found.id, {
+        password: user.password,
+        email_confirm: true,
+      });
+      if (updateError) {
+        console.warn(`  WARN    ${user.email} (password reset): ${updateError.message}`);
+      } else {
+        console.log(`  UPDATED ${user.email}`);
+      }
       authIds[user.email] = found.id;
       continue;
     }
