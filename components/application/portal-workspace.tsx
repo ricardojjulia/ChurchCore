@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
@@ -297,34 +298,58 @@ export function PortalWorkspace({
             </Badge>
           </Group>
           <Stack gap="sm" mt="lg">
-            <Paper
-              p="md"
-              radius="md"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(96, 165, 250, 0.12), rgba(255, 255, 255, 0.82))",
-                border: "1px solid rgba(96, 165, 250, 0.22)",
-              }}
-            >
-              <Text fw={750} c="#101827">{t("portalNav", "calendar")}</Text>
-              <Text c="#617184" size="sm" mt={6}>
-                {t("portalNav", "reviewCalendar")}
-              </Text>
-            </Paper>
-            <Paper
-              p="md"
-              radius="md"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(94, 234, 212, 0.14), rgba(255, 255, 255, 0.86))",
-                border: "1px solid rgba(15, 118, 110, 0.2)",
-              }}
-            >
-              <Text fw={750} c="#101827">{t("portalNav", "profile")}</Text>
-              <Text c="#617184" size="sm" mt={6}>
-                {t("portalNav", "profileActive")}
-              </Text>
-            </Paper>
+            {(role.id === "church-admin"
+              ? [
+                  {
+                    title: t("portalNav", "people"),
+                    description: t("portalNav", "peopleDescription"),
+                    href: "/app/church-admin/people",
+                    gradient: "linear-gradient(135deg, rgba(96, 165, 250, 0.12), rgba(255, 255, 255, 0.82))",
+                    border: "1px solid rgba(96, 165, 250, 0.22)",
+                  },
+                  {
+                    title: t("portalNav", "events"),
+                    description: t("portalNav", "eventsDescription"),
+                    href: "/app/church-admin/events",
+                    gradient: "linear-gradient(135deg, rgba(94, 234, 212, 0.14), rgba(255, 255, 255, 0.86))",
+                    border: "1px solid rgba(15, 118, 110, 0.2)",
+                  },
+                ]
+              : [
+                  {
+                    title: t("portalNav", "calendar"),
+                    description: t("portalNav", "reviewCalendar"),
+                    href: "/app/calendar",
+                    gradient: "linear-gradient(135deg, rgba(96, 165, 250, 0.12), rgba(255, 255, 255, 0.82))",
+                    border: "1px solid rgba(96, 165, 250, 0.22)",
+                  },
+                  {
+                    title: t("portalNav", "profile"),
+                    description: t("portalNav", "profileActive"),
+                    href: session.homePath,
+                    gradient: "linear-gradient(135deg, rgba(94, 234, 212, 0.14), rgba(255, 255, 255, 0.86))",
+                    border: "1px solid rgba(15, 118, 110, 0.2)",
+                  },
+                ]
+            ).map((s) => (
+              <Paper
+                key={s.href}
+                component={Link}
+                href={s.href}
+                p="md"
+                radius="md"
+                style={{
+                  background: s.gradient,
+                  border: s.border,
+                  cursor: "pointer",
+                  textDecoration: "none",
+                  display: "block",
+                }}
+              >
+                <Text fw={750} c="#101827">{s.title}</Text>
+                <Text c="#617184" size="sm" mt={6}>{s.description}</Text>
+              </Paper>
+            ))}
           </Stack>
         </Paper>
       </SimpleGrid>
