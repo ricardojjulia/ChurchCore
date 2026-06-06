@@ -12,6 +12,7 @@ import {
   hasControlPlaneBackendConfig,
   shouldUseLocalControlPlaneDbFallback,
 } from "@/lib/supabase/config";
+import { supabaseFetch } from "@/lib/supabase/fetch";
 
 declare global {
   var __churchcoreopsControlPlanePool: Pool | undefined;
@@ -40,6 +41,7 @@ export async function createControlPlaneServerClient() {
   const { url, publishableKey } = getControlPlaneSupabaseEnv();
 
   return createServerClient(url, publishableKey, {
+    global: { fetch: supabaseFetch },
     cookies: {
       getAll() {
         return cookieStore.getAll();

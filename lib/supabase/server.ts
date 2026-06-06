@@ -5,12 +5,14 @@ import {
   getSupabaseEnvForSurface,
   type SupabaseSurface,
 } from "@/lib/supabase/config";
+import { supabaseFetch } from "@/lib/supabase/fetch";
 
 export async function createClient(surface: SupabaseSurface) {
   const cookieStore = await cookies();
   const { url, publishableKey } = getSupabaseEnvForSurface(surface);
 
   return createServerClient(url, publishableKey, {
+    global: { fetch: supabaseFetch },
     cookies: {
       getAll() {
         return cookieStore.getAll();
