@@ -16,7 +16,7 @@ import {
   Textarea,
   Title,
 } from "@mantine/core";
-import { Heart, Lock, AlertCircle, Check } from "lucide-react";
+import { Heart, Lock, AlertCircle, Check, FlaskConical } from "lucide-react";
 import { useI18n } from "@/components/i18n-provider";
 
 type PublicGivingPageProps = {
@@ -207,6 +207,31 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
               placeholder={tr("notePlaceholder")}
             />
 
+            {/* Demo mode: locked card display instead of real Stripe Elements */}
+            {process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? (
+              <Paper p="sm" radius="md" style={{ background: "rgba(20,184,166,0.06)", border: "1px solid rgba(20,184,166,0.25)" }}>
+                <Group gap="xs" mb="xs">
+                  <FlaskConical size={14} color="#0d9488" />
+                  <Text size="xs" fw={700} c="teal.7" tt="uppercase">Demo Mode — Test Payment</Text>
+                </Group>
+                <Stack gap={6}>
+                  <Group gap="xs">
+                    <Text size="xs" c="dimmed" w={80}>Card</Text>
+                    <Text size="xs" ff="monospace" fw={600}>4242 4242 4242 4242</Text>
+                  </Group>
+                  <Group gap="xs">
+                    <Text size="xs" c="dimmed" w={80}>Expiry</Text>
+                    <Text size="xs" ff="monospace" fw={600}>12 / 29</Text>
+                  </Group>
+                  <Group gap="xs">
+                    <Text size="xs" c="dimmed" w={80}>CVC</Text>
+                    <Text size="xs" ff="monospace" fw={600}>123</Text>
+                  </Group>
+                </Stack>
+                <Text size="xs" c="dimmed" mt="xs">No real charge will be made. This simulates the full giving flow.</Text>
+              </Paper>
+            ) : null}
+
             <Button
               size="lg"
               leftSection={<Heart size={18} />}
@@ -214,7 +239,7 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
               loading={isLoading}
               fullWidth
             >
-              {tr("giveAmountPrefix")} {formatAmount(amount)}
+              {process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? "Complete Demo Gift — " : `${tr("giveAmountPrefix")} `}{formatAmount(amount)}
               {frequency !== "one_time" ? ` / ${FREQUENCIES.find((item) => item.value === frequency)?.label ?? frequency}` : ""}
             </Button>
 

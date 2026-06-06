@@ -573,6 +573,7 @@ export function MemberPortalHome({
         </Paper>
 
         <MemberEventRegistrationPanel
+          churchId={session.appContext.church.id}
           options={eventRegistrationOptions}
           familyMembers={data.family?.members ?? []}
         />

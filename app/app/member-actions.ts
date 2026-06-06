@@ -55,6 +55,7 @@ export type MemberRegisterForEventResult = {
   previewMode?: boolean;
   alreadyRegistered?: boolean;
   status?: "pending_approval" | "confirmed" | "waitlisted";
+  registrationId?: string | null;
   paymentIntentId?: string | null;
   paymentClientSecret?: string | null;
   error?: string;
@@ -675,6 +676,7 @@ export async function memberRegisterForEventAction(
     return {
       ok: true,
       status,
+      registrationId: registrationId ?? null,
       ...(paymentIntent
         ? {
             paymentIntentId: paymentIntent.paymentIntentId,
@@ -826,6 +828,7 @@ export async function memberRegisterForEventAction(
     return {
       ok: true,
       status,
+      registrationId: data.id,
       ...(paymentIntent
         ? {
             paymentIntentId: paymentIntent.paymentIntentId,
@@ -837,5 +840,5 @@ export async function memberRegisterForEventAction(
 
   revalidatePath("/app/member");
   revalidatePath(`/app/church-admin/events/${input.eventId}`);
-  return { ok: true, status };
+  return { ok: true, status, registrationId: data.id };
 }
