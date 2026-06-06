@@ -332,23 +332,20 @@ export function PortalWorkspace({
                   },
                 ]
             ).map((s) => (
-              <Paper
-                key={s.href}
-                component={Link}
-                href={s.href}
-                p="md"
-                radius="md"
-                style={{
-                  background: s.gradient,
-                  border: s.border,
-                  cursor: "pointer",
-                  textDecoration: "none",
-                  display: "block",
-                }}
-              >
-                <Text fw={750} c="#101827">{s.title}</Text>
-                <Text c="#617184" size="sm" mt={6}>{s.description}</Text>
-              </Paper>
+              <Link key={s.href} href={s.href} style={{ textDecoration: "none", display: "block" }}>
+                <Paper
+                  p="md"
+                  radius="md"
+                  style={{
+                    background: s.gradient,
+                    border: s.border,
+                    cursor: "pointer",
+                  }}
+                >
+                  <Text fw={750} c="#101827">{s.title}</Text>
+                  <Text c="#617184" size="sm" mt={6}>{s.description}</Text>
+                </Paper>
+              </Link>
             ))}
           </Stack>
         </Paper>
