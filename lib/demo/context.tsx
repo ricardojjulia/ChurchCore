@@ -29,7 +29,6 @@ function breadcrumbsReducer(state: string[], pathname: string): string[] {
 }
 
 function resolveSessionId(): string {
-  if (typeof window === "undefined") return "";
   const stored = sessionStorage.getItem("cc_demo_session_id");
   if (stored) return stored;
   const newId = crypto.randomUUID();
@@ -38,12 +37,15 @@ function resolveSessionId(): string {
 }
 
 function ActiveDemoSessionProvider({ children }: { children: React.ReactNode }) {
-  const [sessionId] = useState<string>(resolveSessionId);
+  // Initialize to "" so server and client render the same HTML (no hydration mismatch).
+  // useEffect runs only on the client and sets the real sessionStorage-backed ID.
+  const [sessionId, setSessionId] = useState<string>("");
   const [breadcrumbs, dispatchBreadcrumb] = useReducer(breadcrumbsReducer, []);
   const startTimeRef = useRef<number>(0);
   const pathname = usePathname();
 
   useEffect(() => {
+    setSessionId(resolveSessionId());
     startTimeRef.current = Date.now();
   }, []);
 
