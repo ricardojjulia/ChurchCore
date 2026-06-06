@@ -120,9 +120,8 @@ export function ApplicationShell({
           minHeight: "100vh",
         },
         navbar: {
-          background:
-            "linear-gradient(180deg, #101827 0%, #14213d 48%, #0c1321 100%)",
-          borderRight: "1px solid rgba(255, 255, 255, 0.08)",
+          background: "#ffffff",
+          borderRight: "1px solid rgba(20, 33, 61, 0.10)",
         },
         header: {
           background: "rgba(244, 247, 251, 0.82)",
@@ -174,9 +173,8 @@ export function ApplicationShell({
             p="md"
             mb="md"
             style={{
-              background:
-                "linear-gradient(135deg, rgba(94, 234, 212, 0.18), rgba(244, 201, 93, 0.12))",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
+              background: "linear-gradient(135deg, rgba(20, 184, 166, 0.10), rgba(37, 99, 235, 0.07))",
+              border: "1px solid rgba(20, 33, 61, 0.08)",
             }}
           >
             <Group gap="sm" wrap="nowrap">
@@ -184,8 +182,8 @@ export function ApplicationShell({
                 <Sparkles size={17} />
               </ThemeIcon>
               <Box style={{ minWidth: 0 }}>
-                <Text fw={850} size="sm" c="white" truncate>ChurchCore</Text>
-                <Text c="rgba(255, 255, 255, 0.62)" size="xs" truncate>
+                <Text fw={850} size="sm" c="#101827" truncate>ChurchCore</Text>
+                <Text c="#617184" size="xs" truncate>
                   {sectionLabel}
                 </Text>
               </Box>
@@ -198,13 +196,13 @@ export function ApplicationShell({
               p="sm"
               mb="sm"
               style={{
-                background: "rgba(255, 255, 255, 0.06)",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
+                background: "rgba(20, 33, 61, 0.04)",
+                border: "1px solid rgba(20, 33, 61, 0.08)",
               }}
             >
-              <Text fw={700} size="sm" c="white">{sidebarTitle}</Text>
+              <Text fw={700} size="sm" c="#101827">{sidebarTitle}</Text>
               {sidebarDescription ? (
-                <Text c="rgba(255, 255, 255, 0.55)" size="xs" mt={4}>
+                <Text c="#617184" size="xs" mt={4}>
                   {sidebarDescription}
                 </Text>
               ) : null}
@@ -212,7 +210,7 @@ export function ApplicationShell({
           ) : null}
         </AppShellSection>
 
-        <Divider mb="sm" color="rgba(255, 255, 255, 0.1)" />
+        <Divider mb="sm" color="rgba(20, 33, 61, 0.08)" />
 
         {/* Page navigation */}
         <AppShellSection grow component={ScrollArea} scrollbarSize={6}>
@@ -220,8 +218,8 @@ export function ApplicationShell({
             {navItems.length ? (
               <>
                 <Group gap={6} px="xs" mb={4}>
-                  <LayoutGrid size={13} color="rgba(255, 255, 255, 0.54)" />
-                  <Text size="xs" fw={800} tt="uppercase" c="rgba(255, 255, 255, 0.54)">
+                  <LayoutGrid size={13} color="#617184" />
+                  <Text size="xs" fw={800} tt="uppercase" c="#617184">
                     {navLabel ?? t("common", "navigation")}
                   </Text>
                 </Group>
@@ -250,14 +248,14 @@ export function ApplicationShell({
                   );
                 })}
 
-                <Divider my="sm" color="rgba(255, 255, 255, 0.1)" />
+                <Divider my="sm" color="rgba(20, 33, 61, 0.08)" />
               </>
             ) : null}
 
             {/* System links */}
             <Group gap={6} px="xs" mb={4}>
-              <LayoutGrid size={13} color="rgba(255, 255, 255, 0.54)" />
-              <Text size="xs" fw={800} tt="uppercase" c="rgba(255, 255, 255, 0.54)">
+              <LayoutGrid size={13} color="#617184" />
+              <Text size="xs" fw={800} tt="uppercase" c="#617184">
                 {t("common", "app")}
               </Text>
             </Group>
@@ -292,7 +290,7 @@ export function ApplicationShell({
           </Stack>
         </AppShellSection>
 
-        <Divider mt="sm" mb="sm" color="rgba(255, 255, 255, 0.1)" />
+        <Divider mt="sm" mb="sm" color="rgba(20, 33, 61, 0.08)" />
 
         {/* User + Log out */}
         <AppShellSection>
@@ -301,8 +299,8 @@ export function ApplicationShell({
             p="sm"
             mb="sm"
             style={{
-              background: "rgba(255, 255, 255, 0.07)",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
+              background: "rgba(20, 33, 61, 0.04)",
+              border: "1px solid rgba(20, 33, 61, 0.08)",
             }}
           >
             <Group gap="sm" wrap="nowrap">
@@ -310,10 +308,10 @@ export function ApplicationShell({
                 <ShieldCheck size={14} />
               </Avatar>
               <Box style={{ flex: 1, minWidth: 0 }}>
-                <Text fw={700} size="sm" c="white" truncate>
+                <Text fw={700} size="sm" c="#101827" truncate>
                   {session.profile.name}
                 </Text>
-                <Text c="rgba(255, 255, 255, 0.55)" size="xs" truncate>
+                <Text c="#617184" size="xs" truncate>
                   {session.profile.title}
                 </Text>
               </Box>
