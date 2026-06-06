@@ -2,7 +2,7 @@ import "server-only";
 
 import type { ChurchAppSession } from "@/lib/auth";
 import {
-  createTenantServerClient,
+  createTenantDataClient,
   hasTenantBackendEnv,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
@@ -572,7 +572,7 @@ export async function getChurchAdminOperationsData(
     };
   }
 
-  const supabase = await createTenantServerClient();
+  const supabase = await createTenantDataClient(session);
   const [
     eventsResult,
     logsResult,

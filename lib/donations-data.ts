@@ -101,22 +101,25 @@ export async function getDonorPortalData(
     };
   }
 
-  const supabase = await createTenantServerClient();
-  const { data } = await supabase
-    .from("donations")
-    .select("*")
-    .eq("church_id", churchId)
-    .eq("profile_id", profileId)
-    .eq("is_anonymous", false)
-    .order("created_at", { ascending: false });
+  try {
+    const supabase = await createTenantServerClient();
+    const { data } = await supabase
+      .from("donations")
+      .select("*")
+      .eq("church_id", churchId)
+      .eq("is_anonymous", false)
+      .order("created_at", { ascending: false });
 
-  const donations = (data ?? []).map((r) => mapDonationRow(r as Parameters<typeof mapDonationRow>[0]));
-  return {
-    donations,
-    totalGiven: donations
-      .filter((d) => d.status === "succeeded")
-      .reduce((sum, d) => sum + d.amountCents, 0),
-  };
+    const donations = (data ?? []).map((r) => mapDonationRow(r as Parameters<typeof mapDonationRow>[0]));
+    return {
+      donations,
+      totalGiven: donations
+        .filter((d) => d.status === "succeeded")
+        .reduce((sum, d) => sum + d.amountCents, 0),
+    };
+  } catch {
+    return EMPTY_DONOR_PORTAL_DATA;
+  }
 }
 
 export async function getGivingDashboardData(
