@@ -2,6 +2,15 @@ import "server-only";
 
 import { createControlPlaneServerClient } from "@/lib/supabase/control-plane";
 
+export type DemoFeedbackAction =
+  | "code_fixed"
+  | "update_applied"
+  | "suggestion_not_implemented"
+  | "suggestion_implemented"
+  | "bug_fixed"
+  | "error_fixed"
+  | "received_and_closed";
+
 export type DemoFeedbackRow = {
   id: string;
   fingerprint: string;
@@ -16,6 +25,8 @@ export type DemoFeedbackRow = {
   demo_version: string;
   hit_count: number;
   metadata: Record<string, unknown>;
+  processed: boolean;
+  action: DemoFeedbackAction | null;
   created_at: string;
   updated_at: string;
 };

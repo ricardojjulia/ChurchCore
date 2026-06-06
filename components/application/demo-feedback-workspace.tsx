@@ -4,12 +4,15 @@ import { useMemo, useState } from "react";
 import {
   ActionIcon,
   Badge,
+  Button,
   Code,
+  Divider,
   Drawer,
   Group,
   Input,
   Select,
   Stack,
+  Switch,
   Table,
   Text,
   TextInput,
@@ -18,7 +21,7 @@ import { ChevronDown } from "lucide-react";
 
 import { ApplicationShell } from "@/components/application/app-shell";
 import type { AuthSession } from "@/lib/auth";
-import type { DemoFeedbackRow } from "@/lib/control-plane-demo-feedback";
+import type { DemoFeedbackAction, DemoFeedbackRow } from "@/lib/control-plane-demo-feedback";
 
 const CATEGORY_COLORS: Record<string, string> = {
   BUG: "red",
@@ -35,12 +38,34 @@ const CATEGORY_OPTIONS = [
   { value: "IMPROVEMENT", label: "Improvement Idea" },
 ];
 
+const ACTION_OPTIONS: { value: DemoFeedbackAction; label: string }[] = [
+  { value: "code_fixed", label: "Code Fixed" },
+  { value: "update_applied", label: "Update Applied" },
+  { value: "suggestion_not_implemented", label: "Suggestion Not Implemented" },
+  { value: "suggestion_implemented", label: "Suggestion Implemented" },
+  { value: "bug_fixed", label: "Bug Fixed" },
+  { value: "error_fixed", label: "Error Fixed" },
+  { value: "received_and_closed", label: "Received and Closed by Dev Team" },
+];
+
 function formatTimestamp(ts: string) {
   try {
     return new Date(ts).toLocaleString();
   } catch {
     return ts;
   }
+}
+
+async function patchFeedback(
+  id: string,
+  patch: { processed?: boolean; action?: DemoFeedbackAction | null }
+) {
+  const res = await fetch(`/api/control/demo-feedback/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(await res.text());
 }
 
 export function DemoFeedbackWorkspace({
@@ -55,9 +80,11 @@ export function DemoFeedbackWorkspace({
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [drawerRow, setDrawerRow] = useState<DemoFeedbackRow | null>(null);
+  const [rows, setRows] = useState<DemoFeedbackRow[]>(feedbackData);
+  const [saving, setSaving] = useState(false);
 
   const filteredData = useMemo(() => {
-    return feedbackData.filter((row) => {
+    return rows.filter((row) => {
       if (categoryFilter && row.category !== categoryFilter) return false;
 
       if (emailFilter) {
@@ -77,7 +104,45 @@ export function DemoFeedbackWorkspace({
 
       return true;
     });
-  }, [feedbackData, categoryFilter, emailFilter, dateFrom, dateTo]);
+  }, [rows, categoryFilter, emailFilter, dateFrom, dateTo]);
+
+  function updateRow(id: string, patch: Partial<DemoFeedbackRow>) {
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    if (drawerRow?.id === id) setDrawerRow((prev) => (prev ? { ...prev, ...patch } : prev));
+  }
+
+  async function handleProcessedToggle(row: DemoFeedbackRow, value: boolean) {
+    updateRow(row.id, { processed: value });
+    try {
+      await patchFeedback(row.id, { processed: value });
+    } catch {
+      updateRow(row.id, { processed: row.processed });
+    }
+  }
+
+  async function handleActionChange(id: string, value: DemoFeedbackAction | null) {
+    const prev = rows.find((r) => r.id === id)?.action ?? null;
+    updateRow(id, { action: value });
+    try {
+      await patchFeedback(id, { action: value });
+    } catch {
+      updateRow(id, { action: prev });
+    }
+  }
+
+  async function handleDrawerSave() {
+    if (!drawerRow) return;
+    setSaving(true);
+    try {
+      await patchFeedback(drawerRow.id, {
+        processed: drawerRow.processed,
+        action: drawerRow.action,
+      });
+      updateRow(drawerRow.id, { processed: drawerRow.processed, action: drawerRow.action });
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <ApplicationShell
@@ -148,6 +213,8 @@ export function DemoFeedbackWorkspace({
                 <Table.Th>Route</Table.Th>
                 <Table.Th>Category</Table.Th>
                 <Table.Th>Hits</Table.Th>
+                <Table.Th>Processed</Table.Th>
+                <Table.Th>Action</Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>
@@ -164,6 +231,27 @@ export function DemoFeedbackWorkspace({
                     </Badge>
                   </Table.Td>
                   <Table.Td>{row.hit_count}</Table.Td>
+                  <Table.Td>
+                    <Switch
+                      size="sm"
+                      checked={row.processed}
+                      onChange={(e) => handleProcessedToggle(row, e.currentTarget.checked)}
+                      color="teal"
+                      aria-label="Mark as processed"
+                    />
+                  </Table.Td>
+                  <Table.Td style={{ minWidth: 180 }}>
+                    <Select
+                      size="xs"
+                      placeholder="No action"
+                      data={ACTION_OPTIONS}
+                      value={row.action ?? ""}
+                      onChange={(v) =>
+                        handleActionChange(row.id, (v || null) as DemoFeedbackAction | null)
+                      }
+                      clearable
+                    />
+                  </Table.Td>
                   <Table.Td>
                     <ActionIcon
                       variant="subtle"
@@ -189,9 +277,47 @@ export function DemoFeedbackWorkspace({
         transitionProps={{ duration: 0 }}
       >
         {drawerRow ? (
-          <Code block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-            {JSON.stringify(drawerRow, null, 2)}
-          </Code>
+          <Stack gap="md">
+            <Stack gap="sm">
+              <Switch
+                label="Processed"
+                description="Mark this item as reviewed and acted upon"
+                checked={drawerRow.processed}
+                onChange={(e) =>
+                  setDrawerRow((prev) =>
+                    prev ? { ...prev, processed: e.currentTarget.checked } : prev
+                  )
+                }
+                color="teal"
+              />
+              <Select
+                label="Action taken"
+                placeholder="No action selected"
+                data={ACTION_OPTIONS}
+                value={drawerRow.action ?? ""}
+                onChange={(v) =>
+                  setDrawerRow((prev) =>
+                    prev ? { ...prev, action: (v || null) as DemoFeedbackAction | null } : prev
+                  )
+                }
+                clearable
+              />
+              <Button
+                size="sm"
+                color="teal"
+                loading={saving}
+                onClick={handleDrawerSave}
+              >
+                Save triage
+              </Button>
+            </Stack>
+
+            <Divider />
+
+            <Code block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+              {JSON.stringify(drawerRow, null, 2)}
+            </Code>
+          </Stack>
         ) : null}
       </Drawer>
     </ApplicationShell>
