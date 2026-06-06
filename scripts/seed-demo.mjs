@@ -583,7 +583,7 @@ async function seedEvents() {
       location: 'Fellowship Hall',
       starts_at: daysFromNow(21),
       ends_at: hoursAfter(daysFromNow(21), 3),
-      category: 'social',
+      category: 'ministry',
       visibility: 'members',
       rsvp_enabled: true,
       capacity: 60,
