@@ -84,10 +84,10 @@ or use the API script below.
 | Variable | Target | Value source |
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | All | Tenant project URL (`https://xsmcurhmgmnxxppkorpq.supabase.co`) |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | All | Tenant `default` (sb_publishable_…) key |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | All | Tenant **`anon`** JWT (NOT the `sb_publishable_*` key) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Production, Preview | Tenant `service_role` JWT |
 | `CONTROL_PLANE_SUPABASE_URL` | All | CP project URL (`https://iopydttovnyjgikprvol.supabase.co`) |
-| `CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY` | All | CP `default` (sb_publishable_…) key |
+| `CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY` | All | CP **`anon`** JWT (NOT the `sb_publishable_*` key) |
 | `CONTROL_PLANE_SUPABASE_SERVICE_ROLE_KEY` | Production, Preview | CP `service_role` JWT |
 | `NEXT_PUBLIC_DEMO_MODE` | Production | `true` |
 | `NEXT_PUBLIC_DEMO_VERSION` | Production | `3.3.0` (or current) |
@@ -96,6 +96,11 @@ or use the API script below.
 > **Use `NEXT_PUBLIC_SUPABASE_URL` (not `TENANT_SUPABASE_URL`)** for the tenant Supabase
 > connection. The browser-side Supabase client needs a `NEXT_PUBLIC_` prefixed URL.
 > The named `TENANT_SUPABASE_*` vars work server-side only.
+
+> **For `*_PUBLISHABLE_KEY` vars, use the `anon` JWT — not the `sb_publishable_*` key.**
+> The `sb_publishable_*` format is not recognised by `@supabase/ssr@0.10.x` and
+> causes all auth calls to fail silently. The `anon` JWT is the long `eyJ…` token
+> from `supabase projects api-keys`.
 
 > **Never set `TENANT_DB_URL` or `CONTROL_PLANE_DB_URL` in production.** Setting either
 > activates the local SQL fallback (`shouldUseLocalTenantDbFallback()` returns true),
@@ -255,8 +260,21 @@ back to `NEXT_PUBLIC_SUPABASE_*`. Always set the `NEXT_PUBLIC_SUPABASE_*` vars.
 **What happened:** All Vercel env vars had been created (keys existed) but with
 empty string values `""`. The build appeared configured but nothing worked.
 
-**Fix:** Always verify VALUES not just key names when auditing Vercel env vars.
-Use the API with `?decrypt=true` to see actual values.
+**Fix:** Always verify VALUES, not just key names, when auditing Vercel env vars.
+Use the API with `?decrypt=true` to see actual values:
+
+```bash
+curl -s "https://api.vercel.com/v9/projects/${PID}/env?teamId=${TID}&decrypt=true" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  | python3 -c "
+import sys, json
+for e in json.load(sys.stdin).get('envs', []):
+    val = e.get('value','')
+    print(e['key'], '<empty>' if not val else 'SET')
+"
+```
+
+Any `<empty>` line means the var needs to be re-set with `PATCH /v9/projects/{PID}/env/{ID}`.
 
 ---
 
@@ -366,6 +384,43 @@ see the real error from the Vercel CLI, which shows more detail than the dashboa
 
 **Fix:** Use `npx vercel@latest --prod --token $TOKEN --yes` to deploy directly
 from local. Investigate and re-authorize the GitHub App when you have time.
+
+---
+
+### 12. Use the anon JWT for publishable keys — not `sb_publishable_*`
+
+**What happened:** Supabase CLI shows two key types for each project: the legacy
+`anon` JWT and a newer `sb_publishable_*` key. Setting `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+to the `sb_publishable_*` value caused `@supabase/ssr` to fail on all auth calls with
+"Invalid login credentials" even with correct credentials.
+
+**Why:** `@supabase/ssr@0.10.x` was released before `sb_publishable_*` keys existed.
+It does not recognise the new format and silently fails auth.
+
+**Fix:** Always use the `anon` JWT (the long `eyJ…` token) for all `*_PUBLISHABLE_KEY`
+env vars. Verify by running `signInWithPassword` directly against the anon key:
+
+```bash
+node -e "
+const { createClient } = require('@supabase/supabase-js');
+createClient('https://xsmcurhmgmnxxppkorpq.supabase.co', '<anon_jwt>')
+  .auth.signInWithPassword({ email: 'admin@graceharbor.church', password: 'ChurchCoreDemo2026!' })
+  .then(({data,error}) => console.log(error ? 'FAIL: ' + error.message : 'OK: ' + data.user.id));
+"
+```
+
+---
+
+### 13. Seed does not reset passwords for existing auth users
+
+**What happened:** The seed script checks if a Supabase auth user exists before
+creating it. If the user exists, it skips creation — including skipping the password.
+On a re-seed (or after a botched initial seed), the demo accounts would exist but
+with stale or incorrect passwords, causing "Invalid login credentials" at sign-in.
+
+**Fix:** The seed now calls `updateUserById` to reset the password every run,
+even for existing accounts. Re-running the seed is always safe and always
+leaves credentials in a known state.
 
 ---
 
