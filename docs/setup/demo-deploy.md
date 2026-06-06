@@ -424,6 +424,33 @@ leaves credentials in a known state.
 
 ---
 
+### 14. Sign-in button does nothing — HTTP/2 connection reuse in warm serverless
+
+**What happened:** After all env vars were correct and the seed was healthy, the
+sign-in button still appeared to do nothing. No error was shown. Vercel Function
+logs showed `Error: Connection closed.` on the Supabase auth request.
+
+**Why:** Node.js 18+ uses undici as its native fetch engine and reuses HTTP/2
+connections across warm serverless function invocations. When Supabase closes
+an idle connection on its end, the next request from the warm instance reuses
+the dead connection and fails with `Error: Connection closed.`. Next.js Server
+Actions swallow 500 errors silently — the form appears to submit but nothing
+happens and no client-side error is shown.
+
+**Fix (permanent — already in the codebase):** `lib/supabase/fetch.ts` injects
+a custom undici `Agent` with `keepAlive: false` into every `createServerClient`
+call. This forces a fresh TCP connection per Supabase request, eliminating the
+stale-connection failure. The fix is wired in `server.ts`, `tenant.ts`, and
+`control-plane.ts`. No manual action required — it is active on every Vercel
+deployment from PR #92 onwards.
+
+**Stable state:** Yes. The fix is committed and deployed. This issue should not
+recur unless the Supabase client library or Node.js runtime removes undici
+keep-alive support in a future upgrade, in which case `lib/supabase/fetch.ts`
+is the single place to update.
+
+---
+
 ## Resetting demo data
 
 Run the seed script again at any time — it deletes and re-inserts all demo data:
