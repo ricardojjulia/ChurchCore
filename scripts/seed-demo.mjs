@@ -88,6 +88,7 @@ const EVENT_IDS = {
   youth:     '77777777-0000-0000-0000-100000000002',
   food:      '77777777-0000-0000-0000-100000000003',
   class:     '77777777-0000-0000-0000-100000000004',
+  banquet:   '77777777-0000-0000-0000-100000000005',
 };
 
 const FINANCE_IDS = {
@@ -572,6 +573,22 @@ async function seedEvents() {
       capacity: 24,
       approval_status: 'draft',
     },
+    {
+      id: EVENT_IDS.banquet,
+      church_id: CHURCH_ID,
+      ministry_id: MINISTRY_IDS.worship,
+      created_by: PROFILE_IDS.admin,
+      title: 'Annual Church Banquet',
+      description: 'Formal dinner celebrating another year of ministry together. Tickets required — seats are limited.',
+      location: 'Fellowship Hall',
+      starts_at: daysFromNow(21),
+      ends_at: hoursAfter(daysFromNow(21), 3),
+      category: 'social',
+      visibility: 'members',
+      rsvp_enabled: true,
+      capacity: 60,
+      approval_status: 'approved',
+    },
   ]);
 }
 
@@ -580,10 +597,11 @@ async function seedEvents() {
 async function seedEventRegistrationSettings() {
   console.log('Upserting event_registration_settings...');
   await upsert('event_registration_settings', [
-    { event_id: EVENT_IDS.sunday, church_id: CHURCH_ID, registration_open: true, capacity: 220, price_cents: 0, deadline: daysFromNow(6), confirmation_message: 'We look forward to worshiping with you.', waitlist_enabled: true },
-    { event_id: EVENT_IDS.youth,  church_id: CHURCH_ID, registration_open: true, capacity: 80,  price_cents: 0, deadline: daysFromNow(4), confirmation_message: 'Bring a friend and arrive by 6:30 PM.', waitlist_enabled: true },
-    { event_id: EVENT_IDS.food,   church_id: CHURCH_ID, registration_open: true, capacity: 40,  price_cents: 0, deadline: daysFromNow(7), confirmation_message: 'Thank you for volunteering!', waitlist_enabled: true },
-    { event_id: EVENT_IDS.class,  church_id: CHURCH_ID, registration_open: true, capacity: 24,  price_cents: 0, deadline: daysFromNow(9), confirmation_message: 'Class materials will be provided.', waitlist_enabled: false },
+    { event_id: EVENT_IDS.sunday,  church_id: CHURCH_ID, registration_open: true, capacity: 220, price_cents: 0,    currency: 'usd', deadline: daysFromNow(6),  confirmation_message: 'We look forward to worshiping with you.', waitlist_enabled: true },
+    { event_id: EVENT_IDS.youth,   church_id: CHURCH_ID, registration_open: true, capacity: 80,  price_cents: 0,    currency: 'usd', deadline: daysFromNow(4),  confirmation_message: 'Bring a friend and arrive by 6:30 PM.', waitlist_enabled: true },
+    { event_id: EVENT_IDS.food,    church_id: CHURCH_ID, registration_open: true, capacity: 40,  price_cents: 0,    currency: 'usd', deadline: daysFromNow(7),  confirmation_message: 'Thank you for volunteering!', waitlist_enabled: true },
+    { event_id: EVENT_IDS.class,   church_id: CHURCH_ID, registration_open: true, capacity: 24,  price_cents: 0,    currency: 'usd', deadline: daysFromNow(9),  confirmation_message: 'Class materials will be provided.', waitlist_enabled: false },
+    { event_id: EVENT_IDS.banquet, church_id: CHURCH_ID, registration_open: true, capacity: 60,  price_cents: 3500, currency: 'usd', deadline: daysFromNow(18), confirmation_message: 'Your seat is reserved! We look forward to seeing you.', waitlist_enabled: false },
   ], 'event_id');
 }
 
@@ -1157,7 +1175,8 @@ async function main() {
   console.log('  pastor@graceharbor.church   ChurchCoreDemo2026!  (pastor_elder)');
   console.log('  leader@graceharbor.church   ChurchCoreDemo2026!  (ministry_leader)');
   console.log('');
-  console.log('Public giving page: /give/grace-harbor');
+  console.log('Public giving page:  /give/grace-harbor');
+  console.log('Paid event (banquet): Register from member portal → "Complete Demo Payment — $35.00"');
   console.log('');
 }
 
