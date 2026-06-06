@@ -4,20 +4,23 @@ import { useMemo, useState } from "react";
 import {
   ActionIcon,
   Badge,
-  Button,
+  Collapse,
   Code,
   Divider,
   Drawer,
   Group,
   Input,
+  Paper,
+  SegmentedControl,
   Select,
   Stack,
   Switch,
   Table,
   Text,
   TextInput,
+  UnstyledButton,
 } from "@mantine/core";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 import { ApplicationShell } from "@/components/application/app-shell";
 import type { AuthSession } from "@/lib/auth";
@@ -34,26 +37,50 @@ const CATEGORY_OPTIONS = [
   { value: "", label: "All" },
   { value: "BUG", label: "Bug" },
   { value: "ERROR", label: "Error" },
-  { value: "UNEXPECTED_RESULT", label: "Unexpected Result" },
-  { value: "IMPROVEMENT", label: "Improvement Idea" },
+  { value: "UNEXPECTED_RESULT", label: "Unexpected" },
+  { value: "IMPROVEMENT", label: "Improvement" },
 ];
 
 const ACTION_OPTIONS: { value: DemoFeedbackAction; label: string }[] = [
   { value: "code_fixed", label: "Code Fixed" },
   { value: "update_applied", label: "Update Applied" },
-  { value: "suggestion_not_implemented", label: "Suggestion Not Implemented" },
-  { value: "suggestion_implemented", label: "Suggestion Implemented" },
+  { value: "suggestion_not_implemented", label: "Suggestion: Not Implemented" },
+  { value: "suggestion_implemented", label: "Suggestion: Implemented" },
   { value: "bug_fixed", label: "Bug Fixed" },
   { value: "error_fixed", label: "Error Fixed" },
-  { value: "received_and_closed", label: "Received and Closed by Dev Team" },
+  { value: "received_and_closed", label: "Received & Closed" },
 ];
+
+const ACTION_COLORS: Record<DemoFeedbackAction, string> = {
+  code_fixed: "teal",
+  update_applied: "teal",
+  suggestion_not_implemented: "gray",
+  suggestion_implemented: "teal",
+  bug_fixed: "green",
+  error_fixed: "green",
+  received_and_closed: "gray",
+};
 
 function formatTimestamp(ts: string) {
   try {
-    return new Date(ts).toLocaleString();
+    const d = new Date(ts);
+    const diff = Date.now() - d.getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `${days}d ago`;
+    return d.toLocaleDateString();
   } catch {
     return ts;
   }
+}
+
+function truncate(str: string | null | undefined, n: number) {
+  if (!str) return null;
+  return str.length > n ? str.slice(0, n) + "…" : str;
 }
 
 async function patchFeedback(
@@ -68,6 +95,16 @@ async function patchFeedback(
   if (!res.ok) throw new Error(await res.text());
 }
 
+function DrawerField({ label, value }: { label: string; value: React.ReactNode }) {
+  if (!value) return null;
+  return (
+    <Stack gap={2}>
+      <Text size="xs" fw={700} tt="uppercase" c="dimmed">{label}</Text>
+      <Text size="sm">{value}</Text>
+    </Stack>
+  );
+}
+
 export function DemoFeedbackWorkspace({
   feedbackData,
   session,
@@ -79,36 +116,45 @@ export function DemoFeedbackWorkspace({
   const [emailFilter, setEmailFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [processedFilter, setProcessedFilter] = useState("open");
   const [drawerRow, setDrawerRow] = useState<DemoFeedbackRow | null>(null);
   const [rows, setRows] = useState<DemoFeedbackRow[]>(feedbackData);
-  const [saving, setSaving] = useState(false);
+  const [jsonOpen, setJsonOpen] = useState(false);
 
   const filteredData = useMemo(() => {
-    return rows.filter((row) => {
+    const filtered = rows.filter((row) => {
       if (categoryFilter && row.category !== categoryFilter) return false;
 
+      if (processedFilter === "open" && row.processed) return false;
+      if (processedFilter === "done" && !row.processed) return false;
+
       if (emailFilter) {
-        const email = (row.user_email ?? "").toLowerCase();
-        if (!email.includes(emailFilter.toLowerCase())) return false;
+        const haystack = `${row.user_email ?? ""} ${row.user_role ?? ""}`.toLowerCase();
+        if (!haystack.includes(emailFilter.toLowerCase())) return false;
       }
 
       if (dateFrom) {
-        const from = new Date(dateFrom).getTime();
-        if (new Date(row.created_at).getTime() < from) return false;
+        if (new Date(row.created_at).getTime() < new Date(dateFrom).getTime()) return false;
       }
 
       if (dateTo) {
-        const to = new Date(dateTo).getTime() + 86400000;
-        if (new Date(row.created_at).getTime() >= to) return false;
+        if (new Date(row.created_at).getTime() >= new Date(dateTo).getTime() + 86400000)
+          return false;
       }
 
       return true;
     });
-  }, [rows, categoryFilter, emailFilter, dateFrom, dateTo]);
+
+    // unprocessed first, then newest
+    return [...filtered].sort((a, b) => {
+      if (a.processed !== b.processed) return a.processed ? 1 : -1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [rows, categoryFilter, emailFilter, dateFrom, dateTo, processedFilter]);
 
   function updateRow(id: string, patch: Partial<DemoFeedbackRow>) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-    if (drawerRow?.id === id) setDrawerRow((prev) => (prev ? { ...prev, ...patch } : prev));
+    setDrawerRow((prev) => (prev?.id === id ? { ...prev, ...patch } : prev));
   }
 
   async function handleProcessedToggle(row: DemoFeedbackRow, value: boolean) {
@@ -130,19 +176,7 @@ export function DemoFeedbackWorkspace({
     }
   }
 
-  async function handleDrawerSave() {
-    if (!drawerRow) return;
-    setSaving(true);
-    try {
-      await patchFeedback(drawerRow.id, {
-        processed: drawerRow.processed,
-        action: drawerRow.action,
-      });
-      updateRow(drawerRow.id, { processed: drawerRow.processed, action: drawerRow.action });
-    } finally {
-      setSaving(false);
-    }
-  }
+  const openCount = rows.filter((r) => !r.processed).length;
 
   return (
     <ApplicationShell
@@ -151,31 +185,45 @@ export function DemoFeedbackWorkspace({
       calendarHref={null}
       sectionLabel="Control Plane"
       title="Demo Feedback"
-      description="Bugs, errors, and improvement signals from the hosted demo"
+      description={`${openCount} open item${openCount !== 1 ? "s" : ""} · ${rows.length} total`}
       sidebarTitle="Control"
       sidebarDescription="Internal"
       navItems={[]}
       topActions={null}
     >
       <Stack gap="md">
-        <Group gap="sm" wrap="wrap">
+        {/* Filters */}
+        <Group gap="sm" wrap="wrap" align="flex-end">
+          <SegmentedControl
+            size="xs"
+            value={processedFilter}
+            onChange={setProcessedFilter}
+            data={[
+              { value: "open", label: "Open" },
+              { value: "done", label: "Done" },
+              { value: "all", label: "All" },
+            ]}
+          />
           <Select
+            size="xs"
             placeholder="All categories"
             data={CATEGORY_OPTIONS}
             value={categoryFilter}
             onChange={(v) => setCategoryFilter(v ?? "")}
             clearable
-            style={{ minWidth: 180 }}
+            style={{ minWidth: 160 }}
           />
           <TextInput
-            placeholder="Filter by email"
+            size="xs"
+            placeholder="Filter by email or role"
             value={emailFilter}
             onChange={(e) => setEmailFilter(e.currentTarget.value)}
             style={{ minWidth: 200 }}
           />
-          <Input.Wrapper label="From" id="date-from-wrapper">
+          <Input.Wrapper label="From" id="date-from-wrapper" size="xs">
             <Input
               id="date-from"
+              size="xs"
               component="input"
               type="date"
               aria-label="From"
@@ -185,9 +233,10 @@ export function DemoFeedbackWorkspace({
               }
             />
           </Input.Wrapper>
-          <Input.Wrapper label="To" id="date-to-wrapper">
+          <Input.Wrapper label="To" id="date-to-wrapper" size="xs">
             <Input
               id="date-to"
+              size="xs"
               component="input"
               type="date"
               aria-label="To"
@@ -200,69 +249,109 @@ export function DemoFeedbackWorkspace({
         </Group>
 
         {filteredData.length === 0 ? (
-          <Text ta="center" c="dimmed">
-            No feedback submissions yet.
+          <Text ta="center" c="dimmed" py="xl">
+            {processedFilter === "open" ? "All caught up — no open items." : "No results."}
           </Text>
         ) : (
-          <Table striped highlightOnHover withTableBorder withColumnBorders>
+          <Table striped highlightOnHover withTableBorder withColumnBorders fz="sm">
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Created</Table.Th>
-                <Table.Th>Email</Table.Th>
-                <Table.Th>Role</Table.Th>
+                <Table.Th style={{ width: 80 }}>When</Table.Th>
+                <Table.Th style={{ width: 180 }}>User</Table.Th>
                 <Table.Th>Route</Table.Th>
-                <Table.Th>Category</Table.Th>
-                <Table.Th>Hits</Table.Th>
-                <Table.Th>Processed</Table.Th>
-                <Table.Th>Action</Table.Th>
-                <Table.Th />
+                <Table.Th style={{ width: 110 }}>Category</Table.Th>
+                <Table.Th>Note / Error</Table.Th>
+                <Table.Th style={{ width: 40, textAlign: "center" }}>×</Table.Th>
+                <Table.Th style={{ width: 70 }}>Action</Table.Th>
+                <Table.Th style={{ width: 50 }}>Done</Table.Th>
+                <Table.Th style={{ width: 32 }} />
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {filteredData.map((row) => (
-                <Table.Tr key={row.id}>
-                  <Table.Td>{formatTimestamp(row.created_at)}</Table.Td>
-                  <Table.Td>{row.user_email ?? "—"}</Table.Td>
-                  <Table.Td>{row.user_role ?? "—"}</Table.Td>
-                  <Table.Td>{row.route}</Table.Td>
-                  <Table.Td>
-                    <Badge color={CATEGORY_COLORS[row.category] ?? "gray"} variant="light">
-                      {row.category}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>{row.hit_count}</Table.Td>
-                  <Table.Td>
-                    <Switch
-                      size="sm"
-                      checked={row.processed}
-                      onChange={(e) => handleProcessedToggle(row, e.currentTarget.checked)}
-                      color="teal"
-                      aria-label="Mark as processed"
-                    />
-                  </Table.Td>
-                  <Table.Td style={{ minWidth: 180 }}>
-                    <Select
-                      size="xs"
-                      placeholder="No action"
-                      data={ACTION_OPTIONS}
-                      value={row.action ?? ""}
-                      onChange={(v) =>
-                        handleActionChange(row.id, (v || null) as DemoFeedbackAction | null)
-                      }
-                      clearable
-                    />
-                  </Table.Td>
-                  <Table.Td>
-                    <ActionIcon
-                      variant="subtle"
-                      aria-label="Expand row"
-                      onClick={() => setDrawerRow(row)}
-                    >
-                      <ChevronDown size={16} />
-                    </ActionIcon>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
+              {filteredData.map((row) => {
+                const preview = truncate(row.note ?? row.error_message, 60);
+                return (
+                  <Table.Tr
+                    key={row.id}
+                    style={{ opacity: row.processed ? 0.55 : 1 }}
+                  >
+                    <Table.Td c="dimmed" style={{ whiteSpace: "nowrap" }}>
+                      {formatTimestamp(row.created_at)}
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={0}>
+                        <Text size="xs" fw={600} truncate>{row.user_email ?? "—"}</Text>
+                        <Text size="xs" c="dimmed">{row.user_role ?? "—"}</Text>
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" c="dimmed" truncate style={{ maxWidth: 180 }}>
+                        {row.route}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge
+                        color={CATEGORY_COLORS[row.category] ?? "gray"}
+                        variant="light"
+                        size="sm"
+                      >
+                        {row.category}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      {preview ? (
+                        <Text size="xs" c={row.note ? undefined : "orange"}>
+                          {preview}
+                        </Text>
+                      ) : (
+                        <Text size="xs" c="dimmed">—</Text>
+                      )}
+                    </Table.Td>
+                    <Table.Td ta="center" c="dimmed">{row.hit_count}</Table.Td>
+                    <Table.Td>
+                      {row.action ? (
+                        <Badge
+                          color={ACTION_COLORS[row.action]}
+                          variant="dot"
+                          size="sm"
+                          style={{ cursor: "pointer" }}
+                          onClick={() => { setDrawerRow(row); setJsonOpen(false); }}
+                        >
+                          {ACTION_OPTIONS.find((o) => o.value === row.action)?.label ?? row.action}
+                        </Badge>
+                      ) : (
+                        <Text
+                          size="xs"
+                          c="dimmed"
+                          style={{ cursor: "pointer" }}
+                          onClick={() => { setDrawerRow(row); setJsonOpen(false); }}
+                        >
+                          —
+                        </Text>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      <Switch
+                        size="xs"
+                        checked={row.processed}
+                        onChange={(e) => handleProcessedToggle(row, e.currentTarget.checked)}
+                        color="teal"
+                        aria-label="Mark as processed"
+                      />
+                    </Table.Td>
+                    <Table.Td>
+                      <ActionIcon
+                        variant="subtle"
+                        size="sm"
+                        aria-label="Expand row"
+                        onClick={() => { setDrawerRow(row); setJsonOpen(false); }}
+                      >
+                        <ChevronRight size={14} />
+                      </ActionIcon>
+                    </Table.Td>
+                  </Table.Tr>
+                );
+              })}
             </Table.Tbody>
           </Table>
         )}
@@ -271,52 +360,101 @@ export function DemoFeedbackWorkspace({
       <Drawer
         opened={drawerRow !== null}
         onClose={() => setDrawerRow(null)}
-        title="Feedback Detail"
+        title={
+          drawerRow ? (
+            <Group gap="xs">
+              <Badge color={CATEGORY_COLORS[drawerRow.category] ?? "gray"} variant="light">
+                {drawerRow.category}
+              </Badge>
+              <Text fw={600} size="sm">{drawerRow.route}</Text>
+            </Group>
+          ) : "Feedback Detail"
+        }
         position="right"
         size="lg"
         transitionProps={{ duration: 0 }}
       >
         {drawerRow ? (
           <Stack gap="md">
-            <Stack gap="sm">
-              <Switch
-                label="Processed"
-                description="Mark this item as reviewed and acted upon"
-                checked={drawerRow.processed}
-                onChange={(e) =>
-                  setDrawerRow((prev) =>
-                    prev ? { ...prev, processed: e.currentTarget.checked } : prev
-                  )
-                }
-                color="teal"
-              />
-              <Select
-                label="Action taken"
-                placeholder="No action selected"
-                data={ACTION_OPTIONS}
-                value={drawerRow.action ?? ""}
-                onChange={(v) =>
-                  setDrawerRow((prev) =>
-                    prev ? { ...prev, action: (v || null) as DemoFeedbackAction | null } : prev
-                  )
-                }
-                clearable
-              />
-              <Button
-                size="sm"
-                color="teal"
-                loading={saving}
-                onClick={handleDrawerSave}
-              >
-                Save triage
-              </Button>
-            </Stack>
+            {/* Context fields */}
+            <Paper p="sm" radius="sm" withBorder>
+              <Stack gap="sm">
+                <DrawerField label="Submitted" value={new Date(drawerRow.created_at).toLocaleString()} />
+                <DrawerField label="User" value={`${drawerRow.user_email ?? "unknown"} · ${drawerRow.user_role ?? "—"}`} />
+                <DrawerField label="Hit count" value={String(drawerRow.hit_count)} />
+                {drawerRow.breadcrumbs?.length ? (
+                  <Stack gap={2}>
+                    <Text size="xs" fw={700} tt="uppercase" c="dimmed">Breadcrumbs</Text>
+                    {(drawerRow.breadcrumbs as string[]).map((b, i) => (
+                      <Text key={i} size="xs" c="dimmed">{b}</Text>
+                    ))}
+                  </Stack>
+                ) : null}
+              </Stack>
+            </Paper>
+
+            {(drawerRow.note || drawerRow.error_message) ? (
+              <Paper p="sm" radius="sm" withBorder>
+                <Stack gap="sm">
+                  {drawerRow.note ? (
+                    <Stack gap={2}>
+                      <Text size="xs" fw={700} tt="uppercase" c="dimmed">Note</Text>
+                      <Text size="sm">{drawerRow.note}</Text>
+                    </Stack>
+                  ) : null}
+                  {drawerRow.error_message ? (
+                    <Stack gap={2}>
+                      <Text size="xs" fw={700} tt="uppercase" c="orange">Error message</Text>
+                      <Code block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all", fontSize: 12 }}>
+                        {drawerRow.error_message}
+                      </Code>
+                    </Stack>
+                  ) : null}
+                </Stack>
+              </Paper>
+            ) : null}
+
+            {/* Triage */}
+            <Paper p="sm" radius="sm" withBorder>
+              <Stack gap="sm">
+                <Text size="xs" fw={700} tt="uppercase" c="dimmed">Triage</Text>
+                <Select
+                  label="Action taken"
+                  placeholder="No action selected"
+                  data={ACTION_OPTIONS}
+                  value={drawerRow.action ?? ""}
+                  onChange={(v) =>
+                    handleActionChange(drawerRow.id, (v || null) as DemoFeedbackAction | null)
+                  }
+                  clearable
+                  size="sm"
+                />
+                <Switch
+                  label="Processed"
+                  description="Mark as reviewed and resolved"
+                  checked={drawerRow.processed}
+                  onChange={(e) => handleProcessedToggle(drawerRow, e.currentTarget.checked)}
+                  color="teal"
+                  size="sm"
+                />
+              </Stack>
+            </Paper>
 
             <Divider />
 
-            <Code block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-              {JSON.stringify(drawerRow, null, 2)}
-            </Code>
+            {/* Raw JSON — collapsed by default */}
+            <UnstyledButton
+              onClick={() => setJsonOpen((v) => !v)}
+              style={{ display: "flex", alignItems: "center", gap: 6 }}
+            >
+              {jsonOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              <Text size="xs" c="dimmed">Raw JSON</Text>
+            </UnstyledButton>
+            <Collapse expanded={jsonOpen}>
+              <Code block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all", fontSize: 11 }}>
+                {JSON.stringify(drawerRow, null, 2)}
+              </Code>
+            </Collapse>
           </Stack>
         ) : null}
       </Drawer>
