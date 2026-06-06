@@ -13,6 +13,7 @@ import {
   hasTenantSupabaseEnv,
   hasTenantServiceRoleKey,
 } from "@/lib/supabase/config";
+import { supabaseFetch } from "@/lib/supabase/fetch";
 
 declare global {
   var __churchcoreopsTenantPool: Pool | undefined;
@@ -47,6 +48,7 @@ export async function createTenantServerClient() {
   const { url, publishableKey } = getTenantSupabaseEnv();
 
   return createServerClient(url, publishableKey, {
+    global: { fetch: supabaseFetch },
     cookies: {
       getAll() {
         return cookieStore.getAll();
