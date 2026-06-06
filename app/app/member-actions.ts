@@ -635,19 +635,24 @@ export async function memberRegisterForEventAction(
       | Awaited<ReturnType<typeof createEventRegistrationPaymentIntent>>
       | null = null;
     if (registrationId && paymentStatus === "pending") {
-      try {
-        paymentIntent = await createEventRegistrationPaymentIntent({
-          amountCents: settings.price_cents,
-          currency: settings.currency,
-          churchId,
-          eventId: input.eventId,
-          registrationId,
-          registrantEmail: targetProfile.email,
-          registrantName: targetProfile.full_name,
-        });
-      } catch {
-        paymentIntent = null;
+      const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+      if (!demoMode) {
+        try {
+          paymentIntent = await createEventRegistrationPaymentIntent({
+            amountCents: settings.price_cents,
+            currency: settings.currency,
+            churchId,
+            eventId: input.eventId,
+            registrationId,
+            registrantEmail: targetProfile.email,
+            registrantName: targetProfile.full_name,
+          });
+        } catch {
+          paymentIntent = null;
+        }
       }
+
+      const intentId = paymentIntent?.paymentIntentId ?? (demoMode ? `pi_demo_${registrationId.slice(-8)}` : null);
 
       await queryTenantLocalDb(
         `insert into public.event_registration_payments
@@ -666,9 +671,19 @@ export async function memberRegisterForEventAction(
           churchId,
           settings.price_cents,
           settings.currency ?? "usd",
-          paymentIntent?.paymentIntentId ?? null,
+          intentId,
         ],
       );
+
+      revalidatePath("/app/member");
+      revalidatePath(`/app/church-admin/events/${input.eventId}`);
+      return {
+        ok: true,
+        status,
+        registrationId: registrationId ?? null,
+        ...(intentId ? { paymentIntentId: intentId } : {}),
+        ...(paymentIntent ? { paymentClientSecret: paymentIntent.clientSecret } : {}),
+      };
     }
 
     revalidatePath("/app/member");
@@ -677,12 +692,6 @@ export async function memberRegisterForEventAction(
       ok: true,
       status,
       registrationId: registrationId ?? null,
-      ...(paymentIntent
-        ? {
-            paymentIntentId: paymentIntent.paymentIntentId,
-            paymentClientSecret: paymentIntent.clientSecret,
-          }
-        : {}),
     };
   }
 
@@ -791,22 +800,27 @@ export async function memberRegisterForEventAction(
   }
 
   if (paymentStatus === "pending" && data?.id) {
+    const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
     let paymentIntent:
       | Awaited<ReturnType<typeof createEventRegistrationPaymentIntent>>
       | null = null;
-    try {
-      paymentIntent = await createEventRegistrationPaymentIntent({
-        amountCents: settings.price_cents ?? 0,
-        currency: settings.currency,
-        churchId,
-        eventId: input.eventId,
-        registrationId: data.id,
-        registrantEmail: targetProfile.email,
-        registrantName: targetProfile.full_name,
-      });
-    } catch {
-      paymentIntent = null;
+    if (!demoMode) {
+      try {
+        paymentIntent = await createEventRegistrationPaymentIntent({
+          amountCents: settings.price_cents ?? 0,
+          currency: settings.currency,
+          churchId,
+          eventId: input.eventId,
+          registrationId: data.id,
+          registrantEmail: targetProfile.email,
+          registrantName: targetProfile.full_name,
+        });
+      } catch {
+        paymentIntent = null;
+      }
     }
+
+    const intentId = paymentIntent?.paymentIntentId ?? (demoMode ? `pi_demo_${data.id.slice(-8)}` : null);
 
     await supabase.from("event_registration_payments").upsert(
       {
@@ -817,7 +831,7 @@ export async function memberRegisterForEventAction(
         status: "pending",
         amount_cents: settings.price_cents ?? 0,
         currency: settings.currency ?? "usd",
-        payment_intent_id: paymentIntent?.paymentIntentId ?? null,
+        payment_intent_id: intentId,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "registration_id" },
@@ -829,12 +843,8 @@ export async function memberRegisterForEventAction(
       ok: true,
       status,
       registrationId: data.id,
-      ...(paymentIntent
-        ? {
-            paymentIntentId: paymentIntent.paymentIntentId,
-            paymentClientSecret: paymentIntent.clientSecret,
-          }
-        : {}),
+      ...(intentId ? { paymentIntentId: intentId } : {}),
+      ...(paymentIntent ? { paymentClientSecret: paymentIntent.clientSecret } : {}),
     };
   }
 

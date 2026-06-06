@@ -348,22 +348,27 @@ export async function submitPublicEventRegistrationAction(
   }
 
   if (paymentStatus === "pending" && data?.id) {
+    const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
     let paymentIntent:
       | Awaited<ReturnType<typeof createEventRegistrationPaymentIntent>>
       | null = null;
-    try {
-      paymentIntent = await createEventRegistrationPaymentIntent({
-        amountCents: settings.price_cents ?? 0,
-        currency: settings.currency,
-        churchId,
-        eventId,
-        registrationId: data.id,
-        registrantEmail,
-        registrantName,
-      });
-    } catch {
-      paymentIntent = null;
+    if (!demoMode) {
+      try {
+        paymentIntent = await createEventRegistrationPaymentIntent({
+          amountCents: settings.price_cents ?? 0,
+          currency: settings.currency,
+          churchId,
+          eventId,
+          registrationId: data.id,
+          registrantEmail,
+          registrantName,
+        });
+      } catch {
+        paymentIntent = null;
+      }
     }
+
+    const intentId = paymentIntent?.paymentIntentId ?? (demoMode ? `pi_demo_${data.id.slice(-8)}` : null);
 
     await supabase.from("event_registration_payments").upsert(
       {
@@ -374,7 +379,7 @@ export async function submitPublicEventRegistrationAction(
         status: "pending",
         amount_cents: settings.price_cents ?? 0,
         currency: settings.currency ?? "usd",
-        payment_intent_id: paymentIntent?.paymentIntentId ?? null,
+        payment_intent_id: intentId,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "registration_id" },
@@ -385,12 +390,8 @@ export async function submitPublicEventRegistrationAction(
       ok: true,
       status,
       registrationId: data.id,
-      ...(paymentIntent
-        ? {
-            paymentIntentId: paymentIntent.paymentIntentId,
-            paymentClientSecret: paymentIntent.clientSecret,
-          }
-        : {}),
+      ...(intentId ? { paymentIntentId: intentId } : {}),
+      ...(paymentIntent ? { paymentClientSecret: paymentIntent.clientSecret } : {}),
     };
   }
 
