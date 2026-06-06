@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { ActionIcon, Button, Modal, Select, Textarea } from "@mantine/core";
+import { ActionIcon, Button, Indicator, Modal, Select, Textarea, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { MessageSquare } from "lucide-react";
 
@@ -84,17 +84,37 @@ export function FeedbackButton() {
 
   return (
     <>
-      <ActionIcon
-        size="lg"
-        variant="filled"
-        aria-label="Send demo feedback"
-        style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999 }}
-        onClick={() => setOpen(true)}
+      <Tooltip
+        label="Send feedback about this page"
+        position="left"
+        withArrow
+        openDelay={300}
       >
-        <MessageSquare size={18} />
-      </ActionIcon>
+        <Indicator
+          color="red"
+          size={10}
+          processing
+          style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999 }}
+        >
+          <ActionIcon
+            size="xl"
+            radius="xl"
+            variant="filled"
+            color="teal"
+            aria-label="Send demo feedback"
+            onClick={() => setOpen(true)}
+          >
+            <MessageSquare size={20} />
+          </ActionIcon>
+        </Indicator>
+      </Tooltip>
 
-      <Modal opened={open} onClose={() => setOpen(false)} title="Send Feedback" transitionProps={{ duration: 0 }}>
+      <Modal
+        opened={open}
+        onClose={() => setOpen(false)}
+        title="Send Feedback"
+        transitionProps={{ duration: 0 }}
+      >
         <Select
           label="Category"
           required

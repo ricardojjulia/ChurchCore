@@ -51,7 +51,7 @@ export const controlPlaneSections = [
   {
     id: "support",
     label: "Support",
-    description: "Escalations, access reviews, and queue health",
+    description: "Issues reported by churches to the platform team",
   },
   {
     id: "demo-feedback",
@@ -127,15 +127,15 @@ export const billingQueue = [
 
 export const supportQueue = [
   {
-    title: "Pastoral-notes export audit",
-    detail: "Access pattern needs manual validation before closure.",
+    title: "Grace Harbor: Members can't log in after password reset",
+    detail: "Three members reporting failed logins since yesterday. Church admin confirmed reset emails are arriving but link errors out.",
   },
   {
-    title: "Grace Harbor invite delivery issue",
-    detail: "Provisioning queue should not advance until domain setup is confirmed.",
+    title: "New City Chapel: Giving report shows zero for March",
+    detail: "Finance admin says all March donations are in the system but the report exports blank. Possible date filter bug.",
   },
   {
-    title: "Billing access escalation",
-    detail: "Church admin permissions need a scoped support response, not a platform-wide role grant.",
+    title: "Renew Community: Ministry leader role not saving",
+    detail: "Church admin assigned ministry leader role to two users; role reverts to member on next login.",
   },
 ];
