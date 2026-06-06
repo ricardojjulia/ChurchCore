@@ -15,7 +15,7 @@ ChurchCore is part of a broader product family:
 
 ## Try the Demo
 
-The hosted demo is available at `https://demo.churchcore.app`. No installation required — open it in any modern browser.
+The hosted demo is available at `https://church-core-ops.vercel.app`. No installation required — open it in any modern browser.
 
 **All demo accounts use the password: `ChurchCoreDemo2026!`**
 
