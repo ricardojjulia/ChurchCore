@@ -181,7 +181,8 @@ export function MemberEventRegistrationPanel({ churchId, options, familyMembers 
           : statusText,
       });
       setPaymentCheckout(
-        result.paymentClientSecret && result.paymentIntentId && result.registrationId
+        result.paymentIntentId && result.registrationId &&
+        (result.paymentClientSecret || process.env.NEXT_PUBLIC_DEMO_MODE === "true")
           ? {
               registrationId: result.registrationId,
               paymentIntentId: result.paymentIntentId,
