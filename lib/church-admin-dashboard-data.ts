@@ -2,7 +2,7 @@ import "server-only";
 
 import type { ChurchAppSession } from "@/lib/auth";
 import {
-  createTenantServerClient,
+  createTenantDataClient,
   hasTenantBackendEnv,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
@@ -182,7 +182,7 @@ export async function getChurchAdminDashboardSummary(
     };
   }
 
-  const supabase = await createTenantServerClient();
+  const supabase = await createTenantDataClient(session);
   const churchId = session.appContext.church.id;
   const now = new Date();
   const next14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);

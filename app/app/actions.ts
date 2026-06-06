@@ -920,6 +920,29 @@ export async function updateMemberProfileAction(
     throw new Error("No church profile was found for this account.");
   }
 
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && hasTenantAdminBackendEnv()) {
+    const adminSupabase = createTenantAdminClient();
+    await adminSupabase.from("profiles").update({
+      full_name: fullName,
+      phone,
+      address,
+      preferred_contact_method: input.preferredContactMethod ?? null,
+      interests,
+      emergency_contact_name: emergencyContactName,
+      emergency_contact_phone: emergencyContactPhone,
+      directory_visible: input.directoryVisible,
+      contact_allowed: input.contactAllowed,
+    }).eq("id", activeProfileId).eq("church_id", session.appContext.church.id);
+
+    revalidatePath("/app/member");
+    revalidatePath("/app/member/directory");
+    revalidatePath("/portal");
+    revalidatePath("/app/pastor");
+    revalidatePath("/app/pastor/people");
+
+    return { status: "saved" };
+  }
+
   const requestId = await queueMemberChangeRequest(session, {
     targetProfileId: activeProfileId,
     changeType: "profile",

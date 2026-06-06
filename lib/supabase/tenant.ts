@@ -66,6 +66,15 @@ export async function createTenantServerClient() {
   });
 }
 
+export async function createTenantDataClient(session: {
+  appContext: { source: string };
+}) {
+  if (session.appContext.source === "impersonation") {
+    return createTenantAdminClient();
+  }
+  return createTenantServerClient();
+}
+
 export function createTenantAdminClient() {
   const { url } = getTenantSupabaseEnv();
 
