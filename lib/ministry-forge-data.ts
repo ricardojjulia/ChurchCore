@@ -256,7 +256,7 @@ export async function getMinistryForgeList(
   const { data: ministryRows } = await supabase
     .from("ministries")
     .select(
-      "id, name, ministry_type, vision_statement, scriptural_anchor, health_score, last_health_assessment, leader_profile_id, profile_ministries(id)",
+      "id, name, ministry_type, vision_statement, scriptural_anchor, health_score, last_health_assessment, leader_profile_id, profile_ministries(profile_id)",
     )
     .eq("church_id", churchId)
     .order("name");
@@ -683,7 +683,7 @@ export async function getMemberMinistriesData(
     activeProfileId
       ? supabase
           .from("profile_ministries")
-          .select("role, ministries(id, name, ministry_type, vision_statement, profile_ministries(id))")
+          .select("role, ministries(id, name, ministry_type, vision_statement, profile_ministries(profile_id))")
           .eq("profile_id", activeProfileId)
           .eq("church_id", churchId)
       : { data: [] as Array<unknown> },
