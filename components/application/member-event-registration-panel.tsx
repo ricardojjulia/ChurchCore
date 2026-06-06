@@ -17,6 +17,7 @@ import {
   Textarea,
   Title,
 } from "@mantine/core";
+import { FlaskConical } from "lucide-react";
 
 import { memberRegisterForEventAction } from "@/app/app/member-actions";
 import type { MemberPortalFamilyMember } from "@/lib/member-portal-data";
@@ -26,11 +27,13 @@ import type {
 } from "@/lib/member-event-registration-data";
 
 type Props = {
+  churchId: string;
   options: MemberEventRegistrationOption[];
   familyMembers: MemberPortalFamilyMember[];
 };
 
 type PaymentCheckoutState = {
+  registrationId: string;
   paymentIntentId: string;
   amountLabel: string;
 };
@@ -43,13 +46,14 @@ function getStatusLabel(status: MemberEventRegistrationOption["memberRegistratio
   return null;
 }
 
-export function MemberEventRegistrationPanel({ options, familyMembers }: Props) {
+export function MemberEventRegistrationPanel({ churchId, options, familyMembers }: Props) {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [targetProfileId, setTargetProfileId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [fieldValues, setFieldValues] = useState<Record<string, string | number | boolean>>({});
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [paymentCheckout, setPaymentCheckout] = useState<PaymentCheckoutState | null>(null);
+  const [demoPaymentLoading, setDemoPaymentLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const selectedEvent = useMemo(
@@ -97,6 +101,22 @@ export function MemberEventRegistrationPanel({ options, familyMembers }: Props) 
     }
 
     return String(value ?? "").trim().length > 0;
+  }
+
+  async function completeDemoPayment() {
+    if (!paymentCheckout) return;
+    setDemoPaymentLoading(true);
+    try {
+      await fetch("/api/demo/complete-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationId: paymentCheckout.registrationId, churchId }),
+      });
+      setPaymentCheckout(null);
+      setMessage({ type: "success", text: "Demo payment complete. Registration confirmed." });
+    } finally {
+      setDemoPaymentLoading(false);
+    }
   }
 
   function handleSubmit() {
@@ -161,8 +181,9 @@ export function MemberEventRegistrationPanel({ options, familyMembers }: Props) 
           : statusText,
       });
       setPaymentCheckout(
-        result.paymentClientSecret && result.paymentIntentId
+        result.paymentClientSecret && result.paymentIntentId && result.registrationId
           ? {
+              registrationId: result.registrationId,
               paymentIntentId: result.paymentIntentId,
               amountLabel: formatAmount(selectedEvent.priceCents, selectedEvent.currency),
             }
@@ -268,6 +289,40 @@ export function MemberEventRegistrationPanel({ options, familyMembers }: Props) 
                 <Text size="xs" c="dimmed">
                   No card details are stored in ChurchCore.
                 </Text>
+                {process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? (
+                  <>
+                    <Paper p="sm" radius="md" mt={4} style={{ background: "rgba(20,184,166,0.06)", border: "1px solid rgba(20,184,166,0.25)" }}>
+                      <Group gap="xs" mb="xs">
+                        <FlaskConical size={14} color="#0d9488" />
+                        <Text size="xs" fw={700} c="teal.7" tt="uppercase">Demo Mode — Test Payment</Text>
+                      </Group>
+                      <Stack gap={6}>
+                        <Group gap="xs">
+                          <Text size="xs" c="dimmed" w={80}>Card</Text>
+                          <Text size="xs" ff="monospace" fw={600}>4242 4242 4242 4242</Text>
+                        </Group>
+                        <Group gap="xs">
+                          <Text size="xs" c="dimmed" w={80}>Expiry</Text>
+                          <Text size="xs" ff="monospace" fw={600}>12 / 29</Text>
+                        </Group>
+                        <Group gap="xs">
+                          <Text size="xs" c="dimmed" w={80}>CVC</Text>
+                          <Text size="xs" ff="monospace" fw={600}>123</Text>
+                        </Group>
+                      </Stack>
+                      <Text size="xs" c="dimmed" mt="xs">No real charge will be made.</Text>
+                    </Paper>
+                    <Button
+                      color="teal"
+                      fullWidth
+                      loading={demoPaymentLoading}
+                      onClick={completeDemoPayment}
+                      leftSection={<FlaskConical size={14} />}
+                    >
+                      Complete Demo Payment — {paymentCheckout.amountLabel}
+                    </Button>
+                  </>
+                ) : null}
               </Stack>
             </Paper>
           ) : null}

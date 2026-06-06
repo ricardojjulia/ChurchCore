@@ -36,6 +36,7 @@ export type SubmitPublicEventRegistrationResult = {
   previewMode?: boolean;
   alreadyRegistered?: boolean;
   status?: "pending_approval" | "confirmed" | "waitlisted";
+  registrationId?: string | null;
   paymentIntentId?: string | null;
   paymentClientSecret?: string | null;
   error?: string;
@@ -383,6 +384,7 @@ export async function submitPublicEventRegistrationAction(
     return {
       ok: true,
       status,
+      registrationId: data.id,
       ...(paymentIntent
         ? {
             paymentIntentId: paymentIntent.paymentIntentId,
@@ -393,5 +395,5 @@ export async function submitPublicEventRegistrationAction(
   }
 
   revalidatePath(`/portal/events/register?church=${encodeURIComponent(churchId)}`);
-  return { ok: true, status };
+  return { ok: true, status, registrationId: data.id };
 }
