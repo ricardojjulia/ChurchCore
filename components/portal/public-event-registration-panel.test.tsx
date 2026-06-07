@@ -51,6 +51,7 @@ describe("PublicEventRegistrationPanel", () => {
     submitPublicEventRegistrationActionMock.mockResolvedValue({
       ok: true,
       status: "confirmed",
+      registrationId: "reg-public-1",
       paymentIntentId: "pi_public_registration_1",
       paymentClientSecret: "public_client_secret_hidden",
     });

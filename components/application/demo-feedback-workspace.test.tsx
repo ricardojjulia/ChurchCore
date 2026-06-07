@@ -103,12 +103,13 @@ describe("DemoFeedbackWorkspace", () => {
         <DemoFeedbackWorkspace feedbackData={[makeRow()]} session={mockSession} />
       </Wrapper>,
     );
-    expect(screen.getByText("Created")).toBeDefined();
-    expect(screen.getByText("Email")).toBeDefined();
-    expect(screen.getByText("Role")).toBeDefined();
+    expect(screen.getByText("When")).toBeDefined();
+    expect(screen.getByText("User")).toBeDefined();
     expect(screen.getByText("Route")).toBeDefined();
     expect(screen.getByText("Category")).toBeDefined();
-    expect(screen.getByText("Hits")).toBeDefined();
+    expect(screen.getByText("Note / Error")).toBeDefined();
+    expect(screen.getByText("Action")).toBeDefined();
+    expect(screen.getAllByText("Done").length).toBeGreaterThan(0);
   });
 
   it("category filter reduces rows", async () => {
@@ -129,7 +130,7 @@ describe("DemoFeedbackWorkspace", () => {
 
     const select = screen.getByRole("combobox");
     await user.click(select);
-    const improvementOption = await screen.findByText("Improvement Idea");
+    const improvementOption = await screen.findByText("Improvement");
     await user.click(improvementOption);
 
     expect(screen.queryByText("a@test.com")).toBeNull();
@@ -149,7 +150,7 @@ describe("DemoFeedbackWorkspace", () => {
       </Wrapper>,
     );
 
-    const emailInput = screen.getByPlaceholderText("Filter by email");
+    const emailInput = screen.getByPlaceholderText("Filter by email or role");
     await user.type(emailInput, "alice");
 
     expect(screen.getByText("alice@example.com")).toBeDefined();
@@ -196,6 +197,6 @@ describe("DemoFeedbackWorkspace", () => {
         <DemoFeedbackWorkspace feedbackData={[]} session={mockSession} />
       </Wrapper>,
     );
-    expect(screen.getByText("No feedback submissions yet.")).toBeDefined();
+    expect(screen.getByText("All caught up — no open items.")).toBeDefined();
   });
 });
