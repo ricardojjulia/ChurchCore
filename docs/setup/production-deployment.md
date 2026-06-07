@@ -91,11 +91,28 @@ Set all of the following in Vercel under **Project → Settings → Environment 
 
 | Variable | Description |
 |---|---|
-| `RESEND_API_KEY` | Resend API key (or set `SENDGRID_API_KEY` / `TWILIO_*` for those providers) |
-| `SENDGRID_API_KEY` | SendGrid API key (if using SendGrid) |
-| `SENDGRID_WEBHOOK_VERIFICATION_KEY` | SendGrid webhook verification public key |
-| `TWILIO_ACCOUNT_SID` | Twilio account SID (if using Twilio) |
+| `RESEND_API_KEY` | Resend API key (primary email provider) |
+| `RESEND_FROM_EMAIL` | Verified sender address for Resend (e.g. `noreply@yourdomain.com`) |
+| `RESEND_WEBHOOK_SECRET` | Resend webhook signing secret (`whsec_...`) — see step 8 |
+| `SENDGRID_API_KEY` | SendGrid API key (if using SendGrid instead of Resend) |
+| `SENDGRID_FROM_EMAIL` | Verified sender address for SendGrid |
+| `SENDGRID_WEBHOOK_VERIFICATION_KEY` | SendGrid webhook verification public key — see step 8 |
+| `TWILIO_ACCOUNT_SID` | Twilio account SID (if using Twilio for SMS) |
 | `TWILIO_AUTH_TOKEN` | Twilio auth token |
+| `TWILIO_FROM_NUMBER` | Provisioned Twilio phone number in E.164 format (e.g. `+12125551234`) |
+| `UNSUBSCRIBE_SECRET` | HMAC secret for unsubscribe link signing — generate with `openssl rand -hex 32` |
+
+### Security — Data Encryption
+
+| Variable | Description |
+|---|---|
+| `PASTORAL_ENCRYPTION_KEY` | AES-256-GCM key for encrypting `pastoral_notes.content` and `care_assignments.summary` at rest. **Required in production.** Generate with `openssl rand -base64 32`. Must be exactly 32 bytes after base64 decode. |
+
+> **PASTORAL_ENCRYPTION_KEY — Critical notes:**
+> - Without this key set, the application throws on any pastoral note read or write in production.
+> - Loss of this key means permanent loss of all encrypted pastoral notes. Back it up in a secrets manager.
+> - After first setting this key in production, run the plaintext backfill script against any pre-existing pastoral data (see section 12).
+> - Key rotation requires a full re-encryption backfill — do not rotate casually.
 
 ### Web-Push Notifications (optional)
 
@@ -115,13 +132,16 @@ If these are not set, push notification dispatch is skipped gracefully and all o
 | Variable | Description |
 |---|---|
 | `NEXT_PUBLIC_APP_URL` | The production URL (e.g. `https://app.churchcore.io`) |
-| `NEXTAUTH_SECRET` | Random 32-byte secret for Next.js session signing |
+| `NEXT_PUBLIC_SUPABASE_URL` | Same as `TENANT_SUPABASE_URL` — required for browser-side Supabase client |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Same as `TENANT_SUPABASE_PUBLISHABLE_KEY` — required for browser-side auth |
+| `CRON_SECRET` | Secret token for authenticating cron route invocations — generate with `openssl rand -hex 32`. Include in `Authorization: Bearer <CRON_SECRET>` header when manually triggering cron routes. |
 
 ### CRITICAL: Do NOT set these in production
 
 | Variable | Reason |
 |---|---|
 | `TENANT_DB_URL` | Setting this activates `shouldUseLocalTenantDbFallback()` — the local PostgreSQL code path. Do NOT set it in production. The Supabase client path is used when this variable is absent. |
+| `CONTROL_PLANE_DB_URL` | Same as above for the control plane. Setting this bypasses the Supabase control plane client. Do NOT set in production. |
 
 ---
 
@@ -264,6 +284,23 @@ If a bad env var was deployed:
 
 ---
 
+## 12. Pastoral Encryption Backfill (First-Time Setup)
+
+If you are deploying into an environment that already has `pastoral_notes` or `care_assignments` rows written before the Phase 2 security hardening (PR #111, 2026-06-07), those rows are stored as plaintext. After provisioning `PASTORAL_ENCRYPTION_KEY`, run the following backfill to encrypt them:
+
+```bash
+TENANT_SUPABASE_URL=https://<ref>.supabase.co \
+TENANT_SUPABASE_SERVICE_ROLE_KEY=<service_role_jwt> \
+PASTORAL_ENCRYPTION_KEY=<your_base64_32_byte_key> \
+node scripts/backfill-pastoral-encryption.mjs
+```
+
+> **This script does not yet exist.** It must be written before deploying to a production environment with existing pastoral data. For a brand-new deployment with no prior data, this step can be skipped — all new writes will be encrypted automatically.
+
+Until the backfill runs, `decryptPastoralField()` returns the plaintext value as-is for legacy rows and emits a `console.warn`. This is safe but means those rows are not encrypted at rest. The warning disappears once all rows are backfilled.
+
+---
+
 ## Local Development — Required `.env.local` Configuration
 
 The following `.env.local` settings are required for the local dev environment to function correctly under the Supabase-only architecture (v3.2.0+):
@@ -275,10 +312,27 @@ TENANT_SUPABASE_PUBLISHABLE_KEY=<local anon key from `supabase status`>
 TENANT_SUPABASE_SERVICE_ROLE_KEY=<local service_role key from `supabase status`>
 TENANT_DB_URL=postgresql://postgres:postgres@127.0.0.1:4202/postgres
 
+# Browser-side Supabase client (same project as TENANT_SUPABASE_*)
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:4201
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<same anon key as TENANT_SUPABASE_PUBLISHABLE_KEY>
+
 # Control plane — MUST use a local URL pattern in local dev (even if control plane isn't running)
 # This makes shouldUseLocalControlPlaneFallback() return true, enabling auth session building
 # from the local tenant DB for demo users. In production Vercel, use the real production URL.
 CONTROL_PLANE_SUPABASE_URL=http://127.0.0.1:4211
+
+# Pastoral encryption — omit in local dev to use plaintext fallback (prints a console warning)
+# Set to a real base64 32-byte key to test encrypted round-trips locally:
+#   PASTORAL_ENCRYPTION_KEY=$(openssl rand -base64 32)
+# PASTORAL_ENCRYPTION_KEY=
+
+# Cron secret — required to manually invoke /api/cron/* routes
+# Generate with: openssl rand -hex 32
+# CRON_SECRET=
+
+# Unsubscribe HMAC secret — required for comms unsubscribe links
+# Generate with: openssl rand -hex 32
+# UNSUBSCRIBE_SECRET=
 ```
 
 **Important:** If `CONTROL_PLANE_SUPABASE_URL` is set to the production URL (`https://<ref>.supabase.co`) in `.env.local`, auth session building will try to load demo user memberships from the production control plane, where they don't exist. This causes all sign-in sessions to resolve as preview (no data). Always use a local URL pattern (`http://127.0.0.1:4211`) for `CONTROL_PLANE_SUPABASE_URL` in local development.

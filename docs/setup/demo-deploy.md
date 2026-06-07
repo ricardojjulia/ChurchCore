@@ -86,9 +86,11 @@ or use the API script below.
 | `NEXT_PUBLIC_SUPABASE_URL` | All | Tenant project URL (`https://xsmcurhmgmnxxppkorpq.supabase.co`) |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | All | Tenant **`anon`** JWT (NOT the `sb_publishable_*` key) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Production, Preview | Tenant `service_role` JWT |
+| `TENANT_SUPABASE_SERVICE_ROLE_KEY` | Production, Preview | Same value as `SUPABASE_SERVICE_ROLE_KEY` — server-side admin client |
 | `CONTROL_PLANE_SUPABASE_URL` | All | CP project URL (`https://iopydttovnyjgikprvol.supabase.co`) |
 | `CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY` | All | CP **`anon`** JWT (NOT the `sb_publishable_*` key) |
 | `CONTROL_PLANE_SUPABASE_SERVICE_ROLE_KEY` | Production, Preview | CP `service_role` JWT |
+| `PASTORAL_ENCRYPTION_KEY` | Production, Preview | AES-256-GCM key for pastoral data encryption — generate with `openssl rand -base64 32`. In demo mode pastoral data is written by seed script; **must be set before seeding** or notes are stored plaintext with a console warning. |
 | `NEXT_PUBLIC_DEMO_MODE` | Production | `true` |
 | `NEXT_PUBLIC_DEMO_VERSION` | Production | `3.3.0` (or current) |
 | `NEXT_PUBLIC_APP_URL` | Production | `https://church-core-ops.vercel.app` |
