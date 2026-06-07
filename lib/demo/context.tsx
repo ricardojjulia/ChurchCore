@@ -45,7 +45,8 @@ function ActiveDemoSessionProvider({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
 
   useEffect(() => {
-    setSessionId(resolveSessionId());
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSessionId(resolveSessionId()); // intentional: SSR renders "" to avoid hydration mismatch; client sets real sessionStorage-backed ID on mount
     startTimeRef.current = Date.now();
   }, []);
 
