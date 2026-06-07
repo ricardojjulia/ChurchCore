@@ -19,7 +19,6 @@ import {
   Text,
   TextInput,
   Textarea,
-  Title,
 } from "@mantine/core";
 
 import {
@@ -366,61 +365,57 @@ export function CalendarLiveBoard({
       const isToday = dayKey === todayKey;
 
       days.push(
-        <Paper
+        <div
           key={`day-${day}`}
-          p="xs"
-          withBorder
           onClick={() => openDate(date)}
           style={{
-            minHeight: 80,
-            overflow: "auto",
-            backgroundColor: isToday ? "rgba(37, 99, 235, 0.05)" : undefined,
+            minHeight: 100,
+            padding: "6px 7px",
+            border: "1px solid #e5e7eb",
+            backgroundColor: isToday ? "#eff6ff" : "#fff",
             cursor: "pointer",
+            overflow: "hidden",
           }}
         >
-          <Group justify="space-between" align="center" mb={4}>
-            <Text fw={600} size="sm">
-              {day}
-            </Text>
-            {dayEvents.length ? (
-              <Badge size="xs" variant="light" color="gray">
-                {dayEvents.length}
-              </Badge>
-            ) : null}
-          </Group>
+          <div style={{ marginBottom: 4 }}>
+            {isToday ? (
+              <div style={{
+                width: 26, height: 26, borderRadius: "50%",
+                backgroundColor: "#2563eb", color: "#fff",
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                fontSize: 12, fontWeight: 700, lineHeight: 1,
+              }}>
+                {day}
+              </div>
+            ) : (
+              <Text size="xs" fw={500} c="dark">{day}</Text>
+            )}
+          </div>
           <Stack gap={2}>
             {dayEvents.slice(0, 3).map((calendarEvent) => (
-              <Group
+              <div
                 key={calendarEvent.id}
-                gap={4}
-                wrap="nowrap"
-                onClick={(clickEvent) => {
-                  clickEvent.stopPropagation();
-                  openEvent(calendarEvent);
+                onClick={(e) => { e.stopPropagation(); openEvent(calendarEvent); }}
+                style={{
+                  backgroundColor: getCategoryColor(calendarEvent.category),
+                  borderRadius: 3,
+                  padding: "1px 5px",
+                  cursor: "pointer",
+                  overflow: "hidden",
                 }}
-                style={{ cursor: "pointer" }}
               >
-                <div
-                  style={{
-                    width: 4,
-                    height: 4,
-                    borderRadius: "50%",
-                    backgroundColor: getCategoryColor(calendarEvent.category),
-                    flexShrink: 0,
-                  }}
-                />
-                <Text size="xs" truncate>
+                <Text size="xs" truncate style={{ color: "#fff", fontWeight: 500, lineHeight: 1.5 }}>
                   {calendarEvent.title}
                 </Text>
-              </Group>
+              </div>
             ))}
             {dayEvents.length > 3 ? (
-              <Text size="xs" c="dimmed">
+              <Text size="xs" c="dimmed" style={{ paddingLeft: 2 }}>
                 +{dayEvents.length - 3} more
               </Text>
             ) : null}
           </Stack>
-        </Paper>,
+        </div>,
       );
     }
 
@@ -627,22 +622,8 @@ export function CalendarLiveBoard({
 
   return (
     <>
-      <Paper withBorder p="xl">
-        <Group justify="space-between" align="center" mb="lg">
-          <div>
-            <Title order={3} size="h4">
-              Working calendar
-            </Title>
-            <Text size="sm" c="dimmed" mt={4}>
-              {viewMode === "month"
-                ? "Month view"
-                : viewMode === "week"
-                  ? "Week view"
-                  : "Day view"}{" "}
-              with event-type filtering and day details.
-            </Text>
-          </div>
-        </Group>
+      <Paper withBorder style={{ overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px 0" }}>
 
         {feedback ? (
           <Alert color={feedback.tone === "error" ? "red" : "teal"} mb="lg">
@@ -702,83 +683,51 @@ export function CalendarLiveBoard({
         ) : null}
 
         <Group justify="space-between" mb="md" align="center" wrap="wrap" gap="sm">
-          <Group gap="sm">
-            <Button
-              size="compact-sm"
-              variant={viewMode === "month" ? "filled" : "default"}
-              onClick={() => onViewModeChange("month")}
-            >
-              Month
-            </Button>
-            <Button
-              size="compact-sm"
-              variant={viewMode === "week" ? "filled" : "default"}
-              onClick={() => onViewModeChange("week")}
-            >
-              Week
-            </Button>
-            <Button
-              size="compact-sm"
-              variant={viewMode === "day" ? "filled" : "default"}
-              onClick={() => onViewModeChange("day")}
-            >
-              Day
-            </Button>
+          <Group gap="xs">
+            <Button size="compact-sm" variant={viewMode === "month" ? "filled" : "subtle"} onClick={() => onViewModeChange("month")}>Month</Button>
+            <Button size="compact-sm" variant={viewMode === "week" ? "filled" : "subtle"} onClick={() => onViewModeChange("week")}>Week</Button>
+            <Button size="compact-sm" variant={viewMode === "day" ? "filled" : "subtle"} onClick={() => onViewModeChange("day")}>Day</Button>
           </Group>
-          <Group gap="xs" align="center">
-            <Button
-              size="compact-sm"
-              variant="default"
-              leftSection={<ChevronLeft size={16} />}
-              onClick={handlePrev}
-            >
-              Prev
-            </Button>
-            <Text
-              fw={600}
-              size="sm"
-              style={{ minWidth: 160, textAlign: "center" }}
-              aria-live="polite"
-            >
+          <Group gap={4} align="center">
+            <Button size="compact-sm" variant="subtle" onClick={handlePrev} px={6}><ChevronLeft size={16} /></Button>
+            <Text fw={700} size="lg" style={{ minWidth: 200, textAlign: "center" }} aria-live="polite">
               {getPeriodLabel(viewMode, currentDate, churchTimeZone)}
             </Text>
-            <Button
-              size="compact-sm"
-              variant="default"
-              onClick={() => setCurrentDate(new Date())}
-            >
-              Today
-            </Button>
-            <Button
-              size="compact-sm"
-              variant="default"
-              rightSection={<ChevronRight size={16} />}
-              onClick={handleNext}
-            >
-              Next
-            </Button>
+            <Button size="compact-sm" variant="subtle" onClick={handleNext} px={6}><ChevronRight size={16} /></Button>
+            <Button size="compact-sm" variant="default" ml={4} onClick={() => setCurrentDate(new Date())}>Today</Button>
           </Group>
         </Group>
+        </div>
 
         {viewMode === "month" ? (
           isMobile ? (
-            <div style={{ marginBottom: "var(--mantine-spacing-lg)" }}>{renderMonthView()}</div>
+            <div style={{ padding: "0 20px 20px" }}>{renderMonthView()}</div>
           ) : (
-            <SimpleGrid cols={7} spacing={1} mb="lg">
+            <SimpleGrid cols={7} spacing={0}>
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                <Text key={day} fw={600} size="sm" ta="center">
-                  {day}
-                </Text>
+                <div
+                  key={day}
+                  style={{
+                    textAlign: "center",
+                    padding: "6px 0",
+                    backgroundColor: "#f9fafb",
+                    borderTop: "1px solid #e5e7eb",
+                    borderRight: "1px solid #e5e7eb",
+                    borderBottom: "2px solid #e5e7eb",
+                  }}
+                >
+                  <Text fw={600} size="xs" c="dimmed" tt="uppercase" style={{ letterSpacing: "0.05em" }}>{day}</Text>
+                </div>
               ))}
               {renderMonthView()}
             </SimpleGrid>
           )
         ) : viewMode === "week" ? (
-          <Paper mb="lg" style={{ overflowX: "auto" }}>
+          <div style={{ padding: "0 20px 20px", overflowX: "auto" }}>
             {renderWeekView()}
-          </Paper>
+          </div>
         ) : (
-          <Stack mb="lg" gap="sm">
+          <Stack gap="sm" style={{ padding: "0 20px 20px" }}>
             {renderDayView()}
           </Stack>
         )}
