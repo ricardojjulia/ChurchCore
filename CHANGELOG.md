@@ -4,7 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project follows Semantic Versioning.
 
-## [Unreleased]
+## [Unreleased] — Phase 2 Security Hardening
+
+### Security
+- C-3: Restricted `member_directory` view to expose only directory-safe columns to member-scope queries
+- H-4: Re-asserted consent_logs append-only contract (idempotent migration; any UPDATE policy dropped)
+- H-5: Added `church_id` and `actor_role` columns to `audit_log`; church-admin-scoped SELECT policy; `logAuditEvent()` server helper
+- H-1: AES-256-GCM application-layer encryption for `pastoral_notes.content` and `care_assignments.summary` via `lib/crypto/pastoral.ts`
+- M-2: `eraseProfileData()` server action in `lib/actions/erasure.ts` (church_admin only; anonymizes donations; writes ERASE audit row)
 
 ### Added
 

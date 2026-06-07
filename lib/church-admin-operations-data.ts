@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { ChurchAppSession } from "@/lib/auth";
+import { decryptPastoralField } from "@/lib/crypto/pastoral";
 import {
   createTenantDataClient,
   hasTenantBackendEnv,
@@ -562,7 +563,12 @@ export async function getChurchAdminOperationsData(
 
     return {
       source: "live",
-      careItems: buildCareItems(careResult.rows),
+      careItems: buildCareItems(
+        careResult.rows.map((row) => ({
+          ...row,
+          summary: decryptPastoralField(row.summary),
+        })),
+      ),
       weekendItems: buildWeekendItems(eventResult.rows),
       communicationItems: buildCommunicationItems(
         logResult.rows,
@@ -787,7 +793,7 @@ export async function getChurchAdminOperationsData(
       profile_id: assignment.profile_id,
       profile_name: subject?.full_name ?? "Unknown person",
       assigned_to_name: assignee?.full_name ?? null,
-      summary: assignment.summary,
+      summary: decryptPastoralField(assignment.summary),
       status: assignment.status,
       priority: assignment.priority,
       due_at: assignment.due_at,
