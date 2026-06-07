@@ -68,6 +68,9 @@ begin
   delete from public.profile_sensitive_fields
   where profile_id = target_profile_id;
 
+  delete from public.attendance
+  where profile_id = target_profile_id;
+
   delete from public.pastoral_notes
   where profile_id = target_profile_id;
 
