@@ -1,10 +1,12 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { CalendarRange, Clock3, Layers3, ListTodo } from "lucide-react";
 import {
-  Badge,
+  Button,
   Group,
   Paper,
+  ScrollArea,
   SimpleGrid,
   Stack,
   Text,
@@ -17,11 +19,8 @@ import { ChurchAppContextBanner } from "@/components/application/church-app-cont
 import { MemberBottomNav } from "@/components/application/member-bottom-nav";
 import type { AuthSession } from "@/lib/auth";
 import type { ChurchCalendarData } from "@/lib/church-calendar-data";
+import { formatCategory, getCategoryColor } from "@/lib/calendar-utils";
 import { getPortalRole } from "@/lib/portal";
-
-function formatCategory(value: string) {
-  return value.replaceAll("_", " ").replace(/\b\w/g, (match) => match.toUpperCase());
-}
 
 export function CalendarHub({
   session,
@@ -33,6 +32,9 @@ export function CalendarHub({
   if (session.appContext.kind !== "church") {
     throw new Error("CalendarHub requires a church app context.");
   }
+
+  const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"month" | "week" | "day">("month");
 
   const activeRole = getPortalRole(session.appContext.roleId);
   const workspaceHref = session.homePath;
@@ -55,20 +57,6 @@ export function CalendarHub({
       ]
     : [];
 
-  const metrics = [
-    {
-      label: "Upcoming",
-      value: String(data.events.length),
-    },
-    {
-      label: "Categories",
-      value: String(data.categoryCounts.length),
-    },
-    {
-      label: "Needs approval",
-      value: String(data.pendingApprovals.length),
-    },
-  ];
   const canManageEvents =
     session.appContext.roleId === "church-admin" ||
     session.appContext.roleId === "pastor" ||
@@ -77,6 +65,19 @@ export function CalendarHub({
     session.appContext.roleId === "church-admin" ||
     session.appContext.roleId === "pastor";
   const isMemberRole = session.appContext.roleId === "member";
+
+  const categories = useMemo(
+    () => ["all", ...new Set(data.events.map((e) => e.category))],
+    [data.events],
+  );
+
+  const visibleEvents = useMemo(
+    () =>
+      activeCategory === "all"
+        ? data.events
+        : data.events.filter((e) => e.category === activeCategory),
+    [activeCategory, data.events],
+  );
 
   return (
     <ApplicationShell
@@ -94,50 +95,101 @@ export function CalendarHub({
     >
       <ChurchAppContextBanner session={session} />
 
-      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
-        {metrics.map((metric) => (
-          <Paper key={metric.label} withBorder p="lg">
-            <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-              {metric.label}
-            </Text>
-            <Title order={3} mt="xs">
-              {metric.value}
-            </Title>
-          </Paper>
-        ))}
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+        {/* Upcoming */}
+        <Paper withBorder p="lg">
+          <Text size="xs" tt="uppercase" fw={700} c="dimmed">
+            Upcoming
+          </Text>
+          <Title order={3} mt="xs">
+            {data.events.length}
+          </Title>
+        </Paper>
+
+        {/* Categories count */}
+        <Paper withBorder p="lg">
+          <Text size="xs" tt="uppercase" fw={700} c="dimmed">
+            Categories
+          </Text>
+          <Title order={3} mt="xs">
+            {data.categoryCounts.length}
+          </Title>
+        </Paper>
+
+        {/* Category Breakdown */}
+        <Paper withBorder p="lg" h="100%">
+          <Text size="xs" tt="uppercase" fw={700} c="dimmed" mb={4}>
+            Category Breakdown
+          </Text>
+          <ScrollArea.Autosize mah={120}>
+            {data.categoryCounts.length ? (
+              data.categoryCounts.map((item) => (
+                <Group key={item.category} justify="space-between" py={2}>
+                  <Group gap={6}>
+                    <div
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        backgroundColor: getCategoryColor(item.category),
+                        flexShrink: 0,
+                      }}
+                    />
+                    <Text size="xs">{formatCategory(item.category)}</Text>
+                  </Group>
+                  <Text size="xs" fw={600}>
+                    {item.count}
+                  </Text>
+                </Group>
+              ))
+            ) : (
+              <Text size="xs" c="dimmed">
+                No upcoming events.
+              </Text>
+            )}
+          </ScrollArea.Autosize>
+        </Paper>
+
+        {/* Needs Approval */}
+        <Paper withBorder p="lg">
+          <Text size="xs" tt="uppercase" fw={700} c="dimmed">
+            Needs Approval
+          </Text>
+          <Title order={3} mt="xs">
+            {data.pendingApprovals.length}
+          </Title>
+        </Paper>
       </SimpleGrid>
+
+      {/* Category filter toolbar */}
+      <div style={{ overflowX: "auto" }}>
+        <Group gap="xs" wrap="nowrap" mb="md">
+          {categories.map((category) => (
+            <Button
+              key={category}
+              radius="xl"
+              size="xs"
+              variant={activeCategory === category ? "filled" : "default"}
+              aria-pressed={activeCategory === category}
+              onClick={() => setActiveCategory(category)}
+            >
+              {category === "all" ? "All" : formatCategory(category)}
+            </Button>
+          ))}
+        </Group>
+      </div>
 
       <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="lg">
         <CalendarLiveBoard
-          events={data.events}
+          events={visibleEvents}
           churchTimeZone={session.appContext.church.timezone}
           canManageEvents={canManageEvents}
           canOpenEventWorkspace={canOpenEventWorkspace}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
         />
 
         <Stack gap="lg">
-          <Paper withBorder p="xl">
-            <Title order={3} size="h4">
-              Categories
-            </Title>
-            <Stack gap="sm" mt="lg">
-              {data.categoryCounts.length ? (
-                data.categoryCounts.map((item) => (
-                  <Group key={item.category} justify="space-between">
-                    <Text>{formatCategory(item.category)}</Text>
-                    <Badge color="gray" variant="light">
-                      {item.count}
-                    </Badge>
-                  </Group>
-                ))
-              ) : (
-                <Text c="dimmed" size="sm">
-                  No upcoming events.
-                </Text>
-              )}
-            </Stack>
-          </Paper>
-
           <Paper withBorder p="xl">
             <Title order={3} size="h4">
               Approval queue

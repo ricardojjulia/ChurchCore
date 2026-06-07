@@ -6,6 +6,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased] — Phase 2 Security Hardening
 
+### Changed
+- Calendar view: enterprise-quality month and week grid with category color coding, period navigation label, and responsive mobile layout (agenda list on mobile month, 3-day rolling on mobile week)
+- Calendar: category filter pills moved to toolbar row above the calendar; filter now persists when switching between month/week/day views
+- Calendar: Category Breakdown stat tile added alongside existing stat tiles; standalone Categories section removed
+- Calendar: week view timezone bug fixed — event hours now resolve in church timezone, not browser local time
+
 ### Security
 - C-3: Restricted `member_directory` view to expose only directory-safe columns to member-scope queries
 - H-4: Re-asserted consent_logs append-only contract (idempotent migration; any UPDATE policy dropped)

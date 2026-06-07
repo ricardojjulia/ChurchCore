@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useMemo, useRef, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock, ChevronLeft, ChevronRight, MapPin, Tags } from "lucide-react";
+import { useMediaQuery } from "@mantine/hooks";
 import {
   Alert,
   Badge,
   Button,
-  Divider,
   Drawer,
   Group,
   NativeSelect,
@@ -29,6 +29,17 @@ import {
   updateCalendarEventAction,
 } from "@/app/calendar/actions";
 import type { ChurchCalendarEvent } from "@/lib/church-calendar-data";
+import {
+  formatCategory,
+  formatDateKey,
+  formatTimeRange,
+  getCategoryColor,
+  getChurchDateParts,
+  getChurchHour,
+  getChurchMinute,
+  getPeriodLabel,
+  toChurchDateKey,
+} from "@/lib/calendar-utils";
 
 const categoryOptions = [
   "general",
@@ -53,10 +64,6 @@ type FeedbackState =
 
 type PendingAction = "create" | "update" | "delete" | "rsvp" | null;
 
-function formatCategory(value: string) {
-  return value.replaceAll("_", " ").replace(/\b\w/g, (match) => match.toUpperCase());
-}
-
 function toDateTimeInputValue(value: string) {
   const date = new Date(value);
 
@@ -68,48 +75,6 @@ function toDateTimeInputValue(value: string) {
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
-function getCategoryColor(category: string) {
-  switch (category) {
-    case "worship":
-      return "#2563eb";
-    case "prayer":
-      return "#0f766e";
-    case "outreach":
-      return "#c2410c";
-    case "administrative":
-      return "#475569";
-    case "ministry":
-      return "#7c3aed";
-    case "liturgical":
-      return "#1d4ed8";
-    case "informational":
-      return "#0284c7";
-    case "internal":
-      return "#334155";
-    default:
-      return "#1f6feb";
-  }
-}
-
-function toChurchDateKey(value: Date | string, timeZone: string) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date(value));
-
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  const day = parts.find((part) => part.type === "day")?.value;
-
-  if (!year || !month || !day) {
-    return "";
-  }
-
-  return `${year}-${month}-${day}`;
-}
-
 function formatDay(value: string, timeZone: string) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "long",
@@ -117,32 +82,6 @@ function formatDay(value: string, timeZone: string) {
     day: "numeric",
     timeZone,
   }).format(new Date(value));
-}
-
-function formatDateKey(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
-
-  if (!year || !month || !day) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(Date.UTC(year, month - 1, day, 12)));
-}
-
-function formatTimeRange(start: string, end: string, timeZone: string) {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone,
-  });
-
-  return `${formatter.format(new Date(start))} - ${formatter.format(new Date(end))}`;
 }
 
 function getErrorMessage(error: unknown) {
@@ -154,41 +93,32 @@ export function CalendarLiveBoard({
   churchTimeZone,
   canManageEvents,
   canOpenEventWorkspace = false,
+  viewMode,
+  onViewModeChange,
 }: {
   events: ChurchCalendarEvent[];
   churchTimeZone: string;
   canManageEvents: boolean;
   canOpenEventWorkspace?: boolean;
+  viewMode: "month" | "week" | "day";
+  onViewModeChange: (mode: "month" | "week" | "day") => void;
 }) {
   const router = useRouter();
   const createFormRef = useRef<HTMLFormElement>(null);
 
-  const [activeCategory, setActiveCategory] = useState<string>("all");
+  const isMobile = useMediaQuery("(max-width: 640px)") ?? false;
+
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"month" | "week" | "day">("month");
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [feedback, setFeedback] = useState<FeedbackState>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [isPending, startTransition] = useTransition();
 
-  const categories = useMemo(
-    () => ["all", ...new Set(events.map((event) => event.category))],
-    [events],
-  );
-
-  const visibleEvents = useMemo(
-    () =>
-      activeCategory === "all"
-        ? events
-        : events.filter((event) => event.category === activeCategory),
-    [activeCategory, events],
-  );
-
   const eventsByDay = useMemo(() => {
     const days = new Map<string, ChurchCalendarEvent[]>();
 
-    visibleEvents.forEach((event) => {
+    events.forEach((event) => {
       const dayKey = toChurchDateKey(event.startsAt, churchTimeZone);
       const dayEvents = days.get(dayKey) ?? [];
       dayEvents.push(event);
@@ -203,19 +133,7 @@ export function CalendarLiveBoard({
     });
 
     return days;
-  }, [churchTimeZone, visibleEvents]);
-
-  const agendaDays = useMemo(
-    () =>
-      Array.from(eventsByDay.entries())
-        .map(([dayKey, dayEvents]) => ({
-          dayKey,
-          label: formatDateKey(dayKey),
-          events: dayEvents,
-        }))
-        .sort((left, right) => left.dayKey.localeCompare(right.dayKey)),
-    [eventsByDay],
-  );
+  }, [churchTimeZone, events]);
 
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? null;
   const selectedDayEvents = selectedDateKey ? eventsByDay.get(selectedDateKey) ?? [] : [];
@@ -337,6 +255,22 @@ export function CalendarLiveBoard({
     });
   }
 
+  function handlePrev() {
+    const d = new Date(currentDate);
+    if (viewMode === "month") d.setMonth(d.getMonth() - 1);
+    else if (viewMode === "week") d.setDate(d.getDate() - 7);
+    else d.setDate(d.getDate() - 1);
+    setCurrentDate(d);
+  }
+
+  function handleNext() {
+    const d = new Date(currentDate);
+    if (viewMode === "month") d.setMonth(d.getMonth() + 1);
+    else if (viewMode === "week") d.setDate(d.getDate() + 7);
+    else d.setDate(d.getDate() + 1);
+    setCurrentDate(d);
+  }
+
   function getDaysInMonth(date: Date) {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
   }
@@ -345,7 +279,71 @@ export function CalendarLiveBoard({
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
   }
 
+  // Grouped agenda list used on mobile in month view
+  const agendaDaysForMonth = useMemo(() => {
+    const { year, month } = getChurchDateParts(currentDate, churchTimeZone);
+    return Array.from(eventsByDay.entries())
+      .filter(([dayKey]) => {
+        const [y, m] = dayKey.split("-").map(Number);
+        return y === year && m - 1 === month;
+      })
+      .map(([dayKey, dayEvents]) => ({ dayKey, label: formatDateKey(dayKey), events: dayEvents }))
+      .sort((a, b) => a.dayKey.localeCompare(b.dayKey));
+  }, [eventsByDay, currentDate, churchTimeZone]);
+
   function renderMonthView() {
+    // Mobile: show grouped agenda list instead of 7-column grid
+    if (isMobile) {
+      if (agendaDaysForMonth.length === 0) {
+        return <Text c="dimmed" size="sm">No events this month.</Text>;
+      }
+      return (
+        <Stack gap="sm">
+          {agendaDaysForMonth.map((day) => (
+            <Paper key={day.dayKey} withBorder p="md">
+              <Group justify="space-between" align="center" mb="sm">
+                <Button
+                  variant="subtle"
+                  size="compact-sm"
+                  onClick={() => openDate(new Date(`${day.dayKey}T12:00:00`))}
+                >
+                  {day.label}
+                </Button>
+                <Badge variant="light" color="gray">
+                  {day.events.length}
+                </Badge>
+              </Group>
+              <Stack gap={6}>
+                {day.events.map((calendarEvent) => (
+                  <Group
+                    key={calendarEvent.id}
+                    gap={6}
+                    wrap="nowrap"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => openEvent(calendarEvent)}
+                  >
+                    <div
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        backgroundColor: getCategoryColor(calendarEvent.category),
+                        flexShrink: 0,
+                      }}
+                    />
+                    <Text size="sm" truncate>
+                      {calendarEvent.title}
+                    </Text>
+                  </Group>
+                ))}
+              </Stack>
+            </Paper>
+          ))}
+        </Stack>
+      );
+    }
+
+    // Desktop: 7-column grid
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const daysInMonth = getDaysInMonth(currentDate);
@@ -353,7 +351,12 @@ export function CalendarLiveBoard({
     const days = [];
 
     for (let index = 0; index < firstDay; index += 1) {
-      days.push(<div key={`empty-${index}`} style={{ aspectRatio: "1 / 1" }} />);
+      days.push(
+        <div
+          key={`empty-${index}`}
+          style={{ minHeight: 80 }}
+        />,
+      );
     }
 
     for (let day = 1; day <= daysInMonth; day += 1) {
@@ -369,7 +372,7 @@ export function CalendarLiveBoard({
           withBorder
           onClick={() => openDate(date)}
           style={{
-            aspectRatio: "1 / 1",
+            minHeight: 80,
             overflow: "auto",
             backgroundColor: isToday ? "rgba(37, 99, 235, 0.05)" : undefined,
             cursor: "pointer",
@@ -425,79 +428,154 @@ export function CalendarLiveBoard({
   }
 
   function renderWeekView() {
-    const startOfWeek = new Date(currentDate);
-    startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
+    const isMobileView = isMobile;
 
-    const hourSlots = Array.from({ length: 16 }, (_, index) => 6 + index);
-    const weekDays = Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(startOfWeek);
-      date.setDate(date.getDate() + index);
-      return date;
+    // Start of week (Sunday) for desktop; currentDate for 3-day mobile
+    const startDay = new Date(currentDate);
+    if (!isMobileView) {
+      startDay.setDate(currentDate.getDate() - currentDate.getDay());
+    }
+
+    const numDays = isMobileView ? 3 : 7;
+    const weekDays = Array.from({ length: numDays }, (_, i) => {
+      const d = new Date(startDay);
+      d.setDate(startDay.getDate() + i);
+      return d;
     });
+
+    // Hours to display: 6 AM to 9 PM (16 hours)
+    const hours = Array.from({ length: 16 }, (_, i) => i + 6);
 
     return (
       <div style={{ overflowX: "auto" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "60px repeat(7, 1fr)", gap: 1 }}>
-          <div key="time-header" />
-          {weekDays.map((date) => (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: `60px repeat(${numDays}, 1fr)`,
+            gridTemplateRows: `auto repeat(16, 56px)`,
+            gap: 0,
+            minWidth: isMobileView ? undefined : 600,
+          }}
+        >
+          {/* Row 1: corner + day headers */}
+          <div style={{ gridColumn: 1, gridRow: 1 }} />
+          {weekDays.map((date, i) => (
             <div
-              key={`day-header-${date.toDateString()}`}
+              key={`header-${i}`}
+              style={{
+                gridColumn: i + 2,
+                gridRow: 1,
+                textAlign: "center",
+                padding: "4px 0",
+                borderBottom: "1px solid #e5e7eb",
+                cursor: "pointer",
+              }}
               onClick={() => openDate(date)}
-              style={{ textAlign: "center", paddingBottom: 8, cursor: "pointer" }}
             >
               <Text fw={600} size="sm">
-                {date.toLocaleDateString("en-US", { weekday: "short" })}
+                {new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: churchTimeZone }).format(date)}
               </Text>
-              <Text size="xs" c="dimmed">
-                {date.getDate()}
-              </Text>
-            </div>
-          ))}
-
-          {hourSlots.map((hour) => (
-            <div key={`hour-${hour}`} style={{ gridColumn: 1 }}>
-              <Text size="xs" c="dimmed">
-                {hour}:00
+              <Text
+                size="xs"
+                c={toChurchDateKey(date, churchTimeZone) === todayKey ? "blue" : "dimmed"}
+                fw={toChurchDateKey(date, churchTimeZone) === todayKey ? 700 : 400}
+              >
+                {new Intl.DateTimeFormat("en-US", { day: "numeric", timeZone: churchTimeZone }).format(date)}
               </Text>
             </div>
           ))}
 
+          {/* Rows 2–17: hour labels */}
+          {hours.map((hour, i) => (
+            <div
+              key={`hour-${hour}`}
+              style={{
+                gridColumn: 1,
+                gridRow: i + 2,
+                borderRight: "1px solid #e5e7eb",
+                borderBottom: "1px solid #f3f4f6",
+                paddingRight: 4,
+                display: "flex",
+                alignItems: "flex-start",
+                paddingTop: 2,
+              }}
+            >
+              <Text size="xs" c="dimmed" style={{ lineHeight: 1 }}>
+                {hour % 12 === 0 ? 12 : hour % 12}
+                {hour < 12 ? "am" : "pm"}
+              </Text>
+            </div>
+          ))}
+
+          {/* Background cells (rows 2–17, columns 2 to numDays+1) */}
           {weekDays.map((date, dayIndex) =>
-            hourSlots.map((hour) => {
-              const dayEvents = getEventsForDate(date).filter((calendarEvent) => {
-                const eventHour = new Date(calendarEvent.startsAt).getHours();
-                return eventHour === hour;
-              });
+            hours.map((hour, rowIndex) => (
+              <div
+                key={`bg-${dayIndex}-${hour}`}
+                style={{
+                  gridColumn: dayIndex + 2,
+                  gridRow: rowIndex + 2,
+                  borderRight: "1px solid #f3f4f6",
+                  borderBottom: "1px solid #f3f4f6",
+                  cursor: "pointer",
+                }}
+                onClick={() => openDate(date)}
+              />
+            )),
+          )}
+
+          {/* Event blocks (positioned freely) */}
+          {weekDays.map((date, dayIndex) =>
+            getEventsForDate(date).map((event) => {
+              const startHour = getChurchHour(event.startsAt, churchTimeZone);
+              const endHour = getChurchHour(event.endsAt, churchTimeZone);
+              const endMin = getChurchMinute(event.endsAt, churchTimeZone);
+
+              const clampedStart = Math.max(startHour, 6);
+              const clampedEnd = Math.min(endHour + (endMin > 0 ? 1 : 0), 22);
+              const spanRows = Math.max(clampedEnd - clampedStart, 1);
+              const startGridRow = clampedStart - 6 + 2;
+
+              // Skip events entirely outside the grid window
+              if (clampedStart >= 22 || clampedEnd <= 6) return null;
 
               return (
                 <div
-                  key={`slot-${date.toDateString()}-${hour}`}
-                  onClick={() => openDate(date)}
+                  key={event.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openEvent(event);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openEvent(event);
+                    }
+                  }}
                   style={{
                     gridColumn: dayIndex + 2,
-                    gridRow: hour - 6 + 2,
-                    border: "1px solid #e0e0e0",
-                    padding: 4,
-                    minHeight: 60,
+                    gridRow: `${startGridRow} / ${startGridRow + spanRows}`,
+                    backgroundColor: getCategoryColor(event.category),
+                    color: "#fff",
+                    borderRadius: 4,
+                    padding: "2px 4px",
+                    overflow: "hidden",
                     cursor: "pointer",
+                    zIndex: 1,
+                    margin: "1px",
+                    position: "relative",
                   }}
                 >
-                  <Stack gap={4}>
-                    {dayEvents.map((calendarEvent) => (
-                      <Badge
-                        key={calendarEvent.id}
-                        size="xs"
-                        color="blue"
-                        style={{ cursor: "pointer" }}
-                        onClick={(clickEvent) => {
-                          clickEvent.stopPropagation();
-                          openEvent(calendarEvent);
-                        }}
-                      >
-                        {calendarEvent.title}
-                      </Badge>
-                    ))}
-                  </Stack>
+                  <Text size="xs" fw={600} truncate style={{ color: "#fff" }}>
+                    {event.title}
+                  </Text>
+                  {spanRows > 1 && (
+                    <Text size="xs" style={{ color: "rgba(255,255,255,0.85)" }} truncate>
+                      {formatCategory(event.category)}
+                    </Text>
+                  )}
                 </div>
               );
             }),
@@ -564,19 +642,6 @@ export function CalendarLiveBoard({
               with event-type filtering and day details.
             </Text>
           </div>
-          <Group gap="xs" wrap="wrap">
-            {categories.map((category) => (
-              <Button
-                key={category}
-                radius="xl"
-                size="xs"
-                variant={activeCategory === category ? "filled" : "default"}
-                onClick={() => setActiveCategory(category)}
-              >
-                {category === "all" ? "All" : formatCategory(category)}
-              </Button>
-            ))}
-          </Group>
         </Group>
 
         {feedback ? (
@@ -622,7 +687,12 @@ export function CalendarLiveBoard({
                 <Textarea name="description" label="Description" minRows={2} />
                 <Switch name="rsvpEnabled" label="Enable RSVP" defaultChecked />
                 <Group justify="flex-end">
-                  <Button type="submit" radius="xl" size="xs" loading={isPending && pendingAction === "create"}>
+                  <Button
+                    type="submit"
+                    radius="xl"
+                    size="xs"
+                    loading={isPending && pendingAction === "create"}
+                  >
                     Add event
                   </Button>
                 </Group>
@@ -631,68 +701,59 @@ export function CalendarLiveBoard({
           </Paper>
         ) : null}
 
-        <Group justify="space-between" mb="md">
+        <Group justify="space-between" mb="md" align="center" wrap="wrap" gap="sm">
           <Group gap="sm">
             <Button
               size="compact-sm"
               variant={viewMode === "month" ? "filled" : "default"}
-              onClick={() => setViewMode("month")}
+              onClick={() => onViewModeChange("month")}
             >
               Month
             </Button>
             <Button
               size="compact-sm"
               variant={viewMode === "week" ? "filled" : "default"}
-              onClick={() => setViewMode("week")}
+              onClick={() => onViewModeChange("week")}
             >
               Week
             </Button>
             <Button
               size="compact-sm"
               variant={viewMode === "day" ? "filled" : "default"}
-              onClick={() => setViewMode("day")}
+              onClick={() => onViewModeChange("day")}
             >
               Day
             </Button>
           </Group>
-
-          <Group gap="sm">
+          <Group gap="xs" align="center">
             <Button
               size="compact-sm"
               variant="default"
               leftSection={<ChevronLeft size={16} />}
-              onClick={() => {
-                const newDate = new Date(currentDate);
-                if (viewMode === "month") {
-                  newDate.setMonth(newDate.getMonth() - 1);
-                } else if (viewMode === "week") {
-                  newDate.setDate(newDate.getDate() - 7);
-                } else {
-                  newDate.setDate(newDate.getDate() - 1);
-                }
-                setCurrentDate(newDate);
-              }}
+              onClick={handlePrev}
             >
               Prev
             </Button>
-            <Button size="compact-sm" variant="default" onClick={() => setCurrentDate(new Date())}>
+            <Text
+              fw={600}
+              size="sm"
+              style={{ minWidth: 160, textAlign: "center" }}
+              aria-live="polite"
+            >
+              {getPeriodLabel(viewMode, currentDate, churchTimeZone)}
+            </Text>
+            <Button
+              size="compact-sm"
+              variant="default"
+              onClick={() => setCurrentDate(new Date())}
+            >
               Today
             </Button>
             <Button
               size="compact-sm"
               variant="default"
               rightSection={<ChevronRight size={16} />}
-              onClick={() => {
-                const newDate = new Date(currentDate);
-                if (viewMode === "month") {
-                  newDate.setMonth(newDate.getMonth() + 1);
-                } else if (viewMode === "week") {
-                  newDate.setDate(newDate.getDate() + 7);
-                } else {
-                  newDate.setDate(newDate.getDate() + 1);
-                }
-                setCurrentDate(newDate);
-              }}
+              onClick={handleNext}
             >
               Next
             </Button>
@@ -700,14 +761,18 @@ export function CalendarLiveBoard({
         </Group>
 
         {viewMode === "month" ? (
-          <SimpleGrid cols={7} spacing={1} mb="lg">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-              <Text key={day} fw={600} size="sm" ta="center">
-                {day}
-              </Text>
-            ))}
-            {renderMonthView()}
-          </SimpleGrid>
+          isMobile ? (
+            <div style={{ marginBottom: "var(--mantine-spacing-lg)" }}>{renderMonthView()}</div>
+          ) : (
+            <SimpleGrid cols={7} spacing={1} mb="lg">
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                <Text key={day} fw={600} size="sm" ta="center">
+                  {day}
+                </Text>
+              ))}
+              {renderMonthView()}
+            </SimpleGrid>
+          )
         ) : viewMode === "week" ? (
           <Paper mb="lg" style={{ overflowX: "auto" }}>
             {renderWeekView()}
@@ -717,61 +782,18 @@ export function CalendarLiveBoard({
             {renderDayView()}
           </Stack>
         )}
-
-        <Divider my="lg" />
-
-        <Stack gap="sm">
-          <Text fw={600} size="sm">
-            Agenda snapshot
-          </Text>
-          {agendaDays.length ? (
-            agendaDays.map((day) => (
-              <Paper key={day.dayKey} withBorder p="md">
-                <Group justify="space-between" align="center" mb="sm">
-                  <Button variant="subtle" size="compact-sm" onClick={() => openDate(new Date(`${day.dayKey}T12:00:00`))}>
-                    {day.label}
-                  </Button>
-                  <Badge variant="light" color="gray">
-                    {day.events.length}
-                  </Badge>
-                </Group>
-                <Stack gap={8}>
-                  {day.events.map((calendarEvent) => (
-                    <Group key={calendarEvent.id} justify="space-between" wrap="nowrap" align="flex-start">
-                      <div>
-                        <Text size="sm" fw={600}>
-                          {calendarEvent.title}
-                        </Text>
-                        <Text size="xs" c="dimmed" mt={2}>
-                          {formatTimeRange(calendarEvent.startsAt, calendarEvent.endsAt, churchTimeZone)}
-                          {calendarEvent.location ? ` • ${calendarEvent.location}` : ""}
-                        </Text>
-                      </div>
-                      <Group gap={6} wrap="nowrap">
-                        <Badge size="xs" variant="light" color="blue">
-                          {formatCategory(calendarEvent.category)}
-                        </Badge>
-                        <Button size="compact-xs" variant="subtle" onClick={() => openEvent(calendarEvent)}>
-                          Open
-                        </Button>
-                      </Group>
-                    </Group>
-                  ))}
-                </Stack>
-              </Paper>
-            ))
-          ) : (
-            <Text c="dimmed" size="sm">
-              No agenda items in the current calendar window.
-            </Text>
-          )}
-        </Stack>
       </Paper>
 
       <Drawer
         opened={drawerOpened}
         onClose={handleDrawerClose}
-        title={selectedEvent ? selectedEvent.title : selectedDateKey ? formatDateKey(selectedDateKey) : ""}
+        title={
+          selectedEvent
+            ? selectedEvent.title
+            : selectedDateKey
+              ? formatDateKey(selectedDateKey)
+              : ""
+        }
         position="right"
         size="md"
       >
@@ -917,8 +939,17 @@ export function CalendarLiveBoard({
                 <form onSubmit={handleUpdateSubmit}>
                   <input type="hidden" name="eventId" value={selectedEvent.id} />
                   <Stack gap="sm">
-                    <TextInput name="title" label="Title" defaultValue={selectedEvent.title} required />
-                    <TextInput name="location" label="Location" defaultValue={selectedEvent.location ?? ""} />
+                    <TextInput
+                      name="title"
+                      label="Title"
+                      defaultValue={selectedEvent.title}
+                      required
+                    />
+                    <TextInput
+                      name="location"
+                      label="Location"
+                      defaultValue={selectedEvent.location ?? ""}
+                    />
                     <Group grow align="flex-start">
                       <TextInput
                         name="startsAt"
