@@ -111,6 +111,7 @@ describe("MemberEventRegistrationPanel", () => {
     memberRegisterForEventActionMock.mockResolvedValue({
       ok: true,
       status: "confirmed",
+      registrationId: "reg-member-1",
       paymentIntentId: "pi_member_registration_1",
       paymentClientSecret: "client_secret_hidden",
     });

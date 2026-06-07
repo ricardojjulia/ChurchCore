@@ -433,7 +433,7 @@ describe("memberRegisterForEventAction", () => {
       customFields: { shirt_size: "M" },
     });
 
-    expect(result).toEqual({ ok: true, status: "pending_approval" });
+    expect(result).toEqual({ ok: true, status: "pending_approval", registrationId: null });
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
       4,
       expect.stringContaining("insert into public.event_registrations"),
@@ -579,6 +579,7 @@ describe("memberRegisterForEventAction", () => {
     expect(result).toEqual({
       ok: true,
       status: "confirmed",
+      registrationId: "reg-member-paid-1",
       paymentIntentId: "pi_event_registration_stub_reg-member-paid-1",
       paymentClientSecret: "pi_event_registration_stub_reg-member-paid-1_secret_test",
     });
@@ -648,7 +649,7 @@ describe("memberRegisterForEventAction", () => {
 
     const result = await memberRegisterForEventAction({ eventId: "event-1" });
 
-    expect(result).toEqual({ ok: true, status: "waitlisted" });
+    expect(result).toEqual({ ok: true, status: "waitlisted", registrationId: null });
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
       5,
       expect.stringContaining("payment_status"),
