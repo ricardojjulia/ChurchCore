@@ -7,6 +7,7 @@ import {
   insertConsentLogEntries,
   type ConsentCommunicationType,
 } from "@/lib/consent-log";
+import { encryptPastoralField } from "@/lib/crypto/pastoral";
 import { resolveActiveChurchProfileId } from "@/lib/church-profile";
 import {
   createTenantAdminClient,
@@ -990,13 +991,15 @@ export async function createPastoralNoteAction(input: CreatePastoralNoteInput) {
     throw new Error("No pastor profile was found for this account.");
   }
 
+  const encryptedContent = encryptPastoralField(content);
+
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
       `
         insert into public.pastoral_notes (church_id, profile_id, created_by, content)
         values ($1, $2, $3, $4)
       `,
-      [session.appContext.church.id, input.profileId, profileId, content],
+      [session.appContext.church.id, input.profileId, profileId, encryptedContent],
     );
   } else {
     const supabase = await createTenantServerClient();
@@ -1004,7 +1007,7 @@ export async function createPastoralNoteAction(input: CreatePastoralNoteInput) {
       church_id: session.appContext.church.id,
       profile_id: input.profileId,
       created_by: profileId,
-      content,
+      content: encryptedContent,
     });
 
     if (error) throw new Error(error.message);
@@ -1036,6 +1039,8 @@ export async function createCareAssignmentAction(
     throw new Error("No pastor profile was found for this account.");
   }
 
+  const encryptedSummary = encryptPastoralField(summary);
+
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
       `
@@ -1055,7 +1060,7 @@ export async function createCareAssignmentAction(
         session.appContext.church.id,
         input.profileId,
         profileId,
-        summary,
+        encryptedSummary,
         input.priority,
         dueAt,
       ],
@@ -1067,7 +1072,7 @@ export async function createCareAssignmentAction(
       profile_id: input.profileId,
       created_by: profileId,
       assigned_to: profileId,
-      summary,
+      summary: encryptedSummary,
       priority: input.priority,
       status: "open",
       due_at: dueAt,

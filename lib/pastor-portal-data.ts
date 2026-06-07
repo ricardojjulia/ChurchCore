@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { ChurchAppSession } from "@/lib/auth";
+import { decryptPastoralField } from "@/lib/crypto/pastoral";
 import {
   createTenantServerClient,
   hasTenantBackendEnv,
@@ -339,14 +340,14 @@ export async function getPastorPortalData(
       pastoralNotes: pastoralNotesResult.rows.map((row) => ({
         id: row.id,
         profileId: row.profile_id,
-        content: row.content,
+        content: decryptPastoralField(row.content),
         createdAt: row.created_at,
         createdByName: row.created_by_name,
       })),
       careAssignments: careAssignmentsResult.rows.map((row) => ({
         id: row.id,
         profileId: row.profile_id,
-        summary: row.summary,
+        summary: decryptPastoralField(row.summary),
         status: row.status,
         priority: row.priority,
         dueAt: row.due_at,
@@ -511,14 +512,14 @@ export async function getPastorPortalData(
     pastoralNotes: (pastoralNotesQuery ?? []).map((row) => ({
       id: row.id,
       profileId: row.profile_id,
-      content: row.content,
+      content: decryptPastoralField(row.content),
       createdAt: row.created_at,
       createdByName: peopleNameMap.get(row.created_by) ?? null,
     })),
     careAssignments: (careAssignmentsQuery ?? []).map((row) => ({
       id: row.id,
       profileId: row.profile_id,
-      summary: row.summary,
+      summary: decryptPastoralField(row.summary),
       status: row.status,
       priority: row.priority,
       dueAt: row.due_at,
