@@ -758,14 +758,14 @@ export async function getMemberPortalData(
       .in("visibility", ["public", "members"])
       .order("starts_at", { ascending: true })
       .limit(6),
+    // member_directory view enforces DB-level column restrictions (no membership_status, family_id).
+    // family_id and membership_status are not exposed in the member-facing directory view by design.
     supabase
-      .from("profiles")
+      .from("member_directory")
       .select(
-        "id, full_name, display_title, email, phone, membership_status, contact_allowed, family_id",
+        "id, full_name, display_title, email, phone, contact_allowed, user_id",
       )
       .eq("church_id", churchId)
-      .eq("directory_visible", true)
-      .is("merged_at", null)
       .order("full_name")
       .limit(200),
   ]);
@@ -882,26 +882,16 @@ export async function getMemberPortalData(
 
   const directoryProfiles = directoryProfilesResult.data ?? [];
   const directoryIds = directoryProfiles.map((row) => row.id);
-  const familyIds = Array.from(
-    new Set(directoryProfiles.map((row) => row.family_id).filter((value): value is string => Boolean(value))),
-  );
+  // family_id is not exposed in the member_directory view; family name lookup is skipped for directory entries.
 
-  const [directoryMinistriesResult, directoryFamiliesResult] = await Promise.all([
-    directoryIds.length
-      ? supabase
-          .from("profile_ministries")
-          .select("profile_id, ministries(name)")
-          .eq("church_id", churchId)
-          .in("profile_id", directoryIds)
-      : { data: [] as Array<{ profile_id: string; ministries: { name?: string | null } | null }> },
-    familyIds.length
-      ? supabase
-          .from("families")
-          .select("id, family_name")
-          .eq("church_id", churchId)
-          .in("id", familyIds)
-      : { data: [] as Array<{ id: string; family_name: string }> },
-  ]);
+  // families lookup removed: family_id is not exposed by the member_directory view.
+  const directoryMinistriesResult = directoryIds.length
+    ? await supabase
+        .from("profile_ministries")
+        .select("profile_id, ministries(name)")
+        .eq("church_id", churchId)
+        .in("profile_id", directoryIds)
+    : { data: [] as Array<{ profile_id: string; ministries: { name?: string | null } | null }> };
 
   const directoryMinistryMap = (directoryMinistriesResult.data ?? []).reduce((map, row) => {
     const name =
@@ -918,10 +908,6 @@ export async function getMemberPortalData(
     map.set(row.profile_id, names);
     return map;
   }, new Map<string, string[]>());
-
-  const directoryFamilyMap = new Map(
-    (directoryFamiliesResult.data ?? []).map((row) => [row.id, row.family_name]),
-  );
 
   return {
     profile: profileRow
@@ -1067,8 +1053,9 @@ export async function getMemberPortalData(
         displayTitle: row.display_title,
         email: row.contact_allowed ? row.email : null,
         phone: row.contact_allowed ? row.phone : null,
-        familyName: row.family_id ? directoryFamilyMap.get(row.family_id) ?? null : null,
-        membershipStatus: row.membership_status ?? "active",
+        // family_id and membership_status are not in the member_directory view; defaults applied here.
+        familyName: null,
+        membershipStatus: "active",
         contactAllowed: row.contact_allowed ?? true,
       })),
       directoryMinistryMap,
