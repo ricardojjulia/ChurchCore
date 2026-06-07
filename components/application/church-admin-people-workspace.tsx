@@ -524,7 +524,7 @@ export function ChurchAdminPeopleWorkspace({
           </Stack>
         ) : null}
 
-        <Group align="flex-end" gap="md" grow mb="lg">
+        <SimpleGrid cols={{ base: 1, sm: 2, md: 5 }} spacing="md" mb="lg">
           <TextInput
             value={query}
             onChange={(event) => setQuery(event.currentTarget.value)}
@@ -579,7 +579,7 @@ export function ChurchAdminPeopleWorkspace({
             ]}
             radius="xl"
           />
-        </Group>
+        </SimpleGrid>
 
         {activeFilterLabels.length ? (
           <Group gap="xs" mb="lg">
