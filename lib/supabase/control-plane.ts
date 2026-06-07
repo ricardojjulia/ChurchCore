@@ -67,6 +67,7 @@ export function createControlPlaneAdminClient() {
       autoRefreshToken: false,
       persistSession: false,
     },
+    global: { fetch: supabaseFetch },
   });
 }
 
