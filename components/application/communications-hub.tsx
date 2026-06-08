@@ -12,6 +12,7 @@ import {
   MultiSelect,
   Paper,
   Select,
+  SimpleGrid,
   Stack,
   Table,
   Tabs,
@@ -475,6 +476,42 @@ export function CommunicationsHub({
         </Group>
       }
     >
+      {/* Quick links to the new send lifecycle routes */}
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mb="lg">
+        <Paper
+          component="a"
+          href="/app/communications/compose"
+          withBorder
+          radius="lg"
+          p="lg"
+          style={{ cursor: "pointer", textDecoration: "none" }}
+        >
+          <Group gap="sm">
+            <Send size={18} />
+            <div>
+              <Text fw={700} size="sm">New Message</Text>
+              <Text size="xs" c="dimmed">Compose and send to a segment</Text>
+            </div>
+          </Group>
+        </Paper>
+        <Paper
+          component="a"
+          href="/app/communications/history"
+          withBorder
+          radius="lg"
+          p="lg"
+          style={{ cursor: "pointer", textDecoration: "none" }}
+        >
+          <Group gap="sm">
+            <Mail size={18} />
+            <div>
+              <Text fw={700} size="sm">Message History</Text>
+              <Text size="xs" c="dimmed">View sent and scheduled messages</Text>
+            </div>
+          </Group>
+        </Paper>
+      </SimpleGrid>
+
       {readinessView ? (
         <Stack gap="md" mb="lg">
           <Paper withBorder radius="lg" p="md" bg="#f8fbff">

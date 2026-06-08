@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/communications-retry",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/communications-scheduled",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
