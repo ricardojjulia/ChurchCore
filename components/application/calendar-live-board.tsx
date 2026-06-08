@@ -689,11 +689,11 @@ export function CalendarLiveBoard({
             <Button size="compact-sm" variant={viewMode === "day" ? "filled" : "subtle"} onClick={() => onViewModeChange("day")}>Day</Button>
           </Group>
           <Group gap={4} align="center">
-            <Button size="compact-sm" variant="subtle" onClick={handlePrev} px={6}><ChevronLeft size={16} /></Button>
+            <Button size="compact-sm" variant="subtle" onClick={handlePrev} px={6} aria-label="Previous"><ChevronLeft size={16} /></Button>
             <Text fw={700} size="lg" style={{ minWidth: 200, textAlign: "center" }} aria-live="polite">
               {getPeriodLabel(viewMode, currentDate, churchTimeZone)}
             </Text>
-            <Button size="compact-sm" variant="subtle" onClick={handleNext} px={6}><ChevronRight size={16} /></Button>
+            <Button size="compact-sm" variant="subtle" onClick={handleNext} px={6} aria-label="Next"><ChevronRight size={16} /></Button>
             <Button size="compact-sm" variant="default" ml={4} onClick={() => setCurrentDate(new Date())}>Today</Button>
           </Group>
         </Group>
