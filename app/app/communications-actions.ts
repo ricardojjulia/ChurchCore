@@ -8,6 +8,16 @@ import {
   type CommunicationRecipient,
   getCommunicationDeliveryEvents,
 } from "@/lib/communications-data";
+import type {
+  CommunicationChannel,
+  CommunicationLogSummary,
+  CommunicationTemplate,
+  ComposeMessageInput,
+  MessageAnalytics,
+  RecipientPreviewResult,
+  SegmentFilter,
+} from "@/lib/communications-types";
+import { resolveRecipients } from "@/lib/communications/recipient-resolver";
 import { shouldRetryDelivery } from "@/lib/communications/provider-adapter";
 import {
   type RetryEligibleResult,
@@ -61,7 +71,7 @@ export async function broadcastMessageAction(
 ): Promise<{ sent: number; skipped: number; errors: number }> {
   const session = await requireChurchSession("/app/pastor");
   const role = session.appContext.roleId;
-  if (role !== "pastor" && role !== "church-admin") {
+  if (role !== "pastor" && role !== "church-admin" && role !== "secretary") {
     throw new Error("Only pastors and church administrators may send communications.");
   }
 
@@ -114,7 +124,7 @@ export async function retryCommunicationAction(input: {
 }): Promise<{ retried: boolean; reason?: string }> {
   const session = await requireChurchSession("/app/pastor");
   const role = session.appContext.roleId;
-  if (role !== "pastor" && role !== "church-admin") {
+  if (role !== "pastor" && role !== "church-admin" && role !== "secretary") {
     throw new Error("Only pastors and church administrators may retry communications.");
   }
 
@@ -254,7 +264,7 @@ export async function getCommunicationDeliveryEventsAction(input: {
 }): Promise<CommunicationDeliveryEvent[]> {
   const session = await requireChurchSession("/app/pastor");
   const role = session.appContext.roleId;
-  if (role !== "pastor" && role !== "church-admin") {
+  if (role !== "pastor" && role !== "church-admin" && role !== "secretary") {
     throw new Error("Only pastors and church administrators may review delivery events.");
   }
 
@@ -592,7 +602,7 @@ export async function updateNotificationPreferencesAction(
 export async function retryAllEligibleAction(): Promise<RetryEligibleResult> {
   const session = await requireChurchSession("/app/pastor");
   const role = session.appContext.roleId;
-  if (role !== "pastor" && role !== "church-admin") {
+  if (role !== "pastor" && role !== "church-admin" && role !== "secretary") {
     throw new Error(
       "Only pastors and church administrators may retry communications.",
     );
@@ -604,4 +614,498 @@ export async function retryAllEligibleAction(): Promise<RetryEligibleResult> {
   revalidatePath("/app/communications");
 
   return result;
+}
+
+// ─── CC-COMM-001: Communications Send Lifecycle ──────────────────────────────
+
+function commRoleAllowed(role: string): boolean {
+  return role === "church-admin" || role === "secretary" || role === "pastor";
+}
+
+function maskEmail(email: string): string {
+  const at = email.indexOf("@");
+  if (at <= 0) return "***";
+  const local = email.slice(0, at);
+  const domain = email.slice(at);
+  if (local.length <= 2) return `${local[0]}***${domain}`;
+  return `${local.slice(0, 2)}***${domain}`;
+}
+
+function maskPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 4) return "***";
+  return `***-***-${digits.slice(-4)}`;
+}
+
+export async function previewRecipientsAction(
+  segment: SegmentFilter,
+  channel: CommunicationChannel,
+): Promise<{ ok: true; result: RecipientPreviewResult } | { ok: false; error: string }> {
+  const session = await requireChurchSession("/app/communications");
+  const role = session.appContext.roleId;
+  if (!commRoleAllowed(role)) {
+    return { ok: false as const, error: "Access denied." };
+  }
+
+  const churchId = session.appContext.church.id;
+
+  try {
+    const recipients = await resolveRecipients(churchId, channel, segment);
+    const sample = recipients.slice(0, 5).map((r) => ({
+      profileId: r.profileId,
+      name: r.name,
+      contact:
+        channel === "email" ? maskEmail(r.contact) : maskPhone(r.contact),
+    }));
+
+    return {
+      ok: true as const,
+      result: { count: recipients.length, sample },
+    };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Preview failed." };
+  }
+}
+
+export async function composeAndSendMessageAction(
+  input: ComposeMessageInput,
+): Promise<{ ok: true; logId: string } | { ok: false; error: string }> {
+  const session = await requireChurchSession("/app/communications");
+  const role = session.appContext.roleId;
+  if (!commRoleAllowed(role)) {
+    return { ok: false as const, error: "Access denied." };
+  }
+
+  // Validate
+  const normalizedBody = input.body.trim();
+  if (!normalizedBody) {
+    return { ok: false as const, error: "Message body is required." };
+  }
+
+  if (input.channel === "email") {
+    const subject = input.subject?.trim();
+    if (!subject) {
+      return { ok: false as const, error: "Email subject is required." };
+    }
+  }
+
+  if (input.scheduledFor !== null) {
+    const parsed = new Date(input.scheduledFor);
+    if (Number.isNaN(parsed.getTime()) || parsed.getTime() <= Date.now()) {
+      return { ok: false as const, error: "Scheduled send time must be in the future." };
+    }
+  }
+
+  const churchId = session.appContext.church.id;
+  const sentBy = session.profile.id ?? null;
+
+  // Resolve full recipient list
+  let recipients: Awaited<ReturnType<typeof resolveRecipients>>;
+  try {
+    recipients = await resolveRecipients(churchId, input.channel, input.segment);
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Recipient resolution failed." };
+  }
+
+  if (recipients.length === 0) {
+    return { ok: false as const, error: "No contactable recipients match the selected segment." };
+  }
+
+  const { createTenantServerClient } = await import("@/lib/supabase/tenant");
+  const supabase = await createTenantServerClient();
+
+  const status = input.scheduledFor !== null ? "scheduled" : "queued";
+
+  const insertPayload: Record<string, unknown> = {
+    church_id: churchId,
+    sent_by: sentBy,
+    channel: input.channel,
+    subject: input.subject?.trim() ?? null,
+    body_preview: normalizedBody.slice(0, 500),
+    status,
+    segment_criteria: input.segment,
+    scheduled_for: input.scheduledFor ?? null,
+  };
+
+  const { data: logData, error: logError } = await supabase
+    .from("communication_logs")
+    .insert(insertPayload)
+    .select("id")
+    .single();
+
+  if (logError) {
+    return { ok: false as const, error: logError.message };
+  }
+
+  const logId = (logData as { id: string }).id;
+
+  if (input.scheduledFor === null) {
+    // Call sendWithSuppression directly — avoids double-session fetch and the
+    // misleading opt-in override that broadcastMessageAction required.
+    for (const recipient of recipients) {
+      await sendWithSuppression({
+        session,
+        channel: input.channel,
+        recipientProfileId: recipient.profileId,
+        recipientContact: recipient.contact,
+        subject: input.subject?.trim() ?? undefined,
+        body: normalizedBody,
+      });
+    }
+  }
+
+  revalidatePath("/app/communications/history");
+  return { ok: true as const, logId };
+}
+
+export async function cancelScheduledMessageAction(
+  logId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await requireChurchSession("/app/communications");
+  const role = session.appContext.roleId;
+  if (!commRoleAllowed(role)) {
+    return { ok: false as const, error: "Access denied." };
+  }
+
+  const churchId = session.appContext.church.id;
+  const { createTenantServerClient } = await import("@/lib/supabase/tenant");
+  const supabase = await createTenantServerClient();
+
+  const { data: logData, error: fetchError } = await supabase
+    .from("communication_logs")
+    .select("id, status, church_id")
+    .eq("id", logId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  if (fetchError) {
+    return { ok: false as const, error: fetchError.message };
+  }
+
+  if (!logData) {
+    return { ok: false as const, error: "Message not found." };
+  }
+
+  const log = logData as { id: string; status: string; church_id: string };
+
+  if (log.status !== "scheduled") {
+    return { ok: false as const, error: "Only scheduled messages can be cancelled." };
+  }
+
+  const { error: updateError } = await supabase
+    .from("communication_logs")
+    .update({ status: "cancelled" })
+    .eq("id", logId)
+    .eq("church_id", churchId);
+
+  if (updateError) {
+    return { ok: false as const, error: updateError.message };
+  }
+
+  revalidatePath("/app/communications/history");
+  return { ok: true as const };
+}
+
+export async function listCommunicationLogsAction(): Promise<
+  { ok: true; logs: CommunicationLogSummary[] } | { ok: false; error: string }
+> {
+  const session = await requireChurchSession("/app/communications");
+  const role = session.appContext.roleId;
+  if (!commRoleAllowed(role)) {
+    return { ok: false as const, error: "Access denied." };
+  }
+
+  const churchId = session.appContext.church.id;
+  const { createTenantServerClient } = await import("@/lib/supabase/tenant");
+  const supabase = await createTenantServerClient();
+
+  const { data, error } = await supabase
+    .from("communication_logs")
+    .select(
+      `id, channel, subject, body_preview, status, scheduled_for, sent_at,
+       created_at, retry_count, segment_criteria,
+       profiles!communication_logs_sent_by_fkey(full_name)`,
+    )
+    .eq("church_id", churchId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return { ok: false as const, error: error.message };
+  }
+
+  const logs: CommunicationLogSummary[] = (data ?? []).map((row) => {
+    const profileJoin = (row.profiles as unknown) as { full_name: string | null } | null;
+    return {
+      id: row.id,
+      channel: row.channel as CommunicationChannel,
+      subject: row.subject ?? null,
+      bodyPreview: row.body_preview ?? "",
+      status: row.status,
+      scheduledFor: row.scheduled_for ?? null,
+      sentAt: row.sent_at ?? null,
+      createdAt: row.created_at,
+      retryCount: row.retry_count ?? 0,
+      segmentCriteria: (row.segment_criteria as SegmentFilter | null) ?? null,
+      sentByName: profileJoin?.full_name ?? null,
+    };
+  });
+
+  return { ok: true as const, logs };
+}
+
+export async function getMessageAnalyticsAction(
+  logId: string,
+): Promise<{ ok: true; analytics: MessageAnalytics } | { ok: false; error: string }> {
+  const session = await requireChurchSession("/app/communications");
+  const role = session.appContext.roleId;
+  if (!commRoleAllowed(role)) {
+    return { ok: false as const, error: "Access denied." };
+  }
+
+  const churchId = session.appContext.church.id;
+  const { createTenantServerClient } = await import("@/lib/supabase/tenant");
+  const supabase = await createTenantServerClient();
+
+  // Verify log belongs to this church
+  const { data: logData, error: logError } = await supabase
+    .from("communication_logs")
+    .select("id, channel")
+    .eq("id", logId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  if (logError) {
+    return { ok: false as const, error: logError.message };
+  }
+
+  if (!logData) {
+    return { ok: false as const, error: "Message not found." };
+  }
+
+  const logRow = logData as { id: string; channel: string };
+
+  // Aggregate delivery events
+  const { data: events, error: eventsError } = await supabase
+    .from("communication_delivery_events")
+    .select("event_type")
+    .eq("communication_log_id", logId)
+    .eq("church_id", churchId);
+
+  if (eventsError) {
+    return { ok: false as const, error: eventsError.message };
+  }
+
+  let sentCount = 0;
+  let deliveredCount = 0;
+  let bouncedCount = 0;
+  let failedCount = 0;
+  let openedCount = 0;
+  let suppressedCount = 0;
+
+  for (const evt of events ?? []) {
+    const t = (evt.event_type as string).toLowerCase();
+    if (t === "sent") sentCount++;
+    else if (t === "delivered") deliveredCount++;
+    else if (t === "bounce" || t === "bounced") bouncedCount++;
+    else if (t === "failed") failedCount++;
+    else if (t === "open" || t === "opened") openedCount++;
+    else if (t === "suppressed") suppressedCount++;
+  }
+
+  const openRate =
+    logRow.channel === "email" && deliveredCount > 0
+      ? openedCount / deliveredCount
+      : null;
+
+  return {
+    ok: true as const,
+    analytics: {
+      logId,
+      sentCount,
+      deliveredCount,
+      bouncedCount,
+      failedCount,
+      openRate,
+      suppressedCount,
+    },
+  };
+}
+
+export async function createTemplateAction(input: {
+  name: string;
+  channel: CommunicationChannel;
+  subject: string | null;
+  body: string;
+}): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const session = await requireChurchSession("/app/communications");
+  const role = session.appContext.roleId;
+  if (!commRoleAllowed(role)) {
+    return { ok: false as const, error: "Access denied." };
+  }
+
+  const churchId = session.appContext.church.id;
+  const profileId = session.profile.id ?? null;
+  const { createTenantServerClient } = await import("@/lib/supabase/tenant");
+  const supabase = await createTenantServerClient();
+
+  const { data, error } = await supabase
+    .from("communication_templates")
+    .insert({
+      church_id: churchId,
+      name: input.name,
+      channel: input.channel,
+      subject: input.subject ?? null,
+      body: input.body,
+      created_by: profileId,
+      updated_by: profileId,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    return { ok: false as const, error: error.message };
+  }
+
+  revalidatePath("/app/communications/templates");
+  return { ok: true as const, id: (data as { id: string }).id };
+}
+
+export async function updateTemplateAction(input: {
+  id: string;
+  name: string;
+  subject: string | null;
+  body: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await requireChurchSession("/app/communications");
+  const role = session.appContext.roleId;
+  if (!commRoleAllowed(role)) {
+    return { ok: false as const, error: "Access denied." };
+  }
+
+  const churchId = session.appContext.church.id;
+  const profileId = session.profile.id ?? null;
+  const { createTenantServerClient } = await import("@/lib/supabase/tenant");
+  const supabase = await createTenantServerClient();
+
+  // Verify ownership
+  const { data: tmpl, error: fetchError } = await supabase
+    .from("communication_templates")
+    .select("id, church_id")
+    .eq("id", input.id)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  if (fetchError) {
+    return { ok: false as const, error: fetchError.message };
+  }
+
+  if (!tmpl) {
+    return { ok: false as const, error: "Template not found." };
+  }
+
+  // Channel is NOT editable — only update name, subject, body, updated_by
+  const { error: updateError } = await supabase
+    .from("communication_templates")
+    .update({
+      name: input.name,
+      subject: input.subject ?? null,
+      body: input.body,
+      updated_by: profileId,
+    })
+    .eq("id", input.id)
+    .eq("church_id", churchId);
+
+  if (updateError) {
+    return { ok: false as const, error: updateError.message };
+  }
+
+  revalidatePath("/app/communications/templates");
+  return { ok: true as const };
+}
+
+export async function deleteTemplateAction(input: {
+  id: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await requireChurchSession("/app/communications");
+  const role = session.appContext.roleId;
+  if (!commRoleAllowed(role)) {
+    return { ok: false as const, error: "Access denied." };
+  }
+
+  const churchId = session.appContext.church.id;
+  const { createTenantServerClient } = await import("@/lib/supabase/tenant");
+  const supabase = await createTenantServerClient();
+
+  // Verify ownership before delete
+  const { data: tmpl, error: fetchError } = await supabase
+    .from("communication_templates")
+    .select("id, church_id")
+    .eq("id", input.id)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  if (fetchError) {
+    return { ok: false as const, error: fetchError.message };
+  }
+
+  if (!tmpl) {
+    return { ok: false as const, error: "Template not found." };
+  }
+
+  const { error: deleteError } = await supabase
+    .from("communication_templates")
+    .delete()
+    .eq("id", input.id)
+    .eq("church_id", churchId);
+
+  if (deleteError) {
+    return { ok: false as const, error: deleteError.message };
+  }
+
+  revalidatePath("/app/communications/templates");
+  return { ok: true as const };
+}
+
+export async function listTemplatesAction(
+  channel?: CommunicationChannel,
+): Promise<{ ok: true; templates: CommunicationTemplate[] } | { ok: false; error: string }> {
+  const session = await requireChurchSession("/app/communications");
+  const role = session.appContext.roleId;
+  if (!commRoleAllowed(role)) {
+    return { ok: false as const, error: "Access denied." };
+  }
+
+  const churchId = session.appContext.church.id;
+  const { createTenantServerClient } = await import("@/lib/supabase/tenant");
+  const supabase = await createTenantServerClient();
+
+  let query = supabase
+    .from("communication_templates")
+    .select("id, church_id, name, channel, subject, body, created_by, updated_by, created_at, updated_at")
+    .eq("church_id", churchId);
+
+  if (channel) {
+    query = query.eq("channel", channel);
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false });
+
+  if (error) {
+    return { ok: false as const, error: error.message };
+  }
+
+  const templates: CommunicationTemplate[] = (data ?? []).map((row) => ({
+    id: row.id,
+    churchId: row.church_id,
+    name: row.name,
+    channel: row.channel as CommunicationChannel,
+    subject: row.subject ?? null,
+    body: row.body,
+    createdBy: row.created_by ?? null,
+    updatedBy: row.updated_by ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+
+  return { ok: true as const, templates };
 }
