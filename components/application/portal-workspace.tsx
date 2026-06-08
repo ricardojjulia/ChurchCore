@@ -7,6 +7,7 @@ import {
   BrainCircuit,
   Calendar,
   ClipboardCheck,
+  ClipboardList,
   DollarSign,
   HeartHandshake,
   Landmark,
@@ -208,7 +209,24 @@ export function PortalWorkspace({
         icon: DollarSign,
         active: isActiveHref("/app/church-admin/giving"),
       },
+      {
+        href: "/app/church-admin/operations",
+        label: "Operations",
+        description: "Documents & onboarding",
+        icon: ClipboardList,
+        active: isActiveHref("/app/church-admin/operations"),
+      },
     );
+  }
+
+  if (role.id === "pastor") {
+    navItems.push({
+      href: "/app/church-admin/operations",
+      label: "Operations",
+      description: "Documents & onboarding",
+      icon: ClipboardList,
+      active: isActiveHref("/app/church-admin/operations"),
+    });
   }
 
   if (role.id === "secretary") {
