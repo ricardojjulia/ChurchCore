@@ -39,6 +39,7 @@ export type DemoProfile = {
   roleId: PortalRoleId;
   defaultPath: string;
   focus: string;
+  isPastoral: boolean;
 };
 
 export type ChurchSummary = {
@@ -121,6 +122,7 @@ export const demoProfiles: DemoProfile[] = [
     roleId: "super-admin",
     defaultPath: "/control",
     focus: "Tenant onboarding, billing review, and platform oversight.",
+    isPastoral: false,
   },
   {
     id: "david-admin",
@@ -130,6 +132,7 @@ export const demoProfiles: DemoProfile[] = [
     roleId: "church-admin",
     defaultPath: "/app/church-admin",
     focus: "Weekend operations, giving reconciliation, and member follow-up.",
+    isPastoral: false,
   },
   {
     id: "olivia-secretary",
@@ -139,6 +142,7 @@ export const demoProfiles: DemoProfile[] = [
     roleId: "secretary",
     defaultPath: "/app/secretary",
     focus: "Daily Desk calls, office notes, visit scheduling, and request follow-up.",
+    isPastoral: false,
   },
   {
     id: "miriam-pastor",
@@ -148,6 +152,7 @@ export const demoProfiles: DemoProfile[] = [
     roleId: "pastor",
     defaultPath: "/app/pastor",
     focus: "Sermon prep, prayer review, and pastoral care coordination.",
+    isPastoral: true,
   },
   {
     id: "elijah-leader",
@@ -157,6 +162,7 @@ export const demoProfiles: DemoProfile[] = [
     roleId: "ministry-leader",
     defaultPath: "/app/ministry-leader",
     focus: "Volunteer load, event readiness, and follow-up execution.",
+    isPastoral: false,
   },
   {
     id: "naomi-member",
@@ -166,6 +172,7 @@ export const demoProfiles: DemoProfile[] = [
     roleId: "member",
     defaultPath: "/app/member",
     focus: "Personal schedule, serving commitments, and prayer participation.",
+    isPastoral: false,
   },
 ];
 
@@ -719,6 +726,7 @@ function buildProfileFromSupabaseUser({
     roleId,
     defaultPath: canAccessControl ? "/control" : getRoleHomePath(roleId),
     focus,
+    isPastoral: hydratedProfile?.isPastoral ?? false,
   };
 }
 
