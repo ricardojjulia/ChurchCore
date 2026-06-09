@@ -503,7 +503,7 @@ export async function getMinistryForgeDetail(
       .limit(10),
     supabase
       .from("kingdom_impacts")
-      .select("id, impact_type, description, occurred_at, profiles(full_name)")
+      .select("id, impact_type, description, occurred_at, profiles!kingdom_impacts_created_by_fkey(full_name)")
       .eq("ministry_id", ministryId)
       .eq("church_id", churchId)
       .gte("occurred_at", new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
@@ -861,7 +861,7 @@ export async function getVolunteerMatcherData(
     supabase
       .from("volunteer_match_suggestions")
       .select(
-        "id, ministry_id, profile_id, match_score, reason_text, ai_generated, status, created_at, reviewed_at, profiles(full_name, spiritual_gifts, current_ministry_load)",
+        "id, ministry_id, profile_id, match_score, reason_text, ai_generated, status, created_at, reviewed_at, profiles!volunteer_match_suggestions_profile_id_fkey(full_name, spiritual_gifts, current_ministry_load)",
       )
       .eq("ministry_id", ministryId)
       .eq("church_id", churchId)
