@@ -30,6 +30,11 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.102.0",
+    "@localization-governance/cli": "file:vendor/localization-governance/localization-governance-cli-0.1.0.tgz",
+    "@localization-governance/core": "file:vendor/localization-governance/localization-governance-core-0.1.0.tgz",
+    "@localization-governance/provider-google": "file:vendor/localization-governance/localization-governance-provider-google-0.1.0.tgz",
+    "@localization-governance/storage-filesystem": "file:vendor/localization-governance/localization-governance-storage-filesystem-0.1.0.tgz",
+    "@localization-governance/storage-postgres": "file:vendor/localization-governance/localization-governance-storage-postgres-0.1.0.tgz",
     "@mantine/core": "^9.0.1",
     "@mantine/hooks": "^9.0.1",
     "@mantine/notifications": "^9.0.1",
