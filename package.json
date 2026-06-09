@@ -26,7 +26,8 @@
     "check:schema": "node scripts/check-schema-alignment.mjs",
     "audit:rls": "node scripts/audit-rls.mjs",
     "generate:manifest": "node scripts/generate-manifest.mjs",
-    "setup:demo": "node scripts/seed-demo.mjs"
+    "setup:demo": "node scripts/seed-demo.mjs",
+    "test:locgov:consumer": "node tests/locgov/consumer/index.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.102.0",
