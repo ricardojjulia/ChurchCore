@@ -469,7 +469,7 @@ export async function getVolunteerDirectory(
   const supabase = await createTenantServerClient();
   const { data } = await supabase
     .from("profiles")
-    .select("id, full_name, email, phone, safety_clearance_date, volunteer_profiles(skills), volunteer_shifts(id, starts_at, confirmation_status), volunteer_hours_log(hours, service_date)")
+    .select("id, full_name, email, phone, safety_clearance_date, volunteer_profiles(skills), volunteer_shifts(id, starts_at, confirmation_status), volunteer_hours_log!volunteer_hours_log_profile_id_fkey(hours, service_date)")
     .eq("church_memberships.church_id", churchId);
 
   return (data ?? []).map((p) => {
