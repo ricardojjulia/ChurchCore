@@ -4,15 +4,71 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+## [3.3.0] - 2026-06-09
+
+### Release Rationale
+
+Release 3.3.0 delivers three major feature sprints and two production hardening tracks since v3.2.0: the Church Operations module (Sprint B), the Communications send lifecycle UI (Sprint C), the first LLM integration with AI Ministry Tools (CC-AI-001), a production-wiring pass for communications delivery, and a cross-codebase FK disambiguation fix that closes 16 latent PGRST201 failure points. The test suite grows from 708 to 1,153 passing tests.
+
+Sprint B closes the church document and new-member onboarding gaps. Sprint C ships the compose/send flow that the Sprint C communications backend was waiting on. CC-AI-001 introduces Claude-powered sermon planning and Bible Study Q&A for pastoral leadership with theological guardrails, a per-session disclaimer gate, and a full audit trail in `ai_interactions`. The production wiring pass configures VAPID push, Resend, Twilio, and the unsubscribe HMAC secret in the Vercel production environment and registers delivery webhooks.
+
+### Added
+
+- Added Church Operations module (Sprint B, PR #118): `church_documents` table (vision/mission, faith stance, policy, general, elder council notes — council notes AES-256-GCM encrypted at rest via `lib/crypto/pastoral.ts`); new member onboarding workflow with `onboarding_templates`, `onboarding_template_steps`, `onboarding_instances`, and `onboarding_instance_steps` tables; full CRUD server actions in `app/app/church-admin/operations/actions.ts` gated by `can_access_operations(church_id)` RLS; Operations workspace at `/app/church-admin/operations` with documents tab and onboarding tab; operations nav item added to portal-workspace for church_admin and pastor roles; elder council notes visible only to users with `isPastoral=true`; soft-delete on onboarding templates; snapshot-copy of template steps into instance steps on launch (`supabase/migrations/20260607100000_operations_documents.sql`, `supabase/migrations/20260607110000_operations_onboarding.sql`, `lib/operations-types.ts`, `app/app/church-admin/operations/`, `components/application/operations-*.tsx`).
+
+- Added Communications send lifecycle UI (Sprint C, PR #120): compose/send flow at `/app/communications/compose` with audience builder (role, ministry, membership status, attendance window filters), debounced recipient preview (masked contacts, count), confirm-send modal, and schedule toggle; message history at `/app/communications/history` with cancel and retry action buttons by status; message detail at `/app/communications/history/[logId]` with analytics panel and human-readable segment criteria as Badge tags; template management at `/app/communications/templates` with create/edit/delete; `communication_templates` table (email/SMS, subject, body, per-church, RLS via `can_manage_communications`); `composeAndSendMessageAction`, `previewRecipientsAction`, `cancelScheduledMessageAction`, `listCommunicationLogsAction`, `getMessageAnalyticsAction`, `createTemplateAction`, `updateTemplateAction`, `deleteTemplateAction`, `listTemplatesAction` server actions; scheduled-send cron at `GET /api/cron/communications-scheduled` running every 5 minutes with optimistic `status='sending'` lock before dispatch to prevent double-send; `segment_criteria jsonb` added to `communication_logs`; secretary role added to all communications guards (`supabase/migrations/20260608000000_communication_templates.sql`, `app/app/communications/`, `components/application/communications-*.tsx`, `lib/communications/recipient-resolver.ts`).
+
+- Added AI Ministry Tools — Sermon Planning AI Assist and Bible Study Q&A (CC-AI-001, PR #122): first LLM integration in ChurchCore using `@anthropic-ai/sdk`; `generateSermonOutlineAction` adds an "AI Suggest" button to Council Forge for `sermon_outline` and `series_plan` note types — generates structured outline, illustrations, and series arc via Claude; pastor and church_admin access; `generateBibleStudyAnswerAction` backs new route `/app/pastor/bible-study` — pastor enters passage reference or topic (max 500 chars), receives structured response (Context, Key Themes ≤5, Application Points ≤4, Discussion Questions ≤5); `DisclaimerGate` component gates first AI use per feature per session via `sessionStorage` with "I Understand" confirmation; all AI calls server-side — `ANTHROPIC_API_KEY` never exposed to browser bundle; `ai_interactions` audit table created (`supabase/migrations/20260608010000_ai_interactions.sql`) with RLS via `can_access_council_data(church_id)` and audit trigger; `lib/ai-ministry/` with `client.ts` (`import 'server-only'`), `prompts.ts`, `constants.ts`, and `ui-constants.ts`; `ELDER_AI_DISCLAIMER` and `AI_RESPONSE_FOOTER` on all AI outputs; ADR `docs/adr/0008-anthropic-sdk-ai-ministry.md` documents data retention, key management, and model versioning; model configurable via `AI_MINISTRY_MODEL` env var (default `claude-haiku-4-5-20251001`); 70 new tests (`lib/ai-ministry/`, `app/app/elders-actions.test.ts`, `components/ai/`, `components/application/bible-study-client.test.tsx`).
+
+- Added "Bible Study" nav item under the pastor role block in portal-workspace.tsx linking to `/app/pastor/bible-study`.
+
+### Fixed
+
+- Fixed 2 active PGRST201-risk queries in `lib/ministry-forge-data.ts` (PR #121): `kingdom_impacts` and `volunteer_match_suggestions` had unqualified `profiles(...)` joins on tables with multiple FK columns to `profiles`, which causes PostgREST to fail at runtime with ambiguous FK error. Replaced with FK-qualified hints (`profiles!kingdom_impacts_created_by_fkey`, `profiles!volunteer_match_suggestions_profile_id_fkey`). Audited all 16 flagged tables; 13 with no current queries documented in `docs/factory-runs/2026-06-08-fk-disambiguation-audit.md` with constraint names for future developers.
+
+- Fixed `listChurchDocumentsAction` sort order: was `created_at desc`, changed to `updated_at desc` to surface recently edited documents first.
+
+- Fixed `closeSuccess` Alert in `operations-instance-detail-client.tsx`: alert was nested inside the `{currentStatus === "open" ? … : null}` block, making it unreachable after the close action changed status; moved to a top-level position in the Stack.
+
+### Changed
+
+- Communications `composeAndSendMessageAction` now calls `sendWithSuppression` directly (not via `broadcastMessageAction`) to avoid double `requireChurchSession` and to use proper opt-in state from `resolveRecipients` rather than hardcoded values.
+
+- `recipient-resolver.ts` ministry filter now includes `.eq("church_id", churchId)` on the `profile_ministries` query — critical isolation guard for cron context where service-role client bypasses RLS and could otherwise return cross-tenant profile IDs.
+
+### Environment Variables
+
+New variables required in production (all documented in `.env.example`):
+
+| Variable | Purpose |
+|---|---|
+| `ANTHROPIC_API_KEY` | Anthropic Claude API — required for AI Ministry Tools (server-only) |
+| `AI_MINISTRY_MODEL` | Model override; defaults to `claude-haiku-4-5-20251001` |
+| `RESEND_API_KEY` | Resend email delivery |
+| `RESEND_FROM_EMAIL` | Verified sender address for Resend |
+| `RESEND_WEBHOOK_SECRET` | Resend webhook signing secret |
+| `TWILIO_ACCOUNT_SID` | Twilio SMS |
+| `TWILIO_AUTH_TOKEN` | Twilio auth token |
+| `TWILIO_FROM_NUMBER` | Provisioned Twilio number (E.164) |
+| `UNSUBSCRIBE_SECRET` | HMAC secret for unsubscribe link signing |
+| `VAPID_PUBLIC_KEY` | Web-push VAPID public key |
+| `VAPID_PRIVATE_KEY` | Web-push VAPID private key |
+| `VAPID_SUBJECT` | VAPID contact URI |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | VAPID public key (browser bundle) |
+
 ## [Unreleased] — Phase 2 Security Hardening
 
 ### Changed
+
 - Calendar view: enterprise-quality month and week grid with category color coding, period navigation label, and responsive mobile layout (agenda list on mobile month, 3-day rolling on mobile week)
 - Calendar: category filter pills moved to toolbar row above the calendar; filter now persists when switching between month/week/day views
 - Calendar: Category Breakdown stat tile added alongside existing stat tiles; standalone Categories section removed
 - Calendar: week view timezone bug fixed — event hours now resolve in church timezone, not browser local time
 
 ### Security
+
 - C-3: Restricted `member_directory` view to expose only directory-safe columns to member-scope queries
 - H-4: Re-asserted consent_logs append-only contract (idempotent migration; any UPDATE policy dropped)
 - H-5: Added `church_id` and `actor_role` columns to `audit_log`; church-admin-scoped SELECT policy; `logAuditEvent()` server helper

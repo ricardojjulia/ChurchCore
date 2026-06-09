@@ -123,6 +123,8 @@ npm run dev
 
 - **Control plane:** `/control` for platform staff.
 - **ChurchAdmin workspace:** people, households, accounts, ministries, events, readiness, giving ops, finance, communications, workflows, reports, and settings.
+- **Church Operations:** `/app/church-admin/operations` for church documents (vision/mission, faith stance, policy, elder council notes encrypted at rest) and new-member onboarding workflow with task templates and progress tracking.
+- **Communications:** `/app/communications` for compose/send email and SMS to segmented audiences, schedule delivery, manage templates, view delivery history and analytics, and retry failures.
 - **Weekly readiness path:** shared readiness summaries now carry status, severity, issue count, recommended action, route target, query target, and completion state metadata for the operator path. Setup, account requests, people, events, children's ministry, volunteers, giving/finance, communications, reports, and suggested workflows now use module-owned readiness builders. The standardized target-state pattern is live for settings, account approvals, people readiness filters, event roster review, volunteer service plans, giving/finance exceptions, and suggested workflows.
 - **Daily Desk:** `/app/daily-desk` for calls, notes, visits, calendar items, checkups, and operational signals.
 - **Secretary portal:** `/app/secretary` for office work without full church-admin authority.
@@ -130,6 +132,7 @@ npm run dev
 - **Member mobile shell:** phone-first bottom navigation now prioritizes home, calendar, groups, schedule, and family; member home includes quick-action cards for top tasks, and member calendar keeps bottom-nav continuity.
 - **Public portal:** host-aware church resolution plus member account onboarding through `/portal/register`.
 - **ShepherdAI workflow queue:** `/app/church-admin/workflows` for suggested ministry workflows generated from deterministic signals.
+- **AI Ministry Tools:** `/app/pastor/bible-study` for Claude-powered Bible Study Q&A; Council Forge extended with AI Suggest for sermon outline and series plan generation. All AI interactions are server-side, consent-gated, and logged to `ai_interactions`.
 
 ## AI-Assisted Development
 
@@ -184,12 +187,22 @@ See [docs/shepherd-ai-ops.md](docs/shepherd-ai-ops.md) for architecture and guar
 
 ## Evaluation Snapshot
 
-- Current repo version: `3.1.0`
+- Current repo version: `3.3.0`
 - License: [MIT](LICENSE)
 - Included demo scope: preview mode without a backend, or local Supabase with seeded Grace Harbor Church data
 - Local credential material is not committed; demo credentials are generated locally by the bootstrap script and saved to gitignored `.demo-credentials.local`
 - Evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, `npm run smoke:local`, `npm run test:e2e:readiness`, and `npm run test:e2e:member-mobile`
 - Spanish UI support has started with cookie-backed English/Spanish selection; track rollout in [docs/plans/spanish-ui-coverage.md](docs/plans/spanish-ui-coverage.md)
+
+## Release 3.3.0 Highlights
+
+Release 3.3.0 delivers three major feature sprints and two production hardening tracks since v3.2.0.
+
+- **Church Operations module:** church documents (vision/mission, faith stance, policy, elder council notes encrypted at rest) and a full new-member onboarding workflow with task templates, assignable steps, and progress tracking — accessible to church_admin and pastor.
+- **Communications send lifecycle:** compose, schedule, and send segmented email and SMS through real providers (Resend + Twilio); audience builder with role, ministry, membership, and attendance filters; delivery history, analytics, retry, and cancel; templates; all production environment variables now wired.
+- **AI Ministry Tools — first LLM integration:** Claude-powered sermon outline generation in Council Forge (sermon_outline and series_plan note types); Bible Study Q&A at `/app/pastor/bible-study`; theological guardrails, per-session disclaimer gate, server-side API calls, and full audit trail in `ai_interactions`.
+- **Production hardening:** PGRST201 FK disambiguation across 16 tables fixed; VAPID push, Resend, Twilio, and unsubscribe HMAC fully configured in production.
+- **Test suite:** 1,153 passing tests (up from 708 at v3.2.0).
 
 ## Release 3.0.0 Highlights
 
