@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  BookOpen,
   BrainCircuit,
   Calendar,
   ClipboardCheck,
@@ -220,13 +221,22 @@ export function PortalWorkspace({
   }
 
   if (role.id === "pastor") {
-    navItems.push({
-      href: "/app/church-admin/operations",
-      label: "Operations",
-      description: "Documents & onboarding",
-      icon: ClipboardList,
-      active: isActiveHref("/app/church-admin/operations"),
-    });
+    navItems.push(
+      {
+        href: "/app/church-admin/operations",
+        label: "Operations",
+        description: "Documents & onboarding",
+        icon: ClipboardList,
+        active: isActiveHref("/app/church-admin/operations"),
+      },
+      {
+        href: "/app/pastor/bible-study",
+        label: "Bible Study",
+        description: "AI-assisted study tools",
+        icon: BookOpen,
+        active: isActiveHref("/app/pastor/bible-study"),
+      },
+    );
   }
 
   if (role.id === "secretary") {
