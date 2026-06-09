@@ -18,13 +18,18 @@ const CHURCH_ID = process.env.LOCGOV_CHURCH_ID;
 if (!CHURCH_ID) throw new Error("LOCGOV_CHURCH_ID is required for CLI operations.");
 
 const storage = createPostgresStorage({ client: pool, tenantId: CHURCH_ID });
-const service = createGovernanceService({ storage, providers });
+const service = createGovernanceService({
+  storage,
+  providers,
+  // Produce bare UUIDs so IDs are compatible with the uuid column type in the migration.
+  idGenerator: () => crypto.randomUUID(),
+});
 
 export default {
   service,
   actor: {
-    id: process.env.LOCGOV_ACTOR_ID ?? "cli-operator",
-    role: "church_admin",
+    id: process.env.LOCGOV_ACTOR_ID ?? "00000000-0000-0000-0000-000000000001",
+    role: "church-admin",
   },
   sourceLocale: "en",
   defaultProvider: "google",

@@ -8,7 +8,9 @@ import { messages } from "@/lib/i18n";
 
 import type { GovernanceService } from "@/lib/localization-governance/types";
 
-const SEED_ACTOR = { id: "seed-script", role: "church_admin" };
+// Sentinel UUID: identifies automated seed operations in audit records.
+// Role uses hyphen form consistent with ChurchCore's app_role convention.
+const SEED_ACTOR = { id: "00000000-0000-0000-0000-000000000001", role: "church-admin" };
 
 /**
  * Run the localization governance seed against a given service instance.
@@ -24,14 +26,13 @@ const SEED_ACTOR = { id: "seed-script", role: "church_admin" };
  *    (NOT approved) — provenance marks it as migrated from hardcoded i18n.ts,
  *    not human-reviewed.
  */
-export async function seedWithService(service: GovernanceService): Promise<void> {
-  // Flatten nested message objects for governance storage.
-  const enMessages = flattenMessages(
-    messages.en as unknown as Record<string, unknown>,
-  );
-  const esMessages = flattenMessages(
-    messages.es as unknown as Record<string, unknown>,
-  );
+export async function seedWithServiceAndMessages(
+  service: GovernanceService,
+  rawEnMessages: Record<string, unknown>,
+  rawEsMessages: Record<string, unknown>,
+): Promise<void> {
+  const enMessages = flattenMessages(rawEnMessages);
+  const esMessages = flattenMessages(rawEsMessages);
 
   // Step 1 — en source locale (idempotent)
   const enLocale = await service.createLocale({
@@ -86,19 +87,27 @@ export async function seedWithService(service: GovernanceService): Promise<void>
       },
     });
 
-    // Validate (all keys present since es matches en structure).
-    try {
-      await service.validateVersion({
-        versionId: esVersion.id,
-        actor: SEED_ACTOR,
-        untranslatedAllowlist: [],
-      });
-    } catch {
-      // Validation failures are non-fatal for the seed — leave in draft if needed.
-    }
+    // Build an allowlist of keys whose es value is identical to en (proper nouns,
+    // brand names, etc.). Without this, the validator flags them as untranslated.
+    const untranslatedAllowlist = Object.keys(enMessages).filter(
+      (k) => enMessages[k] === esMessages[k],
+    );
+    await service.validateVersion({
+      versionId: esVersion.id,
+      actor: SEED_ACTOR,
+      untranslatedAllowlist,
+    });
   }
 
   void enLocale; // suppress unused warning
+}
+
+export async function seedWithService(service: GovernanceService): Promise<void> {
+  return seedWithServiceAndMessages(
+    service,
+    messages.en as unknown as Record<string, unknown>,
+    messages.es as unknown as Record<string, unknown>,
+  );
 }
 
 /**

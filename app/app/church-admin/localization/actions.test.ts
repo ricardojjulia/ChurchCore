@@ -125,8 +125,28 @@ vi.mock("@/lib/localization-governance/adapter", () => ({
       testService.validateVersion(params as never),
     requestReview: (params: Record<string, unknown>) =>
       testService.requestReview(params as never),
-    submitReview: (params: Record<string, unknown>) =>
-      testService.submitReview(params as never),
+    submitReview: async (params: {
+      versionId: string;
+      reviewer: { id: string; role: string };
+      decision: string;
+      comment?: string;
+    }) => {
+      // Mirror the real adapter: check assignments before delegating to service.
+      // getReviewerAssignments returns [] in these tests → always throws.
+      const version = await testService.getVersion(params.versionId).catch(() => null);
+      const localeId: string = (version as { localeId?: string } | null)?.localeId ?? "";
+      const assignments: { reviewerId: string; reviewerRole: string }[] = [];
+      void localeId;
+      const hasAssignment = assignments.some(
+        (a) => a.reviewerId === params.reviewer.id && a.reviewerRole === params.reviewer.role,
+      );
+      if (!hasAssignment) {
+        throw Object.assign(new Error("Reviewer is not assigned to this locale."), {
+          code: "reviewer_not_assigned",
+        });
+      }
+      return testService.submitReview(params as never);
+    },
     approveVersion: (params: Record<string, unknown>) =>
       testService.approveVersion(params as never),
     activateVersion: (params: Record<string, unknown>) =>
@@ -165,6 +185,7 @@ import {
   activateVersion,
   approveVersion,
   translateVersion,
+  submitReview,
 } from "@/app/app/church-admin/localization/actions";
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -270,5 +291,21 @@ describe("localization server actions", () => {
     const result = await getLocalizationStatus("en");
 
     expect(result.ok).toBe(true);
+  });
+
+  it("submitReview returns reviewer_not_assigned when no assignment record exists", async () => {
+    // The adapter mock returns [] for getReviewerAssignments, so the reviewer is not assigned.
+    requireChurchSessionMock.mockResolvedValueOnce(makeSession("pastor"));
+
+    const result = await submitReview({
+      versionId: "some-version-id",
+      reviewerRole: "linguistic",
+      decision: "approved",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("reviewer_not_assigned");
+    }
   });
 });

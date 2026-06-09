@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import fs from "fs";
 import path from "path";
 
@@ -106,6 +106,3 @@ describe("localization governance migration idempotency", () => {
     expect(sql).toContain("localization_review_assignments");
   });
 });
-
-// Vitest needs this import
-import { beforeAll } from "vitest";

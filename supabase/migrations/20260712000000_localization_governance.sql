@@ -305,13 +305,14 @@ CREATE TRIGGER audit_locgov_activation_history_changes
 CREATE TABLE IF NOT EXISTS public.localization_review_assignments (
   tenant_id     uuid          NOT NULL REFERENCES public.churches(id) ON DELETE CASCADE,
   id            uuid          NOT NULL DEFAULT gen_random_uuid(),
-  locale_id     text          NOT NULL,
+  locale_id     uuid          NOT NULL,
   reviewer_id   uuid          NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   reviewer_role text          NOT NULL,
   assigned_by   uuid          NOT NULL REFERENCES public.profiles(id),
   created_at    timestamptz   NOT NULL DEFAULT timezone('utc', now()),
   PRIMARY KEY (tenant_id, id),
-  UNIQUE (tenant_id, locale_id, reviewer_role, reviewer_id)
+  UNIQUE (tenant_id, locale_id, reviewer_role, reviewer_id),
+  FOREIGN KEY (tenant_id, locale_id) REFERENCES public.localization_locales(tenant_id, id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS localization_review_assignments_locale_idx

@@ -35,7 +35,13 @@ export function createChurchAdapter(churchId: string): ChurchGovernanceAdapter {
     });
   }
 
-  const service: GovernanceService = createGovernanceService({ storage, providers });
+  const service: GovernanceService = createGovernanceService({
+    storage,
+    providers,
+    // Override default prefix-based IDs (e.g. "locale-{uuid}") so all IDs are
+    // bare UUIDs, compatible with the `uuid` column type in the migration.
+    idGenerator: () => crypto.randomUUID(),
+  });
 
   // ── Review assignments (managed directly — not via storage adapter) ────────
 

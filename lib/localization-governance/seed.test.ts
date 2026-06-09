@@ -9,11 +9,29 @@ import { createGovernanceService } from "@localization-governance/core";
 import { createFilesystemStorage } from "@localization-governance/storage-filesystem";
 
 import type { GovernanceService } from "@/lib/localization-governance/types";
-import { messages } from "@/lib/i18n";
-
 // The seed module is server-only but we need to import it in tests.
 // We import the exported function directly (not the "server-only" guard).
-import { seedWithService } from "@/lib/localization-governance/seed";
+import { seedWithServiceAndMessages } from "@/lib/localization-governance/seed";
+
+// Controlled test fixtures — clean data with no placeholder mismatches.
+const TEST_EN = {
+  common: { greeting: "Hello {name}", signOut: "Sign out", count: "{count} item" },
+  nav: { home: "Home", settings: "Settings" },
+} as const;
+
+const TEST_ES = {
+  common: { greeting: "Hola {name}", signOut: "Cerrar sesión", count: "{count} artículo" },
+  nav: { home: "Inicio", settings: "Configuración" },
+} as const;
+
+// Wrapper that uses controlled fixtures (deterministic in tests)
+async function seedWithService(service: ReturnType<typeof createGovernanceService>) {
+  return seedWithServiceAndMessages(
+    service,
+    TEST_EN as unknown as Record<string, unknown>,
+    TEST_ES as unknown as Record<string, unknown>,
+  );
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -69,12 +87,8 @@ describe("seedWithService", () => {
 
     // Get the actual version with messages
     const enVersion = await service.getVersion(enStatus.versions[0].id);
-    const expectedKeys = Object.keys(
-      flattenMessages(messages.en as unknown as Record<string, unknown>),
-    );
-
-    for (const key of expectedKeys.slice(0, 10)) {
-      // Check a sample of keys
+    const expectedKeys = Object.keys(flattenMessages(TEST_EN as unknown as Record<string, unknown>));
+    for (const key of expectedKeys) {
       expect(enVersion.messages).toHaveProperty(key);
     }
   });
@@ -97,13 +111,12 @@ describe("seedWithService", () => {
 
     const esStatus = await service.getLocaleStatus("es");
 
-    if (esStatus.versions.length > 0) {
-      const esVersion = await service.getVersion(esStatus.versions[0].id);
-      // The seed targets 'validated' (not 'approved', not 'active')
-      expect(["validated", "draft"]).toContain(esVersion.state);
-      expect(esVersion.state).not.toBe("approved");
-      expect(esVersion.state).not.toBe("active");
-    }
+    expect(esStatus.versions.length).toBeGreaterThan(0);
+    const esVersion = await service.getVersion(esStatus.versions[0].id);
+    // Seed must reach 'validated'. If validation fails the seed has a bug.
+    expect(esVersion.state).toBe("validated");
+    expect(esVersion.state).not.toBe("approved");
+    expect(esVersion.state).not.toBe("active");
   });
 
   it("es catalog version provenance includes source: hardcoded_i18n_migration and approvedByHuman: false", async () => {
