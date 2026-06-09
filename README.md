@@ -133,6 +133,7 @@ npm run dev
 - **Public portal:** host-aware church resolution plus member account onboarding through `/portal/register`.
 - **ShepherdAI workflow queue:** `/app/church-admin/workflows` for suggested ministry workflows generated from deterministic signals.
 - **AI Ministry Tools:** `/app/pastor/bible-study` for Claude-powered Bible Study Q&A; Council Forge extended with AI Suggest for sermon outline and series plan generation. All AI interactions are server-side, consent-gated, and logged to `ai_interactions`.
+- **Localization Governance:** `/app/church-admin/localization` for governed translation lifecycle (draft → validated → reviewed → approved → active → stale); CLI via `locgov` binary; runtime fallback to hardcoded i18n catalog.
 
 ## AI-Assisted Development
 
@@ -187,12 +188,23 @@ See [docs/shepherd-ai-ops.md](docs/shepherd-ai-ops.md) for architecture and guar
 
 ## Evaluation Snapshot
 
-- Current repo version: `3.3.0`
+- Current repo version: `3.4.0`
 - License: [MIT](LICENSE)
 - Included demo scope: preview mode without a backend, or local Supabase with seeded Grace Harbor Church data
 - Local credential material is not committed; demo credentials are generated locally by the bootstrap script and saved to gitignored `.demo-credentials.local`
 - Evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, `npm run smoke:local`, `npm run test:e2e:readiness`, and `npm run test:e2e:member-mobile`
 - Spanish UI support has started with cookie-backed English/Spanish selection; track rollout in [docs/plans/spanish-ui-coverage.md](docs/plans/spanish-ui-coverage.md)
+
+## Release 3.4.0 Highlights
+
+Release 3.4.0 introduces a portable localization governance framework adapted from ChurchCore Care.
+
+- **Localization governance:** translations graduate from hardcoded TypeScript to an audited, lifecycle-managed catalog; `draft → translated → validated → in_linguistic_review → approved → active → stale` state machine enforced at the service layer; automated translation and validation can never approve or activate.
+- **Tenant-scoped PostgreSQL storage:** six additive migration tables with `tenant_id FK → churches`, full RLS, and a custom audit trigger that excludes catalog text from `audit_log`.
+- **Human review gates:** reviewer assignment required per church/locale/role before `submitReview`; separation of duties enforced when multiple roles configured; `approveVersion` and `activateVersion` require `church_admin`.
+- **Runtime fallback:** `getRuntimeCatalog` serves the active governance catalog or falls back to the existing hardcoded `messages[locale]` — zero change to existing runtime behavior when governance catalog is absent.
+- **CLI:** `locgov` operator commands for status, translate, validate, review, approve, activate, rollback, and CI policy evaluation (`localization-governance.config.mjs` at repo root).
+- **Test suite:** 1,209 passing tests (up from 1,153 at v3.3.0); includes full E2E lifecycle and packed-tarball consumer test.
 
 ## Release 3.3.0 Highlights
 

@@ -6,6 +6,16 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-06-09
+
+### Release Rationale
+
+Release 3.4.0 introduces a portable, production-grade localization governance framework (CC-L10N-001). Translations graduate from hardcoded TypeScript objects to an audited, lifecycle-managed catalog store with state machine enforcement, human-review gates, atomic activation, and runtime fallback. The five `@localization-governance/*` packages are installed as vendored tarballs from ChurchCore Care, adapted for ChurchCore's tenant model, RBAC, and audit conventions with zero changes to the packages themselves.
+
+### Added
+
+- Added Localization Governance Framework (CC-L10N-001): portable governance lifecycle for managing ChurchCore interface translations; five `@localization-governance/*` packages (core, storage-postgres, storage-filesystem, provider-google, cli) vendored under `vendor/localization-governance/` and installed as npm tarballs; six additive migration tables (`localization_locales`, `localization_catalog_versions`, `localization_validation_reports`, `localization_review_assignments`, `localization_review_decisions`, `localization_activation_history`) each with `tenant_id uuid FK → public.churches`, full RLS (belongs_to_church / can_manage_church), and a custom `audit_locgov_changes()` trigger that excludes catalog text from audit records; lifecycle states `draft → translated → validated → in_linguistic_review → approved → active → stale` enforced by the core service — automated translation/validation can never approve or activate; human review requires explicit assignment per church/locale/role; separation of duties enforced; `lib/localization-governance/adapter.ts` (server-only, UUID idGenerator, RBAC wrappers, reviewer-assignment check before submitReview, audit via `logAuditEvent`); `lib/localization-governance/runtime.ts` (falls back to hardcoded `messages[locale]` from `lib/i18n.ts` when no active governance catalog); `lib/localization-governance/seed.ts` (one-time idempotent migration of existing en/es catalogs — `es` seeded as `validated`, NOT approved, with `approvedByHuman: false` provenance); `app/app/church-admin/localization/actions.ts` (12 typed server actions: status, createLocale, createVersion, translate, validate, requestReview, assignReviewer, submitReview, approve, activate, rollback, CI policy); `app/app/church-admin/localization/page.tsx` status dashboard (church_admin + pastor only); `components/localization/` (LocaleStatusCard, VersionStateBadge); `localization-governance.config.mjs` CLI config at repo root; `LOCGOV_DATABASE_URL` (Supabase pooler URL, server-only) added to `.env.example`; ADR `docs/adr/0009-localization-governance.md`; factory-run doc `docs/factory-runs/2026-06-09-localization-governance.md`; 96 new tests across adapter, runtime, seed, migration idempotency, actions, E2E lifecycle, and a packed-tarball consumer workspace test (`npm run test:locgov:consumer`).
+
 ## [3.3.0] - 2026-06-09
 
 ### Release Rationale
