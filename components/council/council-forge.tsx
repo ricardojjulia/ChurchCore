@@ -31,9 +31,12 @@ import {
 
 import {
   createCouncilNoteAction,
+  generateSermonOutlineAction,
   updateCouncilNoteAction,
 } from "@/app/app/elders-actions";
 import { ApplicationShell } from "@/components/application/app-shell";
+import { DisclaimerGate } from "@/components/ai/disclaimer-gate";
+import { SermonOutlineModal } from "@/components/ai/sermon-outline-modal";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { CouncilForgeData, CouncilNote, CouncilNoteType } from "@/lib/elders-types";
 import { COUNCIL_NOTE_TYPE_LABELS } from "@/lib/elders-types";
@@ -172,6 +175,51 @@ export function CouncilForge({
   const [editContent, setEditContent] = useState("");
 
   const [isPending, startTransition] = useTransition();
+
+  // AI Suggest state
+  const [aiLoading, setAiLoading] = useState(false);
+  const [outlineModalOpen, setOutlineModalOpen] = useState(false);
+  const [generatedOutline, setGeneratedOutline] = useState<string | null>(null);
+  const [outlineError, setOutlineError] = useState<string | null>(null);
+  const [showSermonDisclaimer, setShowSermonDisclaimer] = useState(false);
+
+  function triggerSermonAI() {
+    if (!editingNote) return;
+    setAiLoading(true);
+    setGeneratedOutline(null);
+    setOutlineError(null);
+    setOutlineModalOpen(true);
+    startTransition(async () => {
+      const result = await generateSermonOutlineAction({
+        noteId: editingNote.id,
+        noteType: editingNote.noteType as "sermon_outline" | "series_plan",
+        noteTitle: editingNote.title,
+        existingContent: editContent.trim() || null,
+      });
+      setAiLoading(false);
+      if (result.ok) {
+        setGeneratedOutline(result.outline);
+      } else {
+        setOutlineError(result.error);
+      }
+    });
+  }
+
+  function handleAiSuggest() {
+    if (!editingNote) return;
+    const alreadyShown =
+      typeof window !== "undefined" &&
+      sessionStorage.getItem("ai_disclaimer_sermon_planning") === "shown";
+    if (!alreadyShown) {
+      setShowSermonDisclaimer(true);
+      return;
+    }
+    triggerSermonAI();
+  }
+
+  function handleOutlineAccept(outline: string) {
+    setEditContent((prev) => `${prev}\n\n---\n\nAI Suggestion:\n${outline}`);
+  }
 
   function handleCreate() {
     if (!newTitle.trim()) return;
@@ -466,6 +514,21 @@ export function CouncilForge({
               autosize
               radius="md"
             />
+            {(editingNote?.noteType === "sermon_outline" ||
+              editingNote?.noteType === "series_plan") ? (
+              <Group justify="flex-start">
+                <Button
+                  variant="light"
+                  color="violet"
+                  size="sm"
+                  radius="xl"
+                  loading={aiLoading}
+                  onClick={handleAiSuggest}
+                >
+                  AI Suggest
+                </Button>
+              </Group>
+            ) : null}
             <Divider />
             <Group justify="flex-end" gap="sm">
               <Button
@@ -491,6 +554,35 @@ export function CouncilForge({
           </Stack>
         ) : null}
       </Drawer>
+      {/* AI disclaimer gate for sermon planning */}
+      {showSermonDisclaimer ? (
+        <DisclaimerGate
+          featureKey="sermon_planning"
+          onConfirm={() => {
+            setShowSermonDisclaimer(false);
+            triggerSermonAI();
+          }}
+        />
+      ) : null}
+
+      {/* Sermon outline modal */}
+      {editingNote &&
+      (editingNote.noteType === "sermon_outline" ||
+        editingNote.noteType === "series_plan") ? (
+        <SermonOutlineModal
+          opened={outlineModalOpen}
+          onClose={() => {
+            setOutlineModalOpen(false);
+            setGeneratedOutline(null);
+            setOutlineError(null);
+          }}
+          onAccept={handleOutlineAccept}
+          noteTitle={editingNote.title}
+          noteType={editingNote.noteType}
+          outline={aiLoading ? null : generatedOutline}
+          error={outlineError}
+        />
+      ) : null}
     </ApplicationShell>
   );
 }
