@@ -29,6 +29,7 @@
     "setup:demo": "node scripts/seed-demo.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.102.0",
     "@mantine/core": "^9.0.1",
     "@mantine/hooks": "^9.0.1",
     "@mantine/notifications": "^9.0.1",

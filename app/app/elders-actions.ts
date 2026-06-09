@@ -4,6 +4,17 @@ import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
 import {
+  callMinistryAI,
+} from "@/lib/ai-ministry/client";
+import {
+  AI_FEATURES,
+  AI_RESPONSE_FOOTER,
+} from "@/lib/ai-ministry/constants";
+import {
+  buildBibleStudyPrompt,
+  buildSermonOutlinePrompt,
+} from "@/lib/ai-ministry/prompts";
+import {
   createTenantServerClient,
   hasTenantBackendEnv,
   queryTenantLocalDb,
@@ -103,6 +114,25 @@ export type CreateCouncilNoteInput = {
     | "series_plan"
     | "council_minutes"
     | "sabbath_reflection";
+};
+
+export type GenerateSermonOutlineInput = {
+  noteId: string;
+  noteType: "sermon_outline" | "series_plan";
+  noteTitle: string;
+  existingContent: string | null;
+};
+
+export type BibleStudySections = {
+  context: string;
+  keyThemes: string[];
+  applicationPoints: string[];
+  discussionQuestions: string[];
+  footer: string;
+};
+
+export type GenerateBibleStudyInput = {
+  query: string;
 };
 
 export type UpdateCouncilNoteInput = {
@@ -595,6 +625,129 @@ export async function createCouncilNoteAction(input: CreateCouncilNoteInput) {
   }
 
   revalidatePath("/app/council/forge");
+}
+
+// ============================================================
+// generateSermonOutlineAction
+//
+// Calls the Anthropic API to generate a sermon outline or series
+// plan for a council note. Requires pastor or church-admin role.
+// All AI interactions are audit-logged in ai_interactions.
+// ============================================================
+export async function generateSermonOutlineAction(
+  input: GenerateSermonOutlineInput,
+): Promise<{ ok: true; outline: string } | { ok: false; error: string }> {
+  const session = await requireCouncilSession("/app/council/forge");
+  const { noteType, noteTitle, existingContent } = input;
+
+  if (!["sermon_outline", "series_plan"].includes(noteType)) {
+    return {
+      ok: false,
+      error: "AI Suggest is only available for sermon outlines and series plans.",
+    };
+  }
+  if (!noteTitle || noteTitle.trim().length === 0) {
+    return { ok: false, error: "Note title is required to generate suggestions." };
+  }
+  if (noteTitle.length > 300) {
+    return { ok: false, error: "Note title is too long." };
+  }
+
+  try {
+    const prompt = buildSermonOutlinePrompt(noteType, noteTitle.trim(), existingContent);
+    const outline = await callMinistryAI(
+      prompt,
+      AI_FEATURES.SERMON_PLANNING,
+      session.appContext.church.id,
+      session.profile.id,
+    );
+    return { ok: true, outline };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    if (message.includes("not configured")) {
+      return { ok: false, error: "AI features are not configured in this environment." };
+    }
+    return {
+      ok: false,
+      error: "The AI assistant is temporarily unavailable. Please try again.",
+    };
+  }
+}
+
+// ============================================================
+// generateBibleStudyAnswerAction
+//
+// Calls the Anthropic API for a structured Bible study analysis.
+// Requires pastor role (elder-only — church_admin is denied).
+// Parses the structured response into BibleStudySections.
+// All AI interactions are audit-logged in ai_interactions.
+// ============================================================
+export async function generateBibleStudyAnswerAction(
+  input: GenerateBibleStudyInput,
+): Promise<
+  { ok: true; sections: BibleStudySections } | { ok: false; error: string; rawText?: string }
+> {
+  // requireElderSession enforces pastor-only and returns the session
+  const session = await requireElderSession("/app/pastor/bible-study");
+
+  const { query } = input;
+  if (!query || query.trim().length === 0) {
+    return { ok: false, error: "Please enter a passage or topic." };
+  }
+  if (query.length > 500) {
+    return { ok: false, error: "Query is too long. Please limit to 500 characters." };
+  }
+
+  try {
+    const prompt = buildBibleStudyPrompt(query.trim());
+    const raw = await callMinistryAI(
+      prompt,
+      AI_FEATURES.BIBLE_STUDY,
+      session.appContext.church.id,
+      session.profile.id,
+    );
+    const sections = parseBibleStudyResponse(raw);
+    return { ok: true, sections };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    if (message.includes("not configured")) {
+      return { ok: false, error: "AI features are not configured in this environment." };
+    }
+    return {
+      ok: false,
+      error: "The AI assistant is temporarily unavailable. Please try again.",
+    };
+  }
+}
+
+function parseBibleStudyResponse(text: string): BibleStudySections {
+  const extract = (header: string, nextHeader?: string): string => {
+    const start = text.indexOf(header);
+    if (start === -1) return "";
+    const contentStart = start + header.length;
+    const end = nextHeader ? text.indexOf(nextHeader) : text.length;
+    return text.slice(contentStart, end === -1 ? text.length : end).trim();
+  };
+
+  const contextText = extract("CONTEXT:", "KEY THEMES:");
+  const themesText = extract("KEY THEMES:", "APPLICATION POINTS:");
+  const appText = extract("APPLICATION POINTS:", "DISCUSSION QUESTIONS:");
+  const questionsText = extract("DISCUSSION QUESTIONS:");
+
+  const toList = (s: string): string[] =>
+    s
+      .split("\n")
+      .map((l) => l.replace(/^[-•*\d.]+\s*/, "").trim())
+      .filter(Boolean)
+      .slice(0, 5);
+
+  return {
+    context: contextText || text,
+    keyThemes: toList(themesText).slice(0, 5),
+    applicationPoints: toList(appText).slice(0, 4),
+    discussionQuestions: toList(questionsText).slice(0, 5),
+    footer: AI_RESPONSE_FOOTER,
+  };
 }
 
 // ============================================================
