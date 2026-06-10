@@ -212,12 +212,139 @@ describe("WS-C4 i18n — global namespace parity (no new gaps introduced)", () =
 
     for (const ns of namespaces) {
       const enCount = Object.keys(messages.en[ns] as Record<string, string>).length;
-      const esCount = Object.keys((messages.es as typeof messages.en)[ns] as Record<string, string>).length;
+      const esCount = Object.keys((messages.es as unknown as typeof messages.en)[ns] as Record<string, string>).length;
       if (enCount !== esCount) {
         mismatches.push(`${ns}: en=${enCount} es=${esCount}`);
       }
     }
 
     expect(mismatches, `Key count mismatches: ${mismatches.join("; ")}`).toHaveLength(0);
+  });
+});
+
+// ─── CC-L10N-002: es-PR parity ───────────────────────────────────────────────
+
+type AllNamespace = keyof typeof messages.en;
+
+function esPRKeys(ns: AllNamespace): string[] {
+  return Object.keys((messages["es-PR"] as unknown as typeof messages.en)[ns] as Record<string, string>);
+}
+function esPRValue(ns: AllNamespace, key: string): string {
+  return ((messages["es-PR"] as unknown as typeof messages.en)[ns] as Record<string, string>)[key];
+}
+function enAllKeys(ns: AllNamespace): string[] {
+  return Object.keys(messages.en[ns] as Record<string, string>);
+}
+function enAllValue(ns: AllNamespace, key: string): string {
+  return (messages.en[ns] as Record<string, string>)[key];
+}
+
+describe("CC-L10N-002 — es-PR: global namespace parity", () => {
+  it("all top-level namespaces in en also exist in es-PR", () => {
+    const enNamespaces = Object.keys(messages.en);
+    const esPRNamespaces = Object.keys(messages["es-PR"]);
+    const onlyInEn = enNamespaces.filter((ns) => !esPRNamespaces.includes(ns));
+    expect(onlyInEn, `Namespaces missing in es-PR: ${onlyInEn.join(", ")}`).toHaveLength(0);
+  });
+
+  it("all namespaces have matching key counts across en and es-PR", () => {
+    const namespaces = Object.keys(messages.en) as AllNamespace[];
+    const mismatches: string[] = [];
+    for (const ns of namespaces) {
+      const enCount = enAllKeys(ns).length;
+      const esPRCount = esPRKeys(ns).length;
+      if (enCount !== esPRCount) {
+        mismatches.push(`${ns}: en=${enCount} es-PR=${esPRCount}`);
+      }
+    }
+    expect(mismatches, `Key count mismatches: ${mismatches.join("; ")}`).toHaveLength(0);
+  });
+
+  it("es-PR values are not identical to en across all namespaces (locale is not a passthrough)", () => {
+    const namespaces = Object.keys(messages.en) as AllNamespace[];
+    let differentCount = 0;
+    let totalCount = 0;
+    for (const ns of namespaces) {
+      for (const key of enAllKeys(ns)) {
+        const enVal = enAllValue(ns, key);
+        const esPRVal = esPRValue(ns, key);
+        totalCount++;
+        if (enVal !== esPRVal) differentCount++;
+      }
+    }
+    expect(differentCount / totalCount).toBeGreaterThan(0.6);
+  });
+});
+
+describe("CC-L10N-002 — es-PR: per-namespace key parity", () => {
+  const allNamespaces = Object.keys(messages.en) as AllNamespace[];
+
+  it.each(allNamespaces)("%s — every en key has an es-PR entry", (ns) => {
+    const missing = enAllKeys(ns).filter((k) => !esPRKeys(ns).includes(k));
+    expect(missing, `Keys in en missing from es-PR: ${missing.join(", ")}`).toHaveLength(0);
+  });
+
+  it.each(allNamespaces)("%s — no es-PR-only orphan keys", (ns) => {
+    const orphans = esPRKeys(ns).filter((k) => !enAllKeys(ns).includes(k));
+    expect(orphans, `Keys in es-PR not in en: ${orphans.join(", ")}`).toHaveLength(0);
+  });
+
+  it.each(allNamespaces)("%s — all es-PR values are non-empty strings", (ns) => {
+    const bad = enAllKeys(ns).filter((k) => {
+      const v = esPRValue(ns, k);
+      return typeof v !== "string" || v.trim() === "";
+    });
+    expect(bad, `Empty es-PR values: ${bad.join(", ")}`).toHaveLength(0);
+  });
+
+  it.each(allNamespaces)("%s — no es-PR value equals its own key name (no raw fallthrough)", (ns) => {
+    // Skip keys where the en value is also identical to the key (e.g. "normal", "SMS") —
+    // those are words that are legitimately the same in both languages.
+    const bad = enAllKeys(ns).filter((k) => {
+      const enVal = enAllValue(ns, k);
+      if (enVal.toLowerCase() === k.toLowerCase()) return false;
+      return esPRValue(ns, k) === k;
+    });
+    expect(bad, `es-PR values equal key name: ${bad.join(", ")}`).toHaveLength(0);
+  });
+});
+
+describe("CC-L10N-002 — es-PR: spot-check values differ from en", () => {
+  const spotChecks: Array<[AllNamespace, string]> = [
+    ["communicationsHub", "pageTitle"],
+    ["communicationsHub", "tabLog"],
+    ["communicationsHub", "tabSuppressions"],
+    ["communicationsHub", "statusFailed"],
+    ["communicationsHub", "statusDelivered"],
+    ["financeAccounts", "pageTitle"],
+    ["financeAccounts", "addAccount"],
+    ["financeAccounts", "typeAsset"],
+    ["financeAccounts", "typeLiability"],
+    ["financeAccounts", "statusActive"],
+    ["financeBudget", "pageTitle"],
+    ["financeBudget", "newBudget"],
+    ["financeBudget", "actualsHeading"],
+    ["financeDashboard", "pageTitle"],
+    ["financeDashboard", "totalIncome"],
+    ["financeDashboard", "totalExpenses"],
+    ["givingAdmin", "pageTitle"],
+    ["givingAdmin", "tabAnalytics"],
+    ["givingAdmin", "activeRecurring"],
+    ["givingAdmin", "thisMonth"],
+    ["dailyDesk", "checkup"],
+    ["common", "workspace"],
+    ["common", "yourRoleHome"],
+    ["portalNav", "donations"],
+  ];
+
+  it.each(spotChecks)("%s.%s has a distinct es-PR translation", (ns, key) => {
+    const en = enAllValue(ns, key);
+    const esPR = esPRValue(ns, key);
+    const nonLinguistic = /^[A-Z\-/]+$/.test(en) || en === "-" || en === "OK";
+    if (!nonLinguistic) {
+      expect(esPR).not.toBe(en);
+    }
+    expect(typeof esPR).toBe("string");
+    expect(esPR.trim()).not.toBe("");
   });
 });

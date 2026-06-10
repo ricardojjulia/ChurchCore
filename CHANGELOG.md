@@ -6,6 +6,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+- Added es-PR (Puerto Rican Spanish) locale (CC-L10N-002): `"es-PR"` added to `supportedLocales`, `localeLabels`, and `messages` in `lib/i18n.ts`; all 21 namespaces covered with regionally distinct Puerto Rican vocabulary (`celular`, `chequeo`, `congregación`, `donativos`, `Área de trabajo`, `función`); parity test suite extended with 70+ new assertions covering namespace completeness, key parity, no empty values, and a ≥60% translation-distinctness guard; no database migration or governance seeding required.
+
 ## [3.4.0] - 2026-06-09
 
 ### Release Rationale
