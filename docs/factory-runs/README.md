@@ -19,6 +19,7 @@ Each run file should be committed with the change it describes. The goal is to m
 
 | Date | Run | Scope | Delivery |
 | --- | --- | --- | --- |
+| 2026-06-11 | [Demo feedback hardening](2026-06-11-demo-feedback-hardening.md) | Make demo feedback identity, fingerprints, duration, and rate limiting server-authoritative; add a cross-codebase replication prompt | Pending |
 | 2026-05-25 | [Readiness module-owned builders](2026-05-25-readiness-module-builders.md) | Split setup, accounts, and people readiness into module builders | `043db58` |
 | 2026-05-25 | [Enforce PR delivery workflow](2026-05-25-enforce-pr-delivery-workflow.md) | Enable admin branch-protection enforcement and document branch/PR delivery | PR #11, squash merge `7538a86` |
 | 2026-05-25 | [Readiness events and volunteers](2026-05-25-readiness-events-volunteers.md) | Split weekend event and volunteer readiness into module builders | PR #12, squash merge `eed10c8` |

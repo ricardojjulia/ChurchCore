@@ -1,20 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { createControlPlaneAdminClientMock, rpcMock } = vi.hoisted(() => {
+const { createControlPlaneAdminClientMock, getSessionMock, rpcMock } = vi.hoisted(() => {
   const rpcMock = vi.fn().mockResolvedValue({ error: null });
   const createControlPlaneAdminClientMock = vi.fn().mockReturnValue({ rpc: rpcMock });
-  return { createControlPlaneAdminClientMock, rpcMock };
+  const getSessionMock = vi.fn().mockResolvedValue(null);
+  return { createControlPlaneAdminClientMock, getSessionMock, rpcMock };
 });
 
 vi.mock("@/lib/supabase/control-plane", () => ({
   createControlPlaneAdminClient: createControlPlaneAdminClientMock,
 }));
 
+vi.mock("@/lib/auth", () => ({
+  getSession: getSessionMock,
+}));
+
 import { POST } from "@/app/api/demo/feedback/route";
 
 const VALID_SESSION_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
-const VALID_FINGERPRINT = "a".repeat(64);
 
 function makeRequest(body: unknown) {
   return new NextRequest("http://localhost/api/demo/feedback", {
@@ -28,19 +32,18 @@ const validBody = {
   session_id: VALID_SESSION_ID,
   route: "/demo/dashboard",
   category: "BUG",
-  fingerprint: VALID_FINGERPRINT,
   note: "Something broke",
   breadcrumbs: [],
-  user_email: null,
-  user_role: null,
   demo_version: "1.0.0",
+  session_duration: 12,
 };
 
 describe("POST /api/demo/feedback", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    rpcMock.mockResolvedValue({ error: null });
+    rpcMock.mockResolvedValue({ data: true, error: null });
     createControlPlaneAdminClientMock.mockReturnValue({ rpc: rpcMock });
+    getSessionMock.mockResolvedValue(null);
   });
 
   it("returns 403 when NEXT_PUBLIC_DEMO_MODE is not 'true'", async () => {
@@ -120,30 +123,6 @@ describe("POST /api/demo/feedback", () => {
       expect(body.error).toBe("Note exceeds 2000 characters");
     });
 
-    it("returns 400 when fingerprint is missing", async () => {
-      const response = await POST(makeRequest({ ...validBody, fingerprint: undefined }));
-
-      expect(response.status).toBe(400);
-      const body = await response.json() as { error: string };
-      expect(body.error).toBe("Invalid fingerprint");
-    });
-
-    it("returns 400 when fingerprint is not 64 hex chars", async () => {
-      const response = await POST(makeRequest({ ...validBody, fingerprint: "abc123" }));
-
-      expect(response.status).toBe(400);
-      const body = await response.json() as { error: string };
-      expect(body.error).toBe("Invalid fingerprint");
-    });
-
-    it("returns 400 when fingerprint contains non-hex characters", async () => {
-      const response = await POST(makeRequest({ ...validBody, fingerprint: "g".repeat(64) }));
-
-      expect(response.status).toBe(400);
-      const body = await response.json() as { error: string };
-      expect(body.error).toBe("Invalid fingerprint");
-    });
-
     it("returns 400 when body is invalid JSON", async () => {
       const response = await POST(
         new NextRequest("http://localhost/api/demo/feedback", {
@@ -163,12 +142,54 @@ describe("POST /api/demo/feedback", () => {
       const body = await response.json() as { ok: boolean };
       expect(body.ok).toBe(true);
       expect(rpcMock).toHaveBeenCalledOnce();
-      expect(rpcMock).toHaveBeenCalledWith("upsert_demo_feedback", expect.objectContaining({
-        p_fingerprint: VALID_FINGERPRINT,
+      expect(rpcMock).toHaveBeenCalledWith("submit_demo_feedback", expect.objectContaining({
         p_session_id: VALID_SESSION_ID,
         p_route: "/demo/dashboard",
         p_category: "BUG",
+        p_session_duration_seconds: 12,
       }));
+      expect(rpcMock.mock.calls[0][1].p_fingerprint).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it("derives authenticated identity on the server and ignores client identity", async () => {
+      getSessionMock.mockResolvedValueOnce({
+        profile: {
+          email: "authenticated@example.com",
+          roleId: "church-admin",
+        },
+      });
+
+      const response = await POST(makeRequest({
+        ...validBody,
+        user_email: "spoofed@example.com",
+        user_role: "super-admin",
+      }));
+
+      expect(response.status).toBe(200);
+      expect(getSessionMock).toHaveBeenCalledWith("/demo/dashboard");
+      expect(rpcMock).toHaveBeenCalledWith("submit_demo_feedback", expect.objectContaining({
+        p_user_email: "authenticated@example.com",
+        p_user_role: "church-admin",
+      }));
+    });
+
+    it("stores no identity for an anonymous report", async () => {
+      const response = await POST(makeRequest(validBody));
+
+      expect(response.status).toBe(200);
+      expect(rpcMock).toHaveBeenCalledWith("submit_demo_feedback", expect.objectContaining({
+        p_user_email: null,
+        p_user_role: null,
+      }));
+    });
+
+    it("ignores a client-provided fingerprint", async () => {
+      const clientFingerprint = "f".repeat(64);
+
+      const response = await POST(makeRequest({ ...validBody, fingerprint: clientFingerprint }));
+
+      expect(response.status).toBe(200);
+      expect(rpcMock.mock.calls[0][1].p_fingerprint).not.toBe(clientFingerprint);
     });
 
     it("accepts all valid category values", async () => {
@@ -187,7 +208,7 @@ describe("POST /api/demo/feedback", () => {
     });
 
     it("returns 500 when Supabase RPC returns an error", async () => {
-      rpcMock.mockResolvedValueOnce({ error: { message: "RPC failed" } });
+      rpcMock.mockResolvedValueOnce({ data: null, error: { message: "RPC failed" } });
 
       const response = await POST(makeRequest(validBody));
 
@@ -208,19 +229,32 @@ describe("POST /api/demo/feedback", () => {
       expect(body.error).toBe("Submission failed");
     });
 
-    it("returns 429 after 20 requests within 60s from the same session_id", async () => {
-      const sessionId = "ffffffff-ffff-ffff-ffff-ffffffffffff";
-      const body = { ...validBody, session_id: sessionId };
+    it("returns 429 when the atomic database RPC rejects the rate limit", async () => {
+      rpcMock.mockResolvedValueOnce({ data: false, error: null });
 
-      for (let i = 0; i < 20; i++) {
-        const response = await POST(makeRequest(body));
-        expect(response.status).toBe(200);
-      }
-
-      const rateLimitedResponse = await POST(makeRequest(body));
+      const rateLimitedResponse = await POST(makeRequest(validBody));
       expect(rateLimitedResponse.status).toBe(429);
       const rateLimitedBody = await rateLimitedResponse.json() as { error: string };
       expect(rateLimitedBody.error).toBe("Rate limit exceeded");
+    });
+
+    it("returns 400 for invalid session duration", async () => {
+      const response = await POST(makeRequest({ ...validBody, session_duration: -1 }));
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: "Invalid session_duration" });
+      expect(rpcMock).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 for invalid breadcrumbs", async () => {
+      const response = await POST(makeRequest({
+        ...validBody,
+        breadcrumbs: Array.from({ length: 6 }, () => "/demo"),
+      }));
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: "Invalid breadcrumbs" });
+      expect(rpcMock).not.toHaveBeenCalled();
     });
   });
 });

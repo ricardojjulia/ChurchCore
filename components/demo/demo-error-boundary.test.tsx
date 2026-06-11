@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
   useDemoSessionMock,
   usePathnameMock,
-  computeFingerprintMock,
   notificationsShowMock,
 } = vi.hoisted(() => ({
   useDemoSessionMock: vi.fn(() => ({
@@ -13,7 +12,6 @@ const {
     getSessionDuration: () => 5,
   })),
   usePathnameMock: vi.fn(() => "/demo/dashboard"),
-  computeFingerprintMock: vi.fn(async () => "a".repeat(64)),
   notificationsShowMock: vi.fn(),
 }));
 
@@ -23,10 +21,6 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/demo/context", () => ({
   useDemoSession: useDemoSessionMock,
-}));
-
-vi.mock("@/lib/demo/fingerprint", () => ({
-  computeFingerprint: computeFingerprintMock,
 }));
 
 vi.mock("@mantine/notifications", () => ({
@@ -116,11 +110,6 @@ describe("DemoErrorBoundary", () => {
 
     await new Promise((r) => setTimeout(r, 50));
 
-    expect(computeFingerprintMock).toHaveBeenCalledWith(
-      "/demo/dashboard",
-      "ERROR",
-      "Test boom",
-    );
     expect(global.fetch).toHaveBeenCalledWith(
       "/api/demo/feedback",
       expect.objectContaining({
@@ -135,7 +124,8 @@ describe("DemoErrorBoundary", () => {
     expect(body.error_message).toBe("Test boom");
     expect(body.session_id).toBe("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
     expect(body.route).toBe("/demo/dashboard");
-    expect(body.fingerprint).toBe("a".repeat(64));
+    expect(body.session_duration).toBe(5);
+    expect(body).not.toHaveProperty("fingerprint");
   });
 
   it("shows a Mantine toast when a JS error is captured in demo mode", async () => {
@@ -158,7 +148,7 @@ describe("DemoErrorBoundary", () => {
     );
   });
 
-  it("does not expose user identity in the POST body — user_email and user_role are null", async () => {
+  it("does not include user identity fields in the POST body", async () => {
     vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
 
     try {
@@ -175,8 +165,8 @@ describe("DemoErrorBoundary", () => {
 
     const callArgs = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
     const body = JSON.parse(callArgs[1].body as string);
-    expect(body.user_email).toBeNull();
-    expect(body.user_role).toBeNull();
+    expect(body).not.toHaveProperty("user_email");
+    expect(body).not.toHaveProperty("user_role");
   });
 
   it("swallows fetch errors silently — no unhandled rejection when POST fails", async () => {

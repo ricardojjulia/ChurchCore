@@ -62,6 +62,7 @@ const makeRow = (overrides: Partial<DemoFeedbackRow> = {}): DemoFeedbackRow => (
   user_email: "user@example.com",
   user_role: "church_admin",
   demo_version: "1.0.0",
+  session_duration_seconds: 125,
   hit_count: 3,
   metadata: {},
   created_at: "2026-07-11T10:00:00Z",
@@ -189,6 +190,7 @@ describe("DemoFeedbackWorkspace", () => {
     await user.click(expandBtn);
 
     expect(screen.getByRole("dialog")).toBeDefined();
+    expect(screen.getByText("2m 5s")).toBeDefined();
   });
 
   it("shows empty state when no rows", () => {

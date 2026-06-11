@@ -7,6 +7,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 - Added es-PR (Puerto Rican Spanish) locale (CC-L10N-002): `"es-PR"` added to `supportedLocales`, `localeLabels`, and `messages` in `lib/i18n.ts`; all 21 namespaces covered with regionally distinct Puerto Rican vocabulary (`celular`, `chequeo`, `congregación`, `donativos`, `Área de trabajo`, `función`); parity test suite extended with 70+ new assertions covering namespace completeness, key parity, no empty values, and a ≥60% translation-distinctness guard; no database migration or governance seeding required.
+- Hardened demo feedback capture: the server now derives authenticated email/role, ignores browser identity and fingerprints, validates bounded route/error/breadcrumb/version/session-duration context, and computes normalized SHA-256 fingerprints that keep unrelated manual notes separate. Added invoker-rights control-plane `submit_demo_feedback` with atomic distributed 20-per-minute session throttling, duplicate reopening, and duration persistence; the legacy RPC is converted to service-role-only invoker rights for rolling-deploy compatibility. Staff triage now displays session duration, and a reusable cross-codebase implementation prompt lives at `docs/prompts/replicate-demo-feedback-system.md`.
 
 ## [3.4.0] - 2026-06-09
 
