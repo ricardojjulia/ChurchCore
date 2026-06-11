@@ -23,6 +23,7 @@ export type DemoFeedbackRow = {
   user_email: string | null;
   user_role: string | null;
   demo_version: string;
+  session_duration_seconds: number | null;
   hit_count: number;
   metadata: Record<string, unknown>;
   processed: boolean;

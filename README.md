@@ -186,6 +186,18 @@ Hosted rollout reference: [docs/setup/hosted-shepherdai-rollout.md](docs/setup/h
 
 See [docs/shepherd-ai-ops.md](docs/shepherd-ai-ops.md) for architecture and guardrails.
 
+## Demo Feedback
+
+- Demo-mode users can report bugs, errors, unexpected results, and improvement
+  ideas from the global feedback button.
+- Unhandled React errors are captured without blocking the current UI.
+- The server derives authenticated identity, validates bounded context, computes
+  normalized fingerprints, and writes through the control-plane service role.
+- Control-plane Postgres atomically deduplicates reports, tracks hit counts,
+  reopens repeated issues, and enforces 20 submissions per session per minute.
+- Platform staff review and resolve reports at `/control/demo-feedback`.
+- Replication guide: [docs/prompts/replicate-demo-feedback-system.md](docs/prompts/replicate-demo-feedback-system.md).
+
 ## Evaluation Snapshot
 
 - Current repo version: `3.4.0`

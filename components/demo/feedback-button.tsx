@@ -7,7 +7,6 @@ import { notifications } from "@mantine/notifications";
 import { MessageSquare } from "lucide-react";
 
 import { useDemoSession } from "@/lib/demo/context";
-import { computeFingerprint } from "@/lib/demo/fingerprint";
 
 const CATEGORIES = [
   { value: "BUG", label: "Bug" },
@@ -35,8 +34,6 @@ export function FeedbackButton() {
     setSubmitting(true);
 
     try {
-      const fingerprint = await computeFingerprint(pathname ?? "", category, null);
-
       const payload = {
         session_id: sessionId,
         route: pathname ?? "",
@@ -44,10 +41,7 @@ export function FeedbackButton() {
         error_message: null,
         note: note.trim() || null,
         breadcrumbs,
-        user_email: null,
-        user_role: null,
         demo_version: process.env.NEXT_PUBLIC_DEMO_VERSION ?? "",
-        fingerprint,
         session_duration: getSessionDuration(),
       };
 

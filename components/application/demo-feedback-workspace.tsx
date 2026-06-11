@@ -83,6 +83,13 @@ function truncate(str: string | null | undefined, n: number) {
   return str.length > n ? str.slice(0, n) + "…" : str;
 }
 
+function formatDuration(seconds: number | null) {
+  if (seconds === null) return null;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return minutes > 0 ? `${minutes}m ${remainder}s` : `${remainder}s`;
+}
+
 async function patchFeedback(
   id: string,
   patch: { processed?: boolean; action?: DemoFeedbackAction | null }
@@ -381,6 +388,10 @@ export function DemoFeedbackWorkspace({
               <Stack gap="sm">
                 <DrawerField label="Submitted" value={new Date(drawerRow.created_at).toLocaleString()} />
                 <DrawerField label="User" value={`${drawerRow.user_email ?? "unknown"} · ${drawerRow.user_role ?? "—"}`} />
+                <DrawerField
+                  label="Session duration"
+                  value={formatDuration(drawerRow.session_duration_seconds)}
+                />
                 <DrawerField label="Hit count" value={String(drawerRow.hit_count)} />
                 {drawerRow.breadcrumbs?.length ? (
                   <Stack gap={2}>

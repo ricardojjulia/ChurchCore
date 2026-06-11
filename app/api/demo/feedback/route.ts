@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSession } from '@/lib/auth';
+import {
+  computeServerFeedbackFingerprint,
+  DemoFeedbackValidationError,
+  hashDemoFeedbackSession,
+  parseDemoFeedbackPayload,
+} from '@/lib/demo/feedback';
 import { createControlPlaneAdminClient } from '@/lib/supabase/control-plane';
-
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 20;
-const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
-
-const VALID_CATEGORIES = ['BUG', 'ERROR', 'UNEXPECTED_RESULT', 'IMPROVEMENT'] as const;
-type Category = typeof VALID_CATEGORIES[number];
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   if (process.env.NEXT_PUBLIC_DEMO_MODE !== 'true') {
@@ -20,58 +20,46 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const b = body as Record<string, unknown>;
-  const { session_id, route, category, error_message, note, breadcrumbs, user_email, user_role, demo_version, fingerprint } = b;
-
-  if (!session_id || typeof session_id !== 'string' || !/^[0-9a-f-]{36}$/.test(session_id)) {
-    return NextResponse.json({ error: 'Invalid session_id' }, { status: 400 });
-  }
-  if (!route || typeof route !== 'string') {
-    return NextResponse.json({ error: 'Missing route' }, { status: 400 });
-  }
-  if (!category || !VALID_CATEGORIES.includes(category as Category)) {
-    return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
-  }
-  if (note && typeof note === 'string' && note.length > 2000) {
-    return NextResponse.json({ error: 'Note exceeds 2000 characters' }, { status: 400 });
-  }
-  if (!fingerprint || typeof fingerprint !== 'string' || !/^[0-9a-f]{64}$/.test(fingerprint)) {
-    return NextResponse.json({ error: 'Invalid fingerprint' }, { status: 400 });
-  }
-
-  const now = Date.now();
-  const existing = rateLimitMap.get(session_id);
-  if (existing) {
-    if (now - existing.windowStart < RATE_LIMIT_WINDOW_MS) {
-      if (existing.count >= RATE_LIMIT_MAX) {
-        return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
-      }
-      existing.count++;
-    } else {
-      rateLimitMap.set(session_id, { count: 1, windowStart: now });
+  let payload;
+  try {
+    payload = parseDemoFeedbackPayload(body);
+  } catch (error) {
+    if (error instanceof DemoFeedbackValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
-  } else {
-    rateLimitMap.set(session_id, { count: 1, windowStart: now });
+    throw error;
   }
 
   try {
+    const session = await getSession(payload.route);
+    const fingerprint = computeServerFeedbackFingerprint({
+      route: payload.route,
+      category: payload.category,
+      errorMessage: payload.error_message,
+      note: payload.note,
+    });
     const adminClient = createControlPlaneAdminClient();
-    const { error } = await adminClient.rpc('upsert_demo_feedback', {
-      p_fingerprint:   fingerprint as string,
-      p_session_id:    session_id as string,
-      p_route:         route as string,
-      p_category:      category as string,
-      p_error_message: (error_message as string | null) ?? null,
-      p_note:          (note as string | null) ?? null,
-      p_breadcrumbs:   JSON.stringify(Array.isArray(breadcrumbs) ? breadcrumbs : []),
-      p_user_email:    (user_email as string | null) ?? null,
-      p_user_role:     (user_role as string | null) ?? null,
-      p_demo_version:  (demo_version as string) ?? '',
-      p_metadata:      JSON.stringify({}),
+    const { data, error } = await adminClient.rpc('submit_demo_feedback', {
+      p_session_key_hash: hashDemoFeedbackSession(payload.session_id),
+      p_fingerprint: fingerprint,
+      p_session_id: payload.session_id,
+      p_route: payload.route,
+      p_category: payload.category,
+      p_error_message: payload.error_message,
+      p_note: payload.note,
+      p_breadcrumbs: payload.breadcrumbs,
+      p_user_email: session?.profile.email ?? null,
+      p_user_role: session?.profile.roleId ?? null,
+      p_demo_version: payload.demo_version,
+      p_session_duration_seconds: payload.session_duration,
+      p_metadata: {},
     });
     if (error) {
       console.error('[demo/feedback] Supabase RPC error:', error.message);
       return NextResponse.json({ error: 'Submission failed' }, { status: 500 });
+    }
+    if (data !== true) {
+      return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
     }
     return NextResponse.json({ ok: true });
   } catch (err) {

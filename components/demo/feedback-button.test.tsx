@@ -4,7 +4,7 @@ import { MantineProvider } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { usePathnameMock, useDemoSessionMock, computeFingerprintMock, notificationsShowMock } =
+const { usePathnameMock, useDemoSessionMock, notificationsShowMock } =
   vi.hoisted(() => ({
     usePathnameMock: vi.fn(() => "/demo"),
     useDemoSessionMock: vi.fn(() => ({
@@ -12,7 +12,6 @@ const { usePathnameMock, useDemoSessionMock, computeFingerprintMock, notificatio
       breadcrumbs: ["/demo"],
       getSessionDuration: () => 10,
     })),
-    computeFingerprintMock: vi.fn(async () => "a".repeat(64)),
     notificationsShowMock: vi.fn(),
   }));
 
@@ -37,10 +36,6 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/demo/context", () => ({
   useDemoSession: useDemoSessionMock,
-}));
-
-vi.mock("@/lib/demo/fingerprint", () => ({
-  computeFingerprint: computeFingerprintMock,
 }));
 
 vi.mock("@mantine/notifications", () => ({
@@ -144,7 +139,10 @@ describe("FeedbackButton", () => {
     const body = JSON.parse(callArgs[1].body as string);
     expect(body.category).toBe("BUG");
     expect(body.session_id).toBe("test-session-id-1234-5678-90ab-cdef12345678");
-    expect(body.fingerprint).toBe("a".repeat(64));
+    expect(body.session_duration).toBe(10);
+    expect(body).not.toHaveProperty("fingerprint");
+    expect(body).not.toHaveProperty("user_email");
+    expect(body).not.toHaveProperty("user_role");
   });
 
   it("shows success notification on 200", async () => {
