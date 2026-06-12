@@ -7,6 +7,7 @@ import {
   BarChart2,
   CheckSquare,
   DollarSign,
+  Filter,
   HeartHandshake,
   MailCheck,
   MessageSquare,
@@ -18,8 +19,10 @@ import {
 } from "lucide-react";
 import {
   Badge,
+  Box,
   Button,
   Checkbox,
+  Collapse,
   Group,
   Paper,
   Select,
@@ -30,6 +33,7 @@ import {
   ThemeIcon,
   Title,
 } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
 import { reviewMemberChangeRequestAction } from "@/app/app/actions";
@@ -79,6 +83,7 @@ export function ChurchAdminPeopleWorkspace({
     searchParams.get("household") ??
     (initialView === "unassigned-households" ? "unassigned" : "all");
   const [isPending, startTransition] = useTransition();
+  const [filtersOpen, { toggle: toggleFilters }] = useDisclosure(false);
   const [query, setQuery] = useState(initialQuery);
   const [status, setStatus] = useState(initialStatus);
   const [role, setRole] = useState(searchParams.get("role") ?? "all");
@@ -351,7 +356,7 @@ export function ChurchAdminPeopleWorkspace({
     >
       <ChurchAppContextBanner session={session} />
 
-      <SimpleGrid cols={{ base: 1, sm: 2, xl: 7 }} spacing="md">
+      <SimpleGrid cols={{ base: 2, sm: 4, xl: 7 }} spacing="md">
         <Paper withBorder radius="xl" p="lg">
           <Text size="xs" tt="uppercase" fw={700} c="dimmed">
             {t("portalNav", "people")}
@@ -524,7 +529,8 @@ export function ChurchAdminPeopleWorkspace({
           </Stack>
         ) : null}
 
-        <SimpleGrid cols={{ base: 1, sm: 2, md: 5 }} spacing="md" mb="lg">
+        {/* Desktop filters */}
+        <SimpleGrid visibleFrom="sm" cols={{ sm: 2, md: 5 }} spacing="md" mb="lg">
           <TextInput
             value={query}
             onChange={(event) => setQuery(event.currentTarget.value)}
@@ -580,6 +586,80 @@ export function ChurchAdminPeopleWorkspace({
             radius="xl"
           />
         </SimpleGrid>
+
+        {/* Mobile filters: search + toggle, selects in a collapsible */}
+        <Box hiddenFrom="sm" mb="lg">
+          <Group gap="sm" mb="sm">
+            <TextInput
+              flex={1}
+              value={query}
+              onChange={(event) => setQuery(event.currentTarget.value)}
+              placeholder={translatePeople("searchPlaceholder")}
+              leftSection={<Search size={16} />}
+              radius="xl"
+            />
+            <Button
+              variant={activeFilterLabels.length > 0 ? "filled" : "default"}
+              color={activeFilterLabels.length > 0 ? "blue" : undefined}
+              radius="xl"
+              leftSection={<Filter size={15} />}
+              onClick={toggleFilters}
+            >
+              Filters{activeFilterLabels.length > 0 ? ` (${activeFilterLabels.length})` : ""}
+            </Button>
+          </Group>
+          <Collapse expanded={filtersOpen}>
+            <Stack gap="sm">
+              <Select
+                value={status}
+                onChange={(value) => setStatus(value ?? "all")}
+                data={[
+                  { value: "all", label: translatePeople("allStatuses") },
+                  { value: "active", label: translatePeople("active") },
+                  { value: "visitor", label: translatePeople("visitor") },
+                  { value: "inactive", label: translatePeople("inactive") },
+                  { value: "baptized", label: translatePeople("baptized") },
+                  { value: "transferred", label: translatePeople("transferred") },
+                ]}
+                radius="xl"
+              />
+              <Select
+                value={role}
+                onChange={(value) => setRole(value ?? "all")}
+                data={[
+                  { value: "all", label: translatePeople("allRoles") },
+                  { value: "church_admin", label: translatePeople("church_admin") },
+                  { value: "secretary", label: translatePeople("secretary") },
+                  { value: "pastor", label: translatePeople("pastor") },
+                  { value: "ministry_leader", label: translatePeople("ministry_leader") },
+                  { value: "member", label: translatePeople("member") },
+                ]}
+                radius="xl"
+              />
+              <Select
+                value={accountFilter}
+                onChange={(value) => setAccountFilter(value ?? "all")}
+                data={[
+                  { value: "all", label: translatePeople("allAccounts") },
+                  { value: "pending-request", label: translatePeople("pending_request") },
+                  { value: "active-account", label: translatePeople("active_account") },
+                  { value: "needs-account", label: translatePeople("needs_account") },
+                ]}
+                radius="xl"
+              />
+              <Select
+                value={householdFilter}
+                onChange={(value) => setHouseholdFilter(value ?? "all")}
+                data={[
+                  { value: "all", label: translatePeople("allHouseholds") },
+                  { value: "assigned", label: translatePeople("hasHousehold") },
+                  { value: "unassigned", label: translatePeople("noHousehold") },
+                ]}
+                radius="xl"
+              />
+            </Stack>
+          </Collapse>
+        </Box>
 
         {activeFilterLabels.length ? (
           <Group gap="xs" mb="lg">
