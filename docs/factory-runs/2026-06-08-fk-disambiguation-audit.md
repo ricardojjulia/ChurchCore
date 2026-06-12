@@ -1,7 +1,7 @@
 # FK Disambiguation Audit — PGRST201 Prevention
-**Date**: 2026-06-08
+**Date**: 2026-06-08 (updated 2026-06-08)
 **Scope**: 16 tables with multiple FK columns pointing to `profiles`
-**Risk**: Any unqualified `profiles(...)` in a Supabase `.select()` will trigger PGRST201 (ambiguous FK join) at runtime.
+**Risk**: Any unqualified `profiles(...)` or reverse `<table>(...)` join in a Supabase `.select()` against a table with more than one FK to `profiles` will trigger PGRST201 (ambiguous FK join) at runtime.
 **Reference pattern (already fixed)**: `lib/church-admin-accounts-data.ts` — `profiles!account_requests_profile_id_fkey(full_name, member_number, account_status)`
 
 ---
@@ -14,8 +14,32 @@
 |---|---|---|---|---|
 | `kingdom_impacts` | `20260414000000_ministry_forge_phase2.sql` | `profile_id`, `created_by` | `lib/ministry-forge-data.ts:506` | `profiles!kingdom_impacts_created_by_fkey(full_name)` |
 | `volunteer_match_suggestions` | `20260415000000_ministry_forge_phase3.sql` | `profile_id`, `reviewed_by` | `lib/ministry-forge-data.ts:864` | `profiles!volunteer_match_suggestions_profile_id_fkey(full_name, spiritual_gifts, current_ministry_load)` |
+| `volunteer_hours_log` | `20260504000000_volunteer_scheduling.sql` | `profile_id`, `logged_by` | `lib/volunteer-data.ts:472` (reverse join from `profiles`) | `volunteer_hours_log!volunteer_hours_log_profile_id_fkey(hours, service_date)` |
 
 **Note on `communication_logs`**: already uses column-name FK hints (`profiles!sent_by(...)` and `profiles!recipient_id(...)`) in `lib/communications-data.ts:240`, which PostgREST accepts. No change needed.
+
+**Note on `mentorship_pairs`, `support_pairings`, `mentor_couples`, `young_adult_career_mentorships`**: already use FK-qualified syntax in `lib/ministry-forge-data.ts`. No change needed.
+
+---
+
+### Investigated joins that are safe (single FK to `profiles` — no fix needed)
+
+The following unqualified `profiles(...)` queries were audited and confirmed safe because their source table has only ONE FK to `profiles`. PostgREST can resolve these unambiguously.
+
+| Query location | Table queried | FK columns to `profiles` | Verdict |
+|---|---|---|---|
+| `lib/groups-data.ts:308` | `group_members` | `profile_id` only | Safe |
+| `lib/groups-data.ts:319` | `group_resources` | `added_by` only | Safe |
+| `lib/volunteer-data.ts:267` | `volunteer_shifts` | `assigned_user_id` only | Safe |
+| `lib/volunteer-data.ts:408` | `church_memberships` | `user_id` only | Safe |
+| `lib/ministry-forge-data.ts:1122` | `discipleship_groups` | `leader_id` only | Safe |
+| `lib/ministry-forge-data.ts:1213` | `life_stage_circles` | `leader_id` only | Safe |
+| `lib/ministry-forge-data.ts:1633` | `youth_graduation_tracking` | `profile_id` only | Safe |
+| `lib/ministry-forge-data.ts:1819` | `education_enrollments` | `profile_id` only | Safe |
+| `lib/ccm-data.ts:414` | `ccm_volunteer_assignments` | `profile_id` only | Safe |
+| `lib/ccm-data.ts:565` | `ccm_volunteer_assignments` | `profile_id` only | Safe |
+| `lib/elders-data.ts:347` | `discernment_sessions` | `created_by` only | Safe |
+| `app/app/actions.ts:2763` | `profile_ministries` | `profile_id` only | Safe |
 
 ---
 
@@ -35,7 +59,6 @@ Future developers writing `.select()` calls on these tables MUST use an FK-quali
 | `mentorship_pairs` | `20260421000000_ministry_tracks_phase4.sql` | `mentor_id`, `mentee_id` | `mentorship_pairs_mentor_id_fkey`, `mentorship_pairs_mentee_id_fkey` |
 | `pastoral_notes` | `20260412140000_pastoral_care_foundation.sql` | `profile_id`, `created_by` | `pastoral_notes_profile_id_fkey`, `pastoral_notes_created_by_fkey` |
 | `support_pairings` | `20260421000000_ministry_tracks_phase4.sql` | `supporter_id`, `supported_id` | `support_pairings_supporter_id_fkey`, `support_pairings_supported_id_fkey` |
-| `volunteer_hours_log` | `20260504000000_volunteer_scheduling.sql` | `profile_id`, `logged_by` | `volunteer_hours_log_profile_id_fkey`, `volunteer_hours_log_logged_by_fkey` |
 | `workflows` | `20260505000000_shepherd_ai_ops_foundation.sql` | `owner_user_id`, `assigned_to_user_id` | `workflows_owner_user_id_fkey`, `workflows_assigned_to_user_id_fkey` |
 | `young_adult_career_mentorships` | `20260430000000_advanced_ministry_forge.sql` | `mentor_id`, `mentee_id` | `young_adult_career_mentorships_mentor_id_fkey`, `young_adult_career_mentorships_mentee_id_fkey` |
 
@@ -52,22 +75,29 @@ Future developers writing `.select()` calls on these tables MUST use an FK-quali
 
 // ALSO CORRECT — column name hint (shorter, also accepted by PostgREST):
 .select("id, sent_by, profiles!sent_by(full_name)")
+
+// REVERSE JOIN from profiles to a multi-FK table — also needs qualification:
+// WRONG:
+.from("profiles").select("id, volunteer_hours_log(hours)")
+// CORRECT:
+.from("profiles").select("id, volunteer_hours_log!volunteer_hours_log_profile_id_fkey(hours)")
 ```
 
 The FK constraint name defaults to `<table>_<column>_fkey` when PostgreSQL auto-generates it (no explicit `constraint` clause in the migration DDL). All migrations listed above use inline `references public.profiles(id)` without named constraints, so the auto-generated names apply.
 
 ---
 
-## Verification
+## Verification (2026-06-08 update)
 
-- `npm run test` — passed (no test regressions)
-- `npm run build` — passed (no compile errors from the two query fixes)
-- Pre-existing lint warnings not introduced by this change are tracked separately
+- `npm run test` — passed
+- `npm run build` — passed
+- `npm run lint` — passed (pre-existing warnings not introduced by this change)
 
 ---
 
 ## Residual Risk
 
-- No integration test currently runs against a live Supabase project, so PGRST201 would only surface at runtime. The 13 tables listed as "no current queries" remain latent risks until query coverage is added.
-- When writing new queries against any of the 13 tables above, always use the FK-qualified form documented in this table.
+- No integration test currently runs against a live Supabase project, so PGRST201 would only surface at runtime. The 12 tables listed as "no current queries" remain latent risks until query coverage is added.
+- When writing new queries against any of the 12 tables above, always use the FK-qualified form documented in this table.
+- **Reverse joins are also subject to PGRST201**: when selecting FROM `profiles` and embedding a multi-FK table, use `<table>!<table>_<fk_col>_fkey(...)` syntax.
 - If a future migration renames a FK column or adds an explicit constraint name, update the hint accordingly.
