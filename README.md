@@ -13,6 +13,20 @@ ChurchCore is part of a broader product family:
 [![Supabase](https://img.shields.io/badge/Supabase-split%20control%2Ftenant-16a34a.svg)](docs/adr/0002-control-plane-and-tenant-separation.md)
 [![Vercel](https://img.shields.io/badge/Vercel-ready-000000.svg)](vercel.json)
 
+## Product Position & Competitive Analysis
+
+> **ChurchCore is Phase D-READY** — all technical and competitive gates are closed. The product is a credible alternative for 100–1,000 attendance churches evaluating Planning Center, Breeze, or Pushpay/CCB. The only remaining milestone before full Phase D GO is an uncoached external evaluator session.
+
+Key facts at a glance:
+
+- **30–45% cheaper** than Planning Center for a comparable feature set — with a full double-entry GL that Planning Center cannot match at any price
+- **Structural child-safety moat:** bcrypt-hashed check-in PINs, custody-restriction UI enforcement, two-adult rule enforcement, and session-controlled check-in — enforced at the database layer, not by policy
+- **Per-tenant Supabase isolation:** each church's data lives in a completely separate database; cross-tenant exposure is architecturally impossible
+- **Giving → GL auto-posting:** every donation creates a balanced journal entry automatically — no manual QuickBooks import
+- **All five import entity types ready:** people, groups, events, attendance, and giving at dry-run + commit with vendor adapters for Planning Center, Breeze, and generic CSV
+
+**[Read the full MVP and competitive analysis →](docs/mvp-competitive-analysis.md)**
+
 ## Try the Demo
 
 The hosted demo is available at `https://church-core-ops.vercel.app`. No installation required — open it in any modern browser.
@@ -99,6 +113,7 @@ npm run dev
 
 | Start here | Purpose |
 | --- | --- |
+| [docs/mvp-competitive-analysis.md](docs/mvp-competitive-analysis.md) | MVP status, competitive positioning, pricing, go-to-market readiness, and structural moat. |
 | [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) | Source of truth for scope, stack, security posture, roadmap, and release discipline. |
 | [docs/development-plan-visual.md](docs/development-plan-visual.md) | Visual companion for the plan: strategy map, roadmap, security model, and Sprint 1 flow. |
 | [docs/diagrams.md](docs/diagrams.md) | Mermaid architecture, role, workflow, and documentation diagrams with SVG companions. |
