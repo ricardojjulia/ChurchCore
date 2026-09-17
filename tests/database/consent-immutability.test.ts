@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 
 const connectionString =
   process.env.TENANT_DB_URL ??
@@ -17,7 +17,7 @@ describe("consent_logs immutability trigger", () => {
   });
 
   const runTestInTransaction = async (
-    testFn: (client: any) => Promise<void>
+    testFn: (client: PoolClient) => Promise<void>
   ) => {
     const client = await pool.connect();
     try {

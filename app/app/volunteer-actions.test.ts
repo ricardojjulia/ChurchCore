@@ -255,7 +255,9 @@ describe("volunteer actions", () => {
           assigned_user_id: "member-2",
           confirmation_status: "pending",
           confirmation_token: "mock-token-123",
-          confirmation_token_expires_at: "2026-07-21T00:00:00.000Z",
+          confirmation_token_expires_at: new Date(
+            Date.now() + 14 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
         }],
       })
       .mockResolvedValueOnce({ rows: [{ sent_at: "2026-05-01T15:00:00.000Z" }] });
