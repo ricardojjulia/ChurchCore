@@ -4,12 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-function scrubPII(text: string): string {
+export function scrubPII(text: string): string {
   if (!text) return "";
   
-  // 1. Scrub email addresses
+  // 1. Scrub email addresses. Quantifiers are bounded (RFC 5321-ish limits)
+  // rather than unbounded `+` to avoid polynomial backtracking (ReDoS) on
+  // adversarial input -- this runs on user-controlled prompt text.
   let scrubbed = text.replace(
-    /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, 
+    /[a-zA-Z0-9._%+-]{1,64}@[a-zA-Z0-9.-]{1,255}\.[a-zA-Z]{2,24}/g,
     "[EMAIL]"
   );
 
