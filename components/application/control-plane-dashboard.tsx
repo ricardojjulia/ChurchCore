@@ -279,12 +279,21 @@ export function ControlPlaneDashboard({
                 onClick={async () => {
                   if (!erasingTenant) return;
                   try {
-                    await eraseTenantDataAction(erasingTenant.id);
-                    notifications.show({
-                      title: "Success",
-                      message: "Tenant data erased and administrative account re-seeded.",
-                      color: "green",
-                    });
+                    const result = await eraseTenantDataAction(erasingTenant.id);
+                    if (result.ok) {
+                      notifications.show({
+                        title: "Success",
+                        message: `Tenant data erased across ${result.erasedTables.length} tables and administrative account re-seeded.`,
+                        color: "green",
+                      });
+                    } else {
+                      notifications.show({
+                        title: "Partially completed",
+                        message: `Erased ${result.erasedTables.length} tables, but ${result.failedTables.length} failed (${result.failedTables.map((f) => f.table).join(", ")}). Re-run after resolving the underlying error.`,
+                        color: "orange",
+                        autoClose: false,
+                      });
+                    }
                     setErasingTenant(null);
                   } catch (err: unknown) {
                     notifications.show({
