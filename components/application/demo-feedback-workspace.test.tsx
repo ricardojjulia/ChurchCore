@@ -65,6 +65,8 @@ const makeRow = (overrides: Partial<DemoFeedbackRow> = {}): DemoFeedbackRow => (
   session_duration_seconds: 125,
   hit_count: 3,
   metadata: {},
+  processed: false,
+  action: null,
   created_at: "2026-07-11T10:00:00Z",
   updated_at: "2026-07-11T10:00:00Z",
   ...overrides,

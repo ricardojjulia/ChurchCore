@@ -351,7 +351,7 @@ describe("runAttendanceImportDryRun", () => {
     ).rejects.toThrow("CSV file has no data rows.");
 
     const insertBatchCalls = queryTenantLocalDbMock.mock.calls.filter(
-      ([sql]: [string]) => typeof sql === "string" && sql.includes("insert into public.import_batches"),
+      (call: unknown[]) => typeof call[0] === "string" && (call[0] as string).includes("insert into public.import_batches"),
     );
     expect(insertBatchCalls).toHaveLength(0);
   });
@@ -686,7 +686,7 @@ describe("commitAttendanceImportBatch", () => {
     expect(result.status).toBe("committed");
 
     const updateCall = queryTenantLocalDbMock.mock.calls.find(
-      ([sql]: [string]) => typeof sql === "string" && sql.includes("update public.import_batches"),
+      (call: unknown[]) => typeof call[0] === "string" && (call[0] as string).includes("update public.import_batches"),
     );
     expect(updateCall).toBeDefined();
     expect(updateCall?.[1]).toContain("committed");
