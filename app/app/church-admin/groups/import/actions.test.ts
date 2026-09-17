@@ -139,6 +139,28 @@ describe("runGroupsImportDryRunAction", () => {
       rows: [],
     });
   });
+
+  it("rejects csvText exceeding 5MB size limit", async () => {
+    const oversizedCsv = "a".repeat(5 * 1024 * 1024 + 1);
+
+    await expect(
+      runGroupsImportDryRunAction({
+        sourceFilename: "groups.csv",
+        csvText: oversizedCsv,
+      }),
+    ).rejects.toThrow("CSV file size exceeds the maximum limit of 5MB.");
+  });
+
+  it("rejects csvText exceeding 100 records limit", async () => {
+    const tooManyRowsCsv = ["header_col", ...Array(101).fill("val")].join("\n");
+
+    await expect(
+      runGroupsImportDryRunAction({
+        sourceFilename: "groups.csv",
+        csvText: tooManyRowsCsv,
+      }),
+    ).rejects.toThrow("CSV import is limited to a maximum of 100 records per batch.");
+  });
 });
 
 describe("commitGroupsImportBatchAction", () => {

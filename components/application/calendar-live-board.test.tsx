@@ -107,6 +107,7 @@ function renderBoard(
 // Tests
 // ---------------------------------------------------------------------------
 
+
 describe("CalendarLiveBoard", () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { resetRateLimits } from "@/lib/rate-limit";
 
 const {
   queryTenantLocalDbMock,
@@ -60,6 +61,7 @@ function makeRequest(body: unknown) {
 describe("push subscribe route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetRateLimits();
     shouldUseLocalTenantFallbackMock.mockReturnValue(true);
     hasTenantBackendEnvMock.mockReturnValue(true);
     queryTenantLocalDbMock.mockResolvedValue({ rows: [] });
@@ -163,6 +165,28 @@ describe("push subscribe route", () => {
       expect.objectContaining({ endpoint: validSubscription.endpoint }),
       expect.any(Object),
     );
+
+    delete process.env.VAPID_PUBLIC_KEY;
+    delete process.env.VAPID_PRIVATE_KEY;
+  });
+
+  it("rate limits requests exceeding 15 calls per minute", async () => {
+    process.env.VAPID_PUBLIC_KEY = "BTest...";
+    process.env.VAPID_PRIVATE_KEY = "PrivTest...";
+
+    for (let i = 0; i < 15; i++) {
+      const response = await POST(
+        makeRequest({ subscription: validSubscription, churchId: "church-1", profileId: "profile-1" }),
+      );
+      expect(response.status).toBe(200);
+    }
+
+    const responseLimit = await POST(
+      makeRequest({ subscription: validSubscription, churchId: "church-1", profileId: "profile-1" }),
+    );
+    expect(responseLimit.status).toBe(429);
+    const body = await responseLimit.json() as { error: string };
+    expect(body.error).toBe("Too Many Requests");
 
     delete process.env.VAPID_PUBLIC_KEY;
     delete process.env.VAPID_PRIVATE_KEY;

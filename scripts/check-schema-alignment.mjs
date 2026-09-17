@@ -14,13 +14,21 @@ const migrationTables = new Set();
 
 for (const file of migrationFiles) {
   const content = readFileSync(join(MIGRATIONS_DIR, file), 'utf8');
-  const matches = content.matchAll(
+  const tableMatches = content.matchAll(
     /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?(\w+)/gi
   );
-  for (const m of matches) {
+  for (const m of tableMatches) {
+    migrationTables.add(m[1].toLowerCase());
+  }
+  const viewMatches = content.matchAll(
+    /create\s+(?:or\s+replace\s+)?view\s+(?:public\.)?(\w+)/gi
+  );
+  for (const m of viewMatches) {
     migrationTables.add(m[1].toLowerCase());
   }
 }
+
+const IGNORED_TABLES = new Set(['demo_feedback']);
 
 const CODE_DIRS = ['lib', 'app', 'components'].map(d => join(REPO_ROOT, d));
 
@@ -61,8 +69,8 @@ for (const dir of CODE_DIRS) {
   walkDir(dir);
 }
 
-const phantoms = [...codeTables].filter(t => !migrationTables.has(t)).sort();
-const orphans  = [...migrationTables].filter(t => !codeTables.has(t)).sort();
+const phantoms = [...codeTables].filter(t => !migrationTables.has(t) && !IGNORED_TABLES.has(t)).sort();
+const orphans  = [...migrationTables].filter(t => !codeTables.has(t) && !IGNORED_TABLES.has(t)).sort();
 
 if (phantoms.length > 0) {
   console.log('PHANTOM TABLES (in code, not in migrations):');

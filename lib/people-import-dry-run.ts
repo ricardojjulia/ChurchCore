@@ -90,15 +90,37 @@ function isValidEmail(value: string | null) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+export type CustomImportMapping = {
+  householdName?: string;
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  memberNumber?: string;
+};
+
 function parseImportRows(
   csvRows: Record<string, string>[],
   sourceSystem: ImportSourceSystem,
+  customMapping?: CustomImportMapping,
 ) {
   const rows: ParsedImportRow[] = [];
 
   for (let index = 0; index < csvRows.length; index += 1) {
     const row = csvRows[index];
-    const normalizedRow = normalizePeopleImportSourceRow(row, sourceSystem);
+    
+    let normalizedRow;
+    if (customMapping) {
+      normalizedRow = {
+        householdName: customMapping.householdName ? row[customMapping.householdName] : null,
+        fullName: customMapping.fullName ? row[customMapping.fullName] : null,
+        email: customMapping.email ? row[customMapping.email] : null,
+        phone: customMapping.phone ? row[customMapping.phone] : null,
+        memberNumber: customMapping.memberNumber ? row[customMapping.memberNumber] : null,
+      };
+    } else {
+      normalizedRow = normalizePeopleImportSourceRow(row, sourceSystem);
+    }
+
     const fullName = normalizeName(normalizedRow.fullName);
     if (!fullName) {
       rows.push({
@@ -397,6 +419,7 @@ export async function runPeopleHouseholdImportDryRun(input: {
   sourceSystem?: ImportSourceSystem;
   sourceFilename: string;
   csvText: string;
+  customMapping?: CustomImportMapping;
 }): Promise<PeopleImportDryRunResult> {
   const csv = await parseCsv(input.csvText);
   if (csv.errors.length > 0) {
@@ -410,7 +433,7 @@ export async function runPeopleHouseholdImportDryRun(input: {
   const sourceSystem = input.sourceSystem ?? "generic_csv";
 
   const existing = await loadExistingPeopleIndex(input.churchId);
-  const parsedRows = parseImportRows(csv.rows, sourceSystem);
+  const parsedRows = parseImportRows(csv.rows, sourceSystem, input.customMapping);
   const classification = classifyPeopleImportRows(parsedRows, existing);
 
   const batchId = await insertDryRunBatchAndRows(

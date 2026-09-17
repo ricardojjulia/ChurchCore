@@ -9,6 +9,7 @@ const {
   hasTenantAdminBackendEnvMock,
   queryTenantLocalDbMock,
   shouldUseLocalTenantFallbackMock,
+  logAuditEventMock,
 } = vi.hoisted(() => {
   const revalidatePath = vi.fn();
   const requireChurchSession = vi.fn();
@@ -18,6 +19,7 @@ const {
   const hasTenantAdminBackendEnv = vi.fn();
   const queryTenantLocalDb = vi.fn();
   const shouldUseLocalTenantFallback = vi.fn();
+  const logAuditEvent = vi.fn();
 
   return {
     revalidatePathMock: revalidatePath,
@@ -28,6 +30,7 @@ const {
     hasTenantAdminBackendEnvMock: hasTenantAdminBackendEnv,
     queryTenantLocalDbMock: queryTenantLocalDb,
     shouldUseLocalTenantFallbackMock: shouldUseLocalTenantFallback,
+    logAuditEventMock: logAuditEvent,
   };
 });
 
@@ -37,6 +40,10 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/lib/auth", () => ({
   requireChurchSession: requireChurchSessionMock,
+}));
+
+vi.mock("@/lib/actions/audit", () => ({
+  logAuditEvent: logAuditEventMock,
 }));
 
 vi.mock("@/lib/church-profile", () => ({
@@ -57,6 +64,8 @@ import {
   updateChurchAdminPersonAction,
   updateChurchAdminPeopleBulkAction,
   updateMinistryAction,
+  updateMemberProfileAction,
+  acknowledgeBurnoutAlertAction,
 } from "@/app/app/actions";
 
 describe("app actions", () => {
@@ -163,6 +172,7 @@ describe("app actions", () => {
       emergencyContactPhone: "555-0199",
       directoryVisible: true,
       contactAllowed: true,
+      emergencyContactConsentVerified: true,
     });
 
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
@@ -276,6 +286,7 @@ describe("app actions", () => {
               emergencyContactPhone: "555-0101",
               directoryVisible: true,
               contactAllowed: true,
+              emergencyContactConsentVerified: true,
             },
             status: "pending",
           },
@@ -370,5 +381,118 @@ describe("app actions", () => {
       ["rejected", "admin-profile-1", "Needs guardian details.", "request-2", "church-1"],
     );
     expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(3);
+  });
+
+  describe("emergency contact consent validation", () => {
+    it("should throw an error in updateChurchAdminPersonAction if emergency contact is filled but consent is not verified", async () => {
+      await expect(
+        updateChurchAdminPersonAction({
+          profileId: "profile-2",
+          fullName: "Miriam Lane",
+          phone: "555-0102",
+          address: "22 Harbor Way",
+          displayTitle: "Pastor of Care",
+          role: "pastor",
+          membershipStatus: "active",
+          preferredContactMethod: "email",
+          emergencyContactName: "Jon Lane",
+          emergencyContactPhone: "555-0199",
+          directoryVisible: true,
+          contactAllowed: true,
+          // emergencyContactConsentVerified is omitted/false
+        })
+      ).rejects.toThrow("Consent verification is required to save emergency contact details.");
+    });
+
+    it("should throw an error in updateMemberProfileAction if emergency contact is filled but consent is not verified", async () => {
+      await expect(
+        updateMemberProfileAction({
+          fullName: "Ada Lovelace",
+          phone: "555-0100",
+          address: "123 Main",
+          preferredContactMethod: "email",
+          interests: ["hospitality"],
+          emergencyContactName: "Grace Hopper",
+          emergencyContactPhone: "555-0101",
+          directoryVisible: true,
+          contactAllowed: true,
+          // emergencyContactConsentVerified is omitted/false
+        })
+      ).rejects.toThrow("Consent verification is required to save emergency contact details.");
+    });
+  });
+
+  describe("acknowledgeBurnoutAlertAction", () => {
+    const mockSession = {
+      source: "supabase",
+      userId: "pastor-1",
+      profile: { id: "profile-pastor-1" },
+      appContext: {
+        church: { id: "church-1" },
+        roleId: "pastor",
+      },
+    };
+
+    beforeEach(() => {
+      requireChurchSessionMock.mockResolvedValue(mockSession);
+      hasTenantBackendEnvMock.mockReturnValue(true);
+    });
+
+    it("should throw error if alertId is empty", async () => {
+      await expect(
+        acknowledgeBurnoutAlertAction({ alertId: "   " })
+      ).rejects.toThrow("Alert is required.");
+    });
+
+    it("should update alert and log audit event using local DB fallback", async () => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(true);
+      queryTenantLocalDbMock.mockResolvedValue({ rows: [] });
+
+      await acknowledgeBurnoutAlertAction({ alertId: "alert-123" });
+
+      expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+        expect.stringContaining("update public.burnout_alerts set acknowledged = true"),
+        ["alert-123", "church-1"]
+      );
+
+      expect(logAuditEventMock).toHaveBeenCalledWith({
+        tableName: "burnout_alerts",
+        recordId: "alert-123",
+        operation: "UPDATE",
+        actorId: "profile-pastor-1",
+        churchId: "church-1",
+        actorRole: "pastor",
+        newValues: { acknowledged: true },
+      });
+    });
+
+    it("should update alert and log audit event using Supabase client", async () => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+      const eqMock2 = vi.fn().mockResolvedValue({ error: null });
+      const eqMock1 = vi.fn().mockReturnValue({ eq: eqMock2 });
+      const updateMock = vi.fn().mockReturnValue({ eq: eqMock1 });
+      const fromMock = vi.fn().mockReturnValue({ update: updateMock });
+
+      createTenantServerClientMock.mockResolvedValue({
+        from: fromMock,
+      });
+
+      await acknowledgeBurnoutAlertAction({ alertId: "alert-456" });
+
+      expect(fromMock).toHaveBeenCalledWith("burnout_alerts");
+      expect(updateMock).toHaveBeenCalledWith({ acknowledged: true });
+      expect(eqMock1).toHaveBeenCalledWith("id", "alert-456");
+      expect(eqMock2).toHaveBeenCalledWith("church_id", "church-1");
+
+      expect(logAuditEventMock).toHaveBeenCalledWith({
+        tableName: "burnout_alerts",
+        recordId: "alert-456",
+        operation: "UPDATE",
+        actorId: "profile-pastor-1",
+        churchId: "church-1",
+        actorRole: "pastor",
+        newValues: { acknowledged: true },
+      });
+    });
   });
 });

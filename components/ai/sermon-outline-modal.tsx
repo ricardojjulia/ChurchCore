@@ -13,6 +13,7 @@ import {
 } from "@mantine/core";
 
 import { AI_RESPONSE_FOOTER } from "@/lib/ai-ministry/ui-constants";
+import { ELDER_AI_DISCLAIMER } from "@/lib/elders-types";
 
 export function SermonOutlineModal({
   opened,
@@ -89,8 +90,10 @@ export function SermonOutlineModal({
                 {outline}
               </Text>
             </ScrollArea>
-            <Text fz="xs" c="dimmed" fs="italic" mt="xs">
+            <Text fz="xs" c="dimmed" fs="italic" mt="xs" className="ai-disclaimer-badge" style={{ whiteSpace: "pre-wrap" }}>
               {AI_RESPONSE_FOOTER}
+              {"\n\n"}
+              {ELDER_AI_DISCLAIMER}
             </Text>
           </Stack>
         ) : null}

@@ -4,15 +4,19 @@ const {
   revalidatePathMock,
   requireChurchSessionMock,
   createTenantServerClientMock,
+  createTenantAdminClientMock,
   queryTenantLocalDbMock,
   shouldUseLocalTenantFallbackMock,
   supabaseFromMock,
   supabaseInsertMock,
+  supabaseBuilderMock,
+  logAuditEventMock,
 } = vi.hoisted(() => {
   const revalidatePath = vi.fn();
   const requireChurchSession = vi.fn();
   const queryTenantLocalDb = vi.fn();
   const shouldUseLocalTenantFallback = vi.fn();
+  const logAuditEvent = vi.fn();
 
   const supabaseInsert = vi.fn();
   const supabaseFrom = vi.fn(() => ({
@@ -22,14 +26,45 @@ const {
     from: supabaseFrom,
   }));
 
+  const supabaseMaybeSingle = vi.fn();
+  const supabaseSingle = vi.fn();
+  const supabaseOrder = vi.fn();
+  const supabaseGte = vi.fn();
+  const supabaseUpdate = vi.fn();
+  const supabaseEq = vi.fn();
+  const supabaseSelect = vi.fn();
+
+  const supabaseBuilder = {
+    select: supabaseSelect,
+    update: supabaseUpdate,
+    eq: supabaseEq,
+    gte: supabaseGte,
+    order: supabaseOrder,
+    single: supabaseSingle,
+    maybeSingle: supabaseMaybeSingle,
+  };
+
+  supabaseSelect.mockReturnValue(supabaseBuilder);
+  supabaseUpdate.mockReturnValue(supabaseBuilder);
+  supabaseEq.mockReturnValue(supabaseBuilder);
+  supabaseGte.mockReturnValue(supabaseBuilder);
+  supabaseOrder.mockReturnValue(supabaseBuilder);
+
+  const createTenantAdminClient = vi.fn(() => ({
+    from: vi.fn(() => supabaseBuilder),
+  }));
+
   return {
     revalidatePathMock: revalidatePath,
     requireChurchSessionMock: requireChurchSession,
     createTenantServerClientMock: createTenantServerClient,
+    createTenantAdminClientMock: createTenantAdminClient,
     queryTenantLocalDbMock: queryTenantLocalDb,
     shouldUseLocalTenantFallbackMock: shouldUseLocalTenantFallback,
     supabaseFromMock: supabaseFrom,
     supabaseInsertMock: supabaseInsert,
+    supabaseBuilderMock: supabaseBuilder,
+    logAuditEventMock: logAuditEvent,
   };
 });
 
@@ -43,8 +78,13 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/supabase/tenant", () => ({
   createTenantServerClient: createTenantServerClientMock,
+  createTenantAdminClient: createTenantAdminClientMock,
   queryTenantLocalDb: queryTenantLocalDbMock,
   shouldUseLocalTenantFallback: shouldUseLocalTenantFallbackMock,
+}));
+
+vi.mock("@/lib/actions/audit", () => ({
+  logAuditEvent: logAuditEventMock,
 }));
 
 import {
@@ -56,6 +96,9 @@ import {
   saveServicePlanTemplateAction,
   sendVolunteerReminderAction,
   updateServicePlanDetailsAction,
+  getPublicVolunteerShiftByToken,
+  getPublicVolunteerScheduleByToken,
+  respondToPublicShiftAction,
 } from "@/app/app/volunteer-actions";
 
 describe("volunteer actions", () => {
@@ -141,8 +184,9 @@ describe("volunteer actions", () => {
 
   it("returns conflict when volunteer already assigned on same date", async () => {
     queryTenantLocalDbMock
-      .mockResolvedValueOnce({ rows: [{ event_id: "event-1" }] })
-      .mockResolvedValueOnce({ rows: [{ id: "existing-shift" }] });
+      .mockResolvedValueOnce({ rows: [{ count: 0 }] }) // Burnout query
+      .mockResolvedValueOnce({ rows: [{ event_id: "event-1" }] }) // Event query
+      .mockResolvedValueOnce({ rows: [{ id: "existing-shift" }] }); // Conflict query
 
     const result = await assignVolunteerAction({
       planId: "plan-1",
@@ -161,9 +205,10 @@ describe("volunteer actions", () => {
 
   it("writes linked event id when assigning a volunteer", async () => {
     queryTenantLocalDbMock
-      .mockResolvedValueOnce({ rows: [{ event_id: "event-9" }] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [{ count: 0 }] }) // Burnout query
+      .mockResolvedValueOnce({ rows: [{ event_id: "event-9" }] }) // Event query
+      .mockResolvedValueOnce({ rows: [] }) // Conflict query
+      .mockResolvedValueOnce({ rows: [] }); // Insert query
 
     const result = await assignVolunteerAction({
       planId: "plan-1",
@@ -206,7 +251,14 @@ describe("volunteer actions", () => {
   it("logs reminder audit records for pending assignments", async () => {
     queryTenantLocalDbMock
       .mockResolvedValueOnce({
-        rows: [{ assigned_user_id: "member-2", confirmation_status: "pending" }],
+        rows: [{
+          assigned_user_id: "member-2",
+          confirmation_status: "pending",
+          confirmation_token: "mock-token-123",
+          confirmation_token_expires_at: new Date(
+            Date.now() + 14 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+        }],
       })
       .mockResolvedValueOnce({ rows: [{ sent_at: "2026-05-01T15:00:00.000Z" }] });
 
@@ -229,7 +281,7 @@ describe("volunteer actions", () => {
         "shift-1",
         "member-2",
         "email",
-        "Please confirm by Thursday.",
+        "Please confirm by Thursday.\n\nConfirm here: http://localhost:3000/portal/volunteer/confirm/mock-token-123",
         "admin-1",
       ],
     );
@@ -546,6 +598,104 @@ describe("volunteer actions", () => {
 
       expect(result).toEqual({ ok: false, error: "orderedIds must be a non-empty array." });
       expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Public Sessional Confirmations", () => {
+    beforeEach(() => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+      vi.clearAllMocks();
+    });
+
+    it("getPublicVolunteerShiftByToken returns null if token is empty", async () => {
+      const result = await getPublicVolunteerShiftByToken("");
+      expect(result).toBeNull();
+    });
+
+    it("getPublicVolunteerShiftByToken returns shift if valid and unexpired", async () => {
+      const mockShift = {
+        id: "shift-123",
+        title: "Worship Leader",
+        confirmation_status: "pending",
+        confirmation_token_expires_at: new Date(Date.now() + 100000).toISOString(),
+        church_id: "church-1",
+        assigned_user_id: "user-456",
+      };
+
+      supabaseBuilderMock.maybeSingle.mockResolvedValueOnce({ data: mockShift, error: null });
+
+      const result = await getPublicVolunteerShiftByToken("valid-token");
+      expect(result).toEqual(mockShift);
+      expect(createTenantAdminClientMock).toHaveBeenCalled();
+    });
+
+    it("getPublicVolunteerShiftByToken returns null if expired", async () => {
+      const mockShift = {
+        id: "shift-123",
+        title: "Worship Leader",
+        confirmation_status: "pending",
+        confirmation_token_expires_at: new Date(Date.now() - 100000).toISOString(),
+        church_id: "church-1",
+        assigned_user_id: "user-456",
+      };
+
+      supabaseBuilderMock.maybeSingle.mockResolvedValueOnce({ data: mockShift, error: null });
+
+      const result = await getPublicVolunteerShiftByToken("expired-token");
+      expect(result).toBeNull();
+    });
+
+    it("getPublicVolunteerScheduleByToken returns empty if invalid token", async () => {
+      supabaseBuilderMock.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+
+      const result = await getPublicVolunteerScheduleByToken("invalid-token");
+      expect(result).toEqual([]);
+    });
+
+    it("getPublicVolunteerScheduleByToken returns shifts on success", async () => {
+      const mockShift = {
+        id: "shift-123",
+        title: "Worship Leader",
+        confirmation_status: "pending",
+        confirmation_token_expires_at: new Date(Date.now() + 100000).toISOString(),
+        church_id: "church-1",
+        assigned_user_id: "user-456",
+      };
+
+      const mockSchedule = [
+        { id: "shift-123", title: "Worship Leader", starts_at: "2026-07-21" },
+        { id: "shift-789", title: "Guitarist", starts_at: "2026-07-28" },
+      ];
+
+      supabaseBuilderMock.maybeSingle.mockResolvedValueOnce({ data: mockShift, error: null });
+      supabaseBuilderMock.order.mockResolvedValueOnce({ data: mockSchedule, error: null });
+
+      const result = await getPublicVolunteerScheduleByToken("valid-token");
+      expect(result).toEqual(mockSchedule);
+    });
+
+    it("respondToPublicShiftAction validates token and updates shift status", async () => {
+      const mockShift = {
+        id: "shift-123",
+        title: "Worship Leader",
+        confirmation_status: "pending",
+        confirmation_token_expires_at: new Date(Date.now() + 100000).toISOString(),
+        church_id: "church-1",
+        assigned_user_id: "user-456",
+      };
+
+      supabaseBuilderMock.maybeSingle.mockResolvedValueOnce({ data: mockShift, error: null });
+      supabaseBuilderMock.eq.mockReturnValueOnce(supabaseBuilderMock);
+      supabaseBuilderMock.maybeSingle.mockResolvedValueOnce({ error: null }); // For update call
+
+      const result = await respondToPublicShiftAction("valid-token", "confirmed");
+      expect(result).toEqual({ ok: true });
+      expect(logAuditEventMock).toHaveBeenCalledWith(expect.objectContaining({
+        tableName: "volunteer_shifts",
+        recordId: "shift-123",
+        operation: "UPDATE",
+        actorRole: "anonymous_volunteer",
+      }));
     });
   });
 });

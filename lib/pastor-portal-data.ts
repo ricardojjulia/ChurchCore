@@ -2,6 +2,7 @@ import "server-only";
 
 import type { ChurchAppSession } from "@/lib/auth";
 import { decryptPastoralField } from "@/lib/crypto/pastoral";
+import { logAuditEvent } from "@/lib/actions/audit";
 import {
   createTenantServerClient,
   hasTenantBackendEnv,
@@ -302,6 +303,24 @@ export async function getPastorPortalData(
         })),
     );
 
+    const uniqueProfileIds = Array.from(
+      new Set(pastoralNotesResult.rows.map((row) => row.profile_id).filter(Boolean)),
+    );
+    if (uniqueProfileIds.length > 0 && profile?.id) {
+      await Promise.all(
+        uniqueProfileIds.map((targetId) =>
+          logAuditEvent({
+            tableName: "pastoral_notes",
+            recordId: targetId,
+            operation: "READ_PASTORAL",
+            actorId: profile.id,
+            churchId: session.appContext.church.id,
+            actorRole: session.appContext.roleId,
+          }).catch((err) => console.error("Failed to log read audit event:", err))
+        )
+      );
+    }
+
     return {
       profile: profile
         ? {
@@ -472,6 +491,24 @@ export async function getPastorPortalData(
         lastAttendance: person.last_attendance,
       })),
   );
+
+  const uniqueProfileIds = Array.from(
+    new Set((pastoralNotesQuery ?? []).map((row) => row.profile_id).filter(Boolean)),
+  );
+  if (uniqueProfileIds.length > 0 && profile?.id) {
+    await Promise.all(
+      uniqueProfileIds.map((targetId) =>
+        logAuditEvent({
+          tableName: "pastoral_notes",
+          recordId: targetId,
+          operation: "READ_PASTORAL",
+          actorId: profile.id,
+          churchId: session.appContext.church.id,
+          actorRole: session.appContext.roleId,
+        }).catch((err) => console.error("Failed to log read audit event:", err))
+      )
+    );
+  }
 
   return {
     profile: profile

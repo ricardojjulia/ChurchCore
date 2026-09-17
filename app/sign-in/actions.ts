@@ -140,7 +140,9 @@ export async function signInAction(formData: FormData) {
   redirect(redirectTo);
 }
 
-export async function signOutAction() {
+export async function signOutAction(redirectToInput?: string | FormData) {
+  const redirectTo = typeof redirectToInput === "string" ? redirectToInput : "/sign-in";
+
   if (hasTenantSupabaseEnv()) {
     const supabase = await createSupabaseServerClient("tenant");
     await supabase.auth.signOut();
@@ -156,5 +158,5 @@ export async function signOutAction() {
   await clearAppContextSelection();
 
   revalidatePath("/", "layout");
-  redirect("/sign-in");
+  redirect(redirectTo);
 }
