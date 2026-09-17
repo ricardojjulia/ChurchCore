@@ -111,6 +111,10 @@ function renderBoard(
 describe("CalendarLiveBoard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The component initialises currentDate with new Date(), and event
+    // fixtures below are pinned to 2026-06-07 — pin the clock to that same
+    // day so both "current week" and "current month" resolution stay
+    // aligned with those fixtures regardless of when the suite actually runs.
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-07T12:00:00Z"));
   });
@@ -124,10 +128,8 @@ describe("CalendarLiveBoard", () => {
   // -------------------------------------------------------------------------
 
   it('period label renders "June 2026" in month view when currentDate is in June 2026', () => {
-    // The component initialises currentDate with new Date(). We rely on the fact
-    // that getPeriodLabel is tested independently; here we just verify the element
-    // shows the correct label for the real current date (June 2026 per env).
-    // To make this deterministic we can verify the label element exists and has
+    // The component initialises currentDate with new Date(), pinned above to
+    // mid-June 2026 — verify the element shows the correct label and carries
     // aria-live="polite" — the exact string is covered in calendar-utils tests.
     renderBoard({ viewMode: "month" });
 
