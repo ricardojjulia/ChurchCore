@@ -393,14 +393,28 @@ export function DemoFeedbackWorkspace({
                   value={formatDuration(drawerRow.session_duration_seconds)}
                 />
                 <DrawerField label="Hit count" value={String(drawerRow.hit_count)} />
-                {drawerRow.breadcrumbs?.length ? (
-                  <Stack gap={2}>
-                    <Text size="xs" fw={700} tt="uppercase" c="dimmed">Breadcrumbs</Text>
-                    {(drawerRow.breadcrumbs as string[]).map((b, i) => (
-                      <Text key={i} size="xs" c="dimmed">{b}</Text>
-                    ))}
-                  </Stack>
-                ) : null}
+                {(() => {
+                  const bcList = Array.isArray(drawerRow.breadcrumbs)
+                    ? drawerRow.breadcrumbs
+                    : typeof drawerRow.breadcrumbs === "string"
+                    ? (() => {
+                        try {
+                          const parsed = JSON.parse(drawerRow.breadcrumbs);
+                          return Array.isArray(parsed) ? parsed : [];
+                        } catch {
+                          return [];
+                        }
+                      })()
+                    : [];
+                  return bcList.length > 0 ? (
+                    <Stack gap={2}>
+                      <Text size="xs" fw={700} tt="uppercase" c="dimmed">Breadcrumbs</Text>
+                      {(bcList as string[]).map((b, i) => (
+                        <Text key={i} size="xs" c="dimmed">{b}</Text>
+                      ))}
+                    </Stack>
+                  ) : null;
+                })()}
               </Stack>
             </Paper>
 

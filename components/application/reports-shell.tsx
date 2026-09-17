@@ -8,6 +8,7 @@ import {
   LayoutGrid,
   TrendingUp,
   UsersRound,
+  FileSpreadsheet,
 } from "lucide-react";
 
 import { ApplicationShell } from "@/components/application/app-shell";
@@ -26,13 +27,20 @@ export function ReportsShell({
   description,
   activePath,
   range,
+  hideRangeSelector = false,
   children,
 }: {
   session: ChurchAppSession;
   title: string;
   description: string;
-  activePath: "/app/reports" | "/app/reports/members" | "/app/reports/events" | "/app/reports/giving";
+  activePath:
+    | "/app/reports"
+    | "/app/reports/members"
+    | "/app/reports/events"
+    | "/app/reports/giving"
+    | "/app/reports/custom";
   range: ReportTimeRange;
+  hideRangeSelector?: boolean;
   children: React.ReactNode;
 }) {
   const workspaceHref =
@@ -78,24 +86,33 @@ export function ReportsShell({
           icon: BarChart2,
           active: activePath === "/app/reports/giving",
         },
+        {
+          href: "/app/reports/custom",
+          label: "Custom Exports",
+          description: "Download CSV sheets",
+          icon: FileSpreadsheet,
+          active: activePath === "/app/reports/custom",
+        },
       ]}
       topActions={
-        <Group gap="xs">
-          {RANGE_OPTIONS.map((option) => (
-            <Button
-              key={option.value}
-              component={Link}
-              href={`${activePath}?range=${option.value}`}
-              variant={range === option.value ? "filled" : "light"}
-              color={range === option.value ? "churchBlue" : "gray"}
-              radius="xl"
-              size="xs"
-              leftSection={<TrendingUp size={13} />}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </Group>
+        hideRangeSelector ? null : (
+          <Group gap="xs">
+            {RANGE_OPTIONS.map((option) => (
+              <Button
+                key={option.value}
+                component={Link}
+                href={`${activePath}?range=${option.value}`}
+                variant={range === option.value ? "filled" : "light"}
+                color={range === option.value ? "churchBlue" : "gray"}
+                radius="xl"
+                size="xs"
+                leftSection={<TrendingUp size={13} />}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </Group>
+        )
       }
     >
       {children}

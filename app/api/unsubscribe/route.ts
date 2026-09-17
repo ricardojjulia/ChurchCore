@@ -1,8 +1,17 @@
 import { NextRequest } from "next/server";
 
 import { verifyUnsubscribeToken } from "@/lib/communications/unsubscribe";
+import { isRateLimited } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest): Promise<Response> {
+  const ip = (request as { ip?: string }).ip || request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
+  if (isRateLimited(`unsubscribe:${ip}`, 15, 60000)) {
+    return new Response("Too Many Requests", {
+      status: 429,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+
   const { searchParams } = request.nextUrl;
   const params = {
     t: searchParams.get("t") ?? "",

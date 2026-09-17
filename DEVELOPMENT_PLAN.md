@@ -1,7 +1,7 @@
 # ChurchCore Development Plan
 
-**Living Document** - Last Updated: May 26, 2026
-**Version**: 2.0
+**Living Document** - Last Updated: September 17, 2026
+**Version**: 2.1
 **Purpose**: This is the single source of truth for all ChurchCore development. Every GitHub Issue, PR, sprint, and code review must reference this document. Update only via PR.
 
 Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual.md) summarizes the strategy, roadmap, boundary model, and Sprint 1 flow as diagrams. This document remains the source of truth.
@@ -277,4 +277,13 @@ The control-plane / tenant split is fully live:
 - The shared-project fallback has been removed from `lib/supabase/config.ts`.
 - Migration `20260425010000_drop_control_plane_tables_from_tenant.sql` has been applied to the tenant project to drop the vestigial registry tables.
 
-**Next Sprint**: Sprint 2 — Admin Dashboard and Church Setup — is now unblocked.
+## Current Status (2026-09-17)
+
+This plan's sprint table above (§8) describes the original roadmap shape, not current delivery — actual work has run far past a linear Sprint 1→7 sequence via the Council Review protocol (`improve-software.md`, `docs/reviews/`). Treat the sprint table as historical framing, and this section as the accurate snapshot:
+
+- **Shipped and merged to `main`**: control-plane/tenant split (ADR 0002), localization governance framework (CC-L10N-001/002), Church Operations module, Communications send lifecycle, first AI Ministry Tools integration (CC-AI-001, Claude-powered sermon planning + Bible study Q&A), calendar overhaul, demo feedback hardening.
+- **Landed via Council Review 9** (this pass): ~3 months of previously-unmerged work — Project HQ governance dashboard, security/audit hardening (Council Reviews 2–7: consent-log immutability, pastoral-note encryption, audit logging, session timeout, CSV import limits, DB health checks), volunteer sessional confirmation system, sandbox onboarding wizard, hardened CSV import mapping, volunteer burnout/vitality analytics, custom report builder, and platform-admin tenant CRUD + data erasure (hardened per ADR 0021 as part of this round).
+- **MVP readiness**: 65/100 per Council Review 9's feature/competitive audit (`docs/reviews/2026-09-17-council-review-9-agent-4-feature-competitive.md`). Phase A (controlled single-church pilot) is GO. Phase B–D (broader evaluator, compliance-first, mid-market) are NO-GO pending service planning, phone-first mobile UX, recurring giving, incumbent migration tooling, and — the binding constraint — at least one real church completing onboarding uncoached. See `docs/plans/mvp-competitive-go-no-go-checklist.md`.
+- **Process change**: the Council now runs before every non-trivial merge to `main`, with a 5th agent (Documenter) responsible for keeping this file, `CHANGELOG.md`, and memory in sync after each round — see `improve-software.md` §0 and `AGENTS.md`. This section exists because that step was missing for Council Reviews 1–8.
+
+**Next**: prioritize the Phase B blockers identified above; do not restart Sprint 2–7 framing from scratch — most of that scope has already shipped under different names via the Council process.

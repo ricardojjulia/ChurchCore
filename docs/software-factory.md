@@ -8,10 +8,11 @@
 
 The software factory is a small set of repository files that turns AI-assisted development into a repeatable workflow. It keeps ChurchCore work aligned with `DEVELOPMENT_PLAN.md`, ADRs, tenant boundaries, role access, sensitive-data rules, tests, and release discipline.
 
-The factory has two compatible surfaces:
+The software factory has three compatible surfaces:
 
 - **Claude Code:** `.claude/agents/`, `.claude/skills/`, `.claude/hooks/`, and `.claude/settings.example.json`
 - **Codex:** `.codex/skills/` plus the shared rules in `AGENTS.md`
+- **Gemini (Antigravity):** `.gemini/skills/` plus the shared rules in `AGENTS.md` and native Planning Mode integration
 
 Both surfaces follow the same chain:
 
@@ -39,7 +40,7 @@ Factory runs are tracked in [docs/factory-runs](factory-runs/). Add or update a 
 | Path | Used by | Purpose |
 | --- | --- | --- |
 | `CLAUDE.md` | Claude Code | Project entrypoint. Delegates to `AGENTS.md`. |
-| `AGENTS.md` | Claude Code and Codex | Shared project rules, source-of-truth docs, verification expectations, and Codex skill pointers. |
+| `AGENTS.md` | Claude Code, Codex, and Gemini | Shared project rules, source-of-truth docs, verification expectations, and skill pointers. |
 | `.claude/agents/*.md` | Claude Code | Focused project agents: researcher, story writer, spec writer, backend builder, frontend builder, test verifier, validator, PR reviewer. |
 | `.claude/skills/build-with-tests/SKILL.md` | Claude Code | Implementation workflow and verification rules. |
 | `.claude/skills/feature-factory/SKILL.md` | Claude Code | Orchestrates the full feature chain. |
@@ -49,6 +50,10 @@ Factory runs are tracked in [docs/factory-runs](factory-runs/). Add or update a 
 | `.codex/skills/churchcore-build-with-tests/SKILL.md` | Codex | Codex-compatible implementation workflow. |
 | `.codex/skills/churchcore-pr-review/SKILL.md` | Codex | Codex-compatible PR/diff review checklist. |
 | `.codex/skills/churchcore-feature-factory/references/agent-roles.md` | Codex | Role contracts that mirror Claude agents. |
+| `.gemini/skills/gemini-feature-factory/SKILL.md` | Gemini | Gemini-compatible feature workflow integrating Planning Mode. |
+| `.gemini/skills/gemini-build-with-tests/SKILL.md` | Gemini | Gemini-compatible implementation workflow. |
+| `.gemini/skills/gemini-pr-review/SKILL.md` | Gemini | Gemini-compatible PR/diff review checklist. |
+| `.gemini/skills/gemini-feature-factory/references/agent-roles.md` | Gemini | Role contracts for Gemini software factory phases. |
 
 ## Claude Code How-To
 
@@ -225,6 +230,23 @@ npm run lint
 npm run build
 ```
 
+## Gemini How-To
+
+Use Gemini (Antigravity) when working with native Planning Mode, where implementation plans (`implementation_plan.md`), task lists (`task.md`), and validation records (`walkthrough.md`) are integrated into the workflow.
+
+### Preferred Gemini Workflow
+
+```text
+Use the gemini-feature-factory skill for <feature>.
+Start with research, use Planning Mode to formulate the plan, request feedback, obtain approval, implement sequentially tracking progress in task.md, verify with tests/lint/build, and record findings in walkthrough.md.
+```
+
+Expected sequence:
+1. **Explore:** Read `AGENTS.md`, `DEVELOPMENT_PLAN.md`, and relevant ADRs. Explore code using `grep_search` and `list_dir`.
+2. **Plan:** Write/update the `implementation_plan.md` artifact. Set `request_feedback = true` and wait for the user to explicitly approve before writing any code.
+3. **Execute:** Implement the feature in vertical slices. Track TODOs in `task.md` (`[ ]`, `[/]`, `[x]`).
+4. **Verify & document:** Run tests, `npm run lint`, and `npm run build`. Document implementation details, testing results, and remaining risks in `walkthrough.md`.
+
 ## Diagrams
 
 The canonical visual references are:
@@ -243,4 +265,4 @@ Mermaid source is also included in [docs/diagrams.md](diagrams.md).
 - Keep features as coherent vertical slices.
 - Update docs and changelog for meaningful changes.
 - Do not claim success without verification evidence.
-- Keep Claude and Codex workflow files aligned when changing factory behavior.
+- Keep Claude, Codex, and Gemini workflow files aligned when changing factory behavior.

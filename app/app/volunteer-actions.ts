@@ -1,10 +1,14 @@
 "use server";
 
+import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
+import { logAuditEvent } from "@/lib/actions/audit";
+import { checkVolunteerBurnout } from "@/lib/burnout-calculator";
 import {
   createTenantServerClient,
+  createTenantAdminClient,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
@@ -492,9 +496,19 @@ export async function assignVolunteerAction(input: {
   roleName: string;
   startsAt: string;
   endsAt: string;
+  bypassBurnout?: boolean;
 }): Promise<{ ok: boolean; error?: string }> {
   const session = await requireAdminSession();
   const churchId = session.appContext.church.id;
+
+  // Burnout check
+  if (!input.bypassBurnout) {
+    const burnoutResult = await checkVolunteerBurnout(churchId, input.profileId, input.startsAt);
+    if (burnoutResult.isBurnedOut) {
+      return { ok: false, error: `BURNOUT_WARNING: ${burnoutResult.reason}` };
+    }
+  }
+
   let linkedEventId: string | null = null;
 
   // Conflict check: is this volunteer already assigned on the same day?
@@ -535,6 +549,23 @@ export async function assignVolunteerAction(input: {
         input.endsAt,
       ],
     );
+
+    if (input.bypassBurnout) {
+      try {
+        await logAuditEvent({
+          tableName: "volunteer_shifts",
+          recordId: input.profileId,
+          operation: "UPDATE",
+          actorId: session.profile.id,
+          churchId,
+          actorRole: session.appContext.roleId,
+          newValues: { burnout_bypass: true, roleName: input.roleName },
+        });
+      } catch (auditError) {
+        console.error("Failed to log burnout bypass audit event (local fallback):", auditError);
+      }
+    }
+
     revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
     return { ok: true };
   }
@@ -563,6 +594,23 @@ export async function assignVolunteerAction(input: {
     status: "assigned", confirmation_status: "pending",
   });
   if (error) return { ok: false, error: error.message };
+
+  if (input.bypassBurnout) {
+    try {
+      await logAuditEvent({
+        tableName: "volunteer_shifts",
+        recordId: input.profileId,
+        operation: "UPDATE",
+        actorId: session.profile.id,
+        churchId,
+        actorRole: session.appContext.roleId,
+        newValues: { burnout_bypass: true, roleName: input.roleName },
+      });
+    } catch (auditError) {
+      console.error("Failed to log burnout bypass audit event:", auditError);
+    }
+  }
+
   revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
   return { ok: true };
 }
@@ -652,8 +700,10 @@ export async function sendVolunteerReminderAction(input: {
     const shiftResult = await queryTenantLocalDb<{
       assigned_user_id: string | null;
       confirmation_status: string;
+      confirmation_token: string | null;
+      confirmation_token_expires_at: string | null;
     }>(
-      `select assigned_user_id, confirmation_status
+      `select assigned_user_id, confirmation_status, confirmation_token, confirmation_token_expires_at
        from public.volunteer_shifts
        where id = $1 and church_id = $2 and plan_id = $3
        limit 1`,
@@ -671,12 +721,37 @@ export async function sendVolunteerReminderAction(input: {
       return { ok: false, error: "Only pending volunteer responses can be reminded." };
     }
 
+    let token = shift.confirmation_token;
+    const expiresAt = shift.confirmation_token_expires_at ? new Date(shift.confirmation_token_expires_at) : null;
+    const now = new Date();
+
+    if (!token || !expiresAt || expiresAt < now) {
+      token = crypto.randomBytes(16).toString("hex");
+      const newExpiresAt = new Date();
+      newExpiresAt.setDate(newExpiresAt.getDate() + 14);
+
+      await queryTenantLocalDb(
+        `update public.volunteer_shifts
+         set confirmation_token = $3,
+             confirmation_token_expires_at = $4
+         where id = $1 and church_id = $2`,
+        [input.shiftId, churchId, token, newExpiresAt.toISOString()],
+      );
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const confirmUrl = `${appUrl}/portal/volunteer/confirm/${token}`;
+    const originalNote = input.note?.trim() || "";
+    const finalNote = originalNote
+      ? `${originalNote}\n\nConfirm here: ${confirmUrl}`
+      : `Please confirm your volunteer assignment here: ${confirmUrl}`;
+
     const reminderResult = await queryTenantLocalDb<{ sent_at: string }>(
       `insert into public.volunteer_shift_reminders
          (church_id, shift_id, reminded_profile_id, reminder_channel, reminder_note, sent_by)
        values ($1, $2, $3, $4, $5, $6)
        returning sent_at::text`,
-      [churchId, input.shiftId, shift.assigned_user_id, channel, input.note?.trim() || null, sentBy],
+      [churchId, input.shiftId, shift.assigned_user_id, channel, finalNote, sentBy],
     );
 
     revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
@@ -687,7 +762,7 @@ export async function sendVolunteerReminderAction(input: {
   const supabase = await createTenantServerClient();
   const { data: shift, error: shiftError } = await supabase
     .from("volunteer_shifts")
-    .select("assigned_user_id, confirmation_status")
+    .select("assigned_user_id, confirmation_status, confirmation_token, confirmation_token_expires_at")
     .eq("id", input.shiftId)
     .eq("church_id", churchId)
     .eq("plan_id", input.planId)
@@ -703,6 +778,35 @@ export async function sendVolunteerReminderAction(input: {
     return { ok: false, error: "Only pending volunteer responses can be reminded." };
   }
 
+  let token = shift.confirmation_token;
+  const expiresAt = shift.confirmation_token_expires_at ? new Date(shift.confirmation_token_expires_at) : null;
+  const now = new Date();
+
+  if (!token || !expiresAt || expiresAt < now) {
+    token = crypto.randomBytes(16).toString("hex");
+    const newExpiresAt = new Date();
+    newExpiresAt.setDate(newExpiresAt.getDate() + 14);
+
+    const { error: updateError } = await supabase
+      .from("volunteer_shifts")
+      .update({
+        confirmation_token: token,
+        confirmation_token_expires_at: newExpiresAt.toISOString(),
+      })
+      .eq("id", input.shiftId);
+
+    if (updateError) {
+      return { ok: false, error: `Failed to generate token: ${updateError.message}` };
+    }
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const confirmUrl = `${appUrl}/portal/volunteer/confirm/${token}`;
+  const originalNote = input.note?.trim() || "";
+  const finalNote = originalNote
+    ? `${originalNote}\n\nConfirm here: ${confirmUrl}`
+    : `Please confirm your volunteer assignment here: ${confirmUrl}`;
+
   const { data: reminder, error } = await supabase
     .from("volunteer_shift_reminders")
     .insert({
@@ -710,7 +814,7 @@ export async function sendVolunteerReminderAction(input: {
       shift_id: input.shiftId,
       reminded_profile_id: shift.assigned_user_id,
       reminder_channel: channel,
-      reminder_note: input.note?.trim() || null,
+      reminder_note: finalNote,
       sent_by: sentBy,
     })
     .select("sent_at")
@@ -783,5 +887,153 @@ export async function saveServicePlanTemplateAction(input: {
   });
   if (error) return { ok: false, error: error.message };
   revalidatePath(SCHEDULES_PATH);
+  return { ok: true };
+}
+
+// ── Public Sessional Confirmation Getters & Actions ──────────
+
+export async function getPublicVolunteerShiftByToken(token: string) {
+  if (!token) return null;
+
+  const supabase = createTenantAdminClient();
+  const { data: shift, error } = await supabase
+    .from("volunteer_shifts")
+    .select(`
+      id,
+      title,
+      confirmation_status,
+      confirmation_token_expires_at,
+      decline_reason,
+      church_id,
+      assigned_user_id,
+      event_id,
+      plan_id,
+      events (
+        title,
+        description,
+        start,
+        "end",
+        category
+      ),
+      service_plans (
+        name,
+        service_date,
+        service_time
+      )
+    `)
+    .eq("confirmation_token", token)
+    .maybeSingle();
+
+  if (error || !shift) {
+    return null;
+  }
+
+  const expiresAt = shift.confirmation_token_expires_at ? new Date(shift.confirmation_token_expires_at) : null;
+  if (!expiresAt || expiresAt < new Date()) {
+    return null;
+  }
+
+  return shift;
+}
+
+export async function getPublicVolunteerScheduleByToken(token: string) {
+  if (!token) return [];
+
+  const initialShift = await getPublicVolunteerShiftByToken(token);
+  if (!initialShift) return [];
+
+  const profileId = initialShift.assigned_user_id;
+  const churchId = initialShift.church_id;
+
+  const supabase = createTenantAdminClient();
+  const { data: shifts, error } = await supabase
+    .from("volunteer_shifts")
+    .select(`
+      id,
+      title,
+      confirmation_status,
+      confirmation_token_expires_at,
+      decline_reason,
+      starts_at,
+      ends_at,
+      events (
+        title,
+        description,
+        start,
+        "end",
+        category
+      ),
+      service_plans (
+        name,
+        service_date,
+        service_time
+      )
+    `)
+    .eq("assigned_user_id", profileId)
+    .eq("church_id", churchId)
+    .gte("starts_at", new Date().toISOString())
+    .order("starts_at", { ascending: true });
+
+  if (error) {
+    return [];
+  }
+
+  return shifts;
+}
+
+export async function respondToPublicShiftAction(
+  token: string,
+  response: "confirmed" | "declined",
+  reason?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!token) {
+    return { ok: false, error: "Token is required." };
+  }
+
+  const shift = await getPublicVolunteerShiftByToken(token);
+  if (!shift) {
+    return { ok: false, error: "Invalid or expired token." };
+  }
+
+  const supabase = createTenantAdminClient();
+
+  const oldValues = {
+    confirmation_status: shift.confirmation_status,
+    decline_reason: shift.decline_reason,
+  };
+
+  const { error } = await supabase
+    .from("volunteer_shifts")
+    .update({
+      confirmation_status: response,
+      decline_reason: reason ?? null,
+      responded_at: new Date().toISOString(),
+      status: response === "confirmed" ? "confirmed" : "open",
+    })
+    .eq("id", shift.id);
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  try {
+    await logAuditEvent({
+      tableName: "volunteer_shifts",
+      recordId: shift.id,
+      operation: "UPDATE",
+      actorId: null,
+      churchId: shift.church_id,
+      actorRole: "anonymous_volunteer",
+      oldValues,
+      newValues: {
+        confirmation_status: response,
+        decline_reason: reason ?? null,
+      },
+    });
+  } catch (auditError) {
+    console.error("Failed to log audit event for public shift response:", auditError);
+  }
+
+  revalidatePath("/app/member/schedule");
   return { ok: true };
 }

@@ -3,7 +3,7 @@ import { withSentryConfig } from "@sentry/nextjs/config";
 
 const nextConfig: NextConfig = {
   experimental: {
-    optimizePackageImports: ["@mantine/core", "@mantine/hooks", "@mantine/notifications"],
+    optimizePackageImports: ["@mantine/core", "@mantine/hooks"],
   },
   typescript: {
     // Type-check the shipped app only. Test-file type correctness is

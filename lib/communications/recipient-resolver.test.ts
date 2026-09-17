@@ -303,7 +303,7 @@ describe("resolveRecipients", () => {
       from: vi.fn((table: string) => {
         if (table === "profiles") return makeQueryChain([makeProfileRow({ id: "p-1" })]);
         if (table === "communication_suppressions") return makeQueryChain([]);
-        if (table === "attendance_records") return attChain;
+        if (table === "attendance") return attChain;
         return makeQueryChain([]);
       }),
     });
@@ -327,7 +327,7 @@ describe("resolveRecipients", () => {
       from: vi.fn((table: string) => {
         if (table === "profiles") return makeQueryChain([makeProfileRow({ id: "p-1" })]);
         if (table === "communication_suppressions") return makeQueryChain([]);
-        if (table === "attendance_records") return attChain;
+        if (table === "attendance") return attChain;
         return makeQueryChain([]);
       }),
     });

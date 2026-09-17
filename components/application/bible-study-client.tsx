@@ -18,7 +18,6 @@ import {
 } from "@/app/app/elders-actions";
 import { ApplicationShell } from "@/components/application/app-shell";
 import { DisclaimerGate } from "@/components/ai/disclaimer-gate";
-import { AI_RESPONSE_FOOTER } from "@/lib/ai-ministry/ui-constants";
 import type { BibleStudySections } from "@/app/app/elders-actions";
 import type { ChurchAppSession } from "@/lib/auth";
 
@@ -223,8 +222,8 @@ export function BibleStudyClient({
           </Paper>
 
           {/* Footer */}
-          <Alert color="gray" icon={<Info size={14} />} variant="light" radius="md">
-            {AI_RESPONSE_FOOTER}
+          <Alert color="gray" icon={<Info size={14} />} variant="light" radius="md" className="ai-disclaimer-badge">
+            <div style={{ whiteSpace: "pre-wrap" }}>{sections.footer}</div>
           </Alert>
         </Stack>
       ) : null}

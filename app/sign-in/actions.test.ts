@@ -188,6 +188,12 @@ describe("sign-in actions", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith("/", "layout");
   });
 
+  it("redirects to custom URL when redirectTo is provided as a string", async () => {
+    await expect(signOutAction("/sign-in?message=Inactivity")).rejects.toMatchObject({
+      url: "/sign-in?message=Inactivity",
+    });
+  });
+
   it("calls Supabase auth sign-out when Supabase environment is enabled", async () => {
     hasTenantSupabaseEnvMock.mockReturnValue(true);
     hasControlPlaneSupabaseEnvMock.mockReturnValue(true);

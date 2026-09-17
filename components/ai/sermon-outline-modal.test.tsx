@@ -86,7 +86,7 @@ describe("SermonOutlineModal", () => {
     });
     expect(
       screen.getByText(
-        "Scripture references should be verified against a Bible before use in ministry.",
+        /Scripture references should be verified against a Bible before use in ministry/i,
       ),
     ).toBeInTheDocument();
   });
