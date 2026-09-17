@@ -91,7 +91,7 @@ describe("groups actions", () => {
     await expect(
       createGroupAction({
         name: "Leaders Group",
-        category: "small-group",
+        category: "general",
         isOpen: true,
       }),
     ).rejects.toThrow("Unauthorized");
@@ -100,7 +100,7 @@ describe("groups actions", () => {
   it("validates required group name", async () => {
     const result = await createGroupAction({
       name: "   ",
-      category: "small-group",
+      category: "general",
       isOpen: true,
     });
 
@@ -112,7 +112,7 @@ describe("groups actions", () => {
 
     const result = await createGroupAction({
       name: "Men's Group",
-      category: "small-group",
+      category: "general",
       isOpen: true,
       meetingDay: "Tuesday",
     });
@@ -120,7 +120,7 @@ describe("groups actions", () => {
     expect(result).toEqual({ ok: true, id: "group-1" });
     expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
       expect.stringContaining("insert into public.groups"),
-      expect.arrayContaining(["church-1", "Men's Group", "small-group"]),
+      expect.arrayContaining(["church-1", "Men's Group", "general"]),
     );
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/groups");
   });

@@ -390,7 +390,7 @@ describe("CommunicationsComposeClient — AC6 (live recipient count)", () => {
 
   it("shows calculating badge while preview is loading", async () => {
     // Delay the preview resolution past the debounce window
-    let resolvePreview: (v: unknown) => void;
+    let resolvePreview: (v: { ok: boolean; result: { count: number; sample: never[] } }) => void;
     previewRecipientsActionMock.mockImplementation(
       () => new Promise((resolve) => { resolvePreview = resolve; }),
     );
