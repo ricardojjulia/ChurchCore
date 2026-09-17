@@ -55,6 +55,7 @@ import {
   generateBibleStudyAnswerAction,
   generateSermonOutlineAction,
 } from "@/app/app/elders-actions";
+import { ELDER_AI_DISCLAIMER } from "@/lib/elders-types";
 
 // ── Shared session fixtures ────────────────────────────────────────────────────
 
@@ -150,7 +151,10 @@ describe("generateSermonOutlineAction", () => {
       noteTitle: "Walking by Faith",
       existingContent: null,
     });
-    expect(result).toEqual({ ok: true, outline: "Here is a sermon outline." });
+    expect(result).toEqual({
+      ok: true,
+      outline: "Here is a sermon outline.\n\n---\n*Disclaimer: " + ELDER_AI_DISCLAIMER + "*",
+    });
   });
 
   it("returns ok:true with outline on church_admin session", async () => {
@@ -161,7 +165,10 @@ describe("generateSermonOutlineAction", () => {
       noteTitle: "The Psalms",
       existingContent: "Some notes.",
     });
-    expect(result).toEqual({ ok: true, outline: "Here is a sermon outline." });
+    expect(result).toEqual({
+      ok: true,
+      outline: "Here is a sermon outline.\n\n---\n*Disclaimer: " + ELDER_AI_DISCLAIMER + "*",
+    });
   });
 
   it("throws for secretary role (requireCouncilSession denies access)", async () => {
@@ -242,7 +249,7 @@ describe("generateBibleStudyAnswerAction", () => {
         keyThemes: expect.any(Array),
         applicationPoints: expect.any(Array),
         discussionQuestions: expect.any(Array),
-        footer: "Scripture references should be verified against a Bible before use in ministry.",
+        footer: "Scripture references should be verified against a Bible before use in ministry.\n\nDisclaimer: " + ELDER_AI_DISCLAIMER,
       }),
     });
   });

@@ -46,6 +46,7 @@ export function MemberProfileEdit({ profile }: Props) {
     profile.directoryVisible,
   );
   const [contactAllowed, setContactAllowed] = useState(profile.contactAllowed);
+  const [emergencyContactConsentVerified, setEmergencyContactConsentVerified] = useState(false);
   const { t } = useI18n();
   const translateMember = (key: string) => t("member", key);
 
@@ -58,6 +59,7 @@ export function MemberProfileEdit({ profile }: Props) {
     setInterests((profile.interests ?? []).join(", "));
     setEmergencyContactName(profile.emergencyContactName ?? "");
     setEmergencyContactPhone(profile.emergencyContactPhone ?? "");
+    setEmergencyContactConsentVerified(false);
     setDirectoryVisible(profile.directoryVisible);
     setContactAllowed(profile.contactAllowed);
     setServerError(null);
@@ -81,6 +83,7 @@ export function MemberProfileEdit({ profile }: Props) {
           emergencyContactPhone: emergencyContactPhone || null,
           directoryVisible,
           contactAllowed,
+          emergencyContactConsentVerified,
         });
         setReviewMessage(
           result.status === "pending_review"
@@ -190,6 +193,14 @@ export function MemberProfileEdit({ profile }: Props) {
               placeholder="(555) 000-0000"
               radius="md"
             />
+            {!!(emergencyContactName.trim() || emergencyContactPhone.trim()) && (
+              <Checkbox
+                label={translateMember("emergencyContactConsentVerified")}
+                checked={emergencyContactConsentVerified}
+                onChange={(e) => setEmergencyContactConsentVerified(e.currentTarget.checked)}
+                radius="sm"
+              />
+            )}
           </Stack>
 
           <Stack gap="xs">
@@ -224,7 +235,11 @@ export function MemberProfileEdit({ profile }: Props) {
               radius="xl"
               onClick={handleSave}
               loading={isPending}
-              disabled={!fullName.trim()}
+              disabled={
+                !fullName.trim() ||
+                (!!(emergencyContactName.trim() || emergencyContactPhone.trim()) &&
+                  !emergencyContactConsentVerified)
+              }
             >
               {translateMember("saveChanges")}
             </Button>

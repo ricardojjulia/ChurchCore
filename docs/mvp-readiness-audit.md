@@ -3,6 +3,8 @@
 Date: May 9, 2026  
 Scope: ChurchCore evaluation snapshot on the Sprint 2 branch.
 
+> **Superseded snapshot.** For current MVP readiness (65/100, phased go/no-go status), see `docs/reviews/2026-09-17-council-review-9-agent-4-feature-competitive.md` and `docs/plans/mvp-competitive-go-no-go-checklist.md`. Left here as a historical IA/workflow snapshot — the specific route and navigation findings below may still be accurate; the readiness verdict is not.
+
 ## Executive Verdict
 
 ChurchCore can plausibly help run a church, but it is not yet a clean MVP without tightening the operator path. The product has the right major modules: people, households, ministries, events, children, giving, finance, communications, groups, volunteers, care signals, and reporting. The main readiness risk is not missing ambition; it is workflow clarity and confidence that each role can find the next action without knowing the codebase.

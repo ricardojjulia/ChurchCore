@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { resetRateLimits } from "@/lib/rate-limit";
 
 const {
   verifyUnsubscribeTokenMock,
@@ -51,6 +52,7 @@ const validParams = {
 describe("GET /api/unsubscribe", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetRateLimits();
     shouldUseLocalTenantFallbackMock.mockReturnValue(true);
     queryTenantLocalDbMock.mockResolvedValue({ rows: [] });
   });
@@ -150,5 +152,24 @@ describe("GET /api/unsubscribe", () => {
       reason: "unsubscribe",
       suppressed_by: null,
     });
+  });
+
+  it("rate limits requests exceeding 15 calls per minute", async () => {
+    verifyUnsubscribeTokenMock.mockReturnValue({
+      valid: true,
+      churchId: "church-1",
+      contactEmail: "member@example.com",
+      channel: "email",
+    });
+
+    for (let i = 0; i < 15; i++) {
+      const response = await unsubscribeGet(makeRequest(validParams));
+      expect(response.status).toBe(200);
+    }
+
+    const responseLimit = await unsubscribeGet(makeRequest(validParams));
+    expect(responseLimit.status).toBe(429);
+    const body = await responseLimit.text();
+    expect(body).toBe("Too Many Requests");
   });
 });

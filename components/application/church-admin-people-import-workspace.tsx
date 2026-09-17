@@ -25,6 +25,12 @@ import type { ChurchAppSession } from "@/lib/auth";
 import type { PeopleImportCommitResult, PeopleImportDryRunResult } from "@/lib/people-import-dry-run";
 import type { ImportSourceSystem } from "@/lib/people-import-source-adapters";
 
+function parseCsvHeaders(text: string): string[] {
+  const firstLine = text.split(/\r?\n/)[0] ?? "";
+  if (!firstLine.trim()) return [];
+  return firstLine.split(",").map(cell => cell.replace(/^["']|["']$/g, "").trim()).filter(Boolean);
+}
+
 export function ChurchAdminPeopleImportWorkspace({
   session,
 }: {
@@ -40,6 +46,14 @@ export function ChurchAdminPeopleImportWorkspace({
   const [commitResult, setCommitResult] = useState<PeopleImportCommitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Dynamic header mappings
+  const headers = parseCsvHeaders(csvText);
+  const [householdMap, setHouseholdMap] = useState("household_name");
+  const [fullNameMap, setFullNameMap] = useState("full_name");
+  const [emailMap, setEmailMap] = useState("email");
+  const [phoneMap, setPhoneMap] = useState("phone");
+  const [memberNumberMap, setMemberNumberMap] = useState("member_number");
+
   function handleRunDryRun() {
     setError(null);
 
@@ -49,6 +63,13 @@ export function ChurchAdminPeopleImportWorkspace({
           sourceFilename,
           sourceSystem,
           csvText,
+          customMapping: sourceSystem === "generic_csv" ? {
+            householdName: householdMap || undefined,
+            fullName: fullNameMap || undefined,
+            email: emailMap || undefined,
+            phone: phoneMap || undefined,
+            memberNumber: memberNumberMap || undefined,
+          } : undefined,
         });
         setResult(nextResult);
         setCommitResult(null);
@@ -78,6 +99,8 @@ export function ChurchAdminPeopleImportWorkspace({
       }
     });
   }
+
+  const selectData = headers.map(h => ({ value: h, label: h }));
 
   return (
     <ApplicationShell
@@ -128,12 +151,60 @@ export function ChurchAdminPeopleImportWorkspace({
               value={sourceSystem}
               onChange={(value) => setSourceSystem((value ?? "generic_csv") as ImportSourceSystem)}
               data={[
-                { value: "generic_csv", label: "Generic CSV" },
+                { value: "generic_csv", label: "Generic CSV (Supports Custom Header Mapping)" },
                 { value: "planning_center", label: "Planning Center export" },
                 { value: "breeze", label: "Breeze/Tithely export" },
                 { value: "pushpay_ccb", label: "Pushpay/CCB export" },
               ]}
             />
+
+            {sourceSystem === "generic_csv" && headers.length > 0 && (
+              <Paper withBorder p="md" radius="sm" bg="#fafbfc">
+                <Stack gap="xs">
+                  <Text size="sm" fw={600}>Configure Column Header Mapping</Text>
+                  <Group grow gap="xs">
+                    <Select
+                      label="Full Name"
+                      placeholder="Select CSV column"
+                      value={fullNameMap}
+                      onChange={(val) => setFullNameMap(val ?? "")}
+                      data={selectData}
+                    />
+                    <Select
+                      label="Household Name"
+                      placeholder="Select CSV column"
+                      value={householdMap}
+                      onChange={(val) => setHouseholdMap(val ?? "")}
+                      data={selectData}
+                    />
+                  </Group>
+                  <Group grow gap="xs">
+                    <Select
+                      label="Email"
+                      placeholder="Select CSV column"
+                      value={emailMap}
+                      onChange={(val) => setEmailMap(val ?? "")}
+                      data={selectData}
+                    />
+                    <Select
+                      label="Phone"
+                      placeholder="Select CSV column"
+                      value={phoneMap}
+                      onChange={(val) => setPhoneMap(val ?? "")}
+                      data={selectData}
+                    />
+                    <Select
+                      label="Member Number"
+                      placeholder="Select CSV column"
+                      value={memberNumberMap}
+                      onChange={(val) => setMemberNumberMap(val ?? "")}
+                      data={selectData}
+                    />
+                  </Group>
+                </Stack>
+              </Paper>
+            )}
+
             <Textarea
               label="CSV content"
               value={csvText}

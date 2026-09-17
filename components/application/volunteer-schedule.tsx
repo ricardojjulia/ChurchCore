@@ -415,6 +415,11 @@ export function ServicePlanBuilder({
   const [isReorderPending, setIsReorderPending] = useState(false);
   const [assignTarget, setAssignTarget] = useState<{ positionId: string; roleName: string } | null>(null);
   const [volunteerSearch, setVolunteerSearch] = useState("");
+  const [burnoutConfirmation, setBurnoutConfirmation] = useState<{
+    profileId: string;
+    fullName: string;
+    reason: string;
+  } | null>(null);
   const eventOptions = events.map((event) => ({
     value: event.id,
     label: `${event.title} · ${new Date(event.startsAt).toLocaleDateString("en-US", {
@@ -648,8 +653,40 @@ export function ServicePlanBuilder({
         profileId, roleName: assignTarget.roleName, startsAt, endsAt,
       });
       if (res.ok) {
+        setMsg({ type: "success", text: `${fullName} assigned as ${assignTarget.roleName}.` });
+      } else if (res.error?.startsWith("BURNOUT_WARNING:")) {
+        setBurnoutConfirmation({
+          profileId,
+          fullName,
+          reason: res.error.replace("BURNOUT_WARNING:", "").trim(),
+        });
+      } else {
+        setMsg({ type: "error", text: res.error ?? "Assignment failed." });
+      }
+    });
+  }
+
+  function handleConfirmBurnoutAssign() {
+    if (!burnoutConfirmation || !assignTarget) return;
+    const { profileId, fullName } = burnoutConfirmation;
+    const serviceDate = detail.plan.serviceDate;
+    const startsAt = detail.plan.serviceTime
+      ? `${serviceDate}T${detail.plan.serviceTime}`
+      : `${serviceDate}T09:00:00`;
+    const endsAt = detail.plan.serviceTime
+      ? `${serviceDate}T${detail.plan.serviceTime}`
+      : `${serviceDate}T12:00:00`;
+
+    startTransition(async () => {
+      const res = await assignVolunteerAction({
+        planId: detail.plan.id, positionId: assignTarget.positionId,
+        profileId, roleName: assignTarget.roleName, startsAt, endsAt,
+        bypassBurnout: true,
+      });
+      if (res.ok) {
         setAssignTarget(null);
         setVolunteerSearch("");
+        setBurnoutConfirmation(null);
         setDetail((d) => ({
           ...d,
           positions: d.positions.map((p) =>
@@ -672,7 +709,7 @@ export function ServicePlanBuilder({
           ),
           pendingCount: d.pendingCount + 1,
         }));
-        setMsg({ type: "success", text: `${fullName} assigned as ${assignTarget.roleName}.` });
+        setMsg({ type: "success", text: `${fullName} assigned as ${assignTarget.roleName} (bypass audit logged).` });
       } else {
         setMsg({ type: "error", text: res.error ?? "Assignment failed." });
       }
@@ -1402,6 +1439,34 @@ export function ServicePlanBuilder({
               </Text>
             )}
           </Stack>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={burnoutConfirmation !== null}
+        onClose={() => setBurnoutConfirmation(null)}
+        title="Volunteer Burnout Warning"
+        radius="md"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            <strong>{burnoutConfirmation?.fullName}</strong> has a high volunteer service load:
+          </Text>
+          <Alert color="yellow" title="Potential Burnout Alert">
+            {burnoutConfirmation?.reason}
+          </Alert>
+          <Text size="sm">
+            Are you sure you want to bypass this rest recommendation and assign them to this shift? This override action will be audited.
+          </Text>
+          <Group justify="flex-end" gap="sm">
+            <Button variant="default" onClick={() => setBurnoutConfirmation(null)} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button color="yellow" onClick={handleConfirmBurnoutAssign} loading={isPending}>
+              Confirm & Override
+            </Button>
+          </Group>
         </Stack>
       </Modal>
     </Stack>

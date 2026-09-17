@@ -53,6 +53,7 @@ export function ChurchAdminPersonEdit({
   );
   const [directoryVisible, setDirectoryVisible] = useState(person.directoryVisible);
   const [contactAllowed, setContactAllowed] = useState(person.contactAllowed);
+  const [emergencyContactConsentVerified, setEmergencyContactConsentVerified] = useState(false);
   const { t } = useI18n();
   const translatePeople = (key: string, values?: Record<string, string | number>) =>
     t("people", key, values);
@@ -89,6 +90,7 @@ export function ChurchAdminPersonEdit({
     setPreferredContactMethod(person.preferredContactMethod ?? null);
     setEmergencyContactName(person.emergencyContactName ?? "");
     setEmergencyContactPhone(person.emergencyContactPhone ?? "");
+    setEmergencyContactConsentVerified(false);
     setDirectoryVisible(person.directoryVisible);
     setContactAllowed(person.contactAllowed);
     setServerError(null);
@@ -112,6 +114,7 @@ export function ChurchAdminPersonEdit({
           emergencyContactPhone: emergencyContactPhone || null,
           directoryVisible,
           contactAllowed,
+          emergencyContactConsentVerified,
         });
         close();
         router.refresh();
@@ -219,6 +222,13 @@ export function ChurchAdminPersonEdit({
               radius="md"
             />
           </Group>
+          {!!(emergencyContactName.trim() || emergencyContactPhone.trim()) && (
+            <Checkbox
+              label={translatePeople("emergencyContactConsentVerified")}
+              checked={emergencyContactConsentVerified}
+              onChange={(event) => setEmergencyContactConsentVerified(event.currentTarget.checked)}
+            />
+          )}
           <Stack gap="xs">
             <Checkbox
               label={translatePeople("visibleInDirectory")}
@@ -244,7 +254,11 @@ export function ChurchAdminPersonEdit({
               radius="xl"
               onClick={handleSave}
               loading={isPending}
-              disabled={!fullName.trim()}
+              disabled={
+                !fullName.trim() ||
+                (!!(emergencyContactName.trim() || emergencyContactPhone.trim()) &&
+                  !emergencyContactConsentVerified)
+              }
             >
               {translatePeople("save")}
             </Button>

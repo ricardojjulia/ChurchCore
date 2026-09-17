@@ -98,7 +98,7 @@ export async function resolveRecipients(
       Date.now() - segment.attendedWithinDays * 24 * 60 * 60 * 1000,
     ).toISOString();
     const { data: attRows, error: attError } = await supabase
-      .from("attendance_records")
+      .from("attendance")
       .select("profile_id")
       .eq("church_id", churchId)
       .gte("checked_in_at", cutoff);

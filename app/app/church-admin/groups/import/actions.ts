@@ -24,6 +24,15 @@ export async function runGroupsImportDryRunAction(input: {
     throw new Error("Tenant backend is required for dry-run imports.");
   }
 
+  const byteLength = Buffer.byteLength(input.csvText, "utf8");
+  if (byteLength > 5 * 1024 * 1024) {
+    throw new Error("CSV file size exceeds the maximum limit of 5MB.");
+  }
+  const lines = input.csvText.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  if (lines.length > 101) {
+    throw new Error("CSV import is limited to a maximum of 100 records per batch.");
+  }
+
   const actorProfileId = await resolveActiveChurchProfileId(session);
 
   return runGroupsImportDryRun({

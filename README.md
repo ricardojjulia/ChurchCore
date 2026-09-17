@@ -156,6 +156,7 @@ ChurchCore includes a repo-local software factory for structured AI-assisted dev
 
 - **Claude Code:** use `.claude/agents/`, `.claude/skills/feature-factory`, `.claude/skills/build-with-tests`, and `.claude/hooks/pre-commit.sh`.
 - **Codex:** use `.codex/skills/churchcore-feature-factory`, `.codex/skills/churchcore-build-with-tests`, and `.codex/skills/churchcore-pr-review`.
+- **Gemini (Antigravity):** use `.gemini/skills/gemini-feature-factory`, `.gemini/skills/gemini-build-with-tests`, and `.gemini/skills/gemini-pr-review`.
 
 Start with [docs/software-factory.md](docs/software-factory.md) for the how-to and [docs/diagrams.md](docs/diagrams.md#claude-code-software-factory) for the visual workflow maps.
 
@@ -163,7 +164,7 @@ Start with [docs/software-factory.md](docs/software-factory.md) for the how-to a
 
 ChurchCore is intentionally transparent: every meaningful change should leave enough documentation for a future maintainer, church evaluator, or security reviewer to understand what changed, why it changed, and how it was verified.
 
-Use this workflow for non-trivial work in either Claude Code or Codex:
+Use this workflow for non-trivial work in Claude Code, Codex, or Gemini:
 
 1. Read `DEVELOPMENT_PLAN.md`, `AGENTS.md`, relevant docs, and relevant ADRs.
 2. Run the factory research phase before implementation.
@@ -175,7 +176,7 @@ Use this workflow for non-trivial work in either Claude Code or Codex:
 8. Use the validator or PR-review workflow before commit or PR handoff.
 9. Commit on a feature branch, push the branch, open a pull request, merge through GitHub after required checks/review, then pull `main`.
 
-Claude Code should run this through the `feature-factory` and `build-with-tests` skills. Codex should run the same sequence through `churchcore-feature-factory`, `churchcore-build-with-tests`, and `churchcore-pr-review`.
+Claude Code should run this through the `feature-factory` and `build-with-tests` skills. Codex should run the same sequence through `churchcore-feature-factory`, `churchcore-build-with-tests`, and `churchcore-pr-review`. Gemini (Antigravity) should run the sequence through `gemini-feature-factory`, `gemini-build-with-tests`, and `gemini-pr-review` (integrating the native Planning Mode).
 
 ## Plan Highlights
 

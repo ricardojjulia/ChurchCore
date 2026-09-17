@@ -20,6 +20,7 @@ import {
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
+import { ELDER_AI_DISCLAIMER } from "@/lib/elders-types";
 
 // ============================================================
 // Role guards
@@ -655,12 +656,13 @@ export async function generateSermonOutlineAction(
 
   try {
     const prompt = buildSermonOutlinePrompt(noteType, noteTitle.trim(), existingContent);
-    const outline = await callMinistryAI(
+    let outline = await callMinistryAI(
       prompt,
       AI_FEATURES.SERMON_PLANNING,
       session.appContext.church.id,
       session.profile.id,
     );
+    outline = outline + `\n\n---\n*Disclaimer: ${ELDER_AI_DISCLAIMER}*`;
     return { ok: true, outline };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -746,7 +748,7 @@ function parseBibleStudyResponse(text: string): BibleStudySections {
     keyThemes: toList(themesText).slice(0, 5),
     applicationPoints: toList(appText).slice(0, 4),
     discussionQuestions: toList(questionsText).slice(0, 5),
-    footer: AI_RESPONSE_FOOTER,
+    footer: `${AI_RESPONSE_FOOTER}\n\nDisclaimer: ${ELDER_AI_DISCLAIMER}`,
   };
 }
 

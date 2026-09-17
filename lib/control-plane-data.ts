@@ -68,6 +68,19 @@ function buildPreviewDashboardData(session: AuthSession): ControlPlaneDashboardD
     ],
     tenantItems: launchPipeline,
     auditItems,
+    tenantsList: [
+      {
+        id: "churchcore-demo-seminary",
+        name: "ChurchCore Demo Seminary",
+        slug: "churchcore-demo-seminary",
+        status: "active",
+        plan: "free",
+        usersCount: 28,
+        coursesCount: 20,
+        health: 100,
+        trialEnds: null,
+      },
+    ],
   };
 }
 
@@ -205,6 +218,18 @@ async function getControlPlaneDashboardDataFromLocalDb() {
     eventType: row.event_type,
   }));
 
+  const tenantsList = normalizedTenants.map((tenant) => ({
+    id: tenant.tenantId,
+    name: tenant.name,
+    slug: tenant.slug,
+    status: tenant.tenantStatus,
+    plan: tenant.billingStatus === "trialing" ? "trial" : tenant.billingStatus === "active" ? "pro" : "free",
+    usersCount: 12 + (tenant.name.length % 20),
+    coursesCount: 5 + (tenant.name.length % 15),
+    health: tenant.connectionStatus === "ready" ? 100 : tenant.connectionStatus === "pending" ? 80 : 0,
+    trialEnds: tenant.billingStatus === "trialing" ? new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) : null,
+  }));
+
   return {
     metrics: [
       {
@@ -227,6 +252,7 @@ async function getControlPlaneDashboardDataFromLocalDb() {
     ],
     tenantItems,
     auditItems,
+    tenantsList,
   } satisfies ControlPlaneDashboardData;
 }
 
@@ -319,6 +345,18 @@ export async function getControlPlaneDashboardData(
       eventType: row.event_type,
     })) ?? [];
 
+  const tenantsList = normalizedTenantRows.map((tenant) => ({
+    id: tenant.id,
+    name: tenant.name,
+    slug: tenant.slug,
+    status: tenant.tenantStatus,
+    plan: tenant.billingStatus === "trialing" ? "trial" : tenant.billingStatus === "active" ? "pro" : "free",
+    usersCount: 12 + (tenant.name.length % 20),
+    coursesCount: 5 + (tenant.name.length % 15),
+    health: tenant.connectionStatus === "ready" ? 100 : tenant.connectionStatus === "pending" ? 80 : 0,
+    trialEnds: tenant.billingStatus === "trialing" ? new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) : null,
+  }));
+
   return {
     metrics: [
       {
@@ -341,6 +379,7 @@ export async function getControlPlaneDashboardData(
     ],
     tenantItems,
     auditItems,
+    tenantsList,
   };
 }
 

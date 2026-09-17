@@ -30,6 +30,17 @@ export type ControlPlaneDashboardData = {
   metrics: ControlPlaneMetric[];
   tenantItems: ControlPlaneTenantItem[];
   auditItems: TenantViewAuditItem[];
+  tenantsList?: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    status: string;
+    plan: string;
+    usersCount: number;
+    coursesCount: number;
+    health: number;
+    trialEnds: string | null;
+  }>;
 };
 
 export const controlPlaneSections = [
