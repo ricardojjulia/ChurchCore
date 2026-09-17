@@ -1,6 +1,6 @@
 # Dependency Security Patch — 2026-09-17
 
-**Scope:** GitHub flagged 57 Dependabot alerts on `main` (4 critical, 31 high, 21 moderate, 1 low). This patch resolves all but 3 (moderate, dev-only, deliberately deferred — see below).
+**Scope:** GitHub flagged 57 Dependabot alerts on `main` (4 critical, 31 high, 21 moderate, 1 low). The initial patch (PR #136) resolved 54; the remaining 3 (moderate, dev-only) were deliberately deferred and resolved the same day in a follow-up (see below). `npm audit` now reports 0 vulnerabilities.
 
 Not run as a full Council review (`improve-software.md` §0's "small, isolated" exception): this is a mechanical dependency-version change with no application-code intent behind it, verified by the full lint/build/test suite rather than the 4-agent audit, which is scoped to app architecture/UX/product-completeness questions that don't apply here.
 
@@ -10,13 +10,13 @@ Not run as a full Council review (`improve-software.md` §0's "small, isolated" 
 - **`eslint-config-next` 16.2.6 → 16.3.5**, kept in lockstep with `next` (mismatched majors between these two break linting).
 - **`npm audit fix`** (non-force) resolved the remaining transitive/dev-tooling findings within their existing declared ranges: `@xmldom/xmldom`, `brace-expansion`, `browserslist`, `js-yaml`, `nanoid`, `tar`, `vite`, `@babel/core` (and its sub-packages), `fflate`, `@humanfs/*`, `baseline-browser-mapping`, and the `supabase` CLI dev dependency (2.89.1 → 2.117.0). None of these required a `package.json` range change — `npm audit fix` alone resolved them by picking newer versions already satisfying the declared semver ranges.
 
-## Deferred: vitest 4 → 5 (3 moderate findings)
+## Resolved (was deferred): vitest 4 → 5 (3 moderate findings)
 
-`@vitest/mocker`'s path-traversal/arbitrary-file-read advisory (`GHSA-82fw-gwwq-j7x9`) is fixed in vitest 5.x, but vitest 5 has a **hard peer dependency on `@types/node` ^22 or >=24** — we're on `^20`. Bumping `@types/node` is itself not a small change (Node type surface changes across major versions can shift inference project-wide) and deserves its own verification pass, not a drive-by inside a security patch.
+`@vitest/mocker`'s path-traversal/arbitrary-file-read advisory (`GHSA-82fw-gwwq-j7x9`) is fixed in vitest 5.x, but vitest 5 has a **hard peer dependency on `@types/node` ^22 or >=24** — we were on `^20`. Deferred out of this patch at the time since it wasn't a small change to verify inside a security patch.
 
-**Real-world risk assessment:** low. The vulnerable code path is a local dev-server mock-redirect feature in `@vitest/mocker`, not something exposed in production or CI in a way an external attacker could reach. Deferring this is a judgment call about priority, not about acceptability — it should still be done.
+**Real-world risk assessment:** low. The vulnerable code path is a local dev-server mock-redirect feature in `@vitest/mocker`, not something exposed in production or CI in a way an external attacker could reach. Deferring was a judgment call about priority, not about acceptability.
 
-**Follow-up:** bump `@types/node` to `^22` (or `>=24`), then `vitest`/`@vitest/coverage-v8`/`@vitest/mocker` to `^5`, and run the full test suite plus a `tsc --noEmit` pass to catch any type-surface fallout before merging.
+**Resolution (same day, follow-up branch `chore/vitest-5-types-node-22`):** `.nvmrc` already pinned Node `22.13.0`, so bumping `@types/node` to `^22` was catching the type surface up to a runtime version already in use, not a speculative jump — smaller and lower-risk than it looked from inside the original patch. Bumped `@types/node` `^20` → `^22` and `vitest`/`@vitest/coverage-v8` `^4.1.8` → `^5`. No code changes were needed anywhere in the codebase; `npm run lint`, `npm run typecheck`, `npm run build`, and all 1339 tests pass unchanged. `npm audit` now reports 0 vulnerabilities.
 
 ## Two Latent Bugs Surfaced (Unrelated to the Version Bump's Intent)
 
@@ -31,5 +31,4 @@ The `next` bump invalidated a stale incremental TypeScript cache (`tsconfig.tsbu
 
 ## Follow-up Tracked
 
-- vitest 4→5 + `@types/node` 22 bump (see above).
 - 3 pre-existing `no-location-assign-relative-destination` warnings (`finance-budget-workspace.tsx`, `groups-workspace.tsx`, `volunteer-schedule.tsx`) surfaced by the new `next` version's lint rule set.
