@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import localFont from "next/font/local";
 import { mantineHtmlProps } from "@mantine/core";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 
@@ -65,6 +67,8 @@ export default async function RootLayout({
             </DemoErrorBoundary>
           </DemoSessionProvider>
         </ThemeProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

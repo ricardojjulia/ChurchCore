@@ -1,6 +1,6 @@
 # Production Readiness Roadmap
 
-**Last updated:** 2026-06-07
+**Last updated:** 2026-09-17
 **Status:** Pre-production — demo environment active, real congregation data not yet loaded.
 
 The path to production is three sequential phases. Do not skip ahead: security hardening on a pausing free-tier database is painful, and monitoring a system with open security findings is premature.
@@ -89,9 +89,9 @@ GDPR Art. 17 / CCPA erasure requests cannot be honored without manual DB work.
 
 | Tool | Purpose | Setup effort |
 |------|---------|--------------|
-| **Sentry** | Error tracking + performance traces + server action monitoring | ~1 hour — first-class Next.js SDK, works natively on Vercel |
-| **Vercel Analytics** | Core Web Vitals, page performance, real user data | ~5 min — built into Vercel Pro, zero code changes |
-| **Vercel Speed Insights** | Function duration, cold start visibility | ~5 min — same |
+| **Sentry** | Error tracking + performance traces + server action monitoring | SDK wired (2026-09-17); ~10 min left — create account, set `SENTRY_DSN` |
+| **Vercel Analytics** | Core Web Vitals, page performance, real user data | Wired (2026-09-17); ~5 min left — enable in Vercel dashboard |
+| **Vercel Speed Insights** | Function duration, cold start visibility | Wired (2026-09-17); ~5 min left — enable in Vercel dashboard |
 | **Vercel Log Drain** | Ship logs to a log management service (Axiom, Datadog, etc.) | ~30 min |
 
 ### Dynatrace (if enterprise requirement)
@@ -137,10 +137,12 @@ Phase 2 — Security  (PR #111 merged 2026-06-07)
   [ ] Wire SendGrid (domain verified + bounce handling)
   [ ] Wire Twilio SMS
 
-Phase 3 — Monitoring
-  [ ] Sentry Next.js SDK installed + source maps
-  [ ] Vercel Analytics enabled
-  [ ] Vercel Speed Insights enabled
+Phase 3 — Monitoring  (code-side wiring done 2026-09-17, see docs/setup/observability.md)
+  [x] Sentry Next.js SDK installed (instrumentation.ts, instrumentation-client.ts, app/global-error.tsx, next.config.ts)
+  [ ] Sentry account connected (SENTRY_DSN / NEXT_PUBLIC_SENTRY_DSN set, a real event verified to arrive)
+  [ ] Sentry source maps (SENTRY_AUTH_TOKEN / SENTRY_ORG / SENTRY_PROJECT set)
+  [x] Vercel Analytics wired (app/layout.tsx) — toggle on in Vercel dashboard to activate
+  [x] Vercel Speed Insights wired (app/layout.tsx) — toggle on in Vercel dashboard to activate
   [ ] Log drain configured
   [ ] Uptime check on primary routes (/app, /control, /portal)
 ```
