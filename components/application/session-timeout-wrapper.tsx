@@ -13,8 +13,8 @@ const WARNING_DURATION = 14 * 60 * 1000; // 14 minutes
 
 export function SessionTimeoutWrapper({ children }: Props) {
   const [showWarning, setShowWarning] = useState(false);
-  const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const logoutTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActiveRef = useRef<number>(0);
   const showWarningRef = useRef(false);
 
@@ -92,7 +92,7 @@ export function SessionTimeoutWrapper({ children }: Props) {
       <Modal
         opened={showWarning}
         onClose={handleLogout}
-        title="Session Expirando"
+        title="Session Expiring"
         withCloseButton={false}
         closeOnClickOutside={false}
         closeOnEscape={false}

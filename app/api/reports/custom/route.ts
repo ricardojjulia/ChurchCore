@@ -4,7 +4,18 @@ import { requireChurchSession } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/actions/audit";
 import { queryTenantLocalDb } from "@/lib/supabase/tenant";
 
-function jsonToCsv(rows: Record<string, unknown>[]): string {
+// Prefix cells that start with =, +, -, @, tab, or CR with a single quote so
+// spreadsheet apps (Excel/Sheets/LibreOffice) treat them as text rather than
+// live formulas -- a standard CSV-export mitigation for formula injection.
+// User-controlled fields (names, emails, descriptions) are exported here
+// unsanitized otherwise.
+const FORMULA_INJECTION_PREFIX = /^[=+\-@\t\r]/;
+
+export function neutralizeFormulaInjection(value: string): string {
+  return FORMULA_INJECTION_PREFIX.test(value) ? `'${value}` : value;
+}
+
+export function jsonToCsv(rows: Record<string, unknown>[]): string {
   if (rows.length === 0) return "";
   const headers = Object.keys(rows[0]);
   const headerLine = headers.join(",");
@@ -13,7 +24,7 @@ function jsonToCsv(rows: Record<string, unknown>[]): string {
       .map((h) => {
         const val = row[h];
         if (val === null || val === undefined) return "";
-        const strVal = String(val);
+        const strVal = neutralizeFormulaInjection(String(val));
         if (
           strVal.includes(",") ||
           strVal.includes('"') ||

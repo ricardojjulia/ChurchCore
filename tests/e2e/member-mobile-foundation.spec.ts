@@ -76,7 +76,7 @@ test.describe("Member mobile PWA foundation baseline", () => {
       "Run npm run setup:local first so .demo-credentials.local contains member credentials.",
     );
 
-    await signIn(page, memberEmail);
+    await signIn(page, memberEmail!);
     await setChurchContext(page, "member");
   });
 

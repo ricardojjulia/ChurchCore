@@ -52,6 +52,7 @@ describe("MemberEventRegistrationPanel", () => {
     return render(
       <MantineProvider>
         <MemberEventRegistrationPanel
+          churchId="church-1"
           options={baseOptions as never}
           familyMembers={[
             { id: "profile-1", fullName: "Alex Jones", relationshipLabel: "Self", isPrimary: true },

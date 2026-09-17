@@ -149,7 +149,7 @@ test.describe("ChurchAdmin weekly readiness browser path", () => {
       "Run npm run setup:local first so .demo-credentials.local contains demo credentials.",
     );
 
-    await signIn(page, adminEmail);
+    await signIn(page, adminEmail!);
     await setChurchContext(page, "church-admin");
   });
 
@@ -181,7 +181,7 @@ test.describe("ChurchAdmin readiness denied-role browser path", () => {
     for (const email of [secretaryEmail, memberEmail]) {
       await page.context().clearCookies();
       await clearAppContextCookie(page.context());
-      await signIn(page, email);
+      await signIn(page, email!);
 
       for (const { route, deniedText } of churchAdminOnlyReadinessRoutes) {
         await page.goto(route);
@@ -202,7 +202,7 @@ test.describe("ChurchAdmin readiness denied-role browser path", () => {
     for (const email of [pastorEmail, ministryLeaderEmail]) {
       await page.context().clearCookies();
       await clearAppContextCookie(page.context());
-      await signIn(page, email);
+      await signIn(page, email!);
 
       for (const { route, deniedText } of churchAdminOnlyReadinessRoutes) {
         await page.goto(route);
@@ -220,7 +220,7 @@ test.describe("ChurchAdmin readiness denied-role browser path", () => {
       "Run npm run setup:local first so .demo-credentials.local contains demo credentials.",
     );
 
-    await signIn(page, adminEmail);
+    await signIn(page, adminEmail!);
     await setControlContext(page);
 
     for (const { route, deniedText } of churchAdminOnlyReadinessRoutes) {

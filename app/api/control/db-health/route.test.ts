@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, resetDbHealthCache } from "./route";
 
-const { requireControlPlaneSessionMock, queryTenantLocalDbMock } = vi.hoisted(() => ({
+const { requireControlPlaneSessionMock, queryControlPlaneLocalDbMock } = vi.hoisted(() => ({
   requireControlPlaneSessionMock: vi.fn(),
-  queryTenantLocalDbMock: vi.fn(),
+  queryControlPlaneLocalDbMock: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
   requireControlPlaneSession: requireControlPlaneSessionMock,
 }));
 
-vi.mock("@/lib/supabase/tenant", () => ({
-  queryTenantLocalDb: queryTenantLocalDbMock,
+vi.mock("@/lib/supabase/control-plane", () => ({
+  queryControlPlaneLocalDb: queryControlPlaneLocalDbMock,
 }));
 
 describe("GET /api/control/db-health", () => {
@@ -27,7 +27,7 @@ describe("GET /api/control/db-health", () => {
 
   it("checks for control plane session and returns DB statistics", async () => {
     requireControlPlaneSessionMock.mockResolvedValue({ canAccessControl: true });
-    queryTenantLocalDbMock.mockResolvedValue({
+    queryControlPlaneLocalDbMock.mockResolvedValue({
       rows: [
         { count: 3, state: "active" },
         { count: 2, state: "idle" },
@@ -39,7 +39,7 @@ describe("GET /api/control/db-health", () => {
 
     expect(response.status).toBe(200);
     expect(requireControlPlaneSessionMock).toHaveBeenCalledWith("/control/db-health");
-    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+    expect(queryControlPlaneLocalDbMock).toHaveBeenCalledWith(
       expect.stringContaining("SELECT count(*)::integer as count, state FROM pg_stat_activity"),
     );
     expect(body).toEqual({
@@ -54,38 +54,38 @@ describe("GET /api/control/db-health", () => {
 
   it("serves stats from cache during cache TTL window and queries again when expired", async () => {
     requireControlPlaneSessionMock.mockResolvedValue({ canAccessControl: true });
-    queryTenantLocalDbMock.mockResolvedValue({
+    queryControlPlaneLocalDbMock.mockResolvedValue({
       rows: [{ count: 3, state: "active" }],
     });
 
     const response1 = await GET();
     const body1 = await response1.json();
     expect(body1.activeConnections).toBe(3);
-    expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(1);
+    expect(queryControlPlaneLocalDbMock).toHaveBeenCalledTimes(1);
 
     // Call again immediately — should return cache
     const response2 = await GET();
     const body2 = await response2.json();
     expect(body2.activeConnections).toBe(3);
-    expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(1);
+    expect(queryControlPlaneLocalDbMock).toHaveBeenCalledTimes(1);
 
     // Advance timer past TTL of 10s
     vi.advanceTimersByTime(11000);
 
-    queryTenantLocalDbMock.mockResolvedValue({
+    queryControlPlaneLocalDbMock.mockResolvedValue({
       rows: [{ count: 7, state: "active" }],
     });
 
     const response3 = await GET();
     const body3 = await response3.json();
     expect(body3.activeConnections).toBe(7);
-    expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(2);
+    expect(queryControlPlaneLocalDbMock).toHaveBeenCalledTimes(2);
   });
 
   it("times out and returns 500 when database query exceeds 2 seconds", async () => {
     requireControlPlaneSessionMock.mockResolvedValue({ canAccessControl: true });
     // Infinite query promise mock
-    queryTenantLocalDbMock.mockImplementation(() => new Promise(() => {}));
+    queryControlPlaneLocalDbMock.mockImplementation(() => new Promise(() => {}));
 
     const responsePromise = GET();
 
@@ -108,12 +108,12 @@ describe("GET /api/control/db-health", () => {
     requireControlPlaneSessionMock.mockRejectedValue(redirectError);
 
     await expect(GET()).rejects.toThrow("NEXT_REDIRECT");
-    expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+    expect(queryControlPlaneLocalDbMock).not.toHaveBeenCalled();
   });
 
   it("returns 500 when database query throws an error", async () => {
     requireControlPlaneSessionMock.mockResolvedValue({ canAccessControl: true });
-    queryTenantLocalDbMock.mockRejectedValue(new Error("Connection timeout"));
+    queryControlPlaneLocalDbMock.mockRejectedValue(new Error("Connection timeout"));
 
     const response = await GET();
     const body = await response.json();

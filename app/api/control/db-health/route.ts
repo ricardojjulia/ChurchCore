@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireControlPlaneSession } from "@/lib/auth";
-import { queryTenantLocalDb } from "@/lib/supabase/tenant";
+import { queryControlPlaneLocalDb } from "@/lib/supabase/control-plane";
 
 interface CachePayload {
   ok: boolean;
@@ -26,7 +26,7 @@ export async function GET() {
       return NextResponse.json(cachedData);
     }
 
-    const queryPromise = queryTenantLocalDb<{ count: number; state: string }>(
+    const queryPromise = queryControlPlaneLocalDb<{ count: number; state: string }>(
       "SELECT count(*)::integer as count, state FROM pg_stat_activity GROUP BY state",
     );
 

@@ -31,10 +31,12 @@ const {
   }));
   const createControlPlaneServerClient = vi.fn(async () => ({ from: controlPlaneFrom }));
 
-  const tenantEq = vi.fn(() => Promise.resolve({ error: null }));
+  const tenantEq = vi.fn(
+    (): Promise<{ error: { message: string } | null }> => Promise.resolve({ error: null }),
+  );
   const tenantDelete = vi.fn(() => ({ eq: tenantEq }));
   const tenantInsert = vi.fn(() => Promise.resolve({ error: null }));
-  const tenantFrom = vi.fn(() => ({ delete: tenantDelete, insert: tenantInsert }));
+  const tenantFrom = vi.fn((_table: string) => ({ delete: tenantDelete, insert: tenantInsert }));
   const createTenantAdminClient = vi.fn(() => ({ from: tenantFrom }));
 
   return {
@@ -215,7 +217,12 @@ describe("control-plane tenant actions", () => {
         calls += 1;
         if (table === "donations") {
           return {
-            delete: () => ({ eq: () => Promise.resolve({ error: { message: "fk violation" } }) }),
+            delete: vi.fn(() => ({
+              eq: vi.fn(
+                (): Promise<{ error: { message: string } | null }> =>
+                  Promise.resolve({ error: { message: "fk violation" } }),
+              ),
+            })),
             insert: tenantInsertMock,
           };
         }

@@ -33,8 +33,27 @@ import type { ChurchAppSession } from "@/lib/auth";
 describe("getPastorPortalData read auditing", () => {
   const mockSession: ChurchAppSession = {
     userId: "user-1",
-    profile: { id: "profile-1", name: "Pastor Bob", email: "bob@example.com", title: "Pastor" },
-    appContext: { roleId: "pastor", church: { id: "church-1", name: "Church 1", slug: "church-1" } },
+    profile: {
+      id: "profile-1",
+      name: "Pastor Bob",
+      email: "bob@example.com",
+      title: "Pastor",
+      roleId: "pastor",
+      defaultPath: "/app/pastor",
+      focus: "Leadership",
+      isPastoral: true,
+    },
+    appContext: {
+      kind: "church",
+      source: "membership",
+      roleId: "pastor",
+      church: { id: "church-1", name: "Church 1", slug: "church-1", timezone: "America/New_York" },
+      homePath: "/app/pastor",
+    },
+    homePath: "/app/pastor",
+    canAccessControl: false,
+    memberships: [],
+    tenantViews: [],
     source: "supabase",
   };
 
