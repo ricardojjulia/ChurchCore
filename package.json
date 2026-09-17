@@ -81,7 +81,7 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^4.1.8"
+    "vitest": "^5.0.1"
   },
   "overrides": {
     "ws": ">=8.20.1",
