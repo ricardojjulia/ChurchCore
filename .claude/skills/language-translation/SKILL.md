@@ -25,13 +25,16 @@ ChurchCore does **not** use react-i18next/next-intl/lingui/vue-i18n. It has a cu
 - **Consumption pattern**: `components/i18n-provider.tsx` exposes a `useI18n()` hook returning `t(namespace, key, values?)`, with automatic fallback to the `en` value if a key is missing in the active locale. New/modified components call `useI18n()` and `t(...)` — they do not import `lib/i18n.ts` directly (only the shell/provider/switcher files do).
 - **Governance backend**: `lib/localization-governance/` wraps the vendored `@localization-governance/*` packages (`vendor/localization-governance/`, see ADR 0009 at `docs/adr/0009-localization-governance.md`). It manages per-tenant catalog versions through a lifecycle: `draft → translated → validated → in_linguistic_review → in_domain_review → approved → active → stale`, with a Google-Translate provider, validation reports, review/approval, and activation/rollback history. `lib/localization-governance/runtime.ts`'s `getRuntimeCatalog()` uses an active governance version if one exists for a tenant, and otherwise falls back to the hardcoded `messages[locale]` catalog — so the hardcoded catalog always works even before anything is "activated" in governance.
 - **Known, real gap as of 2026-09-18**: only ~34 components (people/member management, finance, giving, communications, daily desk, onboarding, dashboard/readiness, portal, app shell) call `useI18n()`. Children's Ministry (CCM), Ministry Forge/tracks, Volunteers, Groups, admin-side Events, Attendance, Reports, Operations, Workflows, Project HQ, Control Plane, and Pastor/Elder/Council-Forge tools have **zero** components using the hook — they render hardcoded English regardless of the user's selected locale. This is the actual scope of "translation work remaining," not building a new Spanish catalog.
-- **Known, real quality gap**: per ADR 0009 Decision 5, the existing `es`/`es-PR` catalog was written by engineering, not a native speaker, and is seeded into governance as `validated`, explicitly not `approved`/`active`, because it has never been through human linguistic review. **Agent 3 (Native Speaker Evaluator) has real, unfinished work to do here even though the catalog already exists** — this isn't a formality step, it's closing a documented, acknowledged gap.
+- **Known, real quality gap**: per ADR 0009 Decision 5, the existing `es`/`es-PR` catalog was written by engineering, not a native speaker, and has never been through human linguistic review. **Agent 3 (Native Speaker Evaluator) has real, unfinished work to do here even though the catalog already exists** — this isn't a formality step, it's closing a documented, acknowledged gap.
+- **Governance seeding is `es`-only, not `es-PR`.** `lib/localization-governance/seed.ts`'s `seedWithServiceAndMessages()` creates a governance locale + catalog version (in `validated` state) only for `en` and `es`. It does **not** create anything for `es-PR` — `es-PR` exists purely as a hardcoded fallback in `lib/i18n.ts` with no governance record at all. If `es-PR` needs the same governance lifecycle, that is a separate, not-yet-made onboarding decision — don't assume it already has one.
+- **Editing `lib/i18n.ts` only changes the hardcoded fallback, not an existing governance snapshot.** `createCatalogVersion()` in the seed script only runs "if no version exists yet" for that locale — it does not re-run on every seed invocation. If a tenant already has a seeded `es` governance version (check via `getLocaleStatus("es")` before assuming otherwise), editing `lib/i18n.ts` alone will NOT update that snapshot; `getRuntimeCatalog()` would keep serving the old snapshot's text once/if it's activated. Catalog-content fixes made directly in `lib/i18n.ts` need a corresponding new governance version (via `createCatalogVersion()`, left `validated`, not auto-approved) wherever a governance version already exists for that tenant/locale — don't assume the hardcoded fix alone is sufficient once governance is in play.
+- **`translations_approved` (Agent 3's output key, below) is not human approval — do not let Agent 4 or the governance flow treat it as such.** Despite its name, that JSON key holds an *automated* subagent's opinion. Treating it as equivalent to the governance system's `approved` state, or activating a version based on it, directly repeats the exact mistake ADR 0009 Decision 5 exists to prevent (a translation entering the system with more authority than it actually earned). Concretely: Agent 4 may write `translations_approved` content into `lib/i18n.ts` (the fallback) and/or a new `createCatalogVersion()` + `validateVersion()` call — never `approveVersion()`/`activateVersion()`. Those two calls are a human decision, always.
 - **Adapt each generic agent accordingly**:
   - Agent 1 should report `i18n_library.name` as `"custom"`, point at `lib/i18n.ts` + `components/i18n-provider.tsx`, and scope its UI text scan to the specific unwired modules above (or whatever module the user names) rather than the whole app.
-  - Agent 2/3 should treat this as reviewing/extending an existing catalog, not translating from zero — check `lib/i18n.ts`'s `es`/`es-PR` blocks for the relevant namespace before drafting anything new, and prioritize the linguistic-review gap on existing keys as real, separate work from new-key translation.
+  - Agent 2/3 should treat this as reviewing/extending an existing catalog, not translating from zero — check `lib/i18n.ts`'s `es`/`es-PR` blocks for the relevant namespace before drafting anything new, and prioritize the linguistic-review gap on existing keys as real, separate work from new-key translation. Agent 3 must review every key it's scoped to individually — see the corroborated failure mode in `docs/reviews/2026-09-18-spanish-catalog-linguistic-review.md` where a prior run admitted shortcutting most of a large batch with unreviewed find/replace patterns while still reporting the full count as reviewed.
   - Agent 4 must add new keys to `messages.en`/`messages.es`/`messages["es-PR"]` in `lib/i18n.ts` following the existing nested-namespace shape, wire target components with `useI18n()`/`t()` exactly like an existing wired sibling component (e.g. `components/application/daily-desk-workspace.tsx`), and must not install any new i18n package or bypass the governance/runtime fallback pattern in `lib/localization-governance/runtime.ts`.
-  - Skip the Supabase-translations-table step (Step 6) as written — ChurchCore's Supabase-backed store is the governance system described above, not a flat translations table; route governance-lifecycle changes (translate/validate/review/approve/activate) through `lib/localization-governance/adapter.ts`'s `createChurchAdapter()` rather than raw inserts.
-  - Agent 5's Supabase check (Check 6) becomes: confirm any new/changed catalog content was run through the governance lifecycle appropriately (or explicitly flagged as still-hardcoded-fallback-only, matching the existing `es` precedent) rather than silently diverging from it.
+  - Skip the Supabase-translations-table step (Step 6) as written — ChurchCore's Supabase-backed store is the governance system described above, not a flat translations table; route governance-lifecycle changes through `lib/localization-governance/adapter.ts`'s `createChurchAdapter()` rather than raw inserts, stopping at `createCatalogVersion()`/`validateVersion()` per the point above.
+  - Agent 5's Supabase check (Check 6) becomes: confirm any new/changed catalog content was run through the governance lifecycle appropriately (or explicitly flagged as still-hardcoded-fallback-only, matching the existing `es` precedent) rather than silently diverging from it, and confirm nothing was auto-approved/auto-activated.
 
 See `docs/reviews/2026-09-18-spanish-translation-evaluation.md` for the full evaluation this repo ran before using this skill for a real Spanish-translation push.
 
@@ -74,7 +77,11 @@ Read these files (if they exist):
   - package.json (root and any workspace packages)
   - Any tsconfig.json
   - Any vite.config.*, next.config.*, nuxt.config.*, svelte.config.*
-  - .env or .env.example (look for SUPABASE_URL or similar)
+  - .env.example ONLY (look for SUPABASE_URL or similar variable names). Never open
+    .env, .env.local, or any other file that may contain real secret values — this
+    step only needs to know which variable names are configured, not their values.
+    Repos may treat .env* as sensitive (e.g. a pre-commit hook that blocks it); this
+    subagent must never read one.
 
 Determine and record as "stack_info":
 {
@@ -289,11 +296,14 @@ Check stack_info.i18n_library.name:
   "ChurchCore-Specific Notes" at the top of this file.)
 
 ### If "none" (no i18n library detected):
-- Install react-i18next + i18next (for React/Next apps) or vue-i18n (for Vue/Nuxt)
-  as the standard choice
-- Set up the provider at the app root
-- Create the base English locale file from the text_map before adding <LOCALE_CODE>
-- Use useTranslation()/t() pattern
+- For React/Next apps: install react-i18next + i18next, use the useTranslation()/t() pattern.
+- For Vue/Nuxt apps: install vue-i18n, use the $t()/useI18n() pattern.
+- For Svelte/SvelteKit apps: install svelte-i18n, use its store-based $_() pattern.
+- For any other framework value, or any framework not covered above: STOP and ask
+  the user which i18n library to install rather than guessing — installing the
+  wrong package produces code that won't compile or run.
+- Whichever library is chosen: set up the provider at the app root, create the base
+  English locale file from the text_map before adding <LOCALE_CODE>.
 
 ## Step 2 — Create the new locale file
 

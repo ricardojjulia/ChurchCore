@@ -1661,7 +1661,7 @@ export const messages = {
       consoleLabel: "Pulso operativo",
       consoleStatus: "Red ministerial activa",
       consoleTitle: "Fin de semana, cuidado, donaciones y equipos en una vista",
-      eyebrow: "Sistema de mayordomia para iglesias modernas",
+      eyebrow: "Sistema de mayordomía para iglesias modernas",
       faithLine: "Creado para operaciones fieles.",
       faithSubline: "Menos carga administrativa. Más espacio para oración, personas y misión.",
       headline: "Church Core.",
