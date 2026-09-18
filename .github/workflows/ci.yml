@@ -31,6 +31,15 @@ jobs:
       - name: Unit tests
         run: npm run test
 
-      - name: RLS audit (advisory)
+      - name: Start local Supabase
+        run: npx supabase start
+
+      - name: Apply migrations
+        run: npx supabase db reset
+
+      - name: RLS audit
         run: npm run audit:rls
-        continue-on-error: true
+
+      - name: Stop local Supabase
+        if: always()
+        run: npx supabase stop
