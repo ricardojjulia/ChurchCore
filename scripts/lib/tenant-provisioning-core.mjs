@@ -14,28 +14,31 @@
 async function upsert(client, table, rows, onConflict = 'id') {
   if (!rows.length) return;
   const { error } = await client.from(table).upsert(rows, { onConflict, ignoreDuplicates: false });
-  if (error) console.warn(`  WARN ${table}: ${error.message}`);
-  else console.log(`  OK   ${table} (${rows.length})`);
+  if (error) throw new Error(`${table}: ${error.message}`);
+  console.log(`  OK   ${table} (${rows.length})`);
 }
 
 async function upsertIgnore(client, table, rows, onConflict) {
   if (!rows.length) return;
   const { error } = await client.from(table).upsert(rows, { onConflict, ignoreDuplicates: true });
-  if (error) console.warn(`  WARN ${table}: ${error.message}`);
-  else console.log(`  OK   ${table} (${rows.length})`);
+  if (error) throw new Error(`${table}: ${error.message}`);
+  console.log(`  OK   ${table} (${rows.length})`);
 }
 
 async function seedAuthUsers(tenant, churchId, users) {
   console.log('\n[1] Creating auth users...');
   const authIds = {};
 
-  const { data: { users: allUsers } } = await tenant.auth.admin.listUsers({ perPage: 1000 });
+  const { data: listData, error: listError } = await tenant.auth.admin.listUsers({ perPage: 1000 });
+  if (listError) throw new Error(`listUsers: ${listError.message}`);
+  const allUsers = listData.users;
 
   for (const u of users) {
     const existing = allUsers?.find((x) => x.email === u.email);
 
     if (existing) {
-      await tenant.auth.admin.updateUserById(existing.id, { password: u.password, email_confirm: true });
+      const { error } = await tenant.auth.admin.updateUserById(existing.id, { password: u.password, email_confirm: true });
+      if (error) throw new Error(`updateUserById ${u.email}: ${error.message}`);
       console.log(`  UPDATED ${u.email}`);
       authIds[u.email] = existing.id;
     } else {
@@ -45,8 +48,9 @@ async function seedAuthUsers(tenant, churchId, users) {
         email_confirm: true,
         user_metadata: { full_name: u.fullName, church_id: churchId, role: u.supabaseRole },
       });
-      if (error) { console.warn(`  WARN    ${u.email}: ${error.message}`); }
-      else { console.log(`  CREATED ${u.email} (${data.user.id})`); authIds[u.email] = data.user.id; }
+      if (error) throw new Error(`createUser ${u.email}: ${error.message}`);
+      console.log(`  CREATED ${u.email} (${data.user.id})`);
+      authIds[u.email] = data.user.id;
     }
   }
 
@@ -121,7 +125,8 @@ async function seedChurchSettings(tenant, { churchId, legalName, contactEmail, c
 async function registerTenant(cp, { churchId, churchName, churchSlug, timezone, cpTenantExternalId }) {
   console.log('\n[6] Registering tenant in control-plane...');
 
-  const { data: existing } = await cp.from('tenants').select('id').eq('slug', churchSlug).maybeSingle();
+  const { data: existing, error: selectError } = await cp.from('tenants').select('id').eq('slug', churchSlug).maybeSingle();
+  if (selectError) throw new Error(`tenants select: ${selectError.message}`);
 
   let tenantId;
   if (existing) {
@@ -136,12 +141,14 @@ async function registerTenant(cp, { churchId, churchName, churchSlug, timezone, 
       tenant_status: 'active',
       billing_status: 'trialing',
     }).select('id').single();
-    if (error) { console.warn(`  WARN tenants: ${error.message}`); return; }
+    if (error) throw new Error(`tenants insert: ${error.message}`);
     tenantId = data.id;
     console.log(`  CREATED tenant ${churchSlug} (${tenantId})`);
   }
 
-  const { data: existingConn } = await cp.from('tenant_connections').select('id').eq('tenant_id', tenantId).maybeSingle();
+  const { data: existingConn, error: connSelectError } = await cp.from('tenant_connections').select('id').eq('tenant_id', tenantId).maybeSingle();
+  if (connSelectError) throw new Error(`tenant_connections select: ${connSelectError.message}`);
+
   if (existingConn) {
     console.log('  EXISTS tenant_connections');
   } else {
@@ -154,8 +161,8 @@ async function registerTenant(cp, { churchId, churchName, churchSlug, timezone, 
         runtime_slug: churchSlug,
       },
     });
-    if (error) console.warn(`  WARN tenant_connections: ${error.message}`);
-    else console.log('  CREATED tenant_connections');
+    if (error) throw new Error(`tenant_connections insert: ${error.message}`);
+    console.log('  CREATED tenant_connections');
   }
 }
 

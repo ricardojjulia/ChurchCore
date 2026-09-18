@@ -1,6 +1,6 @@
 # Tenant Data Segmentation
 
-**Last updated:** 2026-06-07
+**Last updated:** 2026-09-18
 **Scope:** Shared-database multi-tenancy — how church data is isolated when all tenants share a single Supabase project.
 
 ---

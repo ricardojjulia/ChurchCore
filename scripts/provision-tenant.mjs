@@ -124,6 +124,13 @@ const ROLE_DEFS = [
   { supabaseRole: 'member_volunteer', membershipRole: 'member', displayTitle: null, isPastoral: false, email: process.env.MEMBER_EMAIL, fullName: process.env.MEMBER_FULL_NAME },
 ];
 
+for (const r of ROLE_DEFS) {
+  if (r.email && !r.fullName) {
+    console.error(`Missing full name for ${r.email} — every role with an email set also needs its matching *_FULL_NAME env var.`);
+    process.exit(1);
+  }
+}
+
 const USERS = ROLE_DEFS
   .filter((r) => r.email)
   .map((r, i) => ({
@@ -131,7 +138,7 @@ const USERS = ROLE_DEFS
     password: DEMO_PW,
     supabaseRole: r.supabaseRole,
     membershipRole: r.membershipRole,
-    fullName: r.fullName || r.displayTitle,
+    fullName: r.fullName,
     displayTitle: r.displayTitle,
     isPastoral: r.isPastoral,
     profileId: randomUUID(),
