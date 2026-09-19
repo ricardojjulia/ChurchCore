@@ -27,6 +27,8 @@
     "lint:migrations": "node scripts/lint-migrations.mjs",
     "check:schema": "node scripts/check-schema-alignment.mjs",
     "audit:rls": "node scripts/audit-rls.mjs",
+    "audit:rls:control-plane": "RLS_AUDIT_SURFACE=control-plane node scripts/audit-rls.mjs",
+    "test:control-plane-feedback": "node scripts/test-control-plane-feedback.mjs",
     "generate:manifest": "node scripts/generate-manifest.mjs",
     "setup:demo": "node scripts/seed-demo.mjs",
     "provision:tenant": "node scripts/provision-tenant.mjs",
@@ -63,6 +65,7 @@
     "read-excel-file": "^9.0.6",
     "svix": "^1.95.1",
     "tailwind-merge": "^3.5.0",
+    "undici": "^7.29.1",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

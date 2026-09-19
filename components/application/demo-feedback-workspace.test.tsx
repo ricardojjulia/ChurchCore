@@ -1,7 +1,13 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MantineProvider } from "@mantine/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { notificationsShowMock } = vi.hoisted(() => ({ notificationsShowMock: vi.fn() }));
+
+vi.mock("@mantine/notifications", () => ({
+  notifications: { show: notificationsShowMock },
+}));
 
 if (typeof ResizeObserver === "undefined") {
   global.ResizeObserver = class ResizeObserver {
@@ -98,12 +104,13 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 describe("DemoFeedbackWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal("fetch", vi.fn());
   });
 
   it("renders all columns", () => {
     render(
       <Wrapper>
-        <DemoFeedbackWorkspace feedbackData={[makeRow()]} session={mockSession} />
+        <DemoFeedbackWorkspace feedbackResult={{ status: "ready", rows: [makeRow()] }} session={mockSession} />
       </Wrapper>,
     );
     expect(screen.getByText("When")).toBeDefined();
@@ -124,7 +131,7 @@ describe("DemoFeedbackWorkspace", () => {
 
     render(
       <Wrapper>
-        <DemoFeedbackWorkspace feedbackData={rows} session={mockSession} />
+        <DemoFeedbackWorkspace feedbackResult={{ status: "ready", rows }} session={mockSession} />
       </Wrapper>,
     );
 
@@ -149,7 +156,7 @@ describe("DemoFeedbackWorkspace", () => {
 
     render(
       <Wrapper>
-        <DemoFeedbackWorkspace feedbackData={rows} session={mockSession} />
+        <DemoFeedbackWorkspace feedbackResult={{ status: "ready", rows }} session={mockSession} />
       </Wrapper>,
     );
 
@@ -169,7 +176,7 @@ describe("DemoFeedbackWorkspace", () => {
 
     render(
       <Wrapper>
-        <DemoFeedbackWorkspace feedbackData={rows} session={mockSession} />
+        <DemoFeedbackWorkspace feedbackResult={{ status: "ready", rows }} session={mockSession} />
       </Wrapper>,
     );
 
@@ -184,7 +191,7 @@ describe("DemoFeedbackWorkspace", () => {
     const user = userEvent.setup();
     render(
       <Wrapper>
-        <DemoFeedbackWorkspace feedbackData={[makeRow()]} session={mockSession} />
+        <DemoFeedbackWorkspace feedbackResult={{ status: "ready", rows: [makeRow()] }} session={mockSession} />
       </Wrapper>,
     );
 
@@ -198,9 +205,65 @@ describe("DemoFeedbackWorkspace", () => {
   it("shows empty state when no rows", () => {
     render(
       <Wrapper>
-        <DemoFeedbackWorkspace feedbackData={[]} session={mockSession} />
+        <DemoFeedbackWorkspace feedbackResult={{ status: "ready", rows: [] }} session={mockSession} />
       </Wrapper>,
     );
     expect(screen.getByText("All caught up — no open items.")).toBeDefined();
+  });
+
+  it("shows an unavailable warning instead of an empty success state", () => {
+    render(
+      <Wrapper>
+        <DemoFeedbackWorkspace
+          feedbackResult={{ status: "unavailable", rows: [], message: "Storage is not configured." }}
+          session={mockSession}
+        />
+      </Wrapper>,
+    );
+
+    expect(screen.getByText("Feedback unavailable")).toBeDefined();
+    expect(screen.getByText("Storage is not configured.")).toBeDefined();
+    expect(screen.queryByText("All caught up — no open items.")).toBeNull();
+  });
+
+  it("optimistically marks an item done and sends the mutation", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 200 }));
+    render(
+      <Wrapper>
+        <DemoFeedbackWorkspace feedbackResult={{ status: "ready", rows: [makeRow()] }} session={mockSession} />
+      </Wrapper>,
+    );
+
+    await user.click(screen.getByRole("switch", { name: "Mark as processed" }));
+
+    expect(screen.getByText("All caught up — no open items.")).toBeDefined();
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/control/demo-feedback/row-1",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ processed: true }),
+        }),
+      ),
+    );
+  });
+
+  it("rolls back an optimistic processed update when the server rejects it", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("network unavailable"));
+    render(
+      <Wrapper>
+        <DemoFeedbackWorkspace feedbackResult={{ status: "ready", rows: [makeRow()] }} session={mockSession} />
+      </Wrapper>,
+    );
+
+    await user.click(screen.getByRole("switch", { name: "Mark as processed" }));
+
+    await waitFor(() => expect(screen.getByText("user@example.com")).toBeDefined());
+    expect(screen.getByRole("switch", { name: "Mark as processed" })).not.toBeChecked();
+    expect(notificationsShowMock).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Update failed", color: "red" }),
+    );
   });
 });

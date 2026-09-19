@@ -54,6 +54,7 @@ export default async function RootLayout({
   return (
     <html
       lang={locale}
+      data-scroll-behavior="smooth"
       {...mantineHtmlProps}
       className={`${sans.variable} ${serif.variable} h-full scroll-smooth antialiased`}
     >

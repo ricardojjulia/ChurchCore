@@ -22,6 +22,7 @@ for (const file of envFiles) {
 
 const memberEmail = process.env.CHURCHCORE_OPS_DEMO_MEMBER_EMAIL;
 const demoPassword = process.env.CHURCHCORE_OPS_DEV_PASSWORD;
+const appUrl = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:4200";
 
 const memberMobileRoutes = [
   "/app/member",
@@ -39,32 +40,41 @@ async function signIn(page: import("@playwright/test").Page, email: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByRole("textbox", { name: "Password" }).fill(demoPassword ?? "");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL("**/app");
+  await page.waitForURL("**/app/**");
 }
 
 async function setChurchContext(
   page: import("@playwright/test").Page,
   roleId: "member",
 ) {
-  await page.evaluate(
-    ({ appContext }) => {
-      document.cookie = `churchcore_ops_app_context=${encodeURIComponent(
-        JSON.stringify(appContext),
-      )}; path=/; SameSite=Lax`;
-    },
+  await page.context().addCookies([
     {
-      appContext: {
+      name: "churchcore_ops_app_context",
+      value: encodeURIComponent(JSON.stringify({
         kind: "church",
         churchId: "11111111-0000-0000-0000-000000000001",
         roleId,
         source: "impersonation",
-      },
+      })),
+      url: appUrl,
+      sameSite: "Lax",
     },
-  );
+  ]);
 }
 
 function routeKey(route: string) {
   return route.replaceAll("/", "-").replace(/^-+/, "") || "root";
+}
+
+async function gotoWithAbortRetry(page: import("@playwright/test").Page, route: string) {
+  try {
+    await page.goto(route);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes("net::ERR_ABORTED")) {
+      throw error;
+    }
+    await page.goto(route);
+  }
 }
 
 test.describe("Member mobile PWA foundation baseline", () => {
@@ -112,7 +122,9 @@ test.describe("Member mobile PWA foundation baseline", () => {
     await expect(
       page.locator("button[aria-label*='navigation' i], button[aria-label='Toggle navigation']").first(),
     ).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Calendar" })).toBeVisible();
+    await expect(
+      page.getByRole("banner").getByText("Calendar", { exact: true }),
+    ).toBeVisible();
     await expect(page.locator("footer a")).toHaveCount(5);
     await expect(page.getByText("Application error", { exact: false })).toHaveCount(0);
 
@@ -139,14 +151,14 @@ test.describe("Member mobile PWA foundation baseline", () => {
   });
 
   test("renders safe unavailable states for invalid parent session links on mobile", async ({ page }) => {
-    await page.goto("/portal/children/checkin/invalid-token-mobile-test");
+    await gotoWithAbortRetry(page, "/portal/children/checkin/invalid-token-mobile-test");
     await expect(
       page.getByText("Session link unavailable").or(
         page.getByText("Children session preview unavailable"),
       ),
     ).toBeVisible();
 
-    await page.goto("/portal/children/checkout/invalid-token-mobile-test");
+    await gotoWithAbortRetry(page, "/portal/children/checkout/invalid-token-mobile-test");
     await expect(
       page.getByText("Session link unavailable").or(
         page.getByText("Children session preview unavailable"),

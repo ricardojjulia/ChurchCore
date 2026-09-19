@@ -40,6 +40,29 @@ jobs:
       - name: RLS audit
         run: npm run audit:rls
 
+      - name: Stage control-plane Supabase project
+        run: |
+          mkdir -p "${RUNNER_TEMP}/churchcore-control-plane/supabase"
+          cp supabase/control-plane/config.toml "${RUNNER_TEMP}/churchcore-control-plane/supabase/config.toml"
+          cp supabase/control-plane/seed.sql "${RUNNER_TEMP}/churchcore-control-plane/supabase/seed.sql"
+          cp -R supabase/control-plane/migrations "${RUNNER_TEMP}/churchcore-control-plane/supabase/migrations"
+
+      - name: Start control-plane Supabase
+        run: npx supabase start --workdir "${RUNNER_TEMP}/churchcore-control-plane"
+
+      - name: Apply control-plane migrations
+        run: npx supabase db reset --workdir "${RUNNER_TEMP}/churchcore-control-plane"
+
+      - name: Control-plane RLS audit
+        run: npm run audit:rls:control-plane
+
+      - name: Control-plane feedback integration
+        run: npm run test:control-plane-feedback
+
+      - name: Stop control-plane Supabase
+        if: always()
+        run: npx supabase stop --workdir "${RUNNER_TEMP}/churchcore-control-plane"
+
       - name: Stop local Supabase
         if: always()
         run: npx supabase stop

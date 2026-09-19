@@ -218,6 +218,10 @@ function buildRoomStatuses(
 export async function getCcmServiceList(
   session: ChurchAppSession,
 ): Promise<CcmService[]> {
+  if (session.source === "preview") {
+    return [];
+  }
+
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {

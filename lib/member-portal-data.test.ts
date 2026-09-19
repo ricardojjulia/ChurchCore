@@ -26,7 +26,11 @@ vi.mock("@/lib/church-profile", () => ({
 }));
 
 vi.mock("@/lib/portal", () => ({
-  getPortalRole: vi.fn(() => ({ timeline: [] })),
+  getPortalRole: vi.fn(() => ({
+    timeline: [
+      { time: "Sunday 9:15 AM", title: "Sunday service", detail: "Preview event" },
+    ],
+  })),
 }));
 
 vi.mock("@/lib/supabase/tenant", () => ({
@@ -68,6 +72,14 @@ describe("getMemberPortalData pending-review status", () => {
     hasTenantBackendEnvMock.mockReturnValue(true);
     shouldUseLocalTenantFallbackMock.mockReturnValue(true);
     resolveActiveChurchProfileIdMock.mockResolvedValue("profile-1");
+  });
+
+  it("uses valid ISO timestamps for preview events", async () => {
+    const data = await getMemberPortalData({ ...session, source: "preview" });
+
+    expect(data.upcomingEvents).toHaveLength(1);
+    expect(Number.isNaN(Date.parse(data.upcomingEvents[0].startsAt))).toBe(false);
+    expect(Number.isNaN(Date.parse(data.upcomingEvents[0].endsAt))).toBe(false);
   });
 
   it("maps latest profile and family review states from member change requests", async () => {

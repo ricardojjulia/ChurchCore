@@ -22,6 +22,7 @@ for (const file of envFiles) {
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:4201";
 const mailpitUrl = process.env.CHURCHCORE_OPS_MAILPIT_URL ?? "http://127.0.0.1:4205";
+const appUrl = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:4200";
 const adminEmail = process.env.CHURCHCORE_OPS_DEMO_ADMIN_EMAIL;
 const demoPassword = process.env.CHURCHCORE_OPS_DEV_PASSWORD;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -40,21 +41,19 @@ async function setChurchContext(
   page: import("@playwright/test").Page,
   roleId: "church-admin" | "member",
 ) {
-  await page.evaluate(
-    ({ appContext }) => {
-      document.cookie = `churchcore_ops_app_context=${encodeURIComponent(
-        JSON.stringify(appContext),
-      )}; path=/; SameSite=Lax`;
-    },
+  await page.context().addCookies([
     {
-      appContext: {
+      name: "churchcore_ops_app_context",
+      value: encodeURIComponent(JSON.stringify({
         kind: "church",
         churchId: "11111111-0000-0000-0000-000000000001",
         roleId,
         source: "impersonation",
-      },
+      })),
+      url: appUrl,
+      sameSite: "Lax",
     },
-  );
+  ]);
 }
 
 async function waitForInviteMessage(

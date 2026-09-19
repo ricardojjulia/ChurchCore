@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   ActionIcon,
+  Alert,
   Badge,
   Collapse,
   Code,
@@ -20,11 +21,16 @@ import {
   TextInput,
   UnstyledButton,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 import { ApplicationShell } from "@/components/application/app-shell";
 import type { AuthSession } from "@/lib/auth";
-import type { DemoFeedbackAction, DemoFeedbackRow } from "@/lib/control-plane-demo-feedback";
+import type {
+  DemoFeedbackAction,
+  DemoFeedbackResult,
+  DemoFeedbackRow,
+} from "@/lib/control-plane-demo-feedback";
 
 const CATEGORY_COLORS: Record<string, string> = {
   BUG: "red",
@@ -113,10 +119,10 @@ function DrawerField({ label, value }: { label: string; value: React.ReactNode }
 }
 
 export function DemoFeedbackWorkspace({
-  feedbackData,
+  feedbackResult,
   session,
 }: {
-  feedbackData: DemoFeedbackRow[];
+  feedbackResult: DemoFeedbackResult;
   session: AuthSession;
 }) {
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -125,7 +131,7 @@ export function DemoFeedbackWorkspace({
   const [dateTo, setDateTo] = useState("");
   const [processedFilter, setProcessedFilter] = useState("open");
   const [drawerRow, setDrawerRow] = useState<DemoFeedbackRow | null>(null);
-  const [rows, setRows] = useState<DemoFeedbackRow[]>(feedbackData);
+  const [rows, setRows] = useState<DemoFeedbackRow[]>(feedbackResult.rows);
   const [jsonOpen, setJsonOpen] = useState(false);
 
   const filteredData = useMemo(() => {
@@ -168,8 +174,13 @@ export function DemoFeedbackWorkspace({
     updateRow(row.id, { processed: value });
     try {
       await patchFeedback(row.id, { processed: value });
-    } catch {
+    } catch (error) {
       updateRow(row.id, { processed: row.processed });
+      notifications.show({
+        title: "Update failed",
+        message: error instanceof Error ? error.message : "The feedback item was not updated.",
+        color: "red",
+      });
     }
   }
 
@@ -178,8 +189,13 @@ export function DemoFeedbackWorkspace({
     updateRow(id, { action: value });
     try {
       await patchFeedback(id, { action: value });
-    } catch {
+    } catch (error) {
       updateRow(id, { action: prev });
+      notifications.show({
+        title: "Update failed",
+        message: error instanceof Error ? error.message : "The feedback action was not updated.",
+        color: "red",
+      });
     }
   }
 
@@ -199,6 +215,14 @@ export function DemoFeedbackWorkspace({
       topActions={null}
     >
       <Stack gap="md">
+        {feedbackResult.status !== "ready" ? (
+          <Alert
+            color={feedbackResult.status === "error" ? "red" : "yellow"}
+            title="Feedback unavailable"
+          >
+            {feedbackResult.message}
+          </Alert>
+        ) : null}
         {/* Filters */}
         <Group gap="sm" wrap="wrap" align="flex-end">
           <SegmentedControl
@@ -255,11 +279,11 @@ export function DemoFeedbackWorkspace({
           </Input.Wrapper>
         </Group>
 
-        {filteredData.length === 0 ? (
+        {feedbackResult.status === "ready" && filteredData.length === 0 ? (
           <Text ta="center" c="dimmed" py="xl">
             {processedFilter === "open" ? "All caught up — no open items." : "No results."}
           </Text>
-        ) : (
+        ) : feedbackResult.status === "ready" ? (
           <Table striped highlightOnHover withTableBorder withColumnBorders fz="sm">
             <Table.Thead>
               <Table.Tr>
@@ -361,7 +385,7 @@ export function DemoFeedbackWorkspace({
               })}
             </Table.Tbody>
           </Table>
-        )}
+        ) : null}
       </Stack>
 
       <Drawer

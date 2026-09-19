@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createControlPlaneServerClientMock } = vi.hoisted(() => ({
+const { createControlPlaneServerClientMock, hasControlPlaneSupabaseEnvMock } = vi.hoisted(() => ({
   createControlPlaneServerClientMock: vi.fn(),
+  hasControlPlaneSupabaseEnvMock: vi.fn(() => true),
 }));
 
 vi.mock("@/lib/supabase/control-plane", () => ({
   createControlPlaneServerClient: createControlPlaneServerClientMock,
+}));
+
+vi.mock("@/lib/supabase/config", () => ({
+  hasControlPlaneSupabaseEnv: hasControlPlaneSupabaseEnvMock,
 }));
 
 import { loadDemoFeedback, type DemoFeedbackRow } from "@/lib/control-plane-demo-feedback";
@@ -20,6 +25,18 @@ function makeSupabaseChain(data: unknown[], error: unknown = null) {
 describe("loadDemoFeedback", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    hasControlPlaneSupabaseEnvMock.mockReturnValue(true);
+  });
+
+  it("returns an empty preview queue without constructing a control-plane client", async () => {
+    hasControlPlaneSupabaseEnvMock.mockReturnValueOnce(false);
+
+    await expect(loadDemoFeedback()).resolves.toEqual({
+      status: "unavailable",
+      rows: [],
+      message: "Control-plane feedback storage is not configured for this environment.",
+    });
+    expect(createControlPlaneServerClientMock).not.toHaveBeenCalled();
   });
 
   it("queries the demo_feedback table ordered by created_at desc", async () => {
@@ -61,10 +78,7 @@ describe("loadDemoFeedback", () => {
 
     const result = await loadDemoFeedback();
 
-    expect(result).toEqual(rows);
-    expect(result).toHaveLength(1);
-    expect(result[0].category).toBe("BUG");
-    expect(result[0].hit_count).toBe(3);
+    expect(result).toEqual({ status: "ready", rows });
   });
 
   it("returns an empty array when data is null", async () => {
@@ -75,7 +89,7 @@ describe("loadDemoFeedback", () => {
 
     const result = await loadDemoFeedback();
 
-    expect(result).toEqual([]);
+    expect(result).toEqual({ status: "ready", rows: [] });
   });
 
   it("returns multiple rows in the order returned by the query", async () => {
@@ -126,9 +140,7 @@ describe("loadDemoFeedback", () => {
 
     const result = await loadDemoFeedback();
 
-    expect(result).toHaveLength(2);
-    expect(result[0].id).toBe("uuid-2");
-    expect(result[1].id).toBe("uuid-1");
+    expect(result).toEqual({ status: "ready", rows });
   });
 
   it("uses the control-plane server client (not tenant)", async () => {
@@ -140,7 +152,7 @@ describe("loadDemoFeedback", () => {
     expect(createControlPlaneServerClientMock).toHaveBeenCalledOnce();
   });
 
-  it("returns [] and logs to console.error when Supabase returns an error", async () => {
+  it("returns an error state and logs when Supabase returns an error", async () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const orderMock = vi.fn().mockResolvedValue({ data: null, error: { message: "RLS denial" } });
@@ -150,7 +162,11 @@ describe("loadDemoFeedback", () => {
 
     const result = await loadDemoFeedback();
 
-    expect(result).toEqual([]);
+    expect(result).toEqual({
+      status: "error",
+      rows: [],
+      message: "Feedback could not be loaded. Try again after checking control-plane health.",
+    });
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       "[demo-feedback] Failed to load demo_feedback:",
       "RLS denial",

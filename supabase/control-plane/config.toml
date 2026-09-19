@@ -7,8 +7,9 @@
 # Do NOT add church operational tables (churches, profiles, ministries, events, etc.)
 # to this project. Those belong in the tenant runtime project.
 #
-# Local development: run from this directory with:
-#   supabase start --workdir supabase/control-plane
+# Local development: stage this directory under a temporary project root as
+# `supabase/`, matching the CI workflow. Supabase CLI requires that conventional
+# layout and otherwise ignores this nested config.
 #
 # Env vars activated by this project:
 #   CONTROL_PLANE_SUPABASE_URL

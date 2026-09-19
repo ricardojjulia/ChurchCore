@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useSyncExternalStore, useTransition } from "react";
 import {
   Button,
   Divider,
@@ -53,6 +53,18 @@ async function subscribeBrowserPush(churchId: string, profileId: string): Promis
   }
 }
 
+function subscribeToBrowserCapabilities() {
+  return () => undefined;
+}
+
+function getBrowserPushSupport() {
+  return "PushManager" in window;
+}
+
+function getServerBrowserPushSupport() {
+  return false;
+}
+
 export function NotificationPreferencesForm({
   profileId,
   churchId,
@@ -63,8 +75,10 @@ export function NotificationPreferencesForm({
   const [smsOptIn, setSmsOptIn] = useState(initial.smsOptIn);
   const [pushOptIn, setPushOptIn] = useState(initial.pushOptIn);
   const [inAppOptIn, setInAppOptIn] = useState(initial.inAppOptIn);
-  const [browserPushSupported] = useState(
-    typeof window !== "undefined" && "PushManager" in window,
+  const browserPushSupported = useSyncExternalStore(
+    subscribeToBrowserCapabilities,
+    getBrowserPushSupport,
+    getServerBrowserPushSupport,
   );
 
   const [isPending, startTransition] = useTransition();

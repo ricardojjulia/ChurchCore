@@ -154,9 +154,9 @@ npm run dev
 
 ChurchCore includes a repo-local software factory for structured AI-assisted development:
 
-- **Claude Code:** use `.claude/agents/`, `.claude/skills/feature-factory`, `.claude/skills/build-with-tests`, and `.claude/hooks/pre-commit.sh`.
-- **Codex:** use `.codex/skills/churchcore-feature-factory`, `.codex/skills/churchcore-build-with-tests`, and `.codex/skills/churchcore-pr-review`.
-- **Gemini (Antigravity):** use `.gemini/skills/gemini-feature-factory`, `.gemini/skills/gemini-build-with-tests`, and `.gemini/skills/gemini-pr-review`.
+- **Claude Code:** use `.claude/agents/`, `.claude/skills/feature-factory`, `.claude/skills/build-with-tests`, `.claude/skills/pr-review`, and `.claude/hooks/pre-commit.sh`.
+- **Codex:** use `.codex/skills/churchcore-feature-factory`, `.codex/skills/churchcore-build-with-tests`, `.codex/skills/churchcore-pr-review`, and `.codex/skills/churchcore-language-translation`.
+- **Gemini (Antigravity):** use `.gemini/skills/gemini-feature-factory`, `.gemini/skills/gemini-build-with-tests`, `.gemini/skills/gemini-pr-review`, and `.gemini/skills/gemini-language-translation`.
 
 Start with [docs/software-factory.md](docs/software-factory.md) for the how-to and [docs/diagrams.md](docs/diagrams.md#claude-code-software-factory) for the visual workflow maps.
 

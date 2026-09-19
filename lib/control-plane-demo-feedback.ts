@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createControlPlaneServerClient } from "@/lib/supabase/control-plane";
+import { hasControlPlaneSupabaseEnv } from "@/lib/supabase/config";
 
 export type DemoFeedbackAction =
   | "code_fixed"
@@ -32,7 +33,20 @@ export type DemoFeedbackRow = {
   updated_at: string;
 };
 
-export async function loadDemoFeedback(): Promise<DemoFeedbackRow[]> {
+export type DemoFeedbackResult =
+  | { status: "ready"; rows: DemoFeedbackRow[] }
+  | { status: "unavailable"; rows: []; message: string }
+  | { status: "error"; rows: []; message: string };
+
+export async function loadDemoFeedback(): Promise<DemoFeedbackResult> {
+  if (!hasControlPlaneSupabaseEnv()) {
+    return {
+      status: "unavailable",
+      rows: [],
+      message: "Control-plane feedback storage is not configured for this environment.",
+    };
+  }
+
   const supabase = await createControlPlaneServerClient();
   const { data, error } = await supabase
     .from("demo_feedback")
@@ -40,7 +54,11 @@ export async function loadDemoFeedback(): Promise<DemoFeedbackRow[]> {
     .order("created_at", { ascending: false });
   if (error) {
     console.error("[demo-feedback] Failed to load demo_feedback:", error.message);
-    return [];
+    return {
+      status: "error",
+      rows: [],
+      message: "Feedback could not be loaded. Try again after checking control-plane health.",
+    };
   }
-  return (data ?? []) as DemoFeedbackRow[];
+  return { status: "ready", rows: (data ?? []) as DemoFeedbackRow[] };
 }

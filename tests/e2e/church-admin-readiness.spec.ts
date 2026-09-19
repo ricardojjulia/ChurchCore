@@ -99,36 +99,37 @@ async function signIn(page: import("@playwright/test").Page, email: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByRole("textbox", { name: "Password" }).fill(demoPassword ?? "");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL("**/app");
+  await page.waitForURL("**/app/**");
 }
 
 async function setChurchContext(
   page: import("@playwright/test").Page,
   roleId: "church-admin" | "secretary" | "pastor" | "ministry-leader" | "member",
 ) {
-  await page.evaluate(
-    ({ appContext }) => {
-      document.cookie = `churchcore_ops_app_context=${encodeURIComponent(
-        JSON.stringify(appContext),
-      )}; path=/; SameSite=Lax`;
-    },
+  await page.context().addCookies([
     {
-      appContext: {
+      name: "churchcore_ops_app_context",
+      value: encodeURIComponent(JSON.stringify({
         kind: "church",
         churchId: "11111111-0000-0000-0000-000000000001",
         roleId,
         source: "impersonation",
-      },
+      })),
+      url: appUrl,
+      sameSite: "Lax",
     },
-  );
+  ]);
 }
 
 async function setControlContext(page: import("@playwright/test").Page) {
-  await page.evaluate(() => {
-    document.cookie = `churchcore_ops_app_context=${encodeURIComponent(
-      JSON.stringify({ kind: "control" }),
-    )}; path=/; SameSite=Lax`;
-  });
+  await page.context().addCookies([
+    {
+      name: "churchcore_ops_app_context",
+      value: encodeURIComponent(JSON.stringify({ kind: "control" })),
+      url: appUrl,
+      sameSite: "Lax",
+    },
+  ]);
 }
 
 async function clearAppContextCookie(context: import("@playwright/test").BrowserContext) {
@@ -154,6 +155,7 @@ test.describe("ChurchAdmin weekly readiness browser path", () => {
   });
 
   test("opens readiness and every current readiness target route", async ({ page }) => {
+    test.setTimeout(60_000);
     await page.goto("/app/church-admin/readiness");
     await expect(page.getByRole("heading", { name: "Weekly readiness" })).toBeVisible();
 

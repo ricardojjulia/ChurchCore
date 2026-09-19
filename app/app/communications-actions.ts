@@ -815,6 +815,10 @@ export async function listCommunicationLogsAction(): Promise<
     return { ok: false as const, error: "Access denied." };
   }
 
+  if (session.source === "preview") {
+    return { ok: true as const, logs: [] };
+  }
+
   const churchId = session.appContext.church.id;
   const { createTenantServerClient } = await import("@/lib/supabase/tenant");
   const supabase = await createTenantServerClient();

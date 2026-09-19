@@ -134,6 +134,8 @@ export type MemberPortalData = {
 
 function buildPreviewMemberPortalData(session: ChurchAppSession): MemberPortalData {
   const role = getPortalRole("member");
+  const previewEventStart = new Date();
+  previewEventStart.setHours(9, 15, 0, 0);
 
   return {
     profile: {
@@ -163,8 +165,14 @@ function buildPreviewMemberPortalData(session: ChurchAppSession): MemberPortalDa
         id: `preview-member-event-${index}`,
         title: item.title,
         description: item.detail,
-        startsAt: item.time,
-        endsAt: item.time,
+        startsAt: new Date(
+          previewEventStart.getTime() + (index + 1) * 24 * 60 * 60 * 1000,
+        ).toISOString(),
+        endsAt: new Date(
+          previewEventStart.getTime() +
+            (index + 1) * 24 * 60 * 60 * 1000 +
+            90 * 60 * 1000,
+        ).toISOString(),
         category: "general",
         visibility: "members",
         ministryName: null,

@@ -44,15 +44,18 @@ Factory runs are tracked in [docs/factory-runs](factory-runs/). Add or update a 
 | `.claude/agents/*.md` | Claude Code | Focused project agents: researcher, story writer, spec writer, backend builder, frontend builder, test verifier, validator, PR reviewer. |
 | `.claude/skills/build-with-tests/SKILL.md` | Claude Code | Implementation workflow and verification rules. |
 | `.claude/skills/feature-factory/SKILL.md` | Claude Code | Orchestrates the full feature chain. |
+| `.claude/skills/pr-review/SKILL.md` | Claude Code | Claude-compatible PR/diff review checklist. |
 | `.claude/hooks/pre-commit.sh` | Claude Code / shell | Blocks obvious sensitive files from being staged for commit. |
 | `.claude/settings.example.json` | Claude Code | Example hook wiring. Copy relevant parts into local `.claude/settings.json`; do not commit local settings. |
 | `.codex/skills/churchcore-feature-factory/SKILL.md` | Codex | Codex-compatible feature workflow. |
 | `.codex/skills/churchcore-build-with-tests/SKILL.md` | Codex | Codex-compatible implementation workflow. |
 | `.codex/skills/churchcore-pr-review/SKILL.md` | Codex | Codex-compatible PR/diff review checklist. |
+| `.codex/skills/churchcore-language-translation/SKILL.md` | Codex | Codex entrypoint for the canonical governed translation pipeline. |
 | `.codex/skills/churchcore-feature-factory/references/agent-roles.md` | Codex | Role contracts that mirror Claude agents. |
 | `.gemini/skills/gemini-feature-factory/SKILL.md` | Gemini | Gemini-compatible feature workflow integrating Planning Mode. |
 | `.gemini/skills/gemini-build-with-tests/SKILL.md` | Gemini | Gemini-compatible implementation workflow. |
 | `.gemini/skills/gemini-pr-review/SKILL.md` | Gemini | Gemini-compatible PR/diff review checklist. |
+| `.gemini/skills/gemini-language-translation/SKILL.md` | Gemini | Gemini entrypoint for the canonical governed translation pipeline. |
 | `.gemini/skills/gemini-feature-factory/references/agent-roles.md` | Gemini | Role contracts for Gemini software factory phases. |
 
 ## Claude Code How-To

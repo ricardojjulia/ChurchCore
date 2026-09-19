@@ -6,6 +6,6 @@ export const metadata = { title: "Demo Feedback — ChurchCore Control" };
 
 export default async function DemoFeedbackPage() {
   const session = await requireControlPlaneSession("/control/demo-feedback");
-  const feedbackData = await loadDemoFeedback();
-  return <DemoFeedbackWorkspace feedbackData={feedbackData} session={session} />;
+  const feedbackResult = await loadDemoFeedback();
+  return <DemoFeedbackWorkspace feedbackResult={feedbackResult} session={session} />;
 }

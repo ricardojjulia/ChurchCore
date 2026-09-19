@@ -2,6 +2,11 @@
 
 This document covers how to start, seed, and reset the local Supabase instance for ChurchCore development.
 
+The main commands below operate on the tenant project. The separate control-plane
+project is verified in CI by staging `supabase/control-plane/` into Supabase CLI's
+required `<project-root>/supabase/` layout, applying its migrations, and running
+`npm run audit:rls:control-plane`. Do not point the tenant app at that database.
+
 ---
 
 ## Prerequisites

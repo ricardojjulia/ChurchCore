@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -76,8 +76,6 @@ describe("DemoErrorBoundary", () => {
   it("does not POST when demo mode is off and a JS error occurs", async () => {
     vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
 
-    // React 19 + jsdom: error boundary with componentDidCatch absorbs the throw
-    // (no getDerivedStateFromError means React re-renders children after catch)
     try {
       render(
         <DemoErrorBoundary>
@@ -93,6 +91,9 @@ describe("DemoErrorBoundary", () => {
 
     expect(global.fetch).not.toHaveBeenCalled();
     expect(notificationsShowMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Something went wrong" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Reload page" })).toBeDefined();
+    expect(screen.getByRole("link", { name: "Go to workspace" })).toHaveAttribute("href", "/workspace");
   });
 
   it("silently POSTs to /api/demo/feedback when a JS error is thrown in demo mode", async () => {

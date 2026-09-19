@@ -48,14 +48,20 @@ export async function PATCH(
   }
 
   const supabase = createControlPlaneAdminClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("demo_feedback")
     .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq("id", id);
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     console.error("[demo-feedback] Failed to update triage:", error.message);
     return NextResponse.json({ error: "Update failed" }, { status: 500 });
+  }
+
+  if (!data) {
+    return NextResponse.json({ error: "Feedback item not found" }, { status: 404 });
   }
 
   return NextResponse.json({ ok: true });

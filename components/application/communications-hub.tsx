@@ -154,7 +154,7 @@ export function CommunicationsHub({
 
   const navItems = [
     {
-      href: "/app/pastor",
+      href: session.homePath,
       label: t("communicationsHub", "navHome"),
       description: t("communicationsHub", "navHomeDesc"),
       icon: Mail,
@@ -166,12 +166,12 @@ export function CommunicationsHub({
       icon: Send,
       active: true,
     },
-    {
+    ...(session.appContext.roleId !== "secretary" ? [{
       href: "/app/reports",
       label: t("communicationsHub", "navReports"),
       description: t("communicationsHub", "navReportsDesc"),
       icon: BarChart2,
-    },
+    }] : []),
   ];
 
   const filteredRecipients = filterRole
@@ -439,7 +439,7 @@ export function CommunicationsHub({
   return (
     <ApplicationShell
       session={session}
-      workspaceHref="/app/pastor"
+      workspaceHref={session.homePath}
       calendarHref="/app/calendar"
       sectionLabel={t("communicationsHub", "sectionLabel")}
       title={t("communicationsHub", "pageTitle")}

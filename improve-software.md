@@ -28,7 +28,8 @@ graph TD
     E --> F[Execute via Software Factory Skills]
     F --> G[Run Verification & Sanity Checks]
     G --> H[Documenter Closes the Loop]
-    H --> I[Open PR referencing Council + Documenter sign-off]
+    H --> I[Run PR Review Gate]
+    I --> J[Open PR referencing Council + Documenter + PR-review sign-off]
 ```
 
 1. **Audit (Council):** Spawn 4 read-only agents in parallel using the prompts defined below to inspect database state, page routing, UX quality, and feature completeness.
@@ -37,7 +38,8 @@ graph TD
 4. **Change Management:** Map out the prompts into sequential tasks and track them via repo-local Planning Mode artifacts (`implementation_plan.md`, `task.md`, `walkthrough.md`).
 5. **Software Factory Execution:** Hand off the concrete, self-contained AI prompts to the software factory (`feature-factory` / `build-with-tests` on Claude, `gemini-feature-factory` / `gemini-build-with-tests` on Gemini, `churchcore-feature-factory` / `churchcore-build-with-tests` on Codex) to implement the changes to professional standards.
 6. **Documentation Close-Out (Documenter):** Once verification (`npm test`, `npm run lint`, `npm run build`) is clean, run the Documenter agent (Agent 5) to update the plan, changelog, docs, ADRs, and memory, and to confirm the council's own reports are committed. See Phase 4 below.
-7. **PR:** Only after the Documenter step does the branch open a PR, referencing the council synthesis and confirming Documenter sign-off in the description.
+7. **PR Review:** Run the read-only `pr-review` gate against the finished diff. Critical or Important findings route back to the relevant builder and the gate reruns after fixes.
+8. **PR:** Only after the Documenter and `pr-review` steps does the branch open a PR, referencing the council synthesis and confirming both sign-offs in the description.
 
 ---
 
@@ -237,3 +239,9 @@ After each council run, commit the following:
 - Documenter's updates to `DEVELOPMENT_PLAN.md`, `CHANGELOG.md`, `README.md`, `/docs`, and memory (Phase 4)
 
 The Documenter owns confirming all of the above are actually committed before the PR opens — a council run is not complete when the last agent report is written, it is complete when this list is true on disk.
+
+---
+
+## 6. Phase 5: PR Review Gate
+
+Before every PR opens, run the surface-specific read-only review skill against the full diff: `pr-review` on Claude, `churchcore-pr-review` on Codex, or `gemini-pr-review` on Gemini. Findings are ranked Critical, Important, or Minor. Critical and Important findings block the PR until resolved and re-reviewed; Minor findings are documented for the author's decision. The reviewer never edits, approves, merges, or closes the PR.

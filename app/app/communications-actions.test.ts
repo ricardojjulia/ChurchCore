@@ -837,6 +837,18 @@ describe("CC-COMM-001: listCommunicationLogsAction (actions.test)", () => {
     });
   });
 
+  it("returns an empty history without connecting to Supabase in preview mode", async () => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "church-admin", church: { id: "preview-church" } },
+      profile: { id: "preview-admin" },
+      source: "preview",
+      userId: "preview-admin",
+    });
+
+    await expect(listCommunicationLogsAction()).resolves.toEqual({ ok: true, logs: [] });
+    expect(createTenantServerClientMock).not.toHaveBeenCalled();
+  });
+
   it("AC22: returns only session-church logs", async () => {
     createTenantServerClientMock.mockResolvedValue({
       from: vi.fn(() => ({

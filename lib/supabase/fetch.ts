@@ -10,7 +10,8 @@ let dispatcher: unknown;
 function getDispatcher() {
   if (!dispatcher) {
     try {
-      // undici is built into Node.js 18+ and available in the Vercel runtime.
+      // Node's native fetch uses undici internally, but its Agent API is only
+      // importable when the package is an explicit application dependency.
       // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
       const undici = require("undici") as any;
       dispatcher = new undici.Agent({ connect: { keepAlive: false } });

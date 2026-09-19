@@ -56,7 +56,7 @@ describe("/control/demo-feedback page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireControlPlaneSessionMock.mockResolvedValue(mockControlSession);
-    loadDemoFeedbackMock.mockResolvedValue([]);
+    loadDemoFeedbackMock.mockResolvedValue({ status: "ready", rows: [] });
   });
 
   it("redirects to sign-in when requireControlPlaneSession throws (no control-plane access)", async () => {
@@ -100,7 +100,8 @@ describe("/control/demo-feedback page", () => {
         updated_at: "2026-07-11T00:00:00Z",
       },
     ];
-    loadDemoFeedbackMock.mockResolvedValueOnce(rows);
+    const feedbackResult = { status: "ready", rows };
+    loadDemoFeedbackMock.mockResolvedValueOnce(feedbackResult);
 
     const page = await DemoFeedbackPage();
     render(page);
@@ -108,7 +109,7 @@ describe("/control/demo-feedback page", () => {
     expect(screen.getByText("Demo Feedback Workspace")).toBeDefined();
     expect(demoFeedbackWorkspaceMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        feedbackData: rows,
+        feedbackResult,
         session: mockControlSession,
       }),
       undefined,
@@ -116,13 +117,13 @@ describe("/control/demo-feedback page", () => {
   });
 
   it("renders with an empty feedback list when no submissions exist", async () => {
-    loadDemoFeedbackMock.mockResolvedValueOnce([]);
+    loadDemoFeedbackMock.mockResolvedValueOnce({ status: "ready", rows: [] });
 
     const page = await DemoFeedbackPage();
     render(page);
 
     expect(demoFeedbackWorkspaceMock).toHaveBeenCalledWith(
-      expect.objectContaining({ feedbackData: [] }),
+      expect.objectContaining({ feedbackResult: { status: "ready", rows: [] } }),
       undefined,
     );
   });
