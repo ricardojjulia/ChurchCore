@@ -48,11 +48,15 @@ This surface still falls back to preview mode locally when Supabase is not confi
 There is no self-serve signup flow yet — the "Provision New Tenant" action in the `/control/tenants` UI is a disabled stub pending future work. Today, a new client account is created by running `npm run provision:tenant` (`scripts/provision-tenant.mjs`), which:
 
 1. Creates one Supabase Auth user per role you supply an email for (church admin required; pastor/secretary/ministry-leader/member optional) in the tenant Supabase project.
-2. Upserts the `churches`, `profiles`, `church_memberships`, and `church_settings` rows for that tenant.
+2. Upserts the `churches` row (including setup/contact fields), `profiles`, and `church_memberships` for that tenant.
 3. Registers the tenant in the control-plane project's `tenants` and `tenant_connections` tables so it shows up in this dashboard.
-4. Writes `scripts/seed-<slug>.mjs` — a small, client-specific script with that run's resolved IDs and credentials baked in. Commit it; it's the permanent, idempotent record for re-seeding that one client later (see `scripts/seed-casa-refugio.mjs` for an existing example of this pattern, predating the generic tool).
+4. Writes `scripts/seed-<slug>.mjs` — a small, client-specific script with that run's stable IDs but no password. Commit it as the permanent, idempotent record; supply the generated role-specific `*_PASSWORD` values separately when re-seeding. `scripts/seed-casa-refugio.mjs` predates this safer generated format.
 
 Shared provisioning logic lives in `scripts/lib/tenant-provisioning-core.mjs` so the generic tool and every generated per-client script stay in sync.
+
+Generated records require a distinct `*_PASSWORD` environment variable for each included role. Existing passwords are preserved on normal reruns; set `RESET_EXISTING_PASSWORDS=true` only for an intentional credential reset. The provisioner refuses cross-church email reuse, preserves existing profile IDs and dependent records, reconciles tenant routing, and leaves unknown phone/directory fields unavailable rather than inventing contact data.
+
+Provisioning creates the account shell, not a launch-ready church. Afterward, the church administrator must rotate temporary credentials, replace placeholder role accounts with real staff identities, and complete website, mailing address, public summary, ministry, and leader setup through onboarding/readiness workflows.
 
 ## Architectural Direction
 
