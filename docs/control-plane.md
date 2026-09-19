@@ -43,6 +43,17 @@ This surface still falls back to preview mode locally when Supabase is not confi
 - Preview fallback still exists when Supabase env vars are absent locally
 - Tenant-view launch resolves through control-plane registry records before any tenant app impersonation path is opened
 
+## Provisioning a New Client (Church) Account
+
+There is no self-serve signup flow yet — the "Provision New Tenant" action in the `/control/tenants` UI is a disabled stub pending future work. Today, a new client account is created by running `npm run provision:tenant` (`scripts/provision-tenant.mjs`), which:
+
+1. Creates one Supabase Auth user per role you supply an email for (church admin required; pastor/secretary/ministry-leader/member optional) in the tenant Supabase project.
+2. Upserts the `churches`, `profiles`, `church_memberships`, and `church_settings` rows for that tenant.
+3. Registers the tenant in the control-plane project's `tenants` and `tenant_connections` tables so it shows up in this dashboard.
+4. Writes `scripts/seed-<slug>.mjs` — a small, client-specific script with that run's resolved IDs and credentials baked in. Commit it; it's the permanent, idempotent record for re-seeding that one client later (see `scripts/seed-casa-refugio.mjs` for an existing example of this pattern, predating the generic tool).
+
+Shared provisioning logic lives in `scripts/lib/tenant-provisioning-core.mjs` so the generic tool and every generated per-client script stay in sync.
+
 ## Architectural Direction
 
 - The control plane keeps tenant registry, provisioning, billing, support, platform audit, and routing metadata.

@@ -29,6 +29,7 @@
     "audit:rls": "node scripts/audit-rls.mjs",
     "generate:manifest": "node scripts/generate-manifest.mjs",
     "setup:demo": "node scripts/seed-demo.mjs",
+    "provision:tenant": "node scripts/provision-tenant.mjs",
     "test:locgov:consumer": "node tests/locgov/consumer/index.test.mjs"
   },
   "dependencies": {

@@ -1,6 +1,6 @@
 # Tenant Data Segmentation
 
-**Last updated:** 2026-06-07
+**Last updated:** 2026-09-18
 **Scope:** Shared-database multi-tenancy — how church data is isolated when all tenants share a single Supabase project.
 
 ---
@@ -19,7 +19,7 @@ All tables that hold operational church data (`profiles`, `events`, `donations`,
 
 ### 2. RLS is enabled on all data tables
 
-As of the current migration set, **107 tables** have `ALTER TABLE … ENABLE ROW LEVEL SECURITY` and **244 policies** are defined. The RLS audit script (`scripts/audit-rls.mjs`) verifies no `church_id`-bearing table is left unprotected.
+As of the current migration set, **107 tables** have `ALTER TABLE … ENABLE ROW LEVEL SECURITY` and **244 policies** are defined. The RLS audit script (`scripts/audit-rls.mjs`, `npm run audit:rls`) verifies no `church_id`-bearing table is left unprotected. It runs as a blocking step in CI (`.github/workflows/ci.yml`) against a local Supabase instance started and migrated fresh in the job — a PR that disables RLS or adds a policy-less table fails the build.
 
 ### 3. Three shared enforcement functions
 
