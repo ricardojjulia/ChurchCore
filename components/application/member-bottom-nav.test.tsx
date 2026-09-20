@@ -56,4 +56,22 @@ describe("MemberBottomNav", () => {
 
     expect(screen.getByText("home")).toHaveStyle({ fontWeight: "700" });
   });
+
+  it("sets aria-current='page' only on the active link", () => {
+    mockUsePathname.mockReturnValue("/app/member/groups");
+    renderNav();
+
+    expect(screen.getByRole("link", { name: /groups/i })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /home/i })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: /calendar/i })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: /schedule/i })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: /family/i })).not.toHaveAttribute("aria-current");
+  });
+
+  it("sets aria-current='page' on home for auxiliary member routes", () => {
+    mockUsePathname.mockReturnValue("/app/member/directory");
+    renderNav();
+
+    expect(screen.getByRole("link", { name: /home/i })).toHaveAttribute("aria-current", "page");
+  });
 });

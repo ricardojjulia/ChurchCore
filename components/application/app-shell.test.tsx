@@ -110,4 +110,39 @@ describe("ApplicationShell", () => {
     const link = screen.getByRole("link", { name: /custom page/i });
     expect(link).toHaveAttribute("href", "/app/member/custom");
   });
+
+  it("sets aria-current='page' only on the active nav link", () => {
+    mockUsePathname.mockReturnValue("/app/member/custom");
+
+    const navItems = [
+      {
+        href: "/app/member/custom",
+        label: "Custom Page",
+        description: "A custom test page",
+        icon: "Building2",
+      },
+      {
+        href: "/app/member/other",
+        label: "Other Page",
+        description: "Another test page",
+        icon: "Building2",
+      },
+    ];
+
+    renderShell(navItems);
+
+    expect(screen.getByRole("link", { name: /custom page/i })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /other page/i })).not.toHaveAttribute("aria-current");
+  });
+
+  it("sets aria-current='page' on the workspace link when active, not on calendar", () => {
+    mockUsePathname.mockReturnValue("/app/member");
+    renderShell();
+
+    const workspaceLink = screen.getAllByRole("link").find((link) => link.getAttribute("href") === "/app/member");
+    const calendarLink = screen.getAllByRole("link").find((link) => link.getAttribute("href") === "/app/calendar");
+
+    expect(workspaceLink).toHaveAttribute("aria-current", "page");
+    expect(calendarLink).not.toHaveAttribute("aria-current");
+  });
 });

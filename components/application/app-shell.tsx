@@ -240,13 +240,16 @@ export function ApplicationShell({
                       ? shellNavIcons[item.icon as ShellNavIconName] ?? LayoutGrid
                       : item.icon;
 
+                  const isActive = item.active !== undefined ? item.active : isItemActive(item.href);
+
                   return (
                     <NavLink
                       key={item.href}
                       className="app-shell-nav-link"
                       component={Link}
                       href={item.href}
-                      active={item.active !== undefined ? item.active : isItemActive(item.href)}
+                      active={isActive}
+                      aria-current={isActive ? "page" : undefined}
                       label={item.label}
                       description={item.description}
                       leftSection={<Icon size={16} />}
@@ -275,6 +278,7 @@ export function ApplicationShell({
               component={Link}
               href={workspaceHref}
               active={pathname === workspaceHref}
+              aria-current={pathname === workspaceHref ? "page" : undefined}
               label={t("common", "workspace")}
               description={t("common", "yourRoleHome")}
               leftSection={<ShieldCheck size={16} />}
@@ -290,6 +294,7 @@ export function ApplicationShell({
                 component={Link}
                 href={calendarHref}
                 active={pathname === calendarHref}
+                aria-current={pathname === calendarHref ? "page" : undefined}
                 label={t("common", "calendar")}
                 description={t("common", "churchEvents")}
                 leftSection={<CalendarRange size={16} />}
