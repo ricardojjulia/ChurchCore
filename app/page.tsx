@@ -33,18 +33,24 @@ import {
 import { LanguageSelect } from "@/components/language-select";
 import { useI18n } from "@/components/i18n-provider";
 
-const GROUND = "#0D1B2A";
-const GOLD = "#C9A227";
-const GOLD_HOVER = "#E2B730";
-const TEXT_PRIMARY = "#F0EBE0";
-const TEXT_BODY = "rgba(232,224,208,0.68)";
-const TEXT_MUTED = "rgba(232,224,208,0.62)";
-const TEXT_DIM = "rgba(232,224,208,0.58)";
-const CARD_SURFACE = "rgba(255,255,255,0.04)";
-const CARD_BORDER = "rgba(232,224,208,0.09)";
-const GOLD_BORDER = "rgba(201,162,39,0.18)";
-const GOLD_BADGE_BG = "rgba(201,162,39,0.18)";
-const CTA_SECTION_BG = "rgba(201,162,39,0.07)";
+// Matches the in-app palette (components/theme-provider.tsx's "churchBlue"
+// Mantine theme + the app shell's light canvas), so the pre-login landing
+// page reads as the same product as the authenticated app instead of a
+// separate dark/gold marketing skin.
+const PAGE_BG = "#f4f7fb";
+const ACCENT = "#2563eb";
+const ACCENT_HOVER = "#1d4ed8";
+const ACCENT_SOFT = "#0f766e";
+const ON_ACCENT = "#ffffff";
+const TEXT_PRIMARY = "#14213d";
+const TEXT_BODY = "rgba(20,33,61,0.68)";
+const TEXT_MUTED = "#617184";
+const TEXT_DIM = "#5c6b7a";
+const CARD_SURFACE = "#ffffff";
+const CARD_BORDER = "rgba(20,33,61,0.08)";
+const ACCENT_BORDER = "rgba(37,99,235,0.18)";
+const ACCENT_BADGE_BG = "rgba(37,99,235,0.12)";
+const CTA_SECTION_BG = "rgba(37,99,235,0.06)";
 
 const FONT_SERIF = "var(--font-fraunces)";
 const FONT_SANS = "var(--font-manrope)";
@@ -108,13 +114,13 @@ const ECOSYSTEM_CARDS = [
 
 const AUDIENCE_SEGMENT_KEYS = ["segmentPlants", "segmentMultiSite", "segmentGrowing", "segmentEstablished"] as const;
 
-const GOLD_BUTTON_STYLES = {
+const ACCENT_BUTTON_STYLES = {
   root: {
-    background: GOLD,
-    color: GROUND,
+    background: ACCENT,
+    color: ON_ACCENT,
     fontWeight: 700,
     "&:hover": {
-      background: GOLD_HOVER,
+      background: ACCENT_HOVER,
     },
   },
 } as const;
@@ -129,10 +135,10 @@ function BackgroundTexture() {
         pointerEvents: "none",
         zIndex: 0,
         backgroundImage: `
-          linear-gradient(rgba(201,162,39,0.028) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(201,162,39,0.028) 1px, transparent 1px),
-          radial-gradient(circle at 12% 8%, rgba(201,162,39,0.10), transparent 40%),
-          radial-gradient(circle at 88% 82%, rgba(201,162,39,0.08), transparent 42%)
+          linear-gradient(rgba(20,33,61,0.025) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(20,33,61,0.025) 1px, transparent 1px),
+          radial-gradient(circle at 12% 8%, rgba(37,99,235,0.08), transparent 40%),
+          radial-gradient(circle at 88% 82%, rgba(15,118,110,0.07), transparent 42%)
         `,
         backgroundSize: "72px 72px, 72px 72px, 100% 100%, 100% 100%",
       }}
@@ -146,7 +152,7 @@ function EyebrowLabel({ children }: { children: React.ReactNode }) {
       fw={600}
       tt="uppercase"
       style={{
-        color: GOLD,
+        color: ACCENT,
         fontFamily: FONT_SANS,
         letterSpacing: "0.14em",
         fontSize: 13,
@@ -166,9 +172,9 @@ function IconTile({ Icon }: { Icon: React.ComponentType<{ size?: number; strokeW
         width: 50,
         height: 50,
         borderRadius: 14,
-        background: GOLD_BADGE_BG,
-        border: `1px solid ${GOLD_BORDER}`,
-        color: GOLD,
+        background: ACCENT_BADGE_BG,
+        border: `1px solid ${ACCENT_BORDER}`,
+        color: ACCENT,
       }}
     >
       <Icon size={22} strokeWidth={2} />
@@ -185,7 +191,7 @@ export default function Home() {
       style={{
         position: "relative",
         minHeight: "100vh",
-        background: GROUND,
+        background: PAGE_BG,
         fontFamily: FONT_SANS,
         overflowX: "hidden",
       }}
@@ -204,8 +210,8 @@ export default function Home() {
                   width: 40,
                   height: 40,
                   borderRadius: 10,
-                  background: GOLD,
-                  color: GROUND,
+                  background: ACCENT,
+                  color: ON_ACCENT,
                 }}
               >
                 <Plus size={22} strokeWidth={2.6} />
@@ -264,7 +270,7 @@ export default function Home() {
                 href="/sign-in"
                 radius="md"
                 size="xs"
-                styles={GOLD_BUTTON_STYLES}
+                styles={ACCENT_BUTTON_STYLES}
               >
                 {t("publicHome", "requestDemo")}
               </Button>
@@ -298,7 +304,7 @@ export default function Home() {
                 <Box
                   component="span"
                   display="block"
-                  style={{ color: GOLD, fontStyle: "italic" }}
+                  style={{ color: ACCENT, fontStyle: "italic" }}
                 >
                   {t("publicHome", "heroHeadlineLine3")}
                 </Box>
@@ -323,7 +329,7 @@ export default function Home() {
                   size="md"
                   radius="md"
                   rightSection={<ArrowRight size={18} />}
-                  styles={GOLD_BUTTON_STYLES}
+                  styles={ACCENT_BUTTON_STYLES}
                 >
                   {t("publicHome", "heroPrimaryCta")}
                 </Button>
@@ -400,8 +406,8 @@ export default function Home() {
                     {t("publicHome", "statActiveMembersValue")}
                   </Text>
                   <Group gap={6} mt={8} wrap="nowrap">
-                    <TrendingUp size={14} color={GOLD} />
-                    <Text style={{ color: GOLD, fontSize: 12, fontWeight: 600 }}>
+                    <TrendingUp size={14} color={ACCENT} />
+                    <Text style={{ color: ACCENT, fontSize: 12, fontWeight: 600 }}>
                       {t("publicHome", "statActiveMembersTrend")}
                     </Text>
                   </Group>
@@ -429,8 +435,8 @@ export default function Home() {
                     {t("publicHome", "statVolunteersValue")}
                   </Text>
                   <Group gap={6} mt={8} wrap="nowrap">
-                    <TrendingUp size={14} color={GOLD} />
-                    <Text style={{ color: GOLD, fontSize: 12, fontWeight: 600 }}>
+                    <TrendingUp size={14} color={ACCENT} />
+                    <Text style={{ color: ACCENT, fontSize: 12, fontWeight: 600 }}>
                       {t("publicHome", "statVolunteersTrend")}
                     </Text>
                   </Group>
@@ -451,7 +457,7 @@ export default function Home() {
                   </Text>
                   <Badge
                     radius="sm"
-                    styles={{ root: { background: GOLD_BADGE_BG, color: GOLD, fontWeight: 700 } }}
+                    styles={{ root: { background: ACCENT, color: ON_ACCENT, fontWeight: 700 } }}
                   >
                     {t("publicHome", "visitorQueueBadge")}
                   </Badge>
@@ -470,7 +476,7 @@ export default function Home() {
                             width: 36,
                             height: 36,
                             borderRadius: "50%",
-                            background: `linear-gradient(135deg, ${GOLD}, #1E3A5F)`,
+                            background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_SOFT})`,
                           }}
                         />
                         <Box
@@ -482,8 +488,8 @@ export default function Home() {
                             width: 10,
                             height: 10,
                             borderRadius: "50%",
-                            background: GOLD,
-                            border: `2px solid ${GROUND}`,
+                            background: ACCENT,
+                            border: `2px solid ${CARD_SURFACE}`,
                           }}
                         />
                       </Box>
@@ -503,8 +509,8 @@ export default function Home() {
               <Box
                 style={{
                   borderRadius: 20,
-                  background: `linear-gradient(135deg, rgba(201,162,39,0.16), rgba(201,162,39,0.05))`,
-                  border: `1px solid ${GOLD_BORDER}`,
+                  background: `linear-gradient(135deg, rgba(37,99,235,0.14), rgba(37,99,235,0.04))`,
+                  border: `1px solid ${ACCENT_BORDER}`,
                   padding: 20,
                 }}
               >
@@ -515,7 +521,7 @@ export default function Home() {
                     </Text>
                     <Text
                       fw={700}
-                      style={{ color: GOLD, fontFamily: FONT_SERIF, fontSize: 26 }}
+                      style={{ color: ACCENT, fontFamily: FONT_SERIF, fontSize: 26 }}
                     >
                       {t("publicHome", "smallGroupsValue")}
                     </Text>
@@ -523,7 +529,7 @@ export default function Home() {
                   <Box
                     style={{
                       borderRadius: 14,
-                      background: "rgba(13,27,42,0.4)",
+                      background: CARD_SURFACE,
                       padding: "10px 16px",
                       textAlign: "center",
                     }}
@@ -544,7 +550,7 @@ export default function Home() {
           <SimpleGrid cols={{ base: 2, sm: 3, md: 6 }} spacing="lg" mt={{ base: 56, md: 80 }}>
             {BOTTOM_STRIP.map((item) => (
               <Stack key={item.key} gap="xs" align="center" ta="center">
-                <Box style={{ color: GOLD }}>
+                <Box style={{ color: ACCENT }}>
                   <item.icon size={22} strokeWidth={1.8} />
                 </Box>
                 <Text style={{ color: TEXT_MUTED, fontSize: 13, fontWeight: 500 }}>
@@ -646,9 +652,9 @@ export default function Home() {
                 style={{
                   borderRadius: 20,
                   background: card.featured
-                    ? `linear-gradient(160deg, rgba(201,162,39,0.18), rgba(201,162,39,0.04))`
+                    ? `linear-gradient(160deg, rgba(37,99,235,0.16), rgba(37,99,235,0.03))`
                     : CARD_SURFACE,
-                  border: `1px solid ${card.featured ? GOLD_BORDER : CARD_BORDER}`,
+                  border: `1px solid ${card.featured ? ACCENT_BORDER : CARD_BORDER}`,
                   padding: 24,
                 }}
               >
@@ -682,7 +688,7 @@ export default function Home() {
             style={{
               borderRadius: 24,
               background: CTA_SECTION_BG,
-              border: `1px solid ${GOLD_BORDER}`,
+              border: `1px solid ${ACCENT_BORDER}`,
               padding: "64px 32px",
             }}
           >
@@ -713,7 +719,7 @@ export default function Home() {
                 size="md"
                 radius="md"
                 rightSection={<ArrowRight size={18} />}
-                styles={GOLD_BUTTON_STYLES}
+                styles={ACCENT_BUTTON_STYLES}
               >
                 {t("publicHome", "closingPrimaryCta")}
               </Button>
