@@ -224,7 +224,11 @@ async function markSent(row: EligibleRow): Promise<void> {
     .lt("retry_count", 3);
 }
 
+const MAX_RETRY_COUNT = 3;
+
 async function markFailedAgain(row: EligibleRow, errorCode: string): Promise<void> {
+  const newRetryCount = row.retry_count + 1;
+
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
       `update public.communication_logs
@@ -236,20 +240,72 @@ async function markFailedAgain(row: EligibleRow, errorCode: string): Promise<voi
          and retry_count < 3`,
       [row.id, errorCode],
     );
-    return;
+  } else {
+    const admin = createTenantAdminClient();
+    await admin
+      .from("communication_logs")
+      .update({
+        status: "failed",
+        retry_count: newRetryCount,
+        last_retry_at: new Date().toISOString(),
+        error_code: errorCode,
+      })
+      .eq("id", row.id)
+      .lt("retry_count", 3);
   }
 
-  const admin = createTenantAdminClient();
-  await admin
-    .from("communication_logs")
-    .update({
-      status: "failed",
-      retry_count: row.retry_count + 1,
-      last_retry_at: new Date().toISOString(),
-      error_code: errorCode,
-    })
-    .eq("id", row.id)
-    .lt("retry_count", 3);
+  if (newRetryCount >= MAX_RETRY_COUNT) {
+    await moveToDeadLetterQueue(row, errorCode, newRetryCount);
+  }
+}
+
+/**
+ * Records permanent retry exhaustion in communication_dlq. New code — always
+ * routes through the Supabase admin client, no local-fallback branch, per the
+ * repo's Supabase-only mandate (shouldUseLocalTenantFallback() is hardcoded
+ * false today; the dual-path branches elsewhere in this file are legacy dead
+ * code, not a pattern to extend).
+ *
+ * Deliberately never throws: it's called from inside markFailedAgain's own
+ * try block in the caller's loop, and a throw here would be caught by that
+ * same loop's catch clause, which calls markFailedAgain a second time —
+ * double-counting failedAgain and double-writing communication_logs. The
+ * primary record of exhaustion (communication_logs.status/retry_count) is
+ * already durable by the time this runs; a failed DLQ write is a lost
+ * observability record, not a lost retry-cron result, so log and move on.
+ */
+async function moveToDeadLetterQueue(
+  row: EligibleRow,
+  errorCode: string,
+  attemptedCount: number,
+): Promise<void> {
+  try {
+    const admin = createTenantAdminClient();
+    const { error } = await admin.from("communication_dlq").upsert(
+      {
+        church_id: row.church_id,
+        communication_log_id: row.id,
+        channel: row.channel,
+        recipient_id: row.recipient_id,
+        attempted_count: attemptedCount,
+        last_error_code: errorCode,
+        last_error_message: errorCode,
+        moved_to_dlq_at: new Date().toISOString(),
+      },
+      { onConflict: "communication_log_id" },
+    );
+
+    if (error) {
+      console.error(
+        `Failed to record dead-letter entry for communication_log ${row.id}: ${error.message}`,
+      );
+    }
+  } catch (err) {
+    console.error(
+      `Failed to record dead-letter entry for communication_log ${row.id}:`,
+      err,
+    );
+  }
 }
 
 async function incrementRetryCountOnly(row: EligibleRow): Promise<void> {

@@ -304,3 +304,95 @@ describe("retryEligibleCommunications (Supabase admin path)", () => {
     expect(churchIdCall?.[1]).toBe("church-xyz");
   });
 });
+
+// ── Dead-letter queue on retry exhaustion ───────────────────────────────────────
+//
+// moveToDeadLetterQueue always writes through the Supabase admin client — it's
+// new code, so it doesn't get a local-fallback branch even when the rest of a
+// call runs through the local DB path (see the function's own doc comment).
+
+describe("dead-letter queue on retry exhaustion", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("does NOT write to the DLQ when a retry fails but has not exhausted the budget", async () => {
+    shouldUseLocalTenantFallbackMock.mockReturnValue(true);
+    const row = makeEligibleRow({ retry_count: 0 }); // -> becomes 1, not exhausted
+
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [row] })
+      .mockResolvedValueOnce({ rows: [{ email: "a@example.com", phone: null }] })
+      .mockResolvedValueOnce({ rows: [] }); // markFailedAgain local update
+
+    sendWithSuppressionMock.mockResolvedValue({ sent: false, skipped: false, error: "timeout" });
+
+    await retryEligibleCommunications();
+
+    expect(createTenantAdminClientMock).not.toHaveBeenCalled();
+  });
+
+  it("writes a communication_dlq row when the final retry (retry_count 2 -> 3) fails again", async () => {
+    shouldUseLocalTenantFallbackMock.mockReturnValue(true);
+    const row = makeEligibleRow({ id: "log-exhausted", retry_count: 2, error_code: "timeout" });
+
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [row] })
+      .mockResolvedValueOnce({ rows: [{ email: "a@example.com", phone: null }] })
+      .mockResolvedValueOnce({ rows: [] }); // markFailedAgain local update
+
+    sendWithSuppressionMock.mockResolvedValue({ sent: false, skipped: false, error: "provider_unavailable" });
+
+    const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
+    createTenantAdminClientMock.mockReturnValue({
+      from: vi.fn().mockReturnValue({ upsert: upsertMock }),
+    });
+
+    const result = await retryEligibleCommunications();
+
+    expect(result.failedAgain).toBe(1);
+    expect(createTenantAdminClientMock).toHaveBeenCalledTimes(1);
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        church_id: row.church_id,
+        communication_log_id: "log-exhausted",
+        channel: "email",
+        attempted_count: 3,
+        last_error_code: "provider_unavailable",
+      }),
+      { onConflict: "communication_log_id" },
+    );
+  });
+
+  it("logs and does not throw when the DLQ upsert itself fails", async () => {
+    // A throw here would be caught by the caller's own try/catch and trigger a
+    // second markFailedAgain call — this test guards against reintroducing that.
+    shouldUseLocalTenantFallbackMock.mockReturnValue(true);
+    const row = makeEligibleRow({ id: "log-exhausted", retry_count: 2 });
+
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({ rows: [row] })
+      .mockResolvedValueOnce({ rows: [{ email: "a@example.com", phone: null }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    sendWithSuppressionMock.mockResolvedValue({ sent: false, skipped: false, error: "timeout" });
+
+    createTenantAdminClientMock.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        upsert: vi.fn().mockResolvedValue({ data: null, error: { message: "connection refused" } }),
+      }),
+    });
+
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await retryEligibleCommunications();
+
+    expect(result).toEqual({ selected: 1, succeeded: 0, failedAgain: 1, skipped: 0 });
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("log-exhausted"));
+    // Local update ran exactly once — not twice, which would indicate the
+    // double-invocation bug this design avoids.
+    expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(3);
+
+    consoleErrorSpy.mockRestore();
+  });
+});

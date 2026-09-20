@@ -74,6 +74,7 @@ export function MemberBottomNav() {
             component={Link}
             href={item.href}
             aria-label={label}
+            aria-current={active ? "page" : undefined}
             style={{
               flex: 1,
               minHeight: 56,

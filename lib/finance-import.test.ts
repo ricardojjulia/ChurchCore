@@ -1,13 +1,23 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+const mockReadExcelFile = vi.hoisted(() => vi.fn());
+
+vi.mock("read-excel-file/browser", () => ({
+  default: mockReadExcelFile,
+}));
 
 import {
   csvRowsToPreview,
+  detectFormat,
   iifToPreview,
   normalizeDate,
   ofxToPreview,
+  parseCsv,
   parseDollarsToCents,
   parseIif,
   parseOfx,
+  parsePlainText,
+  parseXlsx,
 } from "@/lib/finance-import";
 
 describe("finance import helpers", () => {
@@ -115,5 +125,175 @@ describe("finance import helpers", () => {
       debitAccountCode: null,
       error: null,
     });
+  });
+});
+
+describe("parseCsv", () => {
+  it("parses a simple CSV with headers", async () => {
+    const result = await parseCsv("Name,Email,Amount\nJohn,john@x.com,100\nJane,jane@x.com,50");
+
+    expect(result.headers).toEqual(["Name", "Email", "Amount"]);
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[0]).toMatchObject({ Name: "John", Email: "john@x.com", Amount: "100" });
+    expect(result.errors).toEqual([]);
+  });
+
+  it("preserves commas inside quoted fields", async () => {
+    const result = await parseCsv('Fund,Note\nBuilding,"repairs, plumbing, and paint"');
+
+    expect(result.rows[0]?.Note).toBe("repairs, plumbing, and paint");
+  });
+
+  it("unescapes doubled quotes inside quoted fields", async () => {
+    const result = await parseCsv('Note\n"He said ""hello"""');
+
+    expect(result.rows[0]?.Note).toBe('He said "hello"');
+  });
+
+  it("consistent CRLF line endings parse cleanly", async () => {
+    const result = await parseCsv("Date,Amount\r\n2026-04-21,100\r\n2026-04-22,50\r\n");
+
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[1]).toMatchObject({ Date: "2026-04-22", Amount: "50" });
+    expect(result.errors).toEqual([]);
+  });
+
+  it("reports a field-count error when line endings are mixed within one file", async () => {
+    // papaparse auto-detects a single newline style for the whole file; a lone "\n"
+    // inside a file it decided uses "\r\n" gets treated as in-field text, not a row
+    // break, merging two data rows into one with a reported field-count mismatch.
+    const result = await parseCsv("Date,Amount\r\n2026-04-21,100\n2026-04-22,50\r\n");
+
+    expect(result.rows).toHaveLength(1);
+    expect(result.errors.length).toBeGreaterThan(0);
+  });
+
+  it("returns no rows for an empty file", async () => {
+    const result = await parseCsv("");
+
+    expect(result.rows).toEqual([]);
+  });
+});
+
+describe("parsePlainText", () => {
+  it("parses tab-delimited text", async () => {
+    const result = await parsePlainText("Date\tAmount\n2026-04-21\t100\n2026-04-22\t50");
+
+    expect(result.headers).toEqual(["Date", "Amount"]);
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[0]).toMatchObject({ Date: "2026-04-21", Amount: "100" });
+  });
+
+  it("parses pipe-delimited text", async () => {
+    const result = await parsePlainText("Name | Amount\nJohn | 100");
+
+    expect(result.headers).toEqual(["Name", "Amount"]);
+    expect(result.rows[0]).toMatchObject({ Name: "John", Amount: "100" });
+  });
+
+  it("skips blank lines in tab-delimited input", async () => {
+    const result = await parsePlainText("A\tB\n\nrow1\trow2\n\n");
+
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toMatchObject({ A: "row1", B: "row2" });
+  });
+
+  it("falls back to the CSV parser when no tab or pipe delimiter is found", async () => {
+    const result = await parsePlainText("Name,Amount\nJohn,100");
+
+    expect(result.headers).toEqual(["Name", "Amount"]);
+    expect(result.rows[0]).toMatchObject({ Name: "John", Amount: "100" });
+  });
+});
+
+describe("detectFormat", () => {
+  it("detects xlsx and xls by extension", () => {
+    expect(detectFormat("bank-export.xlsx")).toBe("xlsx");
+    expect(detectFormat("bank-export.xls")).toBe("xlsx");
+  });
+
+  it("detects quickbooks_iif by extension", () => {
+    expect(detectFormat("qb-export.iif")).toBe("quickbooks_iif");
+  });
+
+  it("detects ofx and qfx by extension", () => {
+    expect(detectFormat("chase.ofx")).toBe("ofx");
+    expect(detectFormat("chase.qfx")).toBe("ofx");
+  });
+
+  it("detects csv by extension", () => {
+    expect(detectFormat("giving.csv")).toBe("csv");
+  });
+
+  it("sniffs OFX content when the extension doesn't say so", () => {
+    expect(detectFormat("statement.txt", "OFXHEADER:100\n<OFX>\n<STMTTRN>")).toBe("ofx");
+  });
+
+  it("sniffs IIF content when the extension doesn't say so", () => {
+    expect(detectFormat("ledger.txt", "!TRNS\tDATE\nTRNS\t04/20/2026\nENDTRNS")).toBe("quickbooks_iif");
+  });
+
+  it("defaults to txt when nothing is recognizable", () => {
+    expect(detectFormat("data.txt", "just some plain notes")).toBe("txt");
+    expect(detectFormat("data.unknown")).toBe("txt");
+  });
+});
+
+describe("parseXlsx", () => {
+  it("parses a single-sheet workbook", async () => {
+    mockReadExcelFile.mockResolvedValueOnce([
+      { sheet: "Sheet1", data: [["Date", "Amount"], ["2026-04-21", 100]] },
+    ]);
+
+    const result = await parseXlsx(new ArrayBuffer(0));
+
+    expect(result.headers).toEqual(["Date", "Amount"]);
+    expect(result.rows).toEqual([{ Date: "2026-04-21", Amount: "100" }]);
+    expect(result.sheetNames).toEqual(["Sheet1"]);
+    expect(result.errors).toEqual([]);
+  });
+
+  it("selects the requested sheet by index", async () => {
+    mockReadExcelFile.mockResolvedValueOnce([
+      { sheet: "Sheet1", data: [["A"], ["1"]] },
+      { sheet: "Sheet2", data: [["B"], ["2"]] },
+      { sheet: "Sheet3", data: [["C"], ["3"]] },
+    ]);
+
+    const result = await parseXlsx(new ArrayBuffer(0), 1);
+
+    expect(result.headers).toEqual(["B"]);
+    expect(result.rows).toEqual([{ B: "2" }]);
+    expect(result.sheetNames).toEqual(["Sheet1", "Sheet2", "Sheet3"]);
+  });
+
+  it("fills in generic column names for blank header cells", async () => {
+    mockReadExcelFile.mockResolvedValueOnce([
+      { sheet: "Sheet1", data: [[null, "Amount", undefined], ["x", "100", "y"]] },
+    ]);
+
+    const result = await parseXlsx(new ArrayBuffer(0));
+
+    expect(result.headers).toEqual(["Column 1", "Amount", "Column 3"]);
+  });
+
+  it("drops fully-empty data rows", async () => {
+    mockReadExcelFile.mockResolvedValueOnce([
+      { sheet: "Sheet1", data: [["Date", "Amount"], ["2026-04-21", 100], ["", null], ["2026-04-22", 50]] },
+    ]);
+
+    const result = await parseXlsx(new ArrayBuffer(0));
+
+    expect(result.rows).toHaveLength(2);
+  });
+
+  it("reports an error when the sheet read throws", async () => {
+    mockReadExcelFile.mockRejectedValueOnce(new Error("corrupt file"));
+
+    const result = await parseXlsx(new ArrayBuffer(0));
+
+    expect(result.headers).toEqual([]);
+    expect(result.rows).toEqual([]);
+    expect(result.errors.length).toBeGreaterThan(0);
   });
 });
