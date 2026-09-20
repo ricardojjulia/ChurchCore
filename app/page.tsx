@@ -45,7 +45,7 @@ const ON_ACCENT = "#ffffff";
 const TEXT_PRIMARY = "#14213d";
 const TEXT_BODY = "rgba(20,33,61,0.68)";
 const TEXT_MUTED = "#617184";
-const TEXT_DIM = "rgba(20,33,61,0.45)";
+const TEXT_DIM = "#5c6b7a";
 const CARD_SURFACE = "#ffffff";
 const CARD_BORDER = "rgba(20,33,61,0.08)";
 const ACCENT_BORDER = "rgba(37,99,235,0.18)";
@@ -457,7 +457,7 @@ export default function Home() {
                   </Text>
                   <Badge
                     radius="sm"
-                    styles={{ root: { background: ACCENT_BADGE_BG, color: ACCENT, fontWeight: 700 } }}
+                    styles={{ root: { background: ACCENT, color: ON_ACCENT, fontWeight: 700 } }}
                   >
                     {t("publicHome", "visitorQueueBadge")}
                   </Badge>
