@@ -14,6 +14,7 @@ ChurchCore is currently a private evaluation repository. Treat every change as p
 - Keep pull requests scoped and explain the user-facing or architectural impact.
 - Call out any PII, finance, child-safety, communications, or AI implications directly in the PR.
 - Update `README.md`, `CHANGELOG.md`, and relevant docs in `docs/` whenever behavior changes.
+- `main` requires verified commit signatures. Set up commit signing locally (`git config commit.gpgsign true`, `git config gpg.format ssh` + `user.signingkey`, or GPG equivalent) **and** make sure `git config user.email` is set to an email address that is actually verified on your GitHub account — a signed commit from an unverified/placeholder email (e.g. a default `your-email@example.com`) still shows as unverified and blocks merge. Before pushing, spot-check with `gh api repos/<owner>/<repo>/commits/<sha> --jq '.commit.verification'`.
 
 ## Local Verification
 
