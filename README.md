@@ -552,7 +552,7 @@ public/               Static assets
 
 ## Current Application Surface
 
-- The landing page is now a minimal entry surface instead of a feature-heavy marketing preview.
+- The landing page (`/`) is now a full marketing overview again ("Sacred Clarity" dark/gold visual direction: hero with live-product preview cards, a platform capability grid, a product-family ecosystem section, and a closing CTA), reversing the 1.0.0-era decision to keep it a minimal entry surface now that the product has enough shipped to show. All copy is localized (`en`/`es`/`es-PR`) via the existing `publicHome` namespace in `lib/i18n.ts`.
 - The sign-in route is intentionally minimal and now chooses the control-plane or tenant Supabase auth surface from the requested redirect target, with preview auth retained only as a local fallback.
 - The control-plane routes provide a protected platform-operator surface for tenant lifecycle, billing, support, and provisioning.
 - The church-app routes provide protected role-based portals for ChurchAdmin, Secretary / Office Admin, Pastor / Elder, MinistryAdmin / Leader, and Volunteer / Member flows.
