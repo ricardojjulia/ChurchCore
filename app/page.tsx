@@ -38,8 +38,8 @@ const GOLD = "#C9A227";
 const GOLD_HOVER = "#E2B730";
 const TEXT_PRIMARY = "#F0EBE0";
 const TEXT_BODY = "rgba(232,224,208,0.68)";
-const TEXT_MUTED = "rgba(232,224,208,0.45)";
-const TEXT_DIM = "rgba(232,224,208,0.35)";
+const TEXT_MUTED = "rgba(232,224,208,0.62)";
+const TEXT_DIM = "rgba(232,224,208,0.58)";
 const CARD_SURFACE = "rgba(255,255,255,0.04)";
 const CARD_BORDER = "rgba(232,224,208,0.09)";
 const GOLD_BORDER = "rgba(201,162,39,0.18)";
@@ -106,7 +106,7 @@ const ECOSYSTEM_CARDS = [
   },
 ] as const;
 
-const SOCIAL_PROOF_KEYS = ["churchName1", "churchName2", "churchName3", "churchName4"] as const;
+const AUDIENCE_SEGMENT_KEYS = ["segmentPlants", "segmentMultiSite", "segmentGrowing", "segmentEstablished"] as const;
 
 const GOLD_BUTTON_STYLES = {
   root: {
@@ -339,14 +339,14 @@ export default function Home() {
                     style={{
                       display: "grid",
                       placeItems: "center",
-                      width: 40,
-                      height: 40,
+                      width: 44,
+                      height: 44,
                       borderRadius: "50%",
                       border: `1px solid ${CARD_BORDER}`,
                       color: TEXT_PRIMARY,
                     }}
                   >
-                    <Play size={16} strokeWidth={2} />
+                    <Play size={17} strokeWidth={2} />
                   </Box>
                   <Text fw={600} style={{ color: TEXT_PRIMARY, fontSize: 14 }}>
                     {t("publicHome", "heroSecondaryCta")}
@@ -360,10 +360,10 @@ export default function Home() {
                   tt="uppercase"
                   style={{ color: TEXT_DIM, letterSpacing: "0.14em", fontSize: 11 }}
                 >
-                  {t("publicHome", "socialProofLabel")}
+                  {t("publicHome", "audienceSegmentsLabel")}
                 </Text>
                 <Group gap="xl" wrap="wrap">
-                  {SOCIAL_PROOF_KEYS.map((key) => (
+                  {AUDIENCE_SEGMENT_KEYS.map((key) => (
                     <Text
                       key={key}
                       fw={600}
@@ -377,7 +377,7 @@ export default function Home() {
             </Stack>
 
             <Stack gap="md" justify="center">
-              <SimpleGrid cols={2} spacing="md">
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
                 <Box
                   style={{
                     borderRadius: 20,
