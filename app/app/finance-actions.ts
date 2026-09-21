@@ -456,10 +456,16 @@ export async function importFinanceRowsAction(input: ImportFinanceRowsInput): Pr
   const lineRows: Record<string, unknown>[] = [];
   for (let i = 0; i < validRows.length; i++) {
     const row = validRows[i];
+    const debitAccountId = row.debitAccountCode
+      ? (await resolveAccountByCodeSupabase(supabase, churchId, row.debitAccountCode)) ?? input.defaultDebitAccountId
+      : input.defaultDebitAccountId;
+    const creditAccountId = row.creditAccountCode
+      ? (await resolveAccountByCodeSupabase(supabase, churchId, row.creditAccountCode)) ?? input.defaultCreditAccountId
+      : input.defaultCreditAccountId;
     lineRows.push(
-      { journal_id: journalId, church_id: churchId, account_id: input.defaultDebitAccountId,
+      { journal_id: journalId, church_id: churchId, account_id: debitAccountId,
         side: "debit", amount_cents: row.amountCents, memo: row.description, sort_order: i * 2 },
-      { journal_id: journalId, church_id: churchId, account_id: input.defaultCreditAccountId,
+      { journal_id: journalId, church_id: churchId, account_id: creditAccountId,
         side: "credit", amount_cents: row.amountCents, memo: row.description, sort_order: i * 2 + 1 },
     );
   }
@@ -477,4 +483,19 @@ async function resolveAccountByCode(churchId: string, code: string): Promise<str
     [churchId, code],
   );
   return result.rows[0]?.id ?? null;
+}
+
+async function resolveAccountByCodeSupabase(
+  supabase: Awaited<ReturnType<typeof createTenantServerClient>>,
+  churchId: string,
+  code: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("finance_accounts")
+    .select("id")
+    .eq("church_id", churchId)
+    .eq("account_code", code)
+    .limit(1)
+    .maybeSingle();
+  return (data as { id: string } | null)?.id ?? null;
 }
