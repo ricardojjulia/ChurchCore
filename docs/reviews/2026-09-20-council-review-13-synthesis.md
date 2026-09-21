@@ -37,11 +37,16 @@ None — all three backlog items were already implemented and verified before th
 
 ## 5. Verification (Phase 3)
 
-Run before this Council pass, on the branch as committed (`6279671`):
+Run before this Council pass, on the branch as committed (`6279671`, later rewritten to `0c6d003` post-review — see §7):
 
 - `npm run lint` — 0 errors, 7 pre-existing warnings unrelated to this branch (unchanged from Council Review 11/12's baseline).
 - `npm run build` — all routes compiled clean, including the three new `error.tsx` route-segment files.
 - `npx vitest run` — **1452/1452 passed** (127 test files), up from 1417 at Review 11/before this branch's 2 new component tests + 3 new action tests.
+- Re-run after the §7 commit rewrite (content byte-identical, only authorship changed): `npx vitest run` — 1452/1452 passed again.
+
+## 7. Post-Synthesis Note: Commit Authorship Fix
+
+The Documenter's close-out pass flagged that the implementation commit (`6279671`) had its author/committer email set to the placeholder `your-email@example.com` (matching this machine's global git config) rather than the GitHub-verified `32270383+ricardojjulia@users.noreply.github.com` used by every other commit on `main` — the exact `unverified_email` failure mode `AGENTS.md` documents from PR #142. Since the branch had no upstream and nothing was pushed, the implementation commit and the Documenter's own commit were both rewritten in place (cherry-picked onto the same base with corrected `GIT_AUTHOR_EMAIL`/`GIT_COMMITTER_EMAIL`, not via a global config change) — new hashes `0c6d003` (implementation) and `f6290d4`/its successor (Documenter). Content is byte-identical to the pre-fix versions (confirmed via `git diff` against a temporary backup branch before deleting it); only authorship metadata changed. This doc's references to `6279671` are left as-written for historical accuracy about what was verified when, but the commit that actually merges will carry the corrected hash.
 
 All green. No red result — proceeding to Documenter.
 
