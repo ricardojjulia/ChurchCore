@@ -264,6 +264,55 @@ describe("finance actions", () => {
       expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/finance/journals");
       expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/finance/import");
     });
+
+    it("resolves mapped debit/credit account codes before posting on the Supabase path", async () => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+
+      const importsSingleMock = vi.fn().mockResolvedValue({ data: { id: "import-1" } });
+      const importsInsertMock = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: importsSingleMock }) });
+      const importsUpdateMock = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({}) });
+
+      const journalsSingleMock = vi.fn().mockResolvedValue({ data: { id: "journal-1" } });
+      const journalsInsertMock = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: journalsSingleMock }) });
+
+      const linesInsertMock = vi.fn().mockResolvedValue({});
+
+      // finance_accounts lookup chain: .select("id").eq("church_id", ..).eq("account_code", ..).limit(1).maybeSingle()
+      const accountsMaybeSingleMock = vi.fn()
+        .mockResolvedValueOnce({ data: { id: "acct-1010" } }) // debit code "1010"
+        .mockResolvedValueOnce({ data: { id: "acct-4000" } }); // credit code "4000"
+      const accountsLimitMock = vi.fn().mockReturnValue({ maybeSingle: accountsMaybeSingleMock });
+      const accountsEqAccountCodeMock = vi.fn().mockReturnValue({ limit: accountsLimitMock });
+      const accountsEqChurchIdMock = vi.fn().mockReturnValue({ eq: accountsEqAccountCodeMock });
+      const accountsSelectMock = vi.fn().mockReturnValue({ eq: accountsEqChurchIdMock });
+
+      const fromMock = vi.fn((table: string) => {
+        if (table === "finance_imports") return { insert: importsInsertMock, update: importsUpdateMock };
+        if (table === "finance_journals") return { insert: journalsInsertMock };
+        if (table === "finance_journal_lines") return { insert: linesInsertMock };
+        if (table === "finance_accounts") return { select: accountsSelectMock };
+        throw new Error(`unexpected table ${table}`);
+      });
+      createTenantServerClientMock.mockResolvedValue({ from: fromMock });
+
+      await importFinanceRowsAction({
+        filename: "import.csv",
+        format: "csv",
+        rows: [{ ...validRow, debitAccountCode: "1010", creditAccountCode: "4000" }],
+        defaultDebitAccountId: "acct-default-debit",
+        defaultCreditAccountId: "acct-default-credit",
+      });
+
+      expect(accountsEqChurchIdMock).toHaveBeenCalledWith("church_id", "church-1");
+      expect(accountsEqAccountCodeMock).toHaveBeenNthCalledWith(1, "account_code", "1010");
+      expect(accountsEqAccountCodeMock).toHaveBeenNthCalledWith(2, "account_code", "4000");
+      expect(linesInsertMock).toHaveBeenCalledWith([
+        { journal_id: "journal-1", church_id: "church-1", account_id: "acct-1010",
+          side: "debit", amount_cents: 5000, memo: "Tithe", sort_order: 0 },
+        { journal_id: "journal-1", church_id: "church-1", account_id: "acct-4000",
+          side: "credit", amount_cents: 5000, memo: "Tithe", sort_order: 1 },
+      ]);
+    });
   });
 
   describe("voidJournalAction", () => {

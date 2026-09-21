@@ -641,6 +641,7 @@ Current tracked follow-up:
 - ADR 0001 is now accepted in favor of Supabase with Postgres, Auth, Realtime, and Storage.
 - ADR 0002 is now accepted in favor of separating control-plane and tenant data boundaries, including separate databases.
 - The current repo establishes the frontend shell, Supabase SSR auth foundation, boundary-aware control-plane and tenant data access wrappers, member portal, live calendar read path, initial multi-tenant schema scaffold, design system baseline, and release discipline expected for future feature work across RBAC portals, ministry operations, calendar workflows, and AI-assisted features.
+- Route-segment recovery: `app/{app,portal,control}/loading.tsx` render a shared `PageLoadingSkeleton` during server-side data fetches, and `app/{app,portal,control}/error.tsx` render a shared `PageErrorBoundary` (Sentry-reported, retryable via Next's `reset()`) for runtime errors at those three roots. A root `app/global-error.tsx` still catches anything that escapes all of the above, including errors in the root layout itself.
 
 ## CI
 
