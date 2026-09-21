@@ -153,6 +153,119 @@ describe("finance actions", () => {
     ).rejects.toThrow("No valid rows to import");
   });
 
+  describe("importFinanceRowsAction batch commit", () => {
+    const validRow = {
+      rowIndex: 0,
+      date: "2025-01-01",
+      description: "Tithe",
+      amountCents: 5000,
+      debitAccountCode: null,
+      creditAccountCode: null,
+      reference: null,
+      error: null,
+    };
+
+    it("posts a completed import journal in local fallback mode", async () => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(true);
+      queryTenantLocalDbMock
+        .mockResolvedValueOnce({ rows: [{ id: "import-1" }] })
+        .mockResolvedValueOnce({ rows: [{ id: "journal-1" }] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      const result = await importFinanceRowsAction({
+        filename: "import.csv",
+        format: "csv",
+        rows: [validRow],
+        defaultDebitAccountId: "acct-cash",
+        defaultCreditAccountId: "acct-giving",
+      });
+
+      expect(result).toEqual({ journalId: "journal-1", importId: "import-1" });
+      expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(4);
+      expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+        3,
+        expect.stringContaining("insert into public.finance_journal_lines"),
+        ["journal-1", "church-1", "acct-cash", 5000, "Tithe", 0, "acct-giving", 1],
+      );
+      expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+        4,
+        expect.stringContaining("set status = 'completed'"),
+        ["import-1", "church-1", 1, "journal-1"],
+      );
+      expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/finance/journals");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/finance/import");
+    });
+
+    it("resolves mapped debit/credit account codes before posting in local fallback mode", async () => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(true);
+      queryTenantLocalDbMock
+        .mockResolvedValueOnce({ rows: [{ id: "import-1" }] }) // insert finance_imports
+        .mockResolvedValueOnce({ rows: [{ id: "journal-1" }] }) // insert finance_journals
+        .mockResolvedValueOnce({ rows: [{ id: "acct-1010" }] }) // resolve debit code
+        .mockResolvedValueOnce({ rows: [{ id: "acct-4000" }] }) // resolve credit code
+        .mockResolvedValueOnce({ rows: [] }) // insert finance_journal_lines
+        .mockResolvedValueOnce({ rows: [] }); // update finance_imports
+
+      await importFinanceRowsAction({
+        filename: "import.csv",
+        format: "csv",
+        rows: [{ ...validRow, debitAccountCode: "1010", creditAccountCode: "4000" }],
+        defaultDebitAccountId: "acct-default-debit",
+        defaultCreditAccountId: "acct-default-credit",
+      });
+
+      expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(6);
+      expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
+        5,
+        expect.stringContaining("insert into public.finance_journal_lines"),
+        ["journal-1", "church-1", "acct-1010", 5000, "Tithe", 0, "acct-4000", 1],
+      );
+    });
+
+    it("posts a completed import journal on the Supabase path", async () => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+
+      const importsSingleMock = vi.fn().mockResolvedValue({ data: { id: "import-1" } });
+      const importsInsertMock = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: importsSingleMock }) });
+      const importsUpdateEqMock = vi.fn().mockResolvedValue({});
+      const importsUpdateMock = vi.fn().mockReturnValue({ eq: importsUpdateEqMock });
+
+      const journalsSingleMock = vi.fn().mockResolvedValue({ data: { id: "journal-1" } });
+      const journalsInsertMock = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: journalsSingleMock }) });
+
+      const linesInsertMock = vi.fn().mockResolvedValue({});
+
+      const fromMock = vi.fn((table: string) => {
+        if (table === "finance_imports") return { insert: importsInsertMock, update: importsUpdateMock };
+        if (table === "finance_journals") return { insert: journalsInsertMock };
+        if (table === "finance_journal_lines") return { insert: linesInsertMock };
+        throw new Error(`unexpected table ${table}`);
+      });
+      createTenantServerClientMock.mockResolvedValue({ from: fromMock });
+
+      const result = await importFinanceRowsAction({
+        filename: "import.csv",
+        format: "csv",
+        rows: [validRow],
+        defaultDebitAccountId: "acct-cash",
+        defaultCreditAccountId: "acct-giving",
+      });
+
+      expect(result).toEqual({ journalId: "journal-1", importId: "import-1" });
+      expect(linesInsertMock).toHaveBeenCalledWith([
+        { journal_id: "journal-1", church_id: "church-1", account_id: "acct-cash",
+          side: "debit", amount_cents: 5000, memo: "Tithe", sort_order: 0 },
+        { journal_id: "journal-1", church_id: "church-1", account_id: "acct-giving",
+          side: "credit", amount_cents: 5000, memo: "Tithe", sort_order: 1 },
+      ]);
+      expect(importsUpdateMock).toHaveBeenCalledWith({ status: "completed", imported_rows: 1, journal_id: "journal-1" });
+      expect(importsUpdateEqMock).toHaveBeenCalledWith("id", "import-1");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/finance/journals");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/finance/import");
+    });
+  });
+
   describe("voidJournalAction", () => {
     const baseSession = {
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
