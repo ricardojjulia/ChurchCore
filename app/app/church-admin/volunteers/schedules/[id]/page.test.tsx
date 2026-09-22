@@ -92,6 +92,22 @@ describe("service plan detail page", () => {
     await expect(ServicePlanDetailPage({ params: Promise.resolve({ id: "plan-1" }) })).rejects.toMatchObject({ url: "/app/member" });
   });
 
+  it.each(["pastor", "ministry-leader"])(
+    "renders (does not redirect) for %s role",
+    async (roleId) => {
+      requireChurchSessionMock.mockResolvedValueOnce({
+        appContext: { roleId, church: { name: "Grace Church" } },
+        homePath: "/app/member",
+      });
+
+      const page = await ServicePlanDetailPage({ params: Promise.resolve({ id: "plan-1" }) });
+      render(page);
+
+      expect(redirectMock).not.toHaveBeenCalled();
+      expect(screen.getByText("Service Plan Builder")).toBeInTheDocument();
+    },
+  );
+
   it("renders builder with detail, pool, and event options", async () => {
     const page = await ServicePlanDetailPage({ params: Promise.resolve({ id: "plan-1" }) });
     render(page);

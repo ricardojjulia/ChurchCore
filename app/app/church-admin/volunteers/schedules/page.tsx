@@ -15,7 +15,13 @@ const NAV_ITEMS = [
 
 export default async function ServicePlansPage() {
   const session = await requireChurchSession("/app/church-admin/volunteers/schedules");
-  if (session.appContext.roleId !== "church-admin") redirect(session.homePath);
+  if (
+    session.appContext.roleId !== "church-admin" &&
+    session.appContext.roleId !== "pastor" &&
+    session.appContext.roleId !== "ministry-leader"
+  ) {
+    redirect(session.homePath);
+  }
 
   const [plans, templates, events] = await Promise.all([
     getServicePlanList(session, { upcoming: true }),

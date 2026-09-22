@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition, type CSSProperties } from "react";
 import {
   ActionIcon,
   Alert,
   Badge,
   Button,
   Group,
+  Loader,
   Modal,
   NumberInput,
   Paper,
@@ -21,6 +22,24 @@ import {
   Title,
 } from "@mantine/core";
 import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   BellRing,
@@ -28,8 +47,11 @@ import {
   Check,
   ChevronRight,
   Clock,
+  GripVertical,
   Link2Off,
   Plus,
+  Search,
+  Trash2,
   UserCheck,
   UserMinus,
   UserPlus,
@@ -45,6 +67,7 @@ import {
 import type {
   ServicePlanDetail,
   ServicePlanEventOption,
+  ServicePlanItem,
   ServicePlanLinkedEventOps,
   ServicePlanListEntry,
   ServicePlanTemplate,
@@ -53,14 +76,37 @@ import type {
 import {
   addPlanPositionAction,
   addRunOfServiceItemAction,
+  addSongToServicePlanAction,
   assignVolunteerAction,
   createServicePlanAction,
+  createSongAndAddToServicePlanAction,
   reorderServicePlanItemsAction,
   removeAssignmentAction,
+  removeServicePlanItemAction,
+  searchSongLibraryAction,
   sendVolunteerReminderAction,
   updateServicePlanDetailsAction,
   updateServicePlanStatusAction,
+  type SongLibrarySearchResult,
 } from "@/app/app/volunteer-actions";
+
+// Thrown (not returned as { ok: false, error }) by requireServicePlanWriteAccess()
+// for a role that lost write access, and by requireChurchSession() when the
+// session itself no longer resolves — the only two failure modes in this
+// file's server actions that reject instead of resolving with an error
+// string. Treat any rejection matching this app's own auth vocabulary as a
+// session/auth failure and prompt to sign in again, rather than showing a
+// generic error toast for something the user can't fix by retrying.
+function isLikelySessionOrAuthError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("unauthorized") ||
+    message.includes("session") ||
+    message.includes("not authenticated") ||
+    message.includes("sign in")
+  );
+}
 
 function formatDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
@@ -369,6 +415,119 @@ export function ServicePlansWorkspace({
 
 // ── Service plan detail / builder ────────────────────────────
 
+// A single draggable + keyboard-reorderable run-of-service row. Drag (mouse,
+// touch, or dnd-kit's KeyboardSensor — Tab to the handle, Space/Enter to
+// pick up, Arrow keys to move, Space/Enter to drop) is additive to the
+// move-up/down buttons rendered alongside it, not a replacement.
+function SortableRunOfServiceRow({
+  item,
+  idx,
+  total,
+  isReorderPending,
+  onMoveItem,
+  onRemoveItem,
+  isRemoving,
+}: {
+  item: ServicePlanItem;
+  idx: number;
+  total: number;
+  isReorderPending: boolean;
+  onMoveItem: (itemId: string, direction: "up" | "down") => void;
+  onRemoveItem: (itemId: string) => void;
+  isRemoving: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    disabled: isReorderPending,
+  });
+
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+
+  return (
+    <Paper ref={setNodeRef} style={style} withBorder p="sm" radius="sm">
+      <Group justify="space-between" align="flex-start">
+        <Group align="flex-start" gap="xs" wrap="nowrap">
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            aria-label={`Reorder: ${item.title}`}
+            disabled={isReorderPending}
+            style={{ cursor: isReorderPending ? "not-allowed" : "grab", touchAction: "none" }}
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical size={13} />
+          </ActionIcon>
+          <Stack gap={2}>
+            <Group gap="xs">
+              <Text fw={600} size="sm">{item.title}</Text>
+              <Badge size="xs" variant="light" color="gray">{item.itemType}</Badge>
+              {item.itemType === "song" && item.songKey ? (
+                <Badge size="xs" variant="outline" color="blue">{item.songKey}</Badge>
+              ) : null}
+              {item.itemType === "song" && item.durationSeconds != null ? (
+                <Text size="xs" c="dimmed">
+                  {Math.floor(item.durationSeconds / 60) + ":" + String(item.durationSeconds % 60).padStart(2, "0")}
+                </Text>
+              ) : null}
+            </Group>
+            {item.itemType === "song" && item.artist ? (
+              <Text size="xs" c="dimmed">{item.artist}</Text>
+            ) : null}
+            {item.leaderName ? <Text size="xs" c="dimmed">Leader: {item.leaderName}</Text> : null}
+            {item.startsAt || item.endsAt ? (
+              <Text size="xs" c="dimmed">
+                {item.startsAt ? new Date(item.startsAt).toLocaleTimeString() : ""}
+                {item.startsAt && item.endsAt ? " - " : ""}
+                {item.endsAt ? new Date(item.endsAt).toLocaleTimeString() : ""}
+              </Text>
+            ) : null}
+            {item.notes ? <Text size="xs">{item.notes}</Text> : null}
+            {item.attachmentUrl ? (
+              <Text size="xs" c="churchBlue">{item.attachmentUrl}</Text>
+            ) : null}
+          </Stack>
+        </Group>
+        <Group gap={4}>
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            aria-label={`Move up: ${item.title}`}
+            disabled={idx === 0 || isReorderPending}
+            onClick={() => onMoveItem(item.id, "up")}
+          >
+            <ArrowUp size={13} />
+          </ActionIcon>
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            aria-label={`Move down: ${item.title}`}
+            disabled={idx === total - 1 || isReorderPending}
+            onClick={() => onMoveItem(item.id, "down")}
+          >
+            <ArrowDown size={13} />
+          </ActionIcon>
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            color="red"
+            aria-label={`Remove: ${item.title}`}
+            disabled={isReorderPending || isRemoving}
+            loading={isRemoving}
+            onClick={() => onRemoveItem(item.id)}
+          >
+            <Trash2 size={13} />
+          </ActionIcon>
+        </Group>
+      </Group>
+    </Paper>
+  );
+}
+
 export function ServicePlanBuilder({
   detail: initialDetail,
   events,
@@ -413,6 +572,38 @@ export function ServicePlanBuilder({
   });
   const [runItemFormError, setRunItemFormError] = useState<string | null>(null);
   const [isReorderPending, setIsReorderPending] = useState(false);
+  const [runOfServiceAuthError, setRunOfServiceAuthError] = useState(false);
+  const [removingItemId, setRemovingItemId] = useState<string | null>(null);
+
+  // ── Song library search / add / create ───────────────────────
+  const [songQuery, setSongQuery] = useState("");
+  const [songResults, setSongResults] = useState<SongLibrarySearchResult[]>([]);
+  const [isSongSearchPending, setIsSongSearchPending] = useState(false);
+  const [songSearchError, setSongSearchError] = useState<string | null>(null);
+  const [songLibraryEverHadResults, setSongLibraryEverHadResults] = useState(false);
+  const [songWarning, setSongWarning] = useState<string | null>(null);
+  const [isSongActionPending, setIsSongActionPending] = useState(false);
+  const [showCreateSongForm, setShowCreateSongForm] = useState(false);
+  const [newSongForm, setNewSongForm] = useState({
+    title: "",
+    artist: "",
+    key: "",
+    durationMinutes: "",
+    durationSeconds: "",
+  });
+  const [newSongFormError, setNewSongFormError] = useState<string | null>(null);
+  // Reused across retries of a single failed submit so the backend's
+  // idempotency dedup applies; reset to null on success or cancel so the
+  // *next* distinct submission gets a fresh key.
+  const songIdempotencyKeyRef = useRef<string | null>(null);
+  const songSearchRequestIdRef = useRef(0);
+  const songSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
   const [assignTarget, setAssignTarget] = useState<{ positionId: string; roleName: string } | null>(null);
   const [volunteerSearch, setVolunteerSearch] = useState("");
   const [burnoutConfirmation, setBurnoutConfirmation] = useState<{
@@ -573,6 +764,241 @@ export function ServicePlanBuilder({
     });
   }
 
+  // Debounced song-library search-as-you-type, following this file's
+  // existing debounce convention (see communications-compose-client.tsx's
+  // fetchPreview): every state update happens inside the deferred
+  // setTimeout callback, never synchronously in runSongSearch's own body —
+  // satisfies the react-hooks/set-state-in-effect rule the same way that
+  // component's fetchPreview does. A stale, slower response from an earlier
+  // keystroke is discarded via songSearchRequestIdRef so it can never
+  // clobber a newer one.
+  const runSongSearch = useCallback((query: string) => {
+    if (songSearchTimerRef.current) clearTimeout(songSearchTimerRef.current);
+    const requestId = ++songSearchRequestIdRef.current;
+
+    songSearchTimerRef.current = setTimeout(() => {
+      if (!query) {
+        setSongResults([]);
+        setIsSongSearchPending(false);
+        setSongSearchError(null);
+        return;
+      }
+
+      setIsSongSearchPending(true);
+      setSongSearchError(null);
+
+      searchSongLibraryAction({ query })
+        .then((res) => {
+          if (songSearchRequestIdRef.current !== requestId) return;
+          setIsSongSearchPending(false);
+          if (!res.ok) {
+            setSongSearchError(res.error ?? "Search failed.");
+            setSongResults([]);
+            return;
+          }
+          setSongResults(res.results);
+          if (res.results.length > 0) {
+            setSongLibraryEverHadResults(true);
+          }
+        })
+        .catch((error) => {
+          if (songSearchRequestIdRef.current !== requestId) return;
+          setIsSongSearchPending(false);
+          if (isLikelySessionOrAuthError(error)) {
+            setRunOfServiceAuthError(true);
+          } else {
+            setSongSearchError("Song search failed. Try again.");
+          }
+        });
+    }, 300);
+  }, []);
+
+  useEffect(() => {
+    runSongSearch(songQuery.trim());
+    return () => {
+      if (songSearchTimerRef.current) clearTimeout(songSearchTimerRef.current);
+    };
+  }, [songQuery, runSongSearch]);
+
+  function appendSongItem(item: {
+    id: string;
+    title: string;
+    songKey: string | null;
+    durationSeconds: number | null;
+    artist: string | null;
+  }) {
+    setDetail((d) => ({
+      ...d,
+      runOfService: [
+        ...d.runOfService,
+        {
+          id: item.id,
+          planId: d.plan.id,
+          churchId: d.plan.churchId,
+          startsAt: null,
+          endsAt: null,
+          title: item.title,
+          itemType: "song",
+          leaderName: null,
+          notes: null,
+          attachmentUrl: null,
+          sortOrder: d.runOfService.length,
+          songKey: item.songKey,
+          durationSeconds: item.durationSeconds,
+          artist: item.artist,
+        },
+      ],
+    }));
+  }
+
+  function handleSelectSong(result: SongLibrarySearchResult) {
+    setIsSongActionPending(true);
+    setRunOfServiceAuthError(false);
+
+    addSongToServicePlanAction({ planId: detail.plan.id, songLibraryId: result.id })
+      .then((res) => {
+        setIsSongActionPending(false);
+        if (!res.ok || !res.id) {
+          setMsg({ type: "error", text: res.error ?? "Failed to add song to the plan." });
+          return;
+        }
+
+        appendSongItem({
+          id: res.id,
+          title: result.title,
+          songKey: result.defaultKey,
+          durationSeconds: result.defaultDurationSeconds,
+          artist: result.artist,
+        });
+
+        // Non-blocking: the song was already added above regardless of a
+        // repeat-window warning being present.
+        if (res.warning) {
+          setSongWarning(res.warning);
+        }
+        setSongQuery("");
+        setSongResults([]);
+      })
+      .catch((error) => {
+        setIsSongActionPending(false);
+        if (isLikelySessionOrAuthError(error)) {
+          setRunOfServiceAuthError(true);
+        } else {
+          setMsg({ type: "error", text: "Failed to add song to the plan." });
+        }
+      });
+  }
+
+  function openCreateSongForm(prefillTitle: string) {
+    songIdempotencyKeyRef.current = null;
+    setNewSongForm({ title: prefillTitle, artist: "", key: "", durationMinutes: "", durationSeconds: "" });
+    setNewSongFormError(null);
+    setShowCreateSongForm(true);
+  }
+
+  function closeCreateSongForm() {
+    songIdempotencyKeyRef.current = null;
+    setShowCreateSongForm(false);
+    setNewSongFormError(null);
+    setNewSongForm({ title: "", artist: "", key: "", durationMinutes: "", durationSeconds: "" });
+  }
+
+  function handleCreateSong() {
+    const title = newSongForm.title.trim();
+    if (!title) {
+      setNewSongFormError("Title is required.");
+      return;
+    }
+    setNewSongFormError(null);
+
+    // Generated once per distinct submission attempt; a failed retry reuses
+    // this same value so the backend's idempotency dedup applies.
+    if (!songIdempotencyKeyRef.current) {
+      songIdempotencyKeyRef.current = crypto.randomUUID();
+    }
+    const idempotencyKey = songIdempotencyKeyRef.current;
+
+    const mins = parseInt(newSongForm.durationMinutes || "0", 10);
+    const secs = parseInt(newSongForm.durationSeconds || "0", 10);
+    const defaultDurationSeconds = mins > 0 || secs > 0 ? mins * 60 + secs : undefined;
+    const artist = newSongForm.artist.trim() || undefined;
+    const defaultKey = newSongForm.key.trim() || undefined;
+
+    setIsSongActionPending(true);
+    setRunOfServiceAuthError(false);
+
+    createSongAndAddToServicePlanAction({
+      planId: detail.plan.id,
+      title,
+      artist,
+      defaultKey,
+      defaultDurationSeconds,
+      idempotencyKey,
+    })
+      .then((res) => {
+        setIsSongActionPending(false);
+        if (!res.ok || !res.itemId) {
+          setNewSongFormError(res.error ?? "Failed to create song. Try again.");
+          return; // idempotencyKey intentionally preserved for retry
+        }
+
+        appendSongItem({
+          id: res.itemId,
+          title,
+          songKey: defaultKey ?? null,
+          durationSeconds: defaultDurationSeconds ?? null,
+          artist: artist ?? null,
+        });
+
+        songIdempotencyKeyRef.current = null;
+        setShowCreateSongForm(false);
+        setNewSongForm({ title: "", artist: "", key: "", durationMinutes: "", durationSeconds: "" });
+        setSongQuery("");
+        setSongResults([]);
+        setSongLibraryEverHadResults(true);
+      })
+      .catch((error) => {
+        setIsSongActionPending(false);
+        if (isLikelySessionOrAuthError(error)) {
+          setRunOfServiceAuthError(true);
+        } else {
+          setNewSongFormError("Failed to create song. Try again.");
+        }
+        // idempotencyKey intentionally preserved for retry either way
+      });
+  }
+
+  // Shared by the move-up/down buttons and drag-and-drop reordering: applies
+  // an optimistic reorder, then rolls it back to previousOrder on any
+  // failure (business-logic error or thrown auth/session error) so the
+  // rendered list never drifts from what the server actually persisted.
+  function performReorder(newOrder: ServicePlanItem[], previousOrder: ServicePlanItem[]) {
+    setDetail((d) => ({ ...d, runOfService: newOrder }));
+    setIsReorderPending(true);
+    setRunOfServiceAuthError(false);
+
+    reorderServicePlanItemsAction({
+      planId: detail.plan.id,
+      orderedIds: newOrder.map((i) => i.id),
+    })
+      .then((res) => {
+        setIsReorderPending(false);
+        if (!res.ok) {
+          setDetail((d) => ({ ...d, runOfService: previousOrder }));
+          setMsg({ type: "error", text: res.error ?? "Failed to reorder items." });
+        }
+      })
+      .catch((error) => {
+        setIsReorderPending(false);
+        setDetail((d) => ({ ...d, runOfService: previousOrder }));
+        if (isLikelySessionOrAuthError(error)) {
+          setRunOfServiceAuthError(true);
+        } else {
+          setMsg({ type: "error", text: "Failed to reorder items." });
+        }
+      });
+  }
+
   function handleMoveItem(itemId: string, direction: "up" | "down") {
     const items = detail.runOfService;
     const idx = items.findIndex((i) => i.id === itemId);
@@ -586,22 +1012,47 @@ export function ServicePlanBuilder({
     newOrder[idx] = newOrder[swapIdx];
     newOrder[swapIdx] = temp;
 
-    const previousOrder = items;
-    setDetail((d) => ({ ...d, runOfService: newOrder }));
-    setIsReorderPending(true);
+    performReorder(newOrder, items);
+  }
 
-    reorderServicePlanItemsAction({
-      planId: detail.plan.id,
-      orderedIds: newOrder.map((i) => i.id),
-    }).then((res) => {
-      if (res.ok) {
-        setIsReorderPending(false);
-      } else {
-        setDetail((d) => ({ ...d, runOfService: previousOrder }));
-        setIsReorderPending(false);
-        setMsg({ type: "error", text: res.error ?? "Failed to reorder items." });
-      }
-    });
+  // Only removes the plan item — the linked song_library row (if any) is a
+  // reusable church-wide catalog entry and is never deleted or mutated here.
+  function handleRemoveItem(itemId: string) {
+    setRemovingItemId(itemId);
+    setRunOfServiceAuthError(false);
+
+    removeServicePlanItemAction({ planId: detail.plan.id, itemId })
+      .then((res) => {
+        setRemovingItemId(null);
+        if (res.ok) {
+          setDetail((d) => ({
+            ...d,
+            runOfService: d.runOfService.filter((i) => i.id !== itemId),
+          }));
+        } else {
+          setMsg({ type: "error", text: res.error ?? "Failed to remove item." });
+        }
+      })
+      .catch((error) => {
+        setRemovingItemId(null);
+        if (isLikelySessionOrAuthError(error)) {
+          setRunOfServiceAuthError(true);
+        } else {
+          setMsg({ type: "error", text: "Failed to remove item." });
+        }
+      });
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const items = detail.runOfService;
+    const oldIndex = items.findIndex((i) => i.id === active.id);
+    const newIndex = items.findIndex((i) => i.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    performReorder(arrayMove(items, oldIndex, newIndex), items);
   }
 
   function handlePublish(status: "published" | "complete" | "cancelled") {
@@ -1055,6 +1506,176 @@ export function ServicePlanBuilder({
           </Button>
         </Group>
 
+        {runOfServiceAuthError ? (
+          <Alert
+            color="orange"
+            radius="sm"
+            mb="sm"
+            icon={<AlertTriangle size={14} />}
+            title="Sign-in required"
+            withCloseButton
+            onClose={() => setRunOfServiceAuthError(false)}
+          >
+            <Stack gap="xs">
+              <Text size="sm">
+                Your session may have expired, or you no longer have permission to edit this
+                service plan. Sign in again to continue.
+              </Text>
+              <Group>
+                <Button component={Link} href="/sign-in" size="xs" variant="light" color="orange">
+                  Sign in again
+                </Button>
+              </Group>
+            </Stack>
+          </Alert>
+        ) : null}
+
+        <Paper withBorder p="sm" radius="sm" mb="sm">
+          <Text size="xs" fw={700} tt="uppercase" c="dimmed" mb={4}>
+            Add a song
+          </Text>
+          <TextInput
+            placeholder="Search the song library by title or artist…"
+            aria-label="Search song library"
+            value={songQuery}
+            onChange={(event) => setSongQuery(event.currentTarget.value)}
+            leftSection={<Search size={14} />}
+            rightSection={isSongSearchPending ? <Loader size="xs" /> : null}
+          />
+
+          {songSearchError ? (
+            <Text size="xs" c="red" mt="xs">
+              {songSearchError}
+            </Text>
+          ) : null}
+
+          {songQuery.trim() && !isSongSearchPending && songResults.length === 0 && !songSearchError ? (
+            <Stack gap={4} mt="xs">
+              <Text size="sm" c="dimmed">
+                {songLibraryEverHadResults
+                  ? `No songs found for "${songQuery.trim()}".`
+                  : "Your song library is empty — search to add your first song."}
+              </Text>
+              <Button
+                size="xs"
+                variant="light"
+                onClick={() => openCreateSongForm(songQuery.trim())}
+              >
+                Create &quot;{songQuery.trim()}&quot; as a new song
+              </Button>
+            </Stack>
+          ) : null}
+
+          {songResults.length > 0 ? (
+            <Stack gap={4} mt="xs">
+              {songResults.map((result) => (
+                <Paper key={result.id} withBorder p="xs" radius="sm">
+                  <Group justify="space-between">
+                    <Stack gap={0}>
+                      <Group gap={6}>
+                        <Text size="sm" fw={600}>{result.title}</Text>
+                        {result.defaultKey ? (
+                          <Badge size="xs" variant="outline" color="blue">{result.defaultKey}</Badge>
+                        ) : null}
+                      </Group>
+                      <Group gap={6}>
+                        {result.artist ? <Text size="xs" c="dimmed">{result.artist}</Text> : null}
+                        <Text size="xs" c="dimmed">
+                          {result.lastUsedDate ? `Last used ${formatDate(result.lastUsedDate)}` : "Never used"}
+                        </Text>
+                      </Group>
+                    </Stack>
+                    <Button size="xs" onClick={() => handleSelectSong(result)} loading={isSongActionPending}>
+                      Add
+                    </Button>
+                  </Group>
+                </Paper>
+              ))}
+            </Stack>
+          ) : null}
+
+          {showCreateSongForm ? (
+            <Paper withBorder p="xs" radius="sm" mt="xs">
+              <Stack gap="xs">
+                <TextInput
+                  label="Title"
+                  required
+                  error={newSongFormError}
+                  value={newSongForm.title}
+                  onChange={(event) => {
+                    setNewSongFormError(null);
+                    setNewSongForm((form) => ({ ...form, title: event.currentTarget.value }));
+                  }}
+                />
+                <Group grow>
+                  <TextInput
+                    label="Artist / Composer"
+                    value={newSongForm.artist}
+                    onChange={(event) =>
+                      setNewSongForm((form) => ({ ...form, artist: event.currentTarget.value }))
+                    }
+                  />
+                  <TextInput
+                    label="Key"
+                    placeholder="e.g. G, Bb, F#m"
+                    value={newSongForm.key}
+                    onChange={(event) =>
+                      setNewSongForm((form) => ({ ...form, key: event.currentTarget.value }))
+                    }
+                  />
+                </Group>
+                <Group grow>
+                  <NumberInput
+                    label="Min"
+                    min={0}
+                    max={99}
+                    value={newSongForm.durationMinutes === "" ? "" : Number(newSongForm.durationMinutes)}
+                    onChange={(value) =>
+                      setNewSongForm((form) => ({
+                        ...form,
+                        durationMinutes: value === "" ? "" : String(value),
+                      }))
+                    }
+                  />
+                  <NumberInput
+                    label="Sec"
+                    min={0}
+                    max={59}
+                    value={newSongForm.durationSeconds === "" ? "" : Number(newSongForm.durationSeconds)}
+                    onChange={(value) =>
+                      setNewSongForm((form) => ({
+                        ...form,
+                        durationSeconds: value === "" ? "" : String(value),
+                      }))
+                    }
+                  />
+                </Group>
+                <Group justify="flex-end">
+                  <Button size="xs" variant="default" onClick={closeCreateSongForm}>
+                    Cancel
+                  </Button>
+                  <Button size="xs" onClick={handleCreateSong} loading={isSongActionPending}>
+                    Add song
+                  </Button>
+                </Group>
+              </Stack>
+            </Paper>
+          ) : null}
+
+          {songWarning ? (
+            <Alert
+              color="yellow"
+              radius="sm"
+              mt="xs"
+              withCloseButton
+              onClose={() => setSongWarning(null)}
+              title="Recently used"
+            >
+              {songWarning}
+            </Alert>
+          ) : null}
+        </Paper>
+
         {showRunItemForm ? (
           <Paper withBorder p="sm" radius="sm" mb="sm">
             <Stack gap="xs">
@@ -1188,63 +1809,27 @@ export function ServicePlanBuilder({
         {detail.runOfService.length === 0 ? (
           <Text size="sm" c="dimmed">No run-of-service items yet.</Text>
         ) : (
-          <Stack gap="xs">
-            {detail.runOfService.map((item, idx) => (
-              <Paper key={item.id} withBorder p="sm" radius="sm">
-                <Group justify="space-between" align="flex-start">
-                  <Stack gap={2}>
-                    <Group gap="xs">
-                      <Text fw={600} size="sm">{item.title}</Text>
-                      <Badge size="xs" variant="light" color="gray">{item.itemType}</Badge>
-                      {item.itemType === "song" && item.songKey ? (
-                        <Badge size="xs" variant="outline" color="blue">{item.songKey}</Badge>
-                      ) : null}
-                      {item.itemType === "song" && item.durationSeconds != null ? (
-                        <Text size="xs" c="dimmed">
-                          {Math.floor(item.durationSeconds / 60) + ":" + String(item.durationSeconds % 60).padStart(2, "0")}
-                        </Text>
-                      ) : null}
-                    </Group>
-                    {item.itemType === "song" && item.artist ? (
-                      <Text size="xs" c="dimmed">{item.artist}</Text>
-                    ) : null}
-                    {item.leaderName ? <Text size="xs" c="dimmed">Leader: {item.leaderName}</Text> : null}
-                    {item.startsAt || item.endsAt ? (
-                      <Text size="xs" c="dimmed">
-                        {item.startsAt ? new Date(item.startsAt).toLocaleTimeString() : ""}
-                        {item.startsAt && item.endsAt ? " - " : ""}
-                        {item.endsAt ? new Date(item.endsAt).toLocaleTimeString() : ""}
-                      </Text>
-                    ) : null}
-                    {item.notes ? <Text size="xs">{item.notes}</Text> : null}
-                    {item.attachmentUrl ? (
-                      <Text size="xs" c="churchBlue">{item.attachmentUrl}</Text>
-                    ) : null}
-                  </Stack>
-                  <Group gap={4}>
-                    <ActionIcon
-                      size="sm"
-                      variant="subtle"
-                      aria-label={`Move up: ${item.title}`}
-                      disabled={idx === 0 || isReorderPending}
-                      onClick={() => handleMoveItem(item.id, "up")}
-                    >
-                      <ArrowUp size={13} />
-                    </ActionIcon>
-                    <ActionIcon
-                      size="sm"
-                      variant="subtle"
-                      aria-label={`Move down: ${item.title}`}
-                      disabled={idx === detail.runOfService.length - 1 || isReorderPending}
-                      onClick={() => handleMoveItem(item.id, "down")}
-                    >
-                      <ArrowDown size={13} />
-                    </ActionIcon>
-                  </Group>
-                </Group>
-              </Paper>
-            ))}
-          </Stack>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext
+              items={detail.runOfService.map((item) => item.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <Stack gap="xs">
+                {detail.runOfService.map((item, idx) => (
+                  <SortableRunOfServiceRow
+                    key={item.id}
+                    item={item}
+                    idx={idx}
+                    total={detail.runOfService.length}
+                    isReorderPending={isReorderPending}
+                    onMoveItem={handleMoveItem}
+                    onRemoveItem={handleRemoveItem}
+                    isRemoving={removingItemId === item.id}
+                  />
+                ))}
+              </Stack>
+            </SortableContext>
+          </DndContext>
         )}
       </Paper>
 
