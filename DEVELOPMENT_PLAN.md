@@ -281,6 +281,33 @@ The control-plane / tenant split is fully live:
 
 This plan's sprint table above (§8) describes the original roadmap shape, not current delivery — actual work has run far past a linear Sprint 1→7 sequence via the Council Review protocol (`improve-software.md`, `docs/reviews/`). Treat the sprint table as historical framing, and this section as the accurate snapshot:
 
+### MVP Readiness & Competitive Gaps (living snapshot)
+
+Update this table on every Council round — it is the scannable summary; the bulleted narrative below is the detailed history. Do not let this drift out of sync with the narrative the way it did before the Documenter role existed (see `improve-software.md` §0).
+
+**MVP readiness: 66–67/100** (Council Review 14, 2026-09-22) — up from 65/100, which held unchanged across five consecutive rounds (Reviews 9–13).
+
+| Phase | Verdict | Blocker |
+|---|---|---|
+| A — controlled single-church pilot | **GO** | — |
+| B — broad evaluator | **NO-GO** | Competitive gaps below |
+| C — compliance-first segment | **NO-GO** | Competitive gaps below |
+| D — broad mid-market | **NO-GO** | Buildable gates are met; the binding blocker is **external validation, not engineering** — zero churches have completed onboarding uncoached, zero incumbent-migration dry-runs have been run against a real export |
+
+**Five ranked competitive gaps** (vs. Planning Center Online, Breeze ChMS, Tithe.ly — Council Review 9 Agent 4, reconfirmed unchanged through Reviews 10–13):
+
+| # | Gap | Status | Estimate |
+|---|---|---|---|
+| 1 | Service planning depth — setlist builder, song library, volunteer-role matching for services | **Partially closed.** Story 1 (song library + setlist builder) passed Council Review 14, 2026-09-22 ([PR #146](https://github.com/ricardojjulia/ChurchCore/pull/146)). Story 2 (role taxonomy & team roster) is next; Stories 3–5 (rotation planner, rehearsal scheduling, the `event_id`-required schema change) are not started. | 3–4 weeks total |
+| 2 | Member mobile UX & check-in kiosk — functional but not phone-first, no offline support | Not started | 2–3 weeks |
+| 3 | Recurring giving & donor statements — one-time donations only, no recurring gifts/tax receipts/pledge tracking | Not started | 4–5 weeks |
+| 4 | Migration/import tooling maturity — no Planning Center/Breeze-specific field mappers, no post-import reconciliation | Not started | 3–4 weeks |
+| 5 | Provider integration breadth — Stripe/SendGrid/Twilio/Resend/Claude only, no QuickBooks/Xero export or workflow integrations | Not started | 6–8 weeks |
+
+Sources: `docs/reviews/2026-09-17-council-review-9-agent-4-feature-competitive.md` (original ranking), `docs/reviews/2026-09-22-council-review-14-agent-4-feature-competitive.md` (latest reassessment).
+
+**Legacy doc note:** `docs/plans/mvp-competitive-go-no-go-checklist.md` and `docs/mvp-competitive-analysis.md` both predate Council Review 9 (2026-09-17) and describe an older Phase A–D gate framework that has not been reconciled with the ranked-gap findings above. Treat this table and the narrative below as authoritative; those two docs (and the README banner claiming "Phase D-READY") are stale and due for an archive-or-reconcile decision — flagged, not yet resolved.
+
 - **Shipped and merged to `main`**: control-plane/tenant split (ADR 0002), localization governance framework (CC-L10N-001/002), Church Operations module, Communications send lifecycle, first AI Ministry Tools integration (CC-AI-001, Claude-powered sermon planning + Bible study Q&A), calendar overhaul, demo feedback hardening.
 - **Landed via Council Review 9** (this pass): ~3 months of previously-unmerged work — Project HQ governance dashboard, security/audit hardening (Council Reviews 2–7: consent-log immutability, pastoral-note encryption, audit logging, session timeout, CSV import limits, DB health checks), volunteer sessional confirmation system, sandbox onboarding wizard, hardened CSV import mapping, volunteer burnout/vitality analytics, custom report builder, and platform-admin tenant CRUD + data erasure (hardened per ADR 0021 as part of this round).
 - **MVP readiness**: 65/100 per Council Review 9's feature/competitive audit (`docs/reviews/2026-09-17-council-review-9-agent-4-feature-competitive.md`). Phase A (controlled single-church pilot) is GO. Phase B–D (broader evaluator, compliance-first, mid-market) are NO-GO pending service planning, phone-first mobile UX, recurring giving, incumbent migration tooling, and — the binding constraint — at least one real church completing onboarding uncoached. See `docs/plans/mvp-competitive-go-no-go-checklist.md`.
