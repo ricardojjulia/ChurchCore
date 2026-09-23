@@ -119,7 +119,7 @@ export async function broadcastMessageAction(
       else sent++;
     } catch (err) {
       errors++;
-      console.error(`[communications] Send to ${recipient.profileId} failed:`, err);
+      console.error("[communications] Send to recipient failed:", recipient.profileId, err);
     }
   }
 
@@ -790,7 +790,7 @@ export async function composeAndSendMessageAction(
     .eq("id", logId)
     .eq("church_id", churchId);
   if (statusError) {
-    console.error(`[communications] Failed to close out log ${logId}: ${statusError.message}`);
+    console.error("[communications] Failed to close out log:", logId, statusError.message);
   }
 
   revalidatePath("/app/communications/history");
@@ -1177,7 +1177,7 @@ async function sendToRecipients(
       else counts.sent++;
     } catch (err) {
       counts.errors++;
-      console.error(`[communications] Send to ${recipient.profileId} failed:`, err);
+      console.error("[communications] Send to recipient failed:", recipient.profileId, err);
     }
   }
   return counts;

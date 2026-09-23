@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
           )
           .eq("id", log.id);
         if (closeError) {
-          console.error(`[comm-scheduled] Failed to close out ${log.id}:`, closeError.message);
+          console.error("[comm-scheduled] Failed to close out log:", log.id, closeError.message);
         }
 
         processed++;

@@ -372,7 +372,7 @@ async function writeLog(log: LogInput): Promise<string | undefined> {
   if (error) {
     // Not thrown: the message may already have gone out, and a throw here
     // would read as a failed send to callers that retry.
-    console.error(`Failed to write communication_log for church ${log.churchId}: ${error.message}`);
+    console.error("Failed to write communication_log for church:", log.churchId, error.message);
     return undefined;
   }
 

@@ -306,12 +306,12 @@ async function updateSourceRow(
       .select("id");
 
     if (error) {
-      console.error(`Failed to update communication_log ${row.id} during retry: ${error.message}`);
+      console.error("Failed to update communication_log during retry:", row.id, error.message);
       return false;
     }
     return (data ?? []).length > 0;
   } catch (err) {
-    console.error(`Failed to update communication_log ${row.id} during retry:`, err);
+    console.error("Failed to update communication_log during retry:", row.id, err);
     return false;
   }
 }

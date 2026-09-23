@@ -446,7 +446,7 @@ describe("queueCommunicationAction", () => {
       });
 
       expect(result).toMatchObject({ sent: true, logId: undefined });
-      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("insert failed"));
+      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.any(String), "church-1", "insert failed");
       consoleErrorSpy.mockRestore();
     });
   });
