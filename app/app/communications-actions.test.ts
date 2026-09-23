@@ -53,6 +53,7 @@ vi.mock("@/lib/supabase/tenant", () => ({
   queryTenantLocalDb: queryTenantLocalDbMock,
   shouldUseLocalTenantFallback: shouldUseLocalTenantFallbackMock,
   createTenantServerClient: createTenantServerClientMock,
+  createTenantAdminClient: () => makeInsertClient(),
 }));
 
 vi.mock("@/lib/consent-log", () => ({
@@ -371,6 +372,40 @@ describe("communications actions", () => {
       expect.stringContaining("from public.profiles"),
       ["church-1", "email", "external@example.com"],
     );
+  });
+
+  it("broadcast keeps going when one recipient's send throws, and reports it as an error", async () => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "secretary", church: { id: "church-1" } },
+      profile: { id: "profile-sec" },
+      source: "supabase",
+      userId: "sec-1",
+    });
+    const member = (id: string) => ({
+      profileId: id,
+      name: id,
+      email: `${id}@example.com`,
+      phone: null,
+      role: "member",
+      ministries: [],
+      emailOptIn: true,
+      smsOptIn: false,
+    });
+    sendWithSuppressionMock
+      .mockRejectedValueOnce(new Error("Failed to read notification preferences"))
+      .mockResolvedValueOnce({ sent: true, skipped: false });
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await broadcastMessageAction([member("p-1"), member("p-2")], {
+      recipientIds: ["p-1", "p-2"],
+      channel: "email",
+      subject: "Hello",
+      body: "Hello church",
+    });
+
+    expect(sendWithSuppressionMock).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({ sent: 1, skipped: 0, errors: 1 });
+    consoleErrorSpy.mockRestore();
   });
 
   it("rejects email broadcast without subject", async () => {

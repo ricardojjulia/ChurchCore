@@ -229,8 +229,11 @@ export async function attemptRetry(
       recordLog: false,
     });
   } catch (err) {
+    // A throw here is usually a lookup or network failure (consent reads fail
+    // closed), not a verdict on the message — retry it within budget rather
+    // than dead-lettering on the first blip. The claim still bounds attempts.
     const message = err instanceof Error ? err.message : String(err);
-    await recordFailure(row, claimedCount, { code: "unknown_error", message });
+    await recordFailure(row, claimedCount, { code: "temporary_failure", message });
     return { kind: "failed", error: message };
   }
 

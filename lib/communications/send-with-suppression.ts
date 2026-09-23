@@ -60,7 +60,10 @@ async function findSuppression(
     .select("reason")
     .eq("church_id", churchId)
     .eq("channel", channel)
-    .ilike("contact", contact)
+    // Escaped so ilike is a case-insensitive equality: "_" and "%" in an
+    // address must not act as wildcards (over-matching another suppression,
+    // or several rows making maybeSingle throw).
+    .ilike("contact", escapeLikePattern(contact))
     .maybeSingle();
 
   if (error) {
@@ -142,7 +145,9 @@ export async function sendWithSuppression(
   );
 
   if (suppression) {
-    const logId = await writeSuppressedLog({
+    // recordLog: false means the caller (the retry path) records this outcome
+    // on its own row; a suppressed row per attempt would just duplicate it.
+    const logId = input.recordLog === false ? undefined : await writeSuppressedLog({
       session: input.session,
       recipientProfileId: input.recipientProfileId,
       recipientContact: input.recipientContact,
@@ -173,4 +178,8 @@ export async function sendWithSuppression(
     retryCount: input.retryCount,
     recordLog: input.recordLog,
   });
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
 }

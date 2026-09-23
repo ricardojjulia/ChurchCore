@@ -53,7 +53,9 @@ export async function GET(request: NextRequest): Promise<Response> {
       );
     } else {
       const supabase = createTenantAdminClient();
-      await supabase.from("communication_suppressions").upsert(
+      // Supabase returns errors rather than throwing them — without this check
+      // a failed write still told the member they were unsubscribed.
+      const { error } = await supabase.from("communication_suppressions").upsert(
         {
           church_id: result.churchId,
           channel: result.channel,
@@ -68,6 +70,9 @@ export async function GET(request: NextRequest): Promise<Response> {
           ignoreDuplicates: true,
         },
       );
+      if (error) {
+        throw new Error(error.message);
+      }
     }
   } catch (err) {
     console.error("[unsubscribe] suppression write failed:", err);

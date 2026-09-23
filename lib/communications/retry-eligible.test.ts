@@ -408,17 +408,27 @@ describe("attemptRetry", () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it("a thrown dispatch is recorded as unknown_error and dead-lettered", async () => {
+  it("a thrown dispatch is recorded as transient and retried within budget, not dead-lettered", async () => {
     const { updates, upsertMock } = mockAdminClient({});
-    sendWithSuppressionMock.mockRejectedValue(new Error("UNSUBSCRIBE_SECRET must be configured"));
+    sendWithSuppressionMock.mockRejectedValue(new Error("Failed to read notification preferences"));
 
     const outcome = await attemptRetry(makeEligibleRow({ retry_count: 0 }), "a@example.com", session);
 
-    expect(outcome).toEqual({ kind: "failed", error: "UNSUBSCRIBE_SECRET must be configured" });
-    expect(updates[1].patch).toEqual(expect.objectContaining({ error_code: "unknown_error" }));
+    expect(outcome).toEqual({ kind: "failed", error: "Failed to read notification preferences" });
+    expect(updates[1].patch).toEqual(expect.objectContaining({ error_code: "temporary_failure" }));
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  it("a thrown dispatch on the last attempt is dead-lettered", async () => {
+    const { upsertMock } = mockAdminClient({});
+    sendWithSuppressionMock.mockRejectedValue(new Error("UNSUBSCRIBE_SECRET must be configured"));
+
+    await attemptRetry(makeEligibleRow({ retry_count: 2 }), "a@example.com", session);
+
     expect(upsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        last_error_code: "unknown_error",
+        attempted_count: 3,
+        last_error_code: "temporary_failure",
         last_error_message: "UNSUBSCRIBE_SECRET must be configured",
       }),
       { onConflict: "communication_log_id" },

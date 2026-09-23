@@ -103,6 +103,9 @@ export async function GET(request: NextRequest) {
 
         // Recipient resolution is always scoped to log.church_id — never user-supplied
         const recipients = await resolveRecipients(log.church_id, log.channel, segment);
+        let delivered = 0;
+        let skipped = 0;
+        let failed = 0;
 
         if (recipients.length > 0) {
           // Build a minimal synthetic session for sendWithSuppression.
@@ -120,7 +123,7 @@ export async function GET(request: NextRequest) {
 
           for (const recipient of recipients) {
             try {
-              await sendWithSuppression({
+              const result = await sendWithSuppression({
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 session: syntheticSession as any,
                 recipientProfileId: recipient.profileId,
@@ -129,7 +132,11 @@ export async function GET(request: NextRequest) {
                 subject: log.subject ?? undefined,
                 body,
               });
+              if (result.skipped) skipped++;
+              else if (result.error) failed++;
+              else delivered++;
             } catch (recipientErr) {
+              failed++;
               console.error(
                 `[comm-scheduled] Failed to send to ${recipient.profileId} for log ${log.id}:`,
                 recipientErr,
@@ -138,10 +145,23 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        await supabase
+        // Only "sent" when someone actually received it — this previously
+        // reported "sent" for broadcasts that reached nobody.
+        const { error: closeError } = await supabase
           .from("communication_logs")
-          .update({ status: "sent", sent_at: new Date().toISOString() })
+          .update(
+            delivered > 0
+              ? { status: "sent", sent_at: new Date().toISOString() }
+              : {
+                  status: "failed",
+                  error_code: "no_delivery",
+                  error_message: `No recipient was delivered (${recipients.length} matched, ${skipped} skipped, ${failed} failed).`,
+                },
+          )
           .eq("id", log.id);
+        if (closeError) {
+          console.error(`[comm-scheduled] Failed to close out ${log.id}:`, closeError.message);
+        }
 
         processed++;
       } catch (err) {

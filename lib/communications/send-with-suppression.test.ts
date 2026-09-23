@@ -152,4 +152,35 @@ describe("sendWithSuppression (Supabase path)", () => {
     expect(result.sent).toBe(true);
     expect(createTenantServerClientMock).not.toHaveBeenCalled();
   });
+
+  it("does not write a suppressed log row when the caller passes recordLog: false", async () => {
+    const { insertMock } = mockAdmin({ reason: "unsubscribe" });
+
+    const result = await sendWithSuppression({
+      session: systemSession,
+      recipientProfileId: "recipient-1",
+      recipientContact: "member@example.com",
+      channel: "email",
+      body: "Body",
+      recordLog: false,
+    });
+
+    expect(result).toMatchObject({ skipped: true, skipCode: "suppressed", logId: undefined });
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it("escapes LIKE wildcards so '_' and '%' in an address match literally", async () => {
+    const { ilikeMock } = mockAdmin(null);
+    queueCommunicationActionMock.mockResolvedValue({ sent: true, skipped: false });
+
+    await sendWithSuppression({
+      session: systemSession,
+      recipientProfileId: "recipient-1",
+      recipientContact: "john_doe%1@example.com",
+      channel: "email",
+      body: "Body",
+    });
+
+    expect(ilikeMock).toHaveBeenCalledWith("contact", "john\\_doe\\%1@example.com");
+  });
 });

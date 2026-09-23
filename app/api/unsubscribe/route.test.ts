@@ -154,6 +154,24 @@ describe("GET /api/unsubscribe", () => {
     });
   });
 
+  it("returns 500, not a false success, when the Supabase upsert returns an error", async () => {
+    verifyUnsubscribeTokenMock.mockReturnValue({
+      valid: true,
+      churchId: "church-1",
+      contactEmail: "user@example.com",
+      channel: "email",
+    });
+    shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+    upsertMock.mockResolvedValueOnce({ error: { message: "permission denied" } });
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await unsubscribeGet(makeRequest(validParams));
+
+    expect(response.status).toBe(500);
+    expect(await response.text()).not.toContain("unsubscribed successfully");
+    consoleErrorSpy.mockRestore();
+  });
+
   it("rate limits requests exceeding 15 calls per minute", async () => {
     verifyUnsubscribeTokenMock.mockReturnValue({
       valid: true,

@@ -4,6 +4,7 @@ const {
   revalidatePathMock,
   requireChurchSessionMock,
   createTenantServerClientMock,
+  createTenantAdminClientMock,
   resolveRecipientsMock,
   sendWithSuppressionMock,
 } = vi.hoisted(() => {
@@ -16,10 +17,13 @@ const {
     from: vi.fn(),
   }));
 
+  const createTenantAdminClient = vi.fn();
+
   return {
     revalidatePathMock: revalidatePath,
     requireChurchSessionMock: requireChurchSession,
     createTenantServerClientMock: createTenantServerClient,
+    createTenantAdminClientMock: createTenantAdminClient,
     resolveRecipientsMock: resolveRecipients,
     sendWithSuppressionMock: sendWithSuppression,
   };
@@ -35,7 +39,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/supabase/tenant", () => ({
   createTenantServerClient: createTenantServerClientMock,
-  createTenantAdminClient: vi.fn(),
+  createTenantAdminClient: createTenantAdminClientMock,
   hasTenantBackendEnv: vi.fn(() => true),
   hasTenantAdminBackendEnv: vi.fn(() => true),
   shouldUseLocalTenantFallback: vi.fn(() => false),
@@ -179,12 +183,39 @@ describe("previewRecipientsAction", () => {
   });
 });
 
+/**
+ * Admin client for composeAndSendMessageAction (ADR 0022): parent-log insert,
+ * then the close-out update. Captures the close-out payload.
+ */
+function mockComposeAdminClient() {
+  const closeOut: Array<Record<string, unknown>> = [];
+  const insertPayloads: Array<Record<string, unknown>> = [];
+  createTenantAdminClientMock.mockReturnValue({
+    from: vi.fn(() => ({
+      insert: vi.fn((payload: Record<string, unknown>) => {
+        insertPayloads.push(payload);
+        return {
+          select: vi.fn(() => ({
+            single: vi.fn(async () => ({ data: { id: "log-new" }, error: null })),
+          })),
+        };
+      }),
+      update: vi.fn((payload: Record<string, unknown>) => {
+        closeOut.push(payload);
+        return { eq: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })) };
+      }),
+    })),
+  });
+  return { closeOut, insertPayloads };
+}
+
 describe("composeAndSendMessageAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireChurchSessionMock.mockResolvedValue(makeSession("church-admin"));
     resolveRecipientsMock.mockResolvedValue(makeRecipients(2));
     sendWithSuppressionMock.mockResolvedValue({ sent: true, skipped: false });
+    mockComposeAdminClient();
 
     // Default Supabase: insert returns a logId
     createTenantServerClientMock.mockResolvedValue({
@@ -230,6 +261,72 @@ describe("composeAndSendMessageAction", () => {
     expect(result.ok).toBe(true);
     // No sending happens until cron fires
     expect(sendWithSuppressionMock).not.toHaveBeenCalled();
+  });
+
+  it("inserts the parent log through the admin client, scoped to the session church (ADR 0022)", async () => {
+    const { insertPayloads } = mockComposeAdminClient();
+
+    await composeAndSendMessageAction({
+      channel: "email",
+      subject: "Sunday Bulletin",
+      body: "Hello congregation",
+      segment: {},
+      scheduledFor: null,
+    });
+
+    expect(insertPayloads[0]).toMatchObject({ church_id: "church-1", status: "queued" });
+  });
+
+  it("one recipient's failure does not abort the rest, and counts are reported honestly", async () => {
+    resolveRecipientsMock.mockResolvedValue(makeRecipients(3));
+    sendWithSuppressionMock
+      .mockRejectedValueOnce(new Error("Failed to read notification preferences"))
+      .mockResolvedValueOnce({ sent: false, skipped: true })
+      .mockResolvedValueOnce({ sent: true, skipped: false });
+    const { closeOut } = mockComposeAdminClient();
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await composeAndSendMessageAction({
+      channel: "email",
+      subject: "Sunday Bulletin",
+      body: "Hello congregation",
+      segment: {},
+      scheduledFor: null,
+    });
+
+    expect(sendWithSuppressionMock).toHaveBeenCalledTimes(3);
+    expect(result).toMatchObject({ ok: true, sent: 1, skipped: 1, errors: 1 });
+    expect(closeOut[0]).toMatchObject({ status: "sent" });
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("closes the parent row as failed when nobody was delivered", async () => {
+    sendWithSuppressionMock.mockResolvedValue({ sent: false, skipped: true });
+    const { closeOut } = mockComposeAdminClient();
+
+    await composeAndSendMessageAction({
+      channel: "email",
+      subject: "Sunday Bulletin",
+      body: "Hello congregation",
+      segment: {},
+      scheduledFor: null,
+    });
+
+    expect(closeOut[0]).toMatchObject({ status: "failed", error_code: "no_delivery" });
+  });
+
+  it("a scheduled send does not close out the parent row", async () => {
+    const { closeOut } = mockComposeAdminClient();
+
+    await composeAndSendMessageAction({
+      channel: "email",
+      subject: "Sunday Bulletin",
+      body: "Hello congregation",
+      segment: {},
+      scheduledFor: new Date(Date.now() + 3_600_000).toISOString(),
+    });
+
+    expect(closeOut).toHaveLength(0);
   });
 
   it("returns error when zero recipients match", async () => {

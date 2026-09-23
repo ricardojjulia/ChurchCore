@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { CommunicationChannel, SegmentFilter } from "@/lib/communications-types";
-import { createTenantServerClient } from "@/lib/supabase/tenant";
+import { createTenantAdminClient } from "@/lib/supabase/tenant";
 
 export type ResolvedRecipient = {
   profileId: string;
@@ -23,7 +23,11 @@ export async function resolveRecipients(
   segment: SegmentFilter,
   limit?: number,
 ): Promise<ResolvedRecipient[]> {
-  const supabase = await createTenantServerClient();
+  // Admin client, scoped by churchId on every query below (ADR 0022). The
+  // scheduled cron has no user, so the cookie client resolved nobody; and a
+  // sender's RLS must not change which members a segment reaches or which
+  // suppressions/opt-outs are applied to it.
+  const supabase = createTenantAdminClient();
 
   // Base query: contactable, non-merged profiles for this church
   let query = supabase

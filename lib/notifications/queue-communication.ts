@@ -1,4 +1,8 @@
-"use server";
+import "server-only";
+
+// server-only, not "use server": this takes a trusted `session` argument, so it
+// must never be a POST-callable Server Action (ADR 0022). Callers authenticate
+// first and pass their own session in.
 
 import { revalidatePath } from "next/cache";
 import webpush from "web-push";

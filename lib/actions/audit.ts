@@ -1,4 +1,8 @@
-"use server";
+import "server-only";
+
+// server-only, not "use server": these take caller-supplied actor/church ids
+// and write through the service-role client, so they must never be
+// POST-callable Server Actions (ADR 0022). Callers authenticate first.
 
 import { createTenantAdminClient } from "@/lib/supabase/tenant";
 
