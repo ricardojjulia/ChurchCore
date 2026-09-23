@@ -17,7 +17,13 @@ export default async function ServicePlanDetailPage({
 }) {
   const { id } = await params;
   const session = await requireChurchSession(`/app/church-admin/volunteers/schedules/${id}`);
-  if (session.appContext.roleId !== "church-admin") redirect(session.homePath);
+  if (
+    session.appContext.roleId !== "church-admin" &&
+    session.appContext.roleId !== "pastor" &&
+    session.appContext.roleId !== "ministry-leader"
+  ) {
+    redirect(session.homePath);
+  }
 
   const detail = await getServicePlanDetail(session, id);
   if (!detail) notFound();

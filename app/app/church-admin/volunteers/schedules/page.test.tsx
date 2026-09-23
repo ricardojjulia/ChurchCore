@@ -83,6 +83,24 @@ describe("service plans page", () => {
     await expect(ServicePlansPage()).rejects.toMatchObject({ url: "/app/member" });
   });
 
+  it.each(["pastor", "ministry-leader"])(
+    "renders (does not redirect) for %s role",
+    async (roleId) => {
+      requireChurchSessionMock.mockResolvedValueOnce({
+        appContext: { roleId, church: { name: "Grace Church" } },
+        homePath: "/app/member",
+        source: "supabase",
+      });
+
+      const page = await ServicePlansPage();
+      render(page);
+
+      expect(redirectMock).not.toHaveBeenCalled();
+      expect(screen.getByText("Service Plans")).toBeInTheDocument();
+      expect(screen.getByText("Service Plans Workspace")).toBeInTheDocument();
+    },
+  );
+
   it("renders workspace with loaded plans and templates", async () => {
     const page = await ServicePlansPage();
     render(page);

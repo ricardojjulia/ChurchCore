@@ -15,9 +15,18 @@ import {
 
 const SCHEDULES_PATH = "/app/church-admin/volunteers/schedules";
 
-async function requireAdminSession() {
+// Matches app/calendar/actions.ts's canManageEvents(roleId): church-wide
+// church-admin/pastor/ministry-leader access, the same set already allowed
+// by the can_manage_church() RLS helper on these tables. service_plans has
+// no ministry_id column, so this is intentionally not scoped to "only the
+// leader's own ministry" — that scoping is deferred to a later story.
+function canManageServicePlans(roleId: string) {
+  return roleId === "church-admin" || roleId === "pastor" || roleId === "ministry-leader";
+}
+
+async function requireServicePlanWriteAccess() {
   const session = await requireChurchSession(SCHEDULES_PATH);
-  if (session.appContext.roleId !== "church-admin") {
+  if (!canManageServicePlans(session.appContext.roleId)) {
     throw new Error("Unauthorized");
   }
   return session;
@@ -74,10 +83,208 @@ async function resolveScopedEventId(
   return { eventId: data.id };
 }
 
+// ── Song library shared helpers ──────────────────────────────
+// Small, branch-aware (local-fallback vs Supabase) helpers shared by the
+// song-library actions below and by reorderServicePlanItemsAction's
+// cancelled-plan check. Keeping the branch logic in one place per concern
+// is deliberate: finance-import's Supabase branch previously drifted from
+// its local branch on a similar piece of shared behavior (see project
+// memory), so each of these implements both branches identically here
+// rather than being re-implemented per call site.
+
+type WritableServicePlan = { id: string; status: string; serviceDate: string };
+
+async function fetchServicePlanForWrite(
+  churchId: string,
+  planId: string,
+): Promise<WritableServicePlan | null> {
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string; status: string; service_date: string }>(
+      `select id, status, service_date::text from public.service_plans where id = $1 and church_id = $2 limit 1`,
+      [planId, churchId],
+    );
+    const row = result.rows[0];
+    return row ? { id: row.id, status: row.status, serviceDate: row.service_date } : null;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data } = await supabase
+    .from("service_plans")
+    .select("id, status, service_date")
+    .eq("id", planId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  return data ? { id: data.id, status: data.status, serviceDate: data.service_date } : null;
+}
+
+type SongLibraryRow = {
+  id: string;
+  title: string;
+  artist: string | null;
+  defaultKey: string | null;
+  defaultDurationSeconds: number | null;
+  lastUsedDate: string | null;
+};
+
+async function fetchSongLibraryEntry(
+  churchId: string,
+  songLibraryId: string,
+): Promise<SongLibraryRow | null> {
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{
+      id: string;
+      title: string;
+      artist: string | null;
+      default_key: string | null;
+      default_duration_seconds: number | null;
+      last_used_date: string | null;
+    }>(
+      `select id, title, artist, default_key, default_duration_seconds, last_used_date::text
+       from public.song_library where id = $1 and church_id = $2 limit 1`,
+      [songLibraryId, churchId],
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          id: row.id,
+          title: row.title,
+          artist: row.artist,
+          defaultKey: row.default_key,
+          defaultDurationSeconds: row.default_duration_seconds,
+          lastUsedDate: row.last_used_date,
+        }
+      : null;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data } = await supabase
+    .from("song_library")
+    .select("id, title, artist, default_key, default_duration_seconds, last_used_date")
+    .eq("id", songLibraryId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  return data
+    ? {
+        id: data.id,
+        title: data.title,
+        artist: data.artist,
+        defaultKey: data.default_key,
+        defaultDurationSeconds: data.default_duration_seconds,
+        lastUsedDate: data.last_used_date,
+      }
+    : null;
+}
+
+async function fetchChurchRepeatWindowWeeks(churchId: string): Promise<number> {
+  const DEFAULT_WEEKS = 12;
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ song_repeat_window_weeks: number }>(
+      `select song_repeat_window_weeks from public.churches where id = $1 limit 1`,
+      [churchId],
+    );
+    return result.rows[0]?.song_repeat_window_weeks ?? DEFAULT_WEEKS;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data } = await supabase
+    .from("churches")
+    .select("song_repeat_window_weeks")
+    .eq("id", churchId)
+    .maybeSingle();
+
+  return data?.song_repeat_window_weeks ?? DEFAULT_WEEKS;
+}
+
+async function nextServicePlanItemSortOrder(churchId: string, planId: string): Promise<number> {
+  if (shouldUseLocalTenantFallback()) {
+    const sortResult = await queryTenantLocalDb<{ next_sort: number }>(
+      `SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_sort FROM public.service_plan_items WHERE plan_id = $1 AND church_id = $2`,
+      [planId, churchId],
+    );
+    return sortResult.rows[0]?.next_sort ?? 0;
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data: sortData } = await supabase
+    .from("service_plan_items")
+    .select("sort_order")
+    .eq("plan_id", planId)
+    .eq("church_id", churchId)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .single();
+  return sortData != null ? (sortData.sort_order as number) + 1 : 0;
+}
+
+async function insertSongServicePlanItem(
+  churchId: string,
+  planId: string,
+  song: SongLibraryRow,
+): Promise<{ id?: string; error?: string }> {
+  const sortOrder = await nextServicePlanItemSortOrder(churchId, planId);
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `insert into public.service_plan_items
+         (plan_id, church_id, title, item_type, sort_order, song_library_id, song_key, duration_seconds, artist)
+       values ($1, $2, $3, 'song', $4, $5, $6, $7, $8)
+       returning id`,
+      [planId, churchId, song.title, sortOrder, song.id, song.defaultKey, song.defaultDurationSeconds, song.artist],
+    );
+    const id = result.rows[0]?.id;
+    return id ? { id } : { error: "Failed to add song to service plan." };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("service_plan_items")
+    .insert({
+      plan_id: planId,
+      church_id: churchId,
+      title: song.title,
+      item_type: "song",
+      sort_order: sortOrder,
+      song_library_id: song.id,
+      song_key: song.defaultKey,
+      duration_seconds: song.defaultDurationSeconds,
+      artist: song.artist,
+    })
+    .select("id")
+    .single();
+
+  if (error || !data?.id) {
+    return { error: error?.message ?? "Failed to add song to service plan." };
+  }
+  return { id: data.id };
+}
+
+function weeksBetweenDates(aIso: string, bIso: string): number {
+  const a = new Date(aIso);
+  const b = new Date(bIso);
+  const diffMs = Math.abs(a.getTime() - b.getTime());
+  return Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
+}
+
+function computeSongRepeatWarning(
+  serviceDate: string,
+  lastUsedDate: string | null,
+  windowWeeks: number,
+): string | undefined {
+  if (!lastUsedDate) return undefined;
+
+  const weeks = weeksBetweenDates(serviceDate, lastUsedDate);
+  if (weeks > windowWeeks) return undefined;
+
+  return `Last used ${lastUsedDate} — ${weeks} weeks ago`;
+}
+
 export async function createServicePlanAction(
   input: CreateServicePlanInput,
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
-  const session = await requireAdminSession();
+  const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
   const profileId = session.profile.id;
 
@@ -174,7 +381,7 @@ export type UpdateServicePlanDetailsInput = {
 export async function updateServicePlanDetailsAction(
   input: UpdateServicePlanDetailsInput,
 ): Promise<{ ok: boolean; error?: string }> {
-  const session = await requireAdminSession();
+  const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
 
   if (!input.name.trim() || !input.serviceDate) {
@@ -261,7 +468,7 @@ export type AddRunOfServiceItemInput = {
 export async function addRunOfServiceItemAction(
   input: AddRunOfServiceItemInput,
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
-  const session = await requireAdminSession();
+  const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
 
   if (!input.title.trim()) {
@@ -359,6 +566,56 @@ export async function addRunOfServiceItemAction(
   return { ok: true, id: data?.id };
 }
 
+// ── Remove a run-of-service item ─────────────────────────────
+// Deletes the plan item only. The linked song_library row (if any) is never
+// touched — it's a reusable church-wide catalog entry, not owned by any one
+// plan's setlist.
+
+export async function removeServicePlanItemAction(input: {
+  planId: string;
+  itemId: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireServicePlanWriteAccess();
+  const churchId = session.appContext.church.id;
+
+  const plan = await fetchServicePlanForWrite(churchId, input.planId);
+  if (!plan) {
+    return { ok: false, error: "Service plan not found." };
+  }
+  if (plan.status === "cancelled") {
+    return { ok: false, error: "Cannot remove items on a cancelled service plan." };
+  }
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ id: string }>(
+      `DELETE FROM public.service_plan_items WHERE id = $1 AND plan_id = $2 AND church_id = $3 RETURNING id`,
+      [input.itemId, input.planId, churchId],
+    );
+    if (!result.rows[0]?.id) {
+      return { ok: false, error: "Run-of-service item not found." };
+    }
+    revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("service_plan_items")
+    .delete()
+    .eq("id", input.itemId)
+    .eq("plan_id", input.planId)
+    .eq("church_id", churchId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { ok: false, error: error.message };
+  if (!data?.id) {
+    return { ok: false, error: "Run-of-service item not found." };
+  }
+  revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+  return { ok: true };
+}
+
 // ── Reorder run-of-service items ─────────────────────────────
 
 export type ReorderServicePlanItemsInput = {
@@ -369,11 +626,19 @@ export type ReorderServicePlanItemsInput = {
 export async function reorderServicePlanItemsAction(
   input: ReorderServicePlanItemsInput,
 ): Promise<{ ok: boolean; error?: string }> {
-  const session = await requireAdminSession();
+  const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
 
   if (!Array.isArray(input.orderedIds) || input.orderedIds.length === 0) {
     return { ok: false, error: "orderedIds must be a non-empty array." };
+  }
+
+  const plan = await fetchServicePlanForWrite(churchId, input.planId);
+  if (!plan) {
+    return { ok: false, error: "Service plan not found." };
+  }
+  if (plan.status === "cancelled") {
+    return { ok: false, error: "Cannot reorder items on a cancelled service plan." };
   }
 
   if (shouldUseLocalTenantFallback()) {
@@ -435,22 +700,70 @@ export async function updateServicePlanStatusAction(
   planId: string,
   status: "draft" | "published" | "complete" | "cancelled",
 ): Promise<{ ok: boolean; error?: string }> {
-  const session = await requireAdminSession();
+  const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {
-    await queryTenantLocalDb(
-      `update public.service_plans set status = $3 where id = $1 and church_id = $2`,
+    const result = await queryTenantLocalDb<{ id: string; service_date: string }>(
+      `update public.service_plans set status = $3 where id = $1 and church_id = $2
+       returning id, service_date::text`,
       [planId, churchId, status],
     );
+    const updatedPlan = result.rows[0];
+
+    // Completing a plan is the ONLY trigger for last_used_date — no cron, no
+    // date-crossing job. Implemented identically on both branches below.
+    if (status === "complete" && updatedPlan?.service_date) {
+      await queryTenantLocalDb(
+        `update public.song_library sl
+         set last_used_date = $3::date
+         from public.service_plan_items spi
+         where spi.plan_id = $1
+           and spi.church_id = $2
+           and spi.song_library_id = sl.id`,
+        [planId, churchId, updatedPlan.service_date],
+      );
+    }
+
     revalidatePath(`${SCHEDULES_PATH}/${planId}`);
     return { ok: true };
   }
 
   const supabase = await createTenantServerClient();
-  const { error } = await supabase.from("service_plans")
-    .update({ status }).eq("id", planId).eq("church_id", churchId);
+  const { data: updatedPlan, error } = await supabase
+    .from("service_plans")
+    .update({ status })
+    .eq("id", planId)
+    .eq("church_id", churchId)
+    .select("id, service_date")
+    .maybeSingle();
   if (error) return { ok: false, error: error.message };
+
+  if (status === "complete" && updatedPlan?.service_date) {
+    const { data: linkedItems } = await supabase
+      .from("service_plan_items")
+      .select("song_library_id")
+      .eq("plan_id", planId)
+      .eq("church_id", churchId)
+      .not("song_library_id", "is", null);
+
+    const libraryIds = Array.from(
+      new Set(
+        (linkedItems ?? [])
+          .map((item: { song_library_id: string | null }) => item.song_library_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+
+    if (libraryIds.length > 0) {
+      await supabase
+        .from("song_library")
+        .update({ last_used_date: updatedPlan.service_date })
+        .eq("church_id", churchId)
+        .in("id", libraryIds);
+    }
+  }
+
   revalidatePath(`${SCHEDULES_PATH}/${planId}`);
   return { ok: true };
 }
@@ -463,7 +776,7 @@ export async function addPlanPositionAction(input: {
   quantityNeeded: number;
   sortOrder?: number;
 }): Promise<{ ok: boolean; id?: string; error?: string }> {
-  const session = await requireAdminSession();
+  const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {
@@ -498,7 +811,7 @@ export async function assignVolunteerAction(input: {
   endsAt: string;
   bypassBurnout?: boolean;
 }): Promise<{ ok: boolean; error?: string }> {
-  const session = await requireAdminSession();
+  const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
 
   // Burnout check
@@ -621,7 +934,7 @@ export async function removeAssignmentAction(
   shiftId: string,
   planId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const session = await requireAdminSession();
+  const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {
@@ -691,7 +1004,7 @@ export async function sendVolunteerReminderAction(input: {
   channel?: "manual" | "email" | "sms" | "push";
   note?: string;
 }): Promise<{ ok: boolean; sentAt?: string; error?: string }> {
-  const session = await requireAdminSession();
+  const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
   const sentBy = session.profile.id;
   const channel = input.channel ?? "manual";
@@ -838,7 +1151,7 @@ export async function logVolunteerHoursAction(input: {
   hours: number;
   roleName?: string;
 }): Promise<{ ok: boolean; error?: string }> {
-  const session = await requireAdminSession();
+  const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
   const loggedBy = session.profile.id;
 
@@ -868,7 +1181,7 @@ export async function saveServicePlanTemplateAction(input: {
   name: string;
   positions: Array<{ roleName: string; quantity: number }>;
 }): Promise<{ ok: boolean; error?: string }> {
-  const session = await requireAdminSession();
+  const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {
@@ -888,6 +1201,294 @@ export async function saveServicePlanTemplateAction(input: {
   if (error) return { ok: false, error: error.message };
   revalidatePath(SCHEDULES_PATH);
   return { ok: true };
+}
+
+// ── Song Library & Setlist Builder ───────────────────────────
+
+export type SearchSongLibraryInput = {
+  query: string;
+};
+
+export type SongLibrarySearchResult = {
+  id: string;
+  title: string;
+  artist: string | null;
+  defaultKey: string | null;
+  defaultDurationSeconds: number | null;
+  lastUsedDate: string | null;
+};
+
+export async function searchSongLibraryAction(
+  input: SearchSongLibraryInput,
+): Promise<{ ok: boolean; results: SongLibrarySearchResult[]; error?: string }> {
+  // Read-only: any church member may search the shared song library, same as
+  // other read/list actions in this app — no write-role check here.
+  const session = await requireChurchSession(SCHEDULES_PATH);
+  const churchId = session.appContext.church.id;
+  const query = input.query?.trim() ?? "";
+
+  if (!query) {
+    return { ok: true, results: [] };
+  }
+
+  const likePattern = `%${query}%`;
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{
+      id: string;
+      title: string;
+      artist: string | null;
+      default_key: string | null;
+      default_duration_seconds: number | null;
+      last_used_date: string | null;
+    }>(
+      `select id, title, artist, default_key, default_duration_seconds, last_used_date::text
+       from public.song_library
+       where church_id = $1
+         and (title ilike $2 or artist ilike $2)
+       order by title asc
+       limit 25`,
+      [churchId, likePattern],
+    );
+
+    return {
+      ok: true,
+      results: result.rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        artist: row.artist,
+        defaultKey: row.default_key,
+        defaultDurationSeconds: row.default_duration_seconds,
+        lastUsedDate: row.last_used_date,
+      })),
+    };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("song_library")
+    .select("id, title, artist, default_key, default_duration_seconds, last_used_date")
+    .eq("church_id", churchId)
+    .or(`title.ilike.${likePattern},artist.ilike.${likePattern}`)
+    .order("title", { ascending: true })
+    .limit(25);
+
+  if (error) {
+    return { ok: false, results: [], error: error.message };
+  }
+
+  return {
+    ok: true,
+    results: (data ?? []).map((row: {
+      id: string;
+      title: string;
+      artist: string | null;
+      default_key: string | null;
+      default_duration_seconds: number | null;
+      last_used_date: string | null;
+    }) => ({
+      id: row.id,
+      title: row.title,
+      artist: row.artist,
+      defaultKey: row.default_key,
+      defaultDurationSeconds: row.default_duration_seconds,
+      lastUsedDate: row.last_used_date,
+    })),
+  };
+}
+
+export type AddSongToServicePlanInput = {
+  planId: string;
+  songLibraryId: string;
+};
+
+export async function addSongToServicePlanAction(
+  input: AddSongToServicePlanInput,
+): Promise<{ ok: boolean; id?: string; warning?: string; error?: string }> {
+  const session = await requireServicePlanWriteAccess();
+  const churchId = session.appContext.church.id;
+
+  const plan = await fetchServicePlanForWrite(churchId, input.planId);
+  if (!plan) {
+    return { ok: false, error: "Service plan not found." };
+  }
+  if (plan.status === "cancelled") {
+    return { ok: false, error: "Cannot add songs to a cancelled service plan." };
+  }
+
+  const song = await fetchSongLibraryEntry(churchId, input.songLibraryId);
+  if (!song) {
+    return { ok: false, error: "Song not found in this church's library." };
+  }
+
+  const { id, error } = await insertSongServicePlanItem(churchId, input.planId, song);
+  if (!id) {
+    return { ok: false, error: error ?? "Failed to add song to service plan." };
+  }
+
+  const windowWeeks = await fetchChurchRepeatWindowWeeks(churchId);
+  const warning = computeSongRepeatWarning(plan.serviceDate, song.lastUsedDate, windowWeeks);
+
+  revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+  return { ok: true, id, warning };
+}
+
+export type CreateSongAndAddToServicePlanInput = {
+  planId: string;
+  title: string;
+  artist?: string;
+  defaultKey?: string;
+  defaultDurationSeconds?: number;
+  idempotencyKey: string;
+};
+
+export async function createSongAndAddToServicePlanAction(
+  input: CreateSongAndAddToServicePlanInput,
+): Promise<{ ok: boolean; songLibraryId?: string; itemId?: string; error?: string }> {
+  const session = await requireServicePlanWriteAccess();
+  const churchId = session.appContext.church.id;
+  const profileId = session.profile.id;
+
+  const title = input.title?.trim() ?? "";
+  if (!title) {
+    return { ok: false, error: "Song title is required." };
+  }
+  if (!input.idempotencyKey) {
+    return { ok: false, error: "idempotencyKey is required." };
+  }
+
+  const plan = await fetchServicePlanForWrite(churchId, input.planId);
+  if (!plan) {
+    return { ok: false, error: "Service plan not found." };
+  }
+  if (plan.status === "cancelled") {
+    return { ok: false, error: "Cannot add songs to a cancelled service plan." };
+  }
+
+  const artist = input.artist?.trim() || null;
+  const defaultKey = input.defaultKey?.trim() || null;
+  const defaultDurationSeconds = input.defaultDurationSeconds ?? null;
+
+  let wasCreated = false;
+
+  if (shouldUseLocalTenantFallback()) {
+    const insertResult = await queryTenantLocalDb<{ id: string }>(
+      `insert into public.song_library
+         (church_id, title, artist, default_key, default_duration_seconds, idempotency_key, created_by)
+       values ($1, $2, $3, $4, $5, $6, $7)
+       on conflict (church_id, idempotency_key) where idempotency_key is not null do nothing
+       returning id`,
+      [churchId, title, artist, defaultKey, defaultDurationSeconds, input.idempotencyKey, profileId],
+    );
+    wasCreated = Boolean(insertResult.rows[0]?.id);
+  } else {
+    // Deliberately a plain insert, not .upsert(...{ onConflict, ignoreDuplicates
+    // }). PostgREST's upsert-via-on_conflict cannot target a *partial* unique
+    // index (song_library_church_idempotency_key_idx is `where idempotency_key
+    // is not null`) — confirmed against a live local PostgREST instance, which
+    // returns 42P10 "no unique or exclusion constraint matching the ON
+    // CONFLICT specification" for that approach. A plain insert still hits the
+    // same partial index and fails with 23505 on a retried idempotency_key,
+    // which is caught below and treated as "already created" — the same
+    // retry-safe semantics as `on conflict ... do nothing`, without the race
+    // condition a plain select-then-insert would have.
+    const supabase = await createTenantServerClient();
+    const { data: inserted, error: insertSongError } = await supabase
+      .from("song_library")
+      .insert({
+        church_id: churchId,
+        title,
+        artist,
+        default_key: defaultKey,
+        default_duration_seconds: defaultDurationSeconds,
+        idempotency_key: input.idempotencyKey,
+        created_by: profileId,
+      })
+      .select("id")
+      .single();
+
+    if (insertSongError && insertSongError.code !== "23505") {
+      return { ok: false, error: insertSongError.message };
+    }
+    wasCreated = Boolean(!insertSongError && inserted?.id);
+  }
+
+  // Look up the resulting (or pre-existing, on retry) row by (church_id,
+  // idempotency_key) — this is the retry-safe step: a replayed call with the
+  // same idempotencyKey resolves to the row created on the first attempt.
+  let song: SongLibraryRow | null = null;
+
+  if (shouldUseLocalTenantFallback()) {
+    const songResult = await queryTenantLocalDb<{
+      id: string;
+      title: string;
+      artist: string | null;
+      default_key: string | null;
+      default_duration_seconds: number | null;
+      last_used_date: string | null;
+    }>(
+      `select id, title, artist, default_key, default_duration_seconds, last_used_date::text
+       from public.song_library where church_id = $1 and idempotency_key = $2 limit 1`,
+      [churchId, input.idempotencyKey],
+    );
+    const row = songResult.rows[0];
+    song = row
+      ? {
+          id: row.id,
+          title: row.title,
+          artist: row.artist,
+          defaultKey: row.default_key,
+          defaultDurationSeconds: row.default_duration_seconds,
+          lastUsedDate: row.last_used_date,
+        }
+      : null;
+  } else {
+    const supabase = await createTenantServerClient();
+    const { data } = await supabase
+      .from("song_library")
+      .select("id, title, artist, default_key, default_duration_seconds, last_used_date")
+      .eq("church_id", churchId)
+      .eq("idempotency_key", input.idempotencyKey)
+      .maybeSingle();
+    song = data
+      ? {
+          id: data.id,
+          title: data.title,
+          artist: data.artist,
+          defaultKey: data.default_key,
+          defaultDurationSeconds: data.default_duration_seconds,
+          lastUsedDate: data.last_used_date,
+        }
+      : null;
+  }
+
+  if (!song) {
+    return { ok: false, error: "Failed to create song." };
+  }
+
+  if (wasCreated) {
+    try {
+      await logAuditEvent({
+        tableName: "song_library",
+        recordId: song.id,
+        operation: "INSERT",
+        actorId: profileId,
+        churchId,
+        actorRole: session.appContext.roleId,
+        newValues: { title: song.title, artist: song.artist },
+      });
+    } catch (auditError) {
+      console.error("Failed to log song_library create audit event:", auditError);
+    }
+  }
+
+  const { id: itemId, error: itemError } = await insertSongServicePlanItem(churchId, input.planId, song);
+  if (!itemId) {
+    return { ok: false, error: itemError ?? "Failed to add song to service plan." };
+  }
+
+  revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+  return { ok: true, songLibraryId: song.id, itemId };
 }
 
 // ── Public Sessional Confirmation Getters & Actions ──────────

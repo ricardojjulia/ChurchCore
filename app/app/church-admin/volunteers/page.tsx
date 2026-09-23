@@ -16,7 +16,13 @@ const ONE_YEAR_AGO = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
 
 export default async function VolunteerDirectoryPage() {
   const session = await requireChurchSession("/app/church-admin/volunteers");
-  if (session.appContext.roleId !== "church-admin") redirect(session.homePath);
+  if (
+    session.appContext.roleId !== "church-admin" &&
+    session.appContext.roleId !== "pastor" &&
+    session.appContext.roleId !== "ministry-leader"
+  ) {
+    redirect(session.homePath);
+  }
 
   const volunteers = await getVolunteerDirectory(session);
 

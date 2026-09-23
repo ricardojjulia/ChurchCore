@@ -537,6 +537,7 @@ describe("volunteer actions", () => {
   describe("reorderServicePlanItemsAction", () => {
     it("reorders items and calls revalidatePath on happy path", async () => {
       queryTenantLocalDbMock
+        .mockResolvedValueOnce({ rows: [{ id: "plan-1", status: "draft", service_date: "2026-04-21" }] })
         .mockResolvedValueOnce({ rows: [{ id: "a" }, { id: "b" }, { id: "c" }] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] })
@@ -577,9 +578,11 @@ describe("volunteer actions", () => {
     });
 
     it("returns error for cross-church or invalid IDs", async () => {
-      queryTenantLocalDbMock.mockResolvedValueOnce({
-        rows: [{ id: "a" }, { id: "b" }],
-      });
+      queryTenantLocalDbMock
+        .mockResolvedValueOnce({ rows: [{ id: "plan-1", status: "draft", service_date: "2026-04-21" }] })
+        .mockResolvedValueOnce({
+          rows: [{ id: "a" }, { id: "b" }],
+        });
 
       const result = await reorderServicePlanItemsAction({
         planId: "plan-1",
@@ -587,7 +590,7 @@ describe("volunteer actions", () => {
       });
 
       expect(result).toEqual({ ok: false, error: "Invalid item IDs for this plan." });
-      expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(1);
+      expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(2);
     });
 
     it("returns error for empty orderedIds without DB calls", async () => {
@@ -598,6 +601,164 @@ describe("volunteer actions", () => {
 
       expect(result).toEqual({ ok: false, error: "orderedIds must be a non-empty array." });
       expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Role gate widened to pastor/ministry-leader (regression) ──
+  // requireServicePlanWriteAccess() replaced the old church-admin-only
+  // requireAdminSession() across every write action in this file (Service
+  // Planning Story 1's auth fix). These pin the new intended behavior on
+  // representative pre-existing actions whose effective role gate widened
+  // as a side effect, so a future refactor can't silently narrow it back.
+  describe("pre-existing actions accept pastor and ministry-leader (not just church-admin)", () => {
+    function sessionFor(roleId: string) {
+      return {
+        appContext: { roleId, church: { id: "church-1" } },
+        profile: { id: "actor-1" },
+      };
+    }
+
+    it("createServicePlanAction", async () => {
+      for (const roleId of ["pastor", "ministry-leader"]) {
+        requireChurchSessionMock.mockResolvedValueOnce(sessionFor(roleId));
+        queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [{ id: "plan-1" }] });
+
+        const result = await createServicePlanAction({
+          name: "Sunday Morning",
+          serviceDate: "2026-04-21",
+        });
+        expect(result).toEqual({ ok: true, id: "plan-1" });
+      }
+    });
+
+    it("addRunOfServiceItemAction", async () => {
+      for (const roleId of ["pastor", "ministry-leader"]) {
+        requireChurchSessionMock.mockResolvedValueOnce(sessionFor(roleId));
+        queryTenantLocalDbMock
+          .mockResolvedValueOnce({ rows: [{ id: "plan-1" }] })
+          .mockResolvedValueOnce({ rows: [{ next_sort: 0 }] })
+          .mockResolvedValueOnce({ rows: [{ id: "item-1" }] });
+
+        const result = await addRunOfServiceItemAction({ planId: "plan-1", title: "Offering" });
+        expect(result).toEqual({ ok: true, id: "item-1" });
+      }
+    });
+
+    it("updateServicePlanDetailsAction", async () => {
+      for (const roleId of ["pastor", "ministry-leader"]) {
+        requireChurchSessionMock.mockResolvedValueOnce(sessionFor(roleId));
+        queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [] });
+
+        const result = await updateServicePlanDetailsAction({
+          planId: "plan-1",
+          name: "Sunday Worship",
+          serviceType: "worship",
+          serviceDate: "2026-04-21",
+        });
+        expect(result).toEqual({ ok: true });
+      }
+    });
+
+    it("assignVolunteerAction", async () => {
+      for (const roleId of ["pastor", "ministry-leader"]) {
+        requireChurchSessionMock.mockResolvedValueOnce(sessionFor(roleId));
+        queryTenantLocalDbMock
+          .mockResolvedValueOnce({ rows: [{ count: 0 }] })
+          .mockResolvedValueOnce({ rows: [{ event_id: "event-9" }] })
+          .mockResolvedValueOnce({ rows: [] })
+          .mockResolvedValueOnce({ rows: [] });
+
+        const result = await assignVolunteerAction({
+          planId: "plan-1",
+          positionId: "position-1",
+          profileId: "member-2",
+          roleName: "Usher",
+          startsAt: "2026-04-21T09:00:00.000Z",
+          endsAt: "2026-04-21T10:30:00.000Z",
+        });
+        expect(result).toEqual({ ok: true });
+      }
+    });
+
+    it("sendVolunteerReminderAction", async () => {
+      for (const roleId of ["pastor", "ministry-leader"]) {
+        requireChurchSessionMock.mockResolvedValueOnce(sessionFor(roleId));
+        queryTenantLocalDbMock
+          .mockResolvedValueOnce({
+            rows: [{
+              assigned_user_id: "member-2",
+              confirmation_status: "pending",
+              confirmation_token: "mock-token-123",
+              confirmation_token_expires_at: new Date(
+                Date.now() + 14 * 24 * 60 * 60 * 1000,
+              ).toISOString(),
+            }],
+          })
+          .mockResolvedValueOnce({ rows: [{ sent_at: "2026-05-01T15:00:00.000Z" }] });
+
+        const result = await sendVolunteerReminderAction({ planId: "plan-1", shiftId: "shift-1" });
+        expect(result).toEqual({ ok: true, sentAt: "2026-05-01T15:00:00.000Z" });
+      }
+    });
+
+    it("saveServicePlanTemplateAction (Supabase path)", async () => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+      for (const roleId of ["pastor", "ministry-leader"]) {
+        requireChurchSessionMock.mockResolvedValueOnce(sessionFor(roleId));
+        supabaseInsertMock.mockResolvedValueOnce({ error: null });
+
+        const result = await saveServicePlanTemplateAction({
+          name: "Sunday Core Team",
+          positions: [{ roleName: "Greeter", quantity: 2 }],
+        });
+        expect(result).toEqual({ ok: true });
+      }
+    });
+
+    it("member/volunteer are still rejected on every action above", async () => {
+      for (const roleId of ["member", "volunteer"]) {
+        requireChurchSessionMock.mockResolvedValueOnce(sessionFor(roleId));
+        await expect(
+          createServicePlanAction({ name: "x", serviceDate: "2026-04-21" }),
+        ).rejects.toThrow("Unauthorized");
+
+        requireChurchSessionMock.mockResolvedValueOnce(sessionFor(roleId));
+        await expect(
+          addRunOfServiceItemAction({ planId: "plan-1", title: "x" }),
+        ).rejects.toThrow("Unauthorized");
+
+        requireChurchSessionMock.mockResolvedValueOnce(sessionFor(roleId));
+        await expect(
+          updateServicePlanDetailsAction({
+            planId: "plan-1",
+            name: "x",
+            serviceType: "worship",
+            serviceDate: "2026-04-21",
+          }),
+        ).rejects.toThrow("Unauthorized");
+
+        requireChurchSessionMock.mockResolvedValueOnce(sessionFor(roleId));
+        await expect(
+          assignVolunteerAction({
+            planId: "plan-1",
+            positionId: "position-1",
+            profileId: "member-2",
+            roleName: "Usher",
+            startsAt: "2026-04-21T09:00:00.000Z",
+            endsAt: "2026-04-21T10:30:00.000Z",
+          }),
+        ).rejects.toThrow("Unauthorized");
+
+        requireChurchSessionMock.mockResolvedValueOnce(sessionFor(roleId));
+        await expect(
+          sendVolunteerReminderAction({ planId: "plan-1", shiftId: "shift-1" }),
+        ).rejects.toThrow("Unauthorized");
+
+        requireChurchSessionMock.mockResolvedValueOnce(sessionFor(roleId));
+        await expect(
+          saveServicePlanTemplateAction({ name: "x", positions: [] }),
+        ).rejects.toThrow("Unauthorized");
+      }
     });
   });
 
