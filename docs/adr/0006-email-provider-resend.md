@@ -35,3 +35,7 @@ Rejected — pricing tier is less favorable at scale for the church-SaaS model.
 ### Mailgun
 
 Rejected — API ergonomics are inferior for Next.js fetch-native usage; webhook signing is a custom HMAC scheme that does not align with existing provider patterns.
+
+## Implementation status (2026-09-23)
+
+Council Review 16 (`docs/reviews/2026-09-23-council-review-16-synthesis.md`, Agent 4) found the code does not implement this decision: `lib/notifications/queue-communication.ts` always sends email through the SendGrid adapter (falling back to a stub when `SENDGRID_API_KEY` is unset), never selecting Resend even when `RESEND_API_KEY` is present. `resendAdapter` (`lib/communications/resend-adapter.ts`) is currently only imported by its own inbound webhook route (`app/api/webhooks/resend/route.ts`). This decision is not being reversed here — follow-up **F2** (tracked in `DEVELOPMENT_PLAN.md` and `docs/factory-runs/2026-09-23-comms-retry-dlq-copilot-findings.md`) will either implement provider selection as written above or amend this ADR to match a different decision. Until F2 ships, treat the "Decision" section as aspirational, not as a description of current behavior.

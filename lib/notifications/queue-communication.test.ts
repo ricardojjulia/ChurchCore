@@ -306,4 +306,41 @@ describe("queueCommunicationAction", () => {
       delete process.env.VAPID_PRIVATE_KEY;
     });
   });
+
+  describe("recordLog: false (retry cron owns the source log row)", () => {
+    beforeEach(() => {
+      vi.stubEnv("UNSUBSCRIBE_SECRET", "test-secret-key");
+      generateUnsubscribeLinkMock.mockReturnValue("https://example.com/api/unsubscribe?sig=abc");
+    });
+
+    it("dispatches without inserting a communication_logs row and returns code and message separately", async () => {
+      sendgridAdapterSendMock.mockResolvedValue({
+        accepted: false,
+        errorCode: "timeout",
+        errorMessage: "Request timed out",
+      });
+
+      const result = await queueCommunicationAction({
+        session: makeSession(),
+        recipientProfileId: "profile-2",
+        recipientContact: "member@example.com",
+        channel: "email",
+        body: "Hello",
+        retryCount: 2,
+        recordLog: false,
+      });
+
+      expect(sendgridAdapterSendMock).toHaveBeenCalledTimes(1);
+      // Only the consent lookup touched the DB — no writeLog insert.
+      expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(1);
+      expect(queryTenantLocalDbMock.mock.calls[0][0]).not.toContain("insert into");
+      expect(result).toMatchObject({
+        sent: false,
+        logId: undefined,
+        provider: "sendgrid",
+        error: "Request timed out",
+        errorCode: "timeout",
+      });
+    });
+  });
 });

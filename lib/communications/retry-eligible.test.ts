@@ -22,7 +22,7 @@ vi.mock("@/lib/communications/send-with-suppression", () => ({
   sendWithSuppression: sendWithSuppressionMock,
 }));
 
-import { retryEligibleCommunications } from "@/lib/communications/retry-eligible";
+import { attemptRetry, retryEligibleCommunications } from "@/lib/communications/retry-eligible";
 
 // ── Shared fixture helpers ─────────────────────────────────────────────────────
 
@@ -49,108 +49,92 @@ function makeEligibleRow(overrides?: Partial<{
   };
 }
 
-// ── Local DB path ──────────────────────────────────────────────────────────────
+type UpdateResult = { data: Array<{ id: string }> | null; error: { message: string } | null };
 
-describe("retryEligibleCommunications (local DB path)", () => {
+const HIT: UpdateResult = { data: [{ id: "row" }], error: null };
+const MISS: UpdateResult = { data: [], error: null };
+
+/**
+ * Admin client whose communication_logs updates resolve from `updateResults`
+ * in order (claim first, then outcome), defaulting to HIT. Every update's
+ * patch and guard filters are captured for assertions.
+ */
+function mockAdminClient(options: {
+  rows?: ReturnType<typeof makeEligibleRow>[];
+  profile?: { email: string | null; phone: string | null } | null;
+  updateResults?: UpdateResult[];
+  upsertResult?: { data: null; error: { message: string } | null };
+}) {
+  const updates: Array<{ patch: Record<string, unknown>; filters: Record<string, unknown> }> = [];
+  const updateResults = [...(options.updateResults ?? [])];
+  const upsertMock = vi.fn().mockResolvedValue(options.upsertResult ?? { data: null, error: null });
+
+  const update = vi.fn((patch: Record<string, unknown>) => {
+    const entry = { patch, filters: {} as Record<string, unknown> };
+    updates.push(entry);
+    const chain = {
+      eq: vi.fn((column: string, value: unknown) => {
+        entry.filters[column] = value;
+        return chain;
+      }),
+      select: vi.fn(() => Promise.resolve(updateResults.shift() ?? HIT)),
+    };
+    return chain;
+  });
+
+  const fromMock = vi.fn((table: string) => {
+    if (table === "communication_dlq") {
+      return { upsert: upsertMock };
+    }
+    if (table === "profiles") {
+      return {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: options.profile === undefined ? { email: "a@example.com", phone: null } : options.profile,
+          error: null,
+        }),
+      };
+    }
+    // communication_logs: eligible query (select…in) or a source-row update
+    return {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      lt: vi.fn().mockReturnThis(),
+      in: vi.fn().mockResolvedValue({ data: options.rows ?? [], error: null }),
+      update,
+    };
+  });
+
+  createTenantAdminClientMock.mockReturnValue({ from: fromMock });
+  return { updates, upsertMock };
+}
+
+const session = { appContext: { church: { id: "church-1" } }, profile: { id: null } } as never;
+
+// ── Selection (local DB path) ──────────────────────────────────────────────────
+//
+// The eligible-row query and contact lookup still have a legacy local branch;
+// all writes are Supabase-only new code.
+
+describe("retryEligibleCommunications selection (local DB path)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     shouldUseLocalTenantFallbackMock.mockReturnValue(true);
   });
 
-  it("happy path: 2 eligible rows, both succeed → { selected:2, succeeded:2, failedAgain:0, skipped:0 }", async () => {
-    const row1 = makeEligibleRow({ id: "log-1" });
-    const row2 = makeEligibleRow({ id: "log-2", recipient_id: "profile-3" });
-
-    // query eligible rows, then 2 × profile lookup, then 2 × markSent update
-    queryTenantLocalDbMock
-      .mockResolvedValueOnce({ rows: [row1, row2] })                         // eligible query
-      .mockResolvedValueOnce({ rows: [{ email: "a@example.com", phone: null }] }) // profile for row1
-      .mockResolvedValueOnce({ rows: [] })                                   // markSent row1
-      .mockResolvedValueOnce({ rows: [{ email: "b@example.com", phone: null }] }) // profile for row2
-      .mockResolvedValueOnce({ rows: [] });                                  // markSent row2
-
-    sendWithSuppressionMock.mockResolvedValue({ sent: true, skipped: false });
-
-    const result = await retryEligibleCommunications();
-
-    expect(result).toEqual({ selected: 2, succeeded: 2, failedAgain: 0, skipped: 0 });
-    expect(sendWithSuppressionMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("transient re-failure: 1 succeeds, 1 fails with transient code → { succeeded:1, failedAgain:1 }", async () => {
-    const row1 = makeEligibleRow({ id: "log-1" });
-    const row2 = makeEligibleRow({ id: "log-2", recipient_id: "profile-3" });
-
-    queryTenantLocalDbMock
-      .mockResolvedValueOnce({ rows: [row1, row2] })
-      .mockResolvedValueOnce({ rows: [{ email: "a@example.com", phone: null }] })
-      .mockResolvedValueOnce({ rows: [] })                                   // markSent row1
-      .mockResolvedValueOnce({ rows: [{ email: "b@example.com", phone: null }] })
-      .mockResolvedValueOnce({ rows: [] });                                  // markFailedAgain row2
-
-    sendWithSuppressionMock
-      .mockResolvedValueOnce({ sent: true, skipped: false })
-      .mockResolvedValueOnce({ sent: false, skipped: false, error: "timeout" });
-
-    const result = await retryEligibleCommunications();
-
-    expect(result).toEqual({ selected: 2, succeeded: 1, failedAgain: 1, skipped: 0 });
-  });
-
-  it("skip: recipient not found → { skipped:1 }", async () => {
-    const row = makeEligibleRow();
-
-    queryTenantLocalDbMock
-      .mockResolvedValueOnce({ rows: [row] })      // eligible query
-      .mockResolvedValueOnce({ rows: [] })          // profile not found
-      .mockResolvedValueOnce({ rows: [] });         // incrementRetryCountOnly
-
-    const result = await retryEligibleCommunications();
-
-    expect(result).toEqual({ selected: 1, succeeded: 0, failedAgain: 0, skipped: 1 });
-    expect(sendWithSuppressionMock).not.toHaveBeenCalled();
-  });
-
-  it("retry_count=3 row: NOT selected by query filter", async () => {
-    // The query itself filters retry_count < 3 — we verify by confirming the
-    // eligible query SQL contains 'retry_count < 3'.
+  it("filters out exhausted rows and permanent error codes", async () => {
     queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [] });
 
     const result = await retryEligibleCommunications();
 
     expect(result.selected).toBe(0);
-    const querySql: string = queryTenantLocalDbMock.mock.calls[0][0];
+    const [querySql, queryArgs] = queryTenantLocalDbMock.mock.calls[0];
     expect(querySql).toContain("retry_count < 3");
-  });
-
-  it("permanent error_code row: NOT selected by query filter", async () => {
-    // The query filters error_code IN (transient set) — rows with 'bad_address' are excluded.
-    queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [] });
-
-    const result = await retryEligibleCommunications();
-
-    expect(result.selected).toBe(0);
-    const queryArgs: unknown[] = queryTenantLocalDbMock.mock.calls[0][1];
     expect(queryArgs).toContain("timeout");
     expect(queryArgs).toContain("rate_limited");
     expect(queryArgs).toContain("provider_unavailable");
     expect(queryArgs).not.toContain("bad_address");
-  });
-
-  it("race guard: conditional UPDATE affects 0 rows → no throw, counted correctly", async () => {
-    const row = makeEligibleRow();
-
-    queryTenantLocalDbMock
-      .mockResolvedValueOnce({ rows: [row] })                               // eligible
-      .mockResolvedValueOnce({ rows: [{ email: "a@example.com", phone: null }] }) // profile
-      .mockResolvedValueOnce({ rows: [] });                                 // markSent returns nothing
-
-    sendWithSuppressionMock.mockResolvedValue({ sent: true, skipped: false });
-
-    // Should NOT throw even if 0 rows updated
-    const result = await retryEligibleCommunications();
-
-    expect(result.succeeded).toBe(1);
   });
 
   it("churchId filter: when provided, query includes church_id constraint", async () => {
@@ -158,8 +142,7 @@ describe("retryEligibleCommunications (local DB path)", () => {
 
     await retryEligibleCommunications({ churchId: "church-abc" });
 
-    const querySql: string = queryTenantLocalDbMock.mock.calls[0][0];
-    const queryArgs: unknown[] = queryTenantLocalDbMock.mock.calls[0][1];
+    const [querySql, queryArgs] = queryTenantLocalDbMock.mock.calls[0];
     expect(querySql).toContain("church_id = $1");
     expect(queryArgs[0]).toBe("church-abc");
   });
@@ -169,230 +152,347 @@ describe("retryEligibleCommunications (local DB path)", () => {
 
     await retryEligibleCommunications();
 
-    const querySql: string = queryTenantLocalDbMock.mock.calls[0][0];
-    expect(querySql).not.toContain("church_id = $1");
-  });
-
-  it("suppressed by sendWithSuppression → counts as skipped", async () => {
-    const row = makeEligibleRow();
-
-    queryTenantLocalDbMock
-      .mockResolvedValueOnce({ rows: [row] })
-      .mockResolvedValueOnce({ rows: [{ email: "a@example.com", phone: null }] })
-      .mockResolvedValueOnce({ rows: [] });   // incrementRetryCountOnly
-
-    sendWithSuppressionMock.mockResolvedValue({ sent: false, skipped: true, skipReason: "suppressed" });
-
-    const result = await retryEligibleCommunications();
-
-    expect(result).toEqual({ selected: 1, succeeded: 0, failedAgain: 0, skipped: 1 });
+    expect(queryTenantLocalDbMock.mock.calls[0][0]).not.toContain("church_id = $1");
   });
 });
 
-// ── Supabase admin path ────────────────────────────────────────────────────────
+// ── Cron run (Supabase admin path) ─────────────────────────────────────────────
 
 describe("retryEligibleCommunications (Supabase admin path)", () => {
-  let adminFromMock: ReturnType<typeof vi.fn>;
-
   beforeEach(() => {
     vi.clearAllMocks();
     shouldUseLocalTenantFallbackMock.mockReturnValue(false);
-
-    // Each .from() chain: select/update calls
-    const eqFn = vi.fn().mockReturnThis();
-    const ltFn = vi.fn().mockReturnThis();
-    const inFn = vi.fn().mockReturnThis();
-    const maybeSingleFn = vi.fn().mockResolvedValue({ data: null, error: null });
-
-    adminFromMock = vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      update: vi.fn().mockReturnValue({
-        eq: eqFn,
-        lt: ltFn,
-      }),
-      eq: eqFn,
-      lt: ltFn,
-      in: inFn,
-      maybeSingle: maybeSingleFn,
-    });
-
-    createTenantAdminClientMock.mockReturnValue({
-      from: adminFromMock,
-    });
   });
 
-  it("happy path with admin client: 2 succeed when query returns 2 rows", async () => {
-    const row1 = makeEligibleRow({ id: "log-1" });
-    const row2 = makeEligibleRow({ id: "log-2", recipient_id: "profile-3" });
-
-    // We need to set up the chain differently for the admin path
-    // For each `from` call, return appropriate mocks
-    let fromCallCount = 0;
-
-    adminFromMock.mockImplementation(() => {
-      fromCallCount++;
-      if (fromCallCount === 1) {
-        // First call: query eligible rows
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          lt: vi.fn().mockReturnThis(),
-          in: vi.fn().mockResolvedValue({ data: [row1, row2], error: null }),
-        };
-      } else if (fromCallCount === 2 || fromCallCount === 4) {
-        // Profile lookups
-        const profileEmail = fromCallCount === 2 ? "a@example.com" : "b@example.com";
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          maybeSingle: vi.fn().mockResolvedValue({
-            data: { email: profileEmail, phone: null },
-            error: null,
-          }),
-        };
-      } else {
-        // markSent updates
-        return {
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              lt: vi.fn().mockResolvedValue({ data: [], error: null }),
-            }),
-          }),
-        };
-      }
+  it("counts outcomes across rows", async () => {
+    mockAdminClient({
+      rows: [
+        makeEligibleRow({ id: "log-1" }),
+        makeEligibleRow({ id: "log-2" }),
+        makeEligibleRow({ id: "log-3" }),
+      ],
     });
-
-    createTenantAdminClientMock.mockReturnValue({ from: adminFromMock });
-
-    sendWithSuppressionMock.mockResolvedValue({ sent: true, skipped: false });
+    sendWithSuppressionMock
+      .mockResolvedValueOnce({ sent: true, skipped: false })
+      .mockResolvedValueOnce({ sent: false, skipped: false, error: "Request timed out", errorCode: "timeout" })
+      .mockResolvedValueOnce({ sent: false, skipped: true, skipCode: "suppressed", skipReason: "suppressed" });
 
     const result = await retryEligibleCommunications();
 
-    expect(result.succeeded).toBe(2);
-    expect(result.failedAgain).toBe(0);
+    expect(result).toEqual({ selected: 3, succeeded: 1, failedAgain: 1, skipped: 1 });
   });
 
   it("churchId filter is passed to admin query when provided", async () => {
     const eqMock = vi.fn();
     const ltMock = vi.fn().mockReturnThis();
     const inMock = vi.fn().mockReturnThis();
-    // The chain is awaitable — resolve with empty data when awaited
-    const thenableResult = { data: [], error: null };
-    eqMock.mockImplementation((field: string) => {
-      if (field === "church_id") {
-        // Final eq in the chain — return a thenable
-        return Promise.resolve(thenableResult);
-      }
-      return { eq: eqMock, lt: ltMock, in: inMock };
+    eqMock.mockImplementation((field: string) =>
+      field === "church_id"
+        ? Promise.resolve({ data: [], error: null })
+        : { eq: eqMock, lt: ltMock, in: inMock },
+    );
+    createTenantAdminClientMock.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: eqMock,
+        lt: ltMock,
+        in: inMock,
+      }),
     });
-
-    adminFromMock.mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: eqMock,
-      lt: ltMock,
-      in: inMock,
-    });
-
-    createTenantAdminClientMock.mockReturnValue({ from: adminFromMock });
 
     await retryEligibleCommunications({ churchId: "church-xyz" });
 
-    // eq should have been called with church_id filter
-    const eqCalls = eqMock.mock.calls;
-    const churchIdCall = eqCalls.find((call) => call[0] === "church_id");
-    expect(churchIdCall).toBeDefined();
-    expect(churchIdCall?.[1]).toBe("church-xyz");
-  });
-});
-
-// ── Dead-letter queue on retry exhaustion ───────────────────────────────────────
-//
-// moveToDeadLetterQueue always writes through the Supabase admin client — it's
-// new code, so it doesn't get a local-fallback branch even when the rest of a
-// call runs through the local DB path (see the function's own doc comment).
-
-describe("dead-letter queue on retry exhaustion", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+    expect(eqMock.mock.calls.find((call) => call[0] === "church_id")?.[1]).toBe("church-xyz");
   });
 
-  it("does NOT write to the DLQ when a retry fails but has not exhausted the budget", async () => {
-    shouldUseLocalTenantFallbackMock.mockReturnValue(true);
-    const row = makeEligibleRow({ retry_count: 0 }); // -> becomes 1, not exhausted
-
-    queryTenantLocalDbMock
-      .mockResolvedValueOnce({ rows: [row] })
-      .mockResolvedValueOnce({ rows: [{ email: "a@example.com", phone: null }] })
-      .mockResolvedValueOnce({ rows: [] }); // markFailedAgain local update
-
-    sendWithSuppressionMock.mockResolvedValue({ sent: false, skipped: false, error: "timeout" });
-
-    await retryEligibleCommunications();
-
-    expect(createTenantAdminClientMock).not.toHaveBeenCalled();
-  });
-
-  it("writes a communication_dlq row when the final retry (retry_count 2 -> 3) fails again", async () => {
-    shouldUseLocalTenantFallbackMock.mockReturnValue(true);
-    const row = makeEligibleRow({ id: "log-exhausted", retry_count: 2, error_code: "timeout" });
-
-    queryTenantLocalDbMock
-      .mockResolvedValueOnce({ rows: [row] })
-      .mockResolvedValueOnce({ rows: [{ email: "a@example.com", phone: null }] })
-      .mockResolvedValueOnce({ rows: [] }); // markFailedAgain local update
-
-    sendWithSuppressionMock.mockResolvedValue({ sent: false, skipped: false, error: "provider_unavailable" });
-
-    const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
-    createTenantAdminClientMock.mockReturnValue({
-      from: vi.fn().mockReturnValue({ upsert: upsertMock }),
+  it("dead-letters a row whose recipient is missing once the budget is spent", async () => {
+    const { updates, upsertMock } = mockAdminClient({
+      rows: [makeEligibleRow({ retry_count: 2 })],
+      profile: null,
     });
 
     const result = await retryEligibleCommunications();
 
-    expect(result.failedAgain).toBe(1);
-    expect(createTenantAdminClientMock).toHaveBeenCalledTimes(1);
+    expect(result.skipped).toBe(1);
+    expect(sendWithSuppressionMock).not.toHaveBeenCalled();
+    // Only the claim — status and error_code are left alone.
+    expect(updates).toHaveLength(1);
+    expect(updates[0].patch).toEqual(expect.not.objectContaining({ status: expect.anything() }));
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ attempted_count: 3, last_error_code: "recipient_missing" }),
+      { onConflict: "communication_log_id" },
+    );
+  });
+
+  it("does NOT dead-letter a missing recipient while budget remains", async () => {
+    const { upsertMock } = mockAdminClient({ rows: [makeEligibleRow({ retry_count: 0 })], profile: null });
+
+    await retryEligibleCommunications();
+
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+});
+
+// ── Single attempt: claim → dispatch → record → dead-letter ─────────────────────
+
+describe("attemptRetry", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+  });
+
+  it("claims the attempt before dispatching, guarded on the read retry_count and church", async () => {
+    const { updates } = mockAdminClient({});
+    sendWithSuppressionMock.mockImplementation(async () => {
+      // The claim must already be written when the send happens.
+      expect(updates).toHaveLength(1);
+      return { sent: true, skipped: false };
+    });
+
+    await attemptRetry(makeEligibleRow({ retry_count: 1 }), "a@example.com", session);
+
+    expect(updates[0].patch).toEqual(expect.objectContaining({ retry_count: 2 }));
+    expect(updates[0].filters).toEqual({ id: "log-1", church_id: "church-1", retry_count: 1 });
+  });
+
+  it("sends nothing when another run already claimed the attempt", async () => {
+    const { updates, upsertMock } = mockAdminClient({ updateResults: [MISS] });
+
+    const outcome = await attemptRetry(makeEligibleRow(), "a@example.com", session);
+
+    expect(outcome).toEqual({ kind: "not_claimed" });
+    expect(sendWithSuppressionMock).not.toHaveBeenCalled();
+    expect(updates).toHaveLength(1);
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  it("dispatches with recordLog: false so no second retry-eligible log row is inserted", async () => {
+    mockAdminClient({});
+    sendWithSuppressionMock.mockResolvedValue({ sent: true, skipped: false });
+
+    await attemptRetry(makeEligibleRow({ retry_count: 1 }), "a@example.com", session);
+
+    expect(sendWithSuppressionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ recordLog: false, retryCount: 2, recipientContact: "a@example.com" }),
+    );
+  });
+
+  it("records a success on the source row with the provider message id, guarded on the claimed count", async () => {
+    const { updates } = mockAdminClient({});
+    sendWithSuppressionMock.mockResolvedValue({
+      sent: true,
+      skipped: false,
+      provider: "sendgrid",
+      externalId: "sg-msg-123",
+    });
+
+    const outcome = await attemptRetry(makeEligibleRow({ retry_count: 1 }), "a@example.com", session);
+
+    expect(outcome).toEqual({ kind: "sent" });
+    expect(updates[1].patch).toEqual(
+      expect.objectContaining({
+        status: "sent",
+        provider: "sendgrid",
+        provider_message_id: "sg-msg-123",
+        external_id: "sg-msg-123",
+      }),
+    );
+    expect(updates[1].filters.retry_count).toBe(2);
+  });
+
+  it("a failed success-write still leaves the attempt consumed (bounded re-sends)", async () => {
+    const { updates } = mockAdminClient({ updateResults: [HIT, MISS] });
+    sendWithSuppressionMock.mockResolvedValue({ sent: true, skipped: false });
+
+    const outcome = await attemptRetry(makeEligibleRow({ retry_count: 1 }), "a@example.com", session);
+
+    expect(outcome).toEqual({ kind: "sent" });
+    expect(updates[0].patch.retry_count).toBe(2);
+  });
+
+  it("dead-letters with code and message kept separate when the final retry fails", async () => {
+    const { updates, upsertMock } = mockAdminClient({});
+    sendWithSuppressionMock.mockResolvedValue({
+      sent: false,
+      skipped: false,
+      error: "Service temporarily unavailable",
+      errorCode: "provider_unavailable",
+    });
+
+    const outcome = await attemptRetry(
+      makeEligibleRow({ id: "log-exhausted", retry_count: 2 }),
+      "a@example.com",
+      session,
+    );
+
+    expect(outcome).toEqual({ kind: "failed", error: "Service temporarily unavailable" });
+    expect(updates[1].patch).toEqual({
+      status: "failed",
+      error_code: "provider_unavailable",
+      error_message: "Service temporarily unavailable",
+    });
     expect(upsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        church_id: row.church_id,
         communication_log_id: "log-exhausted",
-        channel: "email",
         attempted_count: 3,
         last_error_code: "provider_unavailable",
+        last_error_message: "Service temporarily unavailable",
       }),
       { onConflict: "communication_log_id" },
     );
   });
 
-  it("logs and does not throw when the DLQ upsert itself fails", async () => {
-    // A throw here would be caught by the caller's own try/catch and trigger a
-    // second markFailedAgain call — this test guards against reintroducing that.
-    shouldUseLocalTenantFallbackMock.mockReturnValue(true);
-    const row = makeEligibleRow({ id: "log-exhausted", retry_count: 2 });
-
-    queryTenantLocalDbMock
-      .mockResolvedValueOnce({ rows: [row] })
-      .mockResolvedValueOnce({ rows: [{ email: "a@example.com", phone: null }] })
-      .mockResolvedValueOnce({ rows: [] });
-
-    sendWithSuppressionMock.mockResolvedValue({ sent: false, skipped: false, error: "timeout" });
-
-    createTenantAdminClientMock.mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        upsert: vi.fn().mockResolvedValue({ data: null, error: { message: "connection refused" } }),
-      }),
+  it("still dead-letters an exhausted row when the failure write fails — the claim already made it ineligible", async () => {
+    const { upsertMock } = mockAdminClient({ updateResults: [HIT, MISS] });
+    sendWithSuppressionMock.mockResolvedValue({
+      sent: false,
+      skipped: false,
+      error: "Request timed out",
+      errorCode: "timeout",
     });
 
+    await attemptRetry(makeEligibleRow({ retry_count: 2 }), "a@example.com", session);
+
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ attempted_count: 3 }),
+      { onConflict: "communication_log_id" },
+    );
+  });
+
+  it("does NOT dead-letter a transient failure with budget remaining", async () => {
+    const { upsertMock } = mockAdminClient({});
+    sendWithSuppressionMock.mockResolvedValue({
+      sent: false,
+      skipped: false,
+      error: "Request timed out",
+      errorCode: "timeout",
+    });
+
+    await attemptRetry(makeEligibleRow({ retry_count: 0 }), "a@example.com", session);
+
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  it("dead-letters a non-transient failure immediately once the code is recorded", async () => {
+    const { upsertMock } = mockAdminClient({});
+    sendWithSuppressionMock.mockResolvedValue({
+      sent: false,
+      skipped: false,
+      error: "Invalid recipient address",
+      errorCode: "sendgrid_400",
+    });
+
+    await attemptRetry(makeEligibleRow({ retry_count: 0 }), "a@example.com", session);
+
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ attempted_count: 1, last_error_code: "sendgrid_400" }),
+      { onConflict: "communication_log_id" },
+    );
+  });
+
+  it("does NOT dead-letter a non-transient failure whose code could not be recorded — the row is still eligible", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { upsertMock } = mockAdminClient({
+      updateResults: [HIT, { data: null, error: { message: "connection reset" } }],
+    });
+    sendWithSuppressionMock.mockResolvedValue({
+      sent: false,
+      skipped: false,
+      error: "Invalid recipient address",
+      errorCode: "sendgrid_400",
+    });
+
+    await attemptRetry(makeEligibleRow({ retry_count: 0 }), "a@example.com", session);
+
+    expect(upsertMock).not.toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("a thrown dispatch is recorded as unknown_error and dead-lettered", async () => {
+    const { updates, upsertMock } = mockAdminClient({});
+    sendWithSuppressionMock.mockRejectedValue(new Error("UNSUBSCRIBE_SECRET must be configured"));
+
+    const outcome = await attemptRetry(makeEligibleRow({ retry_count: 0 }), "a@example.com", session);
+
+    expect(outcome).toEqual({ kind: "failed", error: "UNSUBSCRIBE_SECRET must be configured" });
+    expect(updates[1].patch).toEqual(expect.objectContaining({ error_code: "unknown_error" }));
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        last_error_code: "unknown_error",
+        last_error_message: "UNSUBSCRIBE_SECRET must be configured",
+      }),
+      { onConflict: "communication_log_id" },
+    );
+  });
+
+  it("truncates stored error messages to 500 characters", async () => {
+    const { updates, upsertMock } = mockAdminClient({});
+    const longMessage = "x".repeat(2000);
+    sendWithSuppressionMock.mockResolvedValue({
+      sent: false,
+      skipped: false,
+      error: longMessage,
+      errorCode: "sendgrid_400",
+    });
+
+    await attemptRetry(makeEligibleRow({ retry_count: 0 }), "a@example.com", session);
+
+    expect(updates[1].patch.error_message).toHaveLength(500);
+    expect(upsertMock.mock.calls[0][0].last_error_message).toHaveLength(500);
+  });
+
+  it.each([
+    ["suppressed", "recipient_suppressed"],
+    ["opted_out", "recipient_opted_out"],
+  ])("dead-letters a %s skip at exhaustion as %s", async (skipCode, expectedCode) => {
+    const { upsertMock } = mockAdminClient({});
+    sendWithSuppressionMock.mockResolvedValue({
+      sent: false,
+      skipped: true,
+      skipCode,
+      skipReason: "Recipient said no.",
+    });
+
+    const outcome = await attemptRetry(makeEligibleRow({ retry_count: 2 }), "a@example.com", session);
+
+    expect(outcome).toEqual({ kind: "skipped", reason: "Recipient said no." });
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ last_error_code: expectedCode, last_error_message: "Recipient said no." }),
+      { onConflict: "communication_log_id" },
+    );
+  });
+
+  it("logs and does not throw when the DLQ upsert itself fails", async () => {
+    mockAdminClient({ upsertResult: { data: null, error: { message: "connection refused" } } });
+    sendWithSuppressionMock.mockResolvedValue({
+      sent: false,
+      skipped: false,
+      error: "Request timed out",
+      errorCode: "timeout",
+    });
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const result = await retryEligibleCommunications();
+    const outcome = await attemptRetry(
+      makeEligibleRow({ id: "log-exhausted", retry_count: 2 }),
+      "a@example.com",
+      session,
+    );
 
-    expect(result).toEqual({ selected: 1, succeeded: 0, failedAgain: 1, skipped: 0 });
+    expect(outcome.kind).toBe("failed");
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("log-exhausted"));
-    // Local update ran exactly once — not twice, which would indicate the
-    // double-invocation bug this design avoids.
-    expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(3);
+    consoleErrorSpy.mockRestore();
+  });
 
+  it("a thrown admin client during the claim is logged and treated as not claimed", async () => {
+    createTenantAdminClientMock.mockImplementation(() => {
+      throw new Error("missing service role key");
+    });
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const outcome = await attemptRetry(makeEligibleRow(), "a@example.com", session);
+
+    expect(outcome).toEqual({ kind: "not_claimed" });
+    expect(sendWithSuppressionMock).not.toHaveBeenCalled();
     consoleErrorSpy.mockRestore();
   });
 });

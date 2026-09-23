@@ -5,6 +5,7 @@ import {
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
 import { sendWithSuppression } from "@/lib/communications/send-with-suppression";
+import type { QueueCommunicationResult } from "@/lib/notifications/queue-communication";
 
 export type RetryEligibleResult = {
   selected: number;
@@ -13,7 +14,7 @@ export type RetryEligibleResult = {
   skipped: number;
 };
 
-type EligibleRow = {
+export type EligibleRow = {
   id: string;
   church_id: string;
   recipient_id: string | null;
@@ -56,44 +57,12 @@ export async function retryEligibleCommunications(
 
   for (const row of rows) {
     const contact = await resolveContact(row);
-
-    if (contact === null) {
-      skipped++;
-      // Increment retry_count so this row is not retried indefinitely if the
-      // profile is permanently missing, but do not change status.
-      await incrementRetryCountOnly(row);
-      continue;
-    }
-
     // Synthetic session: profile.id = null is safe — sentBy accepts null.
-    const syntheticSession = buildSyntheticSession(row.church_id);
+    const outcome = await attemptRetry(row, contact, buildSyntheticSession(row.church_id));
 
-    try {
-      const result = await sendWithSuppression({
-        session: syntheticSession,
-        recipientProfileId: row.recipient_id,
-        recipientContact: contact,
-        channel: row.channel,
-        subject: row.subject ?? undefined,
-        body: row.body_preview ?? "",
-        retryCount: row.retry_count + 1,
-      });
-
-      if (result.skipped) {
-        skipped++;
-        await incrementRetryCountOnly(row);
-      } else if (result.sent && !result.error) {
-        succeeded++;
-        await markSent(row);
-      } else {
-        failedAgain++;
-        await markFailedAgain(row, result.error ?? "unknown_error");
-      }
-    } catch (err) {
-      failedAgain++;
-      const code = err instanceof Error ? err.message.slice(0, 64) : "unknown_error";
-      await markFailedAgain(row, code);
-    }
+    if (outcome.kind === "sent") succeeded++;
+    else if (outcome.kind === "failed") failedAgain++;
+    else skipped++;
   }
 
   return {
@@ -196,66 +165,151 @@ async function resolveContact(row: EligibleRow): Promise<string | null> {
   return contact ?? null;
 }
 
-// ── Update helpers ────────────────────────────────────────────────────────────
-
-async function markSent(row: EligibleRow): Promise<void> {
-  if (shouldUseLocalTenantFallback()) {
-    await queryTenantLocalDb(
-      `update public.communication_logs
-       set status = 'sent',
-           retry_count = retry_count + 1,
-           last_retry_at = now()
-       where id = $1
-         and retry_count < 3`,
-      [row.id],
-    );
-    return;
-  }
-
-  const admin = createTenantAdminClient();
-  await admin
-    .from("communication_logs")
-    .update({
-      status: "sent",
-      retry_count: row.retry_count + 1,
-      last_retry_at: new Date().toISOString(),
-    })
-    .eq("id", row.id)
-    .lt("retry_count", 3);
-}
+// ── Single attempt ────────────────────────────────────────────────────────────
 
 const MAX_RETRY_COUNT = 3;
+const MAX_ERROR_MESSAGE_LENGTH = 500;
 
-async function markFailedAgain(row: EligibleRow, errorCode: string): Promise<void> {
-  const newRetryCount = row.retry_count + 1;
+type AttemptError = { code: string; message: string };
 
-  if (shouldUseLocalTenantFallback()) {
-    await queryTenantLocalDb(
-      `update public.communication_logs
-       set status = 'failed',
-           retry_count = retry_count + 1,
-           last_retry_at = now(),
-           error_code = $2
-       where id = $1
-         and retry_count < 3`,
-      [row.id, errorCode],
-    );
-  } else {
-    const admin = createTenantAdminClient();
-    await admin
-      .from("communication_logs")
-      .update({
-        status: "failed",
-        retry_count: newRetryCount,
-        last_retry_at: new Date().toISOString(),
-        error_code: errorCode,
-      })
-      .eq("id", row.id)
-      .lt("retry_count", 3);
+type LogPatch = Record<string, string | number | null>;
+
+export type RetryAttemptOutcome =
+  | { kind: "sent" }
+  | { kind: "failed"; error: string }
+  | { kind: "skipped"; reason: string }
+  | { kind: "not_claimed" };
+
+/**
+ * One retry attempt against an existing communication_logs row. Shared by the
+ * cron and the operator's per-row Retry so both follow the same contract:
+ *
+ *  1. Claim — increment retry_count, guarded on the value the caller read.
+ *     Losing the claim means another run owns this attempt: nothing is sent.
+ *     Claiming before dispatch bounds sends by the retry budget even if the
+ *     outcome write below fails.
+ *  2. Dispatch with recordLog: false — the outcome belongs on this row; a new
+ *     log row would be a second retry-eligible copy of the same message.
+ *  3. Record the outcome, guarded on the claimed retry_count.
+ *  4. Dead-letter when the message is terminal: budget spent, or re-failed
+ *     with a non-transient code (only once that code is durably recorded —
+ *     otherwise the row still carries its old transient code and is eligible).
+ */
+export async function attemptRetry(
+  row: EligibleRow,
+  contact: string | null,
+  session: ChurchAppSession,
+): Promise<RetryAttemptOutcome> {
+  const claimedCount = row.retry_count + 1;
+  const claimed = await updateSourceRow(row, row.retry_count, {
+    retry_count: claimedCount,
+    last_retry_at: new Date().toISOString(),
+  });
+  if (!claimed) {
+    return { kind: "not_claimed" };
+  }
+  const exhausted = claimedCount >= MAX_RETRY_COUNT;
+
+  if (contact === null) {
+    const reason = { code: "recipient_missing", message: "Recipient profile or contact detail not found." };
+    if (exhausted) await moveToDeadLetterQueue(row, reason, claimedCount);
+    return { kind: "skipped", reason: reason.message };
   }
 
-  if (newRetryCount >= MAX_RETRY_COUNT) {
-    await moveToDeadLetterQueue(row, errorCode, newRetryCount);
+  let result: QueueCommunicationResult;
+  try {
+    result = await sendWithSuppression({
+      session,
+      recipientProfileId: row.recipient_id,
+      recipientContact: contact,
+      channel: row.channel,
+      subject: row.subject ?? undefined,
+      body: row.body_preview ?? "",
+      retryCount: claimedCount,
+      recordLog: false,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await recordFailure(row, claimedCount, { code: "unknown_error", message });
+    return { kind: "failed", error: message };
+  }
+
+  if (result.skipped) {
+    const reason = {
+      code: result.skipCode === "opted_out" ? "recipient_opted_out" : "recipient_suppressed",
+      message: result.skipReason ?? "Recipient is suppressed.",
+    };
+    if (exhausted) await moveToDeadLetterQueue(row, reason, claimedCount);
+    return { kind: "skipped", reason: reason.message };
+  }
+
+  if (result.sent && !result.error) {
+    const now = new Date().toISOString();
+    const patch: LogPatch = { status: "sent", sent_at: now };
+    // Delivery webhooks match on provider_message_id / external_id, so the
+    // source row must carry the id of the attempt that actually went out.
+    if (result.provider) patch.provider = result.provider;
+    if (result.externalId) {
+      patch.provider_message_id = result.externalId;
+      patch.external_id = result.externalId;
+    }
+    await updateSourceRow(row, claimedCount, patch);
+    return { kind: "sent" };
+  }
+
+  const message = result.error ?? "unknown_error";
+  await recordFailure(row, claimedCount, { code: result.errorCode ?? "unknown_error", message });
+  return { kind: "failed", error: message };
+}
+
+async function recordFailure(row: EligibleRow, claimedCount: number, failure: AttemptError): Promise<void> {
+  const recorded = await updateSourceRow(row, claimedCount, {
+    status: "failed",
+    error_code: failure.code,
+    error_message: failure.message.slice(0, MAX_ERROR_MESSAGE_LENGTH),
+  });
+
+  // Budget spent: the claim alone already removed the row from the eligible
+  // query. Non-transient: only terminal once the new code is on the row.
+  const terminal =
+    claimedCount >= MAX_RETRY_COUNT ||
+    (recorded && !TRANSIENT_ERROR_CODES.includes(failure.code));
+
+  if (terminal) {
+    await moveToDeadLetterQueue(row, failure, claimedCount);
+  }
+}
+
+/**
+ * Applies `patch` to the source communication_logs row, guarded on the
+ * expected retry_count (and church) so a stale caller cannot overwrite
+ * another run's attempt. Returns true only when the row was actually updated.
+ * Never throws: one failed bookkeeping write must not abort the rest of a run.
+ * Supabase-only — new code, per the Supabase-only mandate.
+ */
+async function updateSourceRow(
+  row: EligibleRow,
+  expectedRetryCount: number,
+  patch: LogPatch,
+): Promise<boolean> {
+  try {
+    const admin = createTenantAdminClient();
+    const { data, error } = await admin
+      .from("communication_logs")
+      .update(patch)
+      .eq("id", row.id)
+      .eq("church_id", row.church_id)
+      .eq("retry_count", expectedRetryCount)
+      .select("id");
+
+    if (error) {
+      console.error(`Failed to update communication_log ${row.id} during retry: ${error.message}`);
+      return false;
+    }
+    return (data ?? []).length > 0;
+  } catch (err) {
+    console.error(`Failed to update communication_log ${row.id} during retry:`, err);
+    return false;
   }
 }
 
@@ -266,17 +320,15 @@ async function markFailedAgain(row: EligibleRow, errorCode: string): Promise<voi
  * false today; the dual-path branches elsewhere in this file are legacy dead
  * code, not a pattern to extend).
  *
- * Deliberately never throws: it's called from inside markFailedAgain's own
- * try block in the caller's loop, and a throw here would be caught by that
- * same loop's catch clause, which calls markFailedAgain a second time —
- * double-counting failedAgain and double-writing communication_logs. The
- * primary record of exhaustion (communication_logs.status/retry_count) is
- * already durable by the time this runs; a failed DLQ write is a lost
- * observability record, not a lost retry-cron result, so log and move on.
+ * Only called once the source row can no longer be selected for retry, so the
+ * primary record of exhaustion is already durable on communication_logs.
+ * Deliberately never throws: a failed DLQ write is a lost observability
+ * record, not a lost retry-cron result, so log and move on rather than abort
+ * the rest of the run.
  */
 async function moveToDeadLetterQueue(
   row: EligibleRow,
-  errorCode: string,
+  failure: AttemptError,
   attemptedCount: number,
 ): Promise<void> {
   try {
@@ -288,8 +340,8 @@ async function moveToDeadLetterQueue(
         channel: row.channel,
         recipient_id: row.recipient_id,
         attempted_count: attemptedCount,
-        last_error_code: errorCode,
-        last_error_message: errorCode,
+        last_error_code: failure.code,
+        last_error_message: failure.message.slice(0, MAX_ERROR_MESSAGE_LENGTH),
         moved_to_dlq_at: new Date().toISOString(),
       },
       { onConflict: "communication_log_id" },
@@ -306,30 +358,6 @@ async function moveToDeadLetterQueue(
       err,
     );
   }
-}
-
-async function incrementRetryCountOnly(row: EligibleRow): Promise<void> {
-  if (shouldUseLocalTenantFallback()) {
-    await queryTenantLocalDb(
-      `update public.communication_logs
-       set retry_count = retry_count + 1,
-           last_retry_at = now()
-       where id = $1
-         and retry_count < 3`,
-      [row.id],
-    );
-    return;
-  }
-
-  const admin = createTenantAdminClient();
-  await admin
-    .from("communication_logs")
-    .update({
-      retry_count: row.retry_count + 1,
-      last_retry_at: new Date().toISOString(),
-    })
-    .eq("id", row.id)
-    .lt("retry_count", 3);
 }
 
 // ── Session builder ───────────────────────────────────────────────────────────

@@ -21,6 +21,8 @@ export type SendWithSuppressionInput = {
   html?: string;
   scheduledFor?: string;
   retryCount?: number;
+  /** Passed through to queueCommunicationAction — see its doc comment. */
+  recordLog?: boolean;
 };
 
 type SuppressionMatch = {
@@ -148,6 +150,7 @@ export async function sendWithSuppression(
     return {
       sent: false,
       skipped: true,
+      skipCode: "suppressed",
       skipReason: `Recipient is suppressed for ${input.channel} (${suppression.reason}).`,
       logId,
     };
@@ -163,5 +166,6 @@ export async function sendWithSuppression(
     html: input.html,
     scheduledFor: input.scheduledFor,
     retryCount: input.retryCount,
+    recordLog: input.recordLog,
   });
 }
