@@ -229,8 +229,11 @@ export async function attemptRetry(
       recordLog: false,
     });
   } catch (err) {
+    // A throw here is usually a lookup or network failure (consent reads fail
+    // closed), not a verdict on the message — retry it within budget rather
+    // than dead-lettering on the first blip. The claim still bounds attempts.
     const message = err instanceof Error ? err.message : String(err);
-    await recordFailure(row, claimedCount, { code: "unknown_error", message });
+    await recordFailure(row, claimedCount, { code: "temporary_failure", message });
     return { kind: "failed", error: message };
   }
 
@@ -303,12 +306,12 @@ async function updateSourceRow(
       .select("id");
 
     if (error) {
-      console.error(`Failed to update communication_log ${row.id} during retry: ${error.message}`);
+      console.error("Failed to update communication_log during retry:", row.id, error.message);
       return false;
     }
     return (data ?? []).length > 0;
   } catch (err) {
-    console.error(`Failed to update communication_log ${row.id} during retry:`, err);
+    console.error("Failed to update communication_log during retry:", row.id, err);
     return false;
   }
 }

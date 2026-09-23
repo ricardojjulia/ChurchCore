@@ -1,4 +1,8 @@
-"use server";
+import "server-only";
+
+// server-only, not "use server": this takes a trusted `session` argument, so it
+// must never be a POST-callable Server Action (ADR 0022). Callers authenticate
+// first and pass their own session in.
 
 import { revalidatePath } from "next/cache";
 import webpush from "web-push";
@@ -6,7 +10,6 @@ import webpush from "web-push";
 import type { ChurchAppSession } from "@/lib/auth";
 import {
   createTenantAdminClient,
-  createTenantServerClient,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
@@ -272,14 +275,21 @@ async function checkOptIn(
     return result.rows[0].opted_in;
   }
 
-  const supabase = await createTenantServerClient();
-  const { data } = await supabase
+  // Admin client, scoped by the server-side church id: a recipient's consent
+  // must not depend on the sender's RLS visibility (crons have no user; the
+  // select policy only shows managers or the member themselves). ADR 0022.
+  const supabase = createTenantAdminClient();
+  const { data, error } = await supabase
     .from("notification_preferences")
     .select(col)
     .eq("church_id", churchId)
     .eq("profile_id", profileId)
     .maybeSingle();
 
+  if (error) {
+    // Fail closed: an unreadable consent record is not consent.
+    throw new Error(`Failed to read notification preferences: ${error.message}`);
+  }
   if (!data) return channel !== "sms";
   return Boolean((data as unknown as Record<string, unknown>)[col]);
 }
@@ -333,8 +343,10 @@ async function writeLog(log: LogInput): Promise<string | undefined> {
     return result.rows[0]?.id;
   }
 
-  const supabase = await createTenantServerClient();
-  const { data } = await supabase
+  // Admin client (ADR 0022): the audit row must be written even when the
+  // sender has no user session (crons) or sits outside the insert policy.
+  const supabase = createTenantAdminClient();
+  const { data, error } = await supabase
     .from("communication_logs")
     .insert({
       church_id: log.churchId,
@@ -356,6 +368,13 @@ async function writeLog(log: LogInput): Promise<string | undefined> {
     })
     .select("id")
     .single();
+
+  if (error) {
+    // Not thrown: the message may already have gone out, and a throw here
+    // would read as a failed send to callers that retry.
+    console.error("Failed to write communication_log for church:", log.churchId, error.message);
+    return undefined;
+  }
 
   return (data as { id?: string } | null)?.id;
 }

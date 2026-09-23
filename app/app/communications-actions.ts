@@ -101,19 +101,26 @@ export async function broadcastMessageAction(
       continue;
     }
 
-    const result = await sendWithSuppression({
-      session,
-      recipientProfileId: recipient.profileId,
-      recipientContact: contact,
-      channel: input.channel,
-      subject: normalizedSubject,
-      body: normalizedBody,
-      scheduledFor: normalizedScheduledFor,
-    });
+    // One recipient's failure (e.g. an unreadable consent record, which fails
+    // closed) must not abort the rest or lose the counts for those already sent.
+    try {
+      const result = await sendWithSuppression({
+        session,
+        recipientProfileId: recipient.profileId,
+        recipientContact: contact,
+        channel: input.channel,
+        subject: normalizedSubject,
+        body: normalizedBody,
+        scheduledFor: normalizedScheduledFor,
+      });
 
-    if (result.skipped) skipped++;
-    else if (result.error) errors++;
-    else sent++;
+      if (result.skipped) skipped++;
+      else if (result.error) errors++;
+      else sent++;
+    } catch (err) {
+      errors++;
+      console.error("[communications] Send to recipient failed:", recipient.profileId, err);
+    }
   }
 
   revalidatePath("/app/communications");
@@ -684,7 +691,10 @@ export async function previewRecipientsAction(
 
 export async function composeAndSendMessageAction(
   input: ComposeMessageInput,
-): Promise<{ ok: true; logId: string } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; logId: string; sent?: number; skipped?: number; errors?: number }
+  | { ok: false; error: string }
+> {
   const session = await requireChurchSession("/app/communications");
   const role = session.appContext.roleId;
   if (!commRoleAllowed(role)) {
@@ -726,8 +736,10 @@ export async function composeAndSendMessageAction(
     return { ok: false as const, error: "No contactable recipients match the selected segment." };
   }
 
-  const { createTenantServerClient } = await import("@/lib/supabase/tenant");
-  const supabase = await createTenantServerClient();
+  // Admin client (ADR 0022): commRoleAllowed admits roles outside the
+  // can_manage_church insert policy (secretary); church_id is from the session.
+  const { createTenantAdminClient } = await import("@/lib/supabase/tenant");
+  const supabase = createTenantAdminClient();
 
   const status = input.scheduledFor !== null ? "scheduled" : "queued";
 
@@ -754,23 +766,35 @@ export async function composeAndSendMessageAction(
 
   const logId = (logData as { id: string }).id;
 
-  if (input.scheduledFor === null) {
-    // Call sendWithSuppression directly — avoids double-session fetch and the
-    // misleading opt-in override that broadcastMessageAction required.
-    for (const recipient of recipients) {
-      await sendWithSuppression({
-        session,
-        channel: input.channel,
-        recipientProfileId: recipient.profileId,
-        recipientContact: recipient.contact,
-        subject: input.subject?.trim() ?? undefined,
-        body: normalizedBody,
-      });
-    }
+  if (input.scheduledFor !== null) {
+    revalidatePath("/app/communications/history");
+    return { ok: true as const, logId };
+  }
+
+  // Call sendWithSuppression directly — avoids double-session fetch and the
+  // misleading opt-in override that broadcastMessageAction required.
+  const counts = await sendToRecipients(session, recipients, {
+    channel: input.channel,
+    subject: input.subject?.trim() ?? undefined,
+    body: normalizedBody,
+  });
+
+  // Close out the parent row — it previously stayed "queued" forever.
+  const { error: statusError } = await supabase
+    .from("communication_logs")
+    .update(
+      counts.sent > 0
+        ? { status: "sent", sent_at: new Date().toISOString() }
+        : { status: "failed", error_code: "no_delivery", error_message: summarizeCounts(counts) },
+    )
+    .eq("id", logId)
+    .eq("church_id", churchId);
+  if (statusError) {
+    console.error("[communications] Failed to close out log:", logId, statusError.message);
   }
 
   revalidatePath("/app/communications/history");
-  return { ok: true as const, logId };
+  return { ok: true as const, logId, ...counts };
 }
 
 export async function cancelScheduledMessageAction(
@@ -1123,4 +1147,42 @@ export async function listTemplatesAction(
   }));
 
   return { ok: true as const, templates };
+}
+
+type SendCounts = { sent: number; skipped: number; errors: number };
+
+/**
+ * Sends one message to each resolved recipient through the suppression/consent
+ * path. A recipient's failure is counted, never allowed to abort the rest —
+ * otherwise a partial send loses its counts and invites a duplicate resend.
+ */
+async function sendToRecipients(
+  session: Parameters<typeof sendWithSuppression>[0]["session"],
+  recipients: Array<{ profileId: string; contact: string }>,
+  message: { channel: "email" | "sms"; subject?: string; body: string },
+): Promise<SendCounts> {
+  const counts: SendCounts = { sent: 0, skipped: 0, errors: 0 };
+  for (const recipient of recipients) {
+    try {
+      const result = await sendWithSuppression({
+        session,
+        channel: message.channel,
+        recipientProfileId: recipient.profileId,
+        recipientContact: recipient.contact,
+        subject: message.subject,
+        body: message.body,
+      });
+      if (result.skipped) counts.skipped++;
+      else if (result.error) counts.errors++;
+      else counts.sent++;
+    } catch (err) {
+      counts.errors++;
+      console.error("[communications] Send to recipient failed:", recipient.profileId, err);
+    }
+  }
+  return counts;
+}
+
+function summarizeCounts(counts: SendCounts): string {
+  return `No recipient was delivered (${counts.skipped} skipped, ${counts.errors} failed).`;
 }

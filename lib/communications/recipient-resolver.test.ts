@@ -4,16 +4,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Hoisted mock factories — must be declared before any imports that use them
 // ---------------------------------------------------------------------------
 const {
-  createTenantServerClientMock,
+  createTenantAdminClientMock,
 } = vi.hoisted(() => {
-  const createTenantServerClient = vi.fn();
-  return { createTenantServerClientMock: createTenantServerClient };
+  const createTenantAdminClient = vi.fn();
+  return { createTenantAdminClientMock: createTenantAdminClient };
 });
 
 vi.mock("server-only", () => ({}));
 
 vi.mock("@/lib/supabase/tenant", () => ({
-  createTenantServerClient: createTenantServerClientMock,
+  createTenantAdminClient: createTenantAdminClientMock,
 }));
 
 import { resolveRecipients } from "@/lib/communications/recipient-resolver";
@@ -99,7 +99,7 @@ describe("resolveRecipients", () => {
     // The base query has .eq('contact_allowed', true) baked in, so if we
     // return an empty row set the filtering is working.  We verify by
     // returning zero rows from profiles (simulating the DB filter).
-    createTenantServerClientMock.mockResolvedValue(
+    createTenantAdminClientMock.mockReturnValue(
       makeSupabaseMock({
         profiles: { rows: [] },
         communication_suppressions: { rows: [] },
@@ -111,7 +111,7 @@ describe("resolveRecipients", () => {
   });
 
   it("excludes profiles opted out of email", async () => {
-    createTenantServerClientMock.mockResolvedValue(
+    createTenantAdminClientMock.mockReturnValue(
       makeSupabaseMock({
         profiles: {
           rows: [
@@ -130,7 +130,7 @@ describe("resolveRecipients", () => {
   });
 
   it("excludes profiles opted out of sms", async () => {
-    createTenantServerClientMock.mockResolvedValue(
+    createTenantAdminClientMock.mockReturnValue(
       makeSupabaseMock({
         profiles: {
           rows: [
@@ -149,7 +149,7 @@ describe("resolveRecipients", () => {
   });
 
   it("defaults sms to opted-out when no preference row", async () => {
-    createTenantServerClientMock.mockResolvedValue(
+    createTenantAdminClientMock.mockReturnValue(
       makeSupabaseMock({
         profiles: {
           rows: [
@@ -165,7 +165,7 @@ describe("resolveRecipients", () => {
   });
 
   it("defaults email to opted-in when no preference row", async () => {
-    createTenantServerClientMock.mockResolvedValue(
+    createTenantAdminClientMock.mockReturnValue(
       makeSupabaseMock({
         profiles: {
           rows: [
@@ -182,7 +182,7 @@ describe("resolveRecipients", () => {
   });
 
   it("excludes suppressed contacts", async () => {
-    createTenantServerClientMock.mockResolvedValue(
+    createTenantAdminClientMock.mockReturnValue(
       makeSupabaseMock({
         profiles: {
           rows: [makeProfileRow({ id: "p-suppressed", email: "suppressed@example.com" })],
@@ -198,7 +198,7 @@ describe("resolveRecipients", () => {
   });
 
   it("includes non-suppressed contacts", async () => {
-    createTenantServerClientMock.mockResolvedValue(
+    createTenantAdminClientMock.mockReturnValue(
       makeSupabaseMock({
         profiles: {
           rows: [makeProfileRow({ id: "p-ok", email: "ok@example.com" })],
@@ -238,7 +238,7 @@ describe("resolveRecipients", () => {
       return pmChain;
     });
 
-    createTenantServerClientMock.mockResolvedValue({
+    createTenantAdminClientMock.mockReturnValue({
       from: vi.fn((table: string) => {
         if (table === "profiles") return profilesChain;
         if (table === "communication_suppressions") return suppressionsChain;
@@ -273,7 +273,7 @@ describe("resolveRecipients", () => {
       pmChain[method] = vi.fn(() => pmChain);
     }
 
-    createTenantServerClientMock.mockResolvedValue({
+    createTenantAdminClientMock.mockReturnValue({
       from: vi.fn((table: string) => {
         if (table === "profiles") return makeQueryChain([makeProfileRow({ id: "p-1" })]);
         if (table === "communication_suppressions") return makeQueryChain([]);
@@ -299,7 +299,7 @@ describe("resolveRecipients", () => {
     }
     // No attendance rows for profile-1 → should be filtered out
 
-    createTenantServerClientMock.mockResolvedValue({
+    createTenantAdminClientMock.mockReturnValue({
       from: vi.fn((table: string) => {
         if (table === "profiles") return makeQueryChain([makeProfileRow({ id: "p-1" })]);
         if (table === "communication_suppressions") return makeQueryChain([]);
@@ -323,7 +323,7 @@ describe("resolveRecipients", () => {
       attChain[method] = vi.fn(() => attChain);
     }
 
-    createTenantServerClientMock.mockResolvedValue({
+    createTenantAdminClientMock.mockReturnValue({
       from: vi.fn((table: string) => {
         if (table === "profiles") return makeQueryChain([makeProfileRow({ id: "p-1" })]);
         if (table === "communication_suppressions") return makeQueryChain([]);
@@ -342,7 +342,7 @@ describe("resolveRecipients", () => {
 
   it("returned contacts have the raw (unmasked) email address", async () => {
     // resolveRecipients returns real contact; masking happens in the action layer
-    createTenantServerClientMock.mockResolvedValue(
+    createTenantAdminClientMock.mockReturnValue(
       makeSupabaseMock({
         profiles: {
           rows: [makeProfileRow({ id: "p-1", email: "real@example.com" })],
@@ -358,7 +358,7 @@ describe("resolveRecipients", () => {
   });
 
   it("returned contacts have the raw phone for sms", async () => {
-    createTenantServerClientMock.mockResolvedValue(
+    createTenantAdminClientMock.mockReturnValue(
       makeSupabaseMock({
         profiles: {
           rows: [
@@ -380,7 +380,7 @@ describe("resolveRecipients", () => {
 
   it("throws when Supabase returns an error on the profiles query", async () => {
     const errChain = makeQueryChain([], { message: "db error" });
-    createTenantServerClientMock.mockResolvedValue({
+    createTenantAdminClientMock.mockReturnValue({
       from: vi.fn(() => errChain),
     });
 

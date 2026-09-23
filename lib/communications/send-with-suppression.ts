@@ -1,6 +1,6 @@
 import type { ChurchAppSession } from "@/lib/auth";
 import {
-  createTenantServerClient,
+  createTenantAdminClient,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
@@ -50,13 +50,20 @@ async function findSuppression(
     return result.rows[0] ?? null;
   }
 
-  const supabase = await createTenantServerClient();
+  // Admin client, scoped by the server-side church id: whether a recipient is
+  // suppressed must not depend on the sender's RLS visibility. Crons have no
+  // user at all, and roles that may send (secretary) are outside
+  // can_manage_church — both would read "not suppressed". See ADR 0022.
+  const supabase = createTenantAdminClient();
   const { data, error } = await supabase
     .from("communication_suppressions")
     .select("reason")
     .eq("church_id", churchId)
     .eq("channel", channel)
-    .ilike("contact", contact)
+    // Escaped so ilike is a case-insensitive equality: "_" and "%" in an
+    // address must not act as wildcards (over-matching another suppression,
+    // or several rows making maybeSingle throw).
+    .ilike("contact", escapeLikePattern(contact))
     .maybeSingle();
 
   if (error) {
@@ -102,7 +109,8 @@ async function writeSuppressedLog(input: {
     return result.rows[0]?.id;
   }
 
-  const supabase = await createTenantServerClient();
+  // Admin client for the same reason as findSuppression (ADR 0022).
+  const supabase = createTenantAdminClient();
   const { data, error } = await supabase
     .from("communication_logs")
     .insert({
@@ -137,7 +145,9 @@ export async function sendWithSuppression(
   );
 
   if (suppression) {
-    const logId = await writeSuppressedLog({
+    // recordLog: false means the caller (the retry path) records this outcome
+    // on its own row; a suppressed row per attempt would just duplicate it.
+    const logId = input.recordLog === false ? undefined : await writeSuppressedLog({
       session: input.session,
       recipientProfileId: input.recipientProfileId,
       recipientContact: input.recipientContact,
@@ -168,4 +178,8 @@ export async function sendWithSuppression(
     retryCount: input.retryCount,
     recordLog: input.recordLog,
   });
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
 }

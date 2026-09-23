@@ -8,6 +8,7 @@ const {
   twilioAdapterSendMock,
   generateUnsubscribeLinkMock,
   createTenantAdminClientMock,
+  createTenantServerClientMock,
   webpushSendNotificationMock,
 } = vi.hoisted(() => ({
   revalidatePathMock: vi.fn(),
@@ -17,6 +18,7 @@ const {
   twilioAdapterSendMock: vi.fn(),
   generateUnsubscribeLinkMock: vi.fn(),
   createTenantAdminClientMock: vi.fn(),
+  createTenantServerClientMock: vi.fn(),
   webpushSendNotificationMock: vi.fn(),
 }));
 
@@ -27,7 +29,7 @@ vi.mock("next/cache", () => ({
 vi.mock("@/lib/supabase/tenant", () => ({
   shouldUseLocalTenantFallback: shouldUseLocalTenantFallbackMock,
   queryTenantLocalDb: queryTenantLocalDbMock,
-  createTenantServerClient: vi.fn(),
+  createTenantServerClient: createTenantServerClientMock,
   createTenantAdminClient: createTenantAdminClientMock,
 }));
 
@@ -341,6 +343,111 @@ describe("queueCommunicationAction", () => {
         error: "Request timed out",
         errorCode: "timeout",
       });
+    });
+  });
+
+  // ── Supabase path (production) — ADR 0022 ──────────────────────────────────
+  describe("Supabase path: consent and audit log via the admin client", () => {
+    function mockAdmin(options: {
+      prefs?: Record<string, boolean> | null;
+      prefsError?: { message: string } | null;
+      insertError?: { message: string } | null;
+    }) {
+      const prefsEq = vi.fn();
+      const prefsChain = {
+        eq: prefsEq,
+        maybeSingle: vi.fn().mockResolvedValue({ data: options.prefs ?? null, error: options.prefsError ?? null }),
+      };
+      prefsEq.mockReturnValue(prefsChain);
+      const insertMock = vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue(
+            options.insertError
+              ? { data: null, error: options.insertError }
+              : { data: { id: "log-admin" }, error: null },
+          ),
+        }),
+      });
+      createTenantAdminClientMock.mockReturnValue({
+        from: vi.fn((table: string) =>
+          table === "notification_preferences"
+            ? { select: vi.fn().mockReturnValue(prefsChain) }
+            : { insert: insertMock },
+        ),
+      });
+      return { prefsEq, insertMock };
+    }
+
+    beforeEach(() => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+      twilioAdapterSendMock.mockResolvedValue({ accepted: true, providerMessageId: "tw-1" });
+    });
+
+    it("honours an SMS opt-in the sender's RLS could not see (no user session)", async () => {
+      const { prefsEq, insertMock } = mockAdmin({ prefs: { sms_opt_in: true } });
+
+      const result = await queueCommunicationAction({
+        session: makeSession("church-1", null),
+        recipientProfileId: "profile-2",
+        recipientContact: "+15555550100",
+        channel: "sms",
+        body: "Service moved to 11am",
+      });
+
+      expect(result).toMatchObject({ sent: true, logId: "log-admin" });
+      expect(twilioAdapterSendMock).toHaveBeenCalledTimes(1);
+      expect(createTenantServerClientMock).not.toHaveBeenCalled();
+      expect(prefsEq).toHaveBeenCalledWith("church_id", "church-1");
+      expect(prefsEq).toHaveBeenCalledWith("profile_id", "profile-2");
+      expect(insertMock).toHaveBeenCalledWith(expect.objectContaining({ church_id: "church-1", status: "sent" }));
+    });
+
+    it("honours an email opt-out instead of defaulting to opted in", async () => {
+      vi.stubEnv("UNSUBSCRIBE_SECRET", "test-secret-key");
+      mockAdmin({ prefs: { email_opt_in: false } });
+
+      const result = await queueCommunicationAction({
+        session: makeSession("church-1", null),
+        recipientProfileId: "profile-2",
+        recipientContact: "member@example.com",
+        channel: "email",
+        body: "Hello",
+      });
+
+      expect(result).toMatchObject({ sent: false, skipped: true, skipCode: "opted_out" });
+      expect(sendgridAdapterSendMock).not.toHaveBeenCalled();
+    });
+
+    it("fails closed when the consent record cannot be read", async () => {
+      mockAdmin({ prefsError: { message: "permission denied" } });
+
+      await expect(
+        queueCommunicationAction({
+          session: makeSession("church-1", null),
+          recipientProfileId: "profile-2",
+          recipientContact: "+15555550100",
+          channel: "sms",
+          body: "Hello",
+        }),
+      ).rejects.toThrow("Failed to read notification preferences");
+      expect(twilioAdapterSendMock).not.toHaveBeenCalled();
+    });
+
+    it("logs, but does not throw, when the audit-log insert fails after a send", async () => {
+      mockAdmin({ prefs: { sms_opt_in: true }, insertError: { message: "insert failed" } });
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const result = await queueCommunicationAction({
+        session: makeSession("church-1", null),
+        recipientProfileId: "profile-2",
+        recipientContact: "+15555550100",
+        channel: "sms",
+        body: "Hello",
+      });
+
+      expect(result).toMatchObject({ sent: true, logId: undefined });
+      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.any(String), "church-1", "insert failed");
+      consoleErrorSpy.mockRestore();
     });
   });
 });
