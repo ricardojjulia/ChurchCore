@@ -9,7 +9,7 @@
 
 This is a fresh single-commit branch cut from `main`, not accumulated history. It is small in files (3 source, 2 test, 3 docs) but changes the retry pipeline's behavior: when rows are written, what counts as terminal, and what gets dead-lettered. That puts it outside the small-isolated-fix exception in `improve-software.md` §0, so a full Council pass was run. It is diff-scoped, following the precedent of Reviews 13–15.
 
-Provenance matters here. All five findings this branch fixes were raised by GitHub's automated Copilot review on PR #143, and **none was raised by Council Review 12**, which approved that PR. This is the second time GitHub's own review caught what a Council round missed (the first was the finance-import mapped-code bug on the Review 13 PR, #145).
+Provenance matters here. All five findings this branch fixes were raised by GitHub's automated Copilot review on PR #143, and **none was raised by Council Review 12**, which approved that PR. This is the third time GitHub's own automated review caught what a Council round missed, after the `language-translation-skill` branch and the finance-import mapped-code bug on the Review 13 PR, #145.
 
 ## 1. Cross-Agent Consensus
 
