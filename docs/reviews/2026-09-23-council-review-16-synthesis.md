@@ -68,3 +68,13 @@ Failure-mode note for the standing synthesis-scrutiny lesson: this round's agent
 - [agent-2-route-page](2026-09-23-council-review-16-agent-2-route-page.md)
 - [agent-3-ux-shell](2026-09-23-council-review-16-agent-3-ux-shell.md)
 - [agent-4-feature-competitive](2026-09-23-council-review-16-agent-4-feature-competitive.md)
+
+## §7 Execution & Documenter sign-off
+
+The human approved P1, P2, and P3 as proposed in §4. All three were implemented in commit `4f2ce1c` (`fix: claim retries before send and route manual retry through the same path`): `retryCommunicationAction` now shares the cron's exported `attemptRetry()` (P1); the attempt is claimed via a guarded `retry_count` update before dispatch, and the new `updateSourceRow` helper dropped its local-fallback branch (P2); a `skipCode` field separates `recipient_opted_out` from `recipient_suppressed`, error text is truncated to 500 characters, and the source-row update guard gained a `church_id` check (P3).
+
+Re-verified after `4f2ce1c` by the Documenter: `npx vitest run` — **1611/1611 passed, 134 files**. `npx tsc --noEmit` clean, `npm run lint` 0 errors / 7 pre-existing unrelated warnings, `npm run build` clean (all per the orchestrator's report; the vitest count was independently re-run by the Documenter, not taken on faith).
+
+Follow-ups F1–F4 from §4 remain open, unstarted, in the stated order (F1 before F2). `DEVELOPMENT_PLAN.md`, `CHANGELOG.md`, `README.md`, the factory-run doc, and ADR 0006 have been updated to reflect P1–P3 and to record F1/F2 as open gaps.
+
+**Documenter sign-off:** granted. P1–P3 are implemented, tested, and verified; the docs and ADR now match the code's actual state (including the corrected Resend-not-wired framing); F1–F4 are recorded as open follow-up work, not silently dropped.
