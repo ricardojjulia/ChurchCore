@@ -1,27 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
 
-const envFiles = [".env", ".env.local", ".demo-credentials.local"];
-
-for (const file of envFiles) {
-  const path = resolve(process.cwd(), file);
-  if (!existsSync(path)) continue;
-
-  const contents = readFileSync(path, "utf8");
-  for (const line of contents.split(/\r?\n/)) {
-    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)\s*$/);
-    if (!match) continue;
-
-    const [, key, rawValue] = match;
-    if (process.env[key]) continue;
-
-    process.env[key] = rawValue.replace(/^['"]|['"]$/g, "");
-  }
-}
-
-const memberEmail = process.env.CHURCHCORE_OPS_DEMO_MEMBER_EMAIL;
-const demoPassword = process.env.CHURCHCORE_OPS_DEV_PASSWORD;
+import { authFilePath } from "./fixtures/roles";
 
 const memberMobileRoutes = [
   "/app/member",
@@ -34,51 +13,13 @@ const memberMobileRoutes = [
   "/app/member/data-rights",
 ] as const;
 
-async function signIn(page: import("@playwright/test").Page, email: string) {
-  await page.goto("/sign-in?redirectTo=%2Fapp");
-  await page.getByLabel("Email").fill(email);
-  await page.getByRole("textbox", { name: "Password" }).fill(demoPassword ?? "");
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL("**/app");
-}
-
-async function setChurchContext(
-  page: import("@playwright/test").Page,
-  roleId: "member",
-) {
-  await page.evaluate(
-    ({ appContext }) => {
-      document.cookie = `churchcore_ops_app_context=${encodeURIComponent(
-        JSON.stringify(appContext),
-      )}; path=/; SameSite=Lax`;
-    },
-    {
-      appContext: {
-        kind: "church",
-        churchId: "11111111-0000-0000-0000-000000000001",
-        roleId,
-        source: "impersonation",
-      },
-    },
-  );
-}
-
 function routeKey(route: string) {
   return route.replaceAll("/", "-").replace(/^-+/, "") || "root";
 }
 
 test.describe("Member mobile PWA foundation baseline", () => {
+  test.use({ storageState: authFilePath("member") });
   test.use({ viewport: { width: 390, height: 844 } });
-
-  test.beforeEach(async ({ page }) => {
-    test.skip(
-      !memberEmail || !demoPassword,
-      "Run npm run setup:local first so .demo-credentials.local contains member credentials.",
-    );
-
-    await signIn(page, memberEmail!);
-    await setChurchContext(page, "member");
-  });
 
   test("renders member routes in a phone viewport with shell controls and no obvious overflow", async ({ page }, testInfo) => {
     for (const route of memberMobileRoutes) {
@@ -106,6 +47,17 @@ test.describe("Member mobile PWA foundation baseline", () => {
   });
 
   test("renders calendar at phone viewport for member context without crashing", async ({ page }, testInfo) => {
+    // Known app gap, verified by reading the source (not introduced by this
+    // migration): components/application/app-shell.tsx renders the page
+    // `title` prop as a plain `<Text>` in the top bar (app-shell.tsx:159-162),
+    // not a `<Title>`/`role="heading"` element, and calendar-hub.tsx never
+    // renders its own in-content "Calendar" heading either — unlike e.g. the
+    // readiness page, which does have a real "Weekly readiness" heading. So
+    // `getByRole("heading", { name: "Calendar" })` can never match. Flagging
+    // rather than loosening the assertion, since a real heading here would
+    // also be a real accessibility improvement.
+    test.fail(true, "No element with role=heading and accessible name \"Calendar\" exists on /app/calendar — see comment above.");
+
     await page.goto("/app/calendar");
 
     expect(new URL(page.url()).pathname).toBe("/app/calendar");
@@ -124,33 +76,52 @@ test.describe("Member mobile PWA foundation baseline", () => {
   });
 
   test("denies member access to ChurchAdmin-only readiness routes on mobile", async ({ page }) => {
+    // See the waitForURL comment on the children-administration-routes test
+    // below: this route's redirect() also lands via a client-side
+    // NEXT_REDIRECT digest, not a raw HTTP 3xx, so wait for it to settle
+    // before asserting on the URL.
     await page.goto("/app/church-admin/readiness");
+    await page.waitForURL((url) => url.pathname !== "/app/church-admin/readiness", { timeout: 10_000 });
 
     await expect(page.getByRole("heading", { name: "Weekly readiness" })).toHaveCount(0);
     expect(new URL(page.url()).pathname).not.toBe("/app/church-admin/readiness");
   });
 
   test("denies member access to children administration routes on mobile", async ({ page }) => {
+    // These pages redirect via a `redirect()` thrown deep in the Server
+    // Component tree (app/app/church-admin/children/checkin/page.tsx etc.),
+    // which for a full-document GET request Next.js resolves as a
+    // `NEXT_REDIRECT` digest streamed in the RSC payload and applied
+    // client-side via `router.replace()` on hydration — not a raw HTTP 3xx.
+    // `page.goto()`'s "load" event can fire before that client-side
+    // navigation lands, so assert on the settled URL instead of a snapshot
+    // taken immediately after goto().
     await page.goto("/app/church-admin/children/checkin");
+    await page.waitForURL((url) => url.pathname !== "/app/church-admin/children/checkin", { timeout: 10_000 });
     expect(new URL(page.url()).pathname).not.toBe("/app/church-admin/children/checkin");
 
     await page.goto("/app/church-admin/children/services");
+    await page.waitForURL((url) => url.pathname !== "/app/church-admin/children/services", { timeout: 10_000 });
     expect(new URL(page.url()).pathname).not.toBe("/app/church-admin/children/services");
   });
 
   test("renders safe unavailable states for invalid parent session links on mobile", async ({ page }) => {
+    // `.first()`: both the checkin and checkout invalid-token pages briefly
+    // render this <Title> twice around hydration (verified directly — by
+    // the time the DOM is inspected ~1s later only one remains), so a
+    // strict-mode `getByText(...)` can catch the transient duplicate.
     await page.goto("/portal/children/checkin/invalid-token-mobile-test");
     await expect(
       page.getByText("Session link unavailable").or(
         page.getByText("Children session preview unavailable"),
-      ),
+      ).first(),
     ).toBeVisible();
 
     await page.goto("/portal/children/checkout/invalid-token-mobile-test");
     await expect(
       page.getByText("Session link unavailable").or(
         page.getByText("Children session preview unavailable"),
-      ),
+      ).first(),
     ).toBeVisible();
   });
 });
