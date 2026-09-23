@@ -10,6 +10,7 @@ const {
   insertConsentLogEntriesMock,
   sendWithSuppressionMock,
   retryEligibleCommunicationsMock,
+  attemptRetryMock,
   resolveRecipientsMock,
 } = vi.hoisted(() => {
   const revalidatePath = vi.fn();
@@ -21,6 +22,7 @@ const {
   const insertConsentLogEntries = vi.fn();
   const sendWithSuppression = vi.fn();
   const retryEligibleCommunications = vi.fn();
+  const attemptRetry = vi.fn();
   const resolveRecipients = vi.fn();
 
   return {
@@ -33,6 +35,7 @@ const {
     insertConsentLogEntriesMock: insertConsentLogEntries,
     sendWithSuppressionMock: sendWithSuppression,
     retryEligibleCommunicationsMock: retryEligibleCommunications,
+    attemptRetryMock: attemptRetry,
     resolveRecipientsMock: resolveRecipients,
   };
 });
@@ -62,6 +65,7 @@ vi.mock("@/lib/communications/send-with-suppression", () => ({
 
 vi.mock("@/lib/communications/retry-eligible", () => ({
   retryEligibleCommunications: retryEligibleCommunicationsMock,
+  attemptRetry: attemptRetryMock,
 }));
 
 vi.mock("@/lib/communications/recipient-resolver", () => ({
@@ -248,7 +252,7 @@ describe("communications actions", () => {
 
     const result = await retryCommunicationAction({ logId: "log-1" });
     expect(result).toEqual({ retried: false, reason: "Retry limit reached." });
-    expect(sendWithSuppressionMock).not.toHaveBeenCalled();
+    expect(attemptRetryMock).not.toHaveBeenCalled();
   });
 
   it("retries eligible failed communication", async () => {
@@ -276,11 +280,55 @@ describe("communications actions", () => {
       })
       .mockResolvedValueOnce({ rows: [{ email: "member@example.com", phone: null }] });
 
-    sendWithSuppressionMock.mockResolvedValue({ sent: true, skipped: false });
+    attemptRetryMock.mockResolvedValue({ kind: "sent" });
 
     const result = await retryCommunicationAction({ logId: "log-1" });
     expect(result).toEqual({ retried: true });
-    expect(sendWithSuppressionMock).toHaveBeenCalledTimes(1);
+    // Goes through the shared source-row path, never a direct (row-inserting) send.
+    expect(sendWithSuppressionMock).not.toHaveBeenCalled();
+    expect(attemptRetryMock).toHaveBeenCalledTimes(1);
+    expect(attemptRetryMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "log-1", church_id: "church-1", retry_count: 1 }),
+      "member@example.com",
+      expect.objectContaining({ userId: "pastor-1" }),
+    );
+  });
+
+  it.each([
+    [{ kind: "failed", error: "Request timed out" }, { retried: false, reason: "Request timed out" }],
+    [{ kind: "skipped", reason: "Recipient is suppressed." }, { retried: false, reason: "Recipient is suppressed." }],
+    [
+      { kind: "not_claimed" },
+      { retried: false, reason: "This communication was already retried. Refresh to see its latest status." },
+    ],
+  ])("maps attempt outcome %j to %j", async (outcome, expected) => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "pastor", church: { id: "church-1" } },
+      profile: { id: "profile-pastor" },
+      source: "supabase",
+      userId: "pastor-1",
+    });
+
+    queryTenantLocalDbMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "log-1",
+            recipient_id: "profile-2",
+            channel: "email",
+            subject: "Subject",
+            body_preview: "Body",
+            status: "failed",
+            error_code: "timeout",
+            retry_count: 1,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ email: "member@example.com", phone: null }] });
+
+    attemptRetryMock.mockResolvedValue(outcome);
+
+    expect(await retryCommunicationAction({ logId: "log-1" })).toEqual(expected);
   });
 
   it("rejects retry when the communication log is outside the active church scope", async () => {
@@ -296,7 +344,7 @@ describe("communications actions", () => {
     await expect(retryCommunicationAction({ logId: "foreign-log" })).rejects.toThrow(
       "Communication log not found.",
     );
-    expect(sendWithSuppressionMock).not.toHaveBeenCalled();
+    expect(attemptRetryMock).not.toHaveBeenCalled();
   });
 
   it("does not write suppression consent when no in-church profile matches", async () => {

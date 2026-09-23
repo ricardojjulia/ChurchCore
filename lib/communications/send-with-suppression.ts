@@ -150,6 +150,7 @@ export async function sendWithSuppression(
     return {
       sent: false,
       skipped: true,
+      skipCode: "suppressed",
       skipReason: `Recipient is suppressed for ${input.channel} (${suppression.reason}).`,
       logId,
     };

@@ -58,6 +58,8 @@ export interface QueueCommunicationResult {
   sent: boolean;
   skipped: boolean;
   skipReason?: string;
+  /** Why the send was skipped, for callers that record it (e.g. the DLQ). */
+  skipCode?: "opted_out" | "suppressed";
   externalId?: string;
   provider?: "sendgrid" | "twilio";
   logId?: string;
@@ -79,6 +81,7 @@ export async function queueCommunicationAction(
       return {
         sent: false,
         skipped: true,
+        skipCode: "opted_out",
         skipReason: `Recipient has opted out of ${input.channel} communications.`,
       };
     }

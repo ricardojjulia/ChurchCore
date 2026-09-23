@@ -20,6 +20,7 @@ import type {
 import { resolveRecipients } from "@/lib/communications/recipient-resolver";
 import { shouldRetryDelivery } from "@/lib/communications/provider-adapter";
 import {
+  attemptRetry,
   type RetryEligibleResult,
   retryEligibleCommunications,
 } from "@/lib/communications/retry-eligible";
@@ -240,23 +241,37 @@ export async function retryCommunicationAction(input: {
     throw new Error("Recipient contact information is missing.");
   }
 
-  const result = await sendWithSuppression({
+  // Same contract as the retry cron: claim the attempt on this row, dispatch
+  // without inserting a new log row, record the outcome here. Sending via
+  // sendWithSuppression directly would leave this row retry-eligible and let
+  // the cron re-send a message the operator already retried.
+  const outcome = await attemptRetry(
+    {
+      id: log.id,
+      church_id: churchId,
+      recipient_id: log.recipient_id,
+      channel: log.channel,
+      subject: log.subject,
+      body_preview: log.body_preview,
+      retry_count: log.retry_count,
+      error_code: log.error_code,
+    },
+    contact,
     session,
-    recipientProfileId: log.recipient_id,
-    recipientContact: contact,
-    channel: log.channel,
-    subject: log.subject ?? undefined,
-    body: log.body_preview ?? "",
-    retryCount: log.retry_count + 1,
-  });
+  );
 
   revalidatePath("/app/communications");
 
-  if (result.error) {
-    return { retried: false, reason: result.error };
+  switch (outcome.kind) {
+    case "sent":
+      return { retried: true };
+    case "failed":
+      return { retried: false, reason: outcome.error };
+    case "skipped":
+      return { retried: false, reason: outcome.reason };
+    case "not_claimed":
+      return { retried: false, reason: "This communication was already retried. Refresh to see its latest status." };
   }
-
-  return { retried: true };
 }
 
 export async function getCommunicationDeliveryEventsAction(input: {
