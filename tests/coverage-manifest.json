@@ -1,0 +1,2024 @@
+{
+  "generated_at": "2026-09-23T18:38:48.944Z",
+  "counts": {
+    "pages": 117,
+    "routes": 15,
+    "actions": 30
+  },
+  "pages": {
+    "/": {
+      "path": "/",
+      "file": "app/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/adr/backend-platform": {
+      "path": "/adr/backend-platform",
+      "file": "app/adr/backend-platform/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app": {
+      "path": "/app",
+      "file": "app/app/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/[role]": {
+      "path": "/app/[role]",
+      "file": "app/app/[role]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/calendar": {
+      "path": "/app/calendar",
+      "file": "app/app/calendar/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/accounts": {
+      "path": "/app/church-admin/accounts",
+      "file": "app/app/church-admin/accounts/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/attendance": {
+      "path": "/app/church-admin/attendance",
+      "file": "app/app/church-admin/attendance/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/attendance/import": {
+      "path": "/app/church-admin/attendance/import",
+      "file": "app/app/church-admin/attendance/import/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children": {
+      "path": "/app/church-admin/children",
+      "file": "app/app/church-admin/children/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children/checkin": {
+      "path": "/app/church-admin/children/checkin",
+      "file": "app/app/church-admin/children/checkin/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children/checkout": {
+      "path": "/app/church-admin/children/checkout",
+      "file": "app/app/church-admin/children/checkout/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children/children": {
+      "path": "/app/church-admin/children/children",
+      "file": "app/app/church-admin/children/children/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children/children/[id]": {
+      "path": "/app/church-admin/children/children/[id]",
+      "file": "app/app/church-admin/children/children/[id]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children/children/new": {
+      "path": "/app/church-admin/children/children/new",
+      "file": "app/app/church-admin/children/children/new/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children/dashboard": {
+      "path": "/app/church-admin/children/dashboard",
+      "file": "app/app/church-admin/children/dashboard/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children/emergency": {
+      "path": "/app/church-admin/children/emergency",
+      "file": "app/app/church-admin/children/emergency/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children/incidents": {
+      "path": "/app/church-admin/children/incidents",
+      "file": "app/app/church-admin/children/incidents/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children/incidents/new": {
+      "path": "/app/church-admin/children/incidents/new",
+      "file": "app/app/church-admin/children/incidents/new/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children/rooms": {
+      "path": "/app/church-admin/children/rooms",
+      "file": "app/app/church-admin/children/rooms/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children/roster/[serviceId]": {
+      "path": "/app/church-admin/children/roster/[serviceId]",
+      "file": "app/app/church-admin/children/roster/[serviceId]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children/services": {
+      "path": "/app/church-admin/children/services",
+      "file": "app/app/church-admin/children/services/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children/services/[id]": {
+      "path": "/app/church-admin/children/services/[id]",
+      "file": "app/app/church-admin/children/services/[id]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children/services/new": {
+      "path": "/app/church-admin/children/services/new",
+      "file": "app/app/church-admin/children/services/new/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children/settings": {
+      "path": "/app/church-admin/children/settings",
+      "file": "app/app/church-admin/children/settings/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/children/volunteers": {
+      "path": "/app/church-admin/children/volunteers",
+      "file": "app/app/church-admin/children/volunteers/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/events": {
+      "path": "/app/church-admin/events",
+      "file": "app/app/church-admin/events/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/events/[id]": {
+      "path": "/app/church-admin/events/[id]",
+      "file": "app/app/church-admin/events/[id]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/events/import": {
+      "path": "/app/church-admin/events/import",
+      "file": "app/app/church-admin/events/import/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/finance": {
+      "path": "/app/church-admin/finance",
+      "file": "app/app/church-admin/finance/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/finance/accounts": {
+      "path": "/app/church-admin/finance/accounts",
+      "file": "app/app/church-admin/finance/accounts/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/finance/accounts/[id]": {
+      "path": "/app/church-admin/finance/accounts/[id]",
+      "file": "app/app/church-admin/finance/accounts/[id]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/finance/budgets": {
+      "path": "/app/church-admin/finance/budgets",
+      "file": "app/app/church-admin/finance/budgets/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/finance/budgets/[id]": {
+      "path": "/app/church-admin/finance/budgets/[id]",
+      "file": "app/app/church-admin/finance/budgets/[id]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/finance/dashboard": {
+      "path": "/app/church-admin/finance/dashboard",
+      "file": "app/app/church-admin/finance/dashboard/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/finance/import": {
+      "path": "/app/church-admin/finance/import",
+      "file": "app/app/church-admin/finance/import/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/finance/journals": {
+      "path": "/app/church-admin/finance/journals",
+      "file": "app/app/church-admin/finance/journals/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/finance/journals/[id]": {
+      "path": "/app/church-admin/finance/journals/[id]",
+      "file": "app/app/church-admin/finance/journals/[id]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/finance/journals/new": {
+      "path": "/app/church-admin/finance/journals/new",
+      "file": "app/app/church-admin/finance/journals/new/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/finance/reports": {
+      "path": "/app/church-admin/finance/reports",
+      "file": "app/app/church-admin/finance/reports/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/giving": {
+      "path": "/app/church-admin/giving",
+      "file": "app/app/church-admin/giving/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/giving/import": {
+      "path": "/app/church-admin/giving/import",
+      "file": "app/app/church-admin/giving/import/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/groups": {
+      "path": "/app/church-admin/groups",
+      "file": "app/app/church-admin/groups/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/groups/[id]": {
+      "path": "/app/church-admin/groups/[id]",
+      "file": "app/app/church-admin/groups/[id]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/groups/import": {
+      "path": "/app/church-admin/groups/import",
+      "file": "app/app/church-admin/groups/import/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/localization": {
+      "path": "/app/church-admin/localization",
+      "file": "app/app/church-admin/localization/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/ministry": {
+      "path": "/app/church-admin/ministry",
+      "file": "app/app/church-admin/ministry/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/ministry/[id]": {
+      "path": "/app/church-admin/ministry/[id]",
+      "file": "app/app/church-admin/ministry/[id]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/ministry/overview": {
+      "path": "/app/church-admin/ministry/overview",
+      "file": "app/app/church-admin/ministry/overview/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/onboarding": {
+      "path": "/app/church-admin/onboarding",
+      "file": "app/app/church-admin/onboarding/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/operations": {
+      "path": "/app/church-admin/operations",
+      "file": "app/app/church-admin/operations/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/operations/documents": {
+      "path": "/app/church-admin/operations/documents",
+      "file": "app/app/church-admin/operations/documents/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/operations/documents/[id]": {
+      "path": "/app/church-admin/operations/documents/[id]",
+      "file": "app/app/church-admin/operations/documents/[id]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/operations/documents/[id]/edit": {
+      "path": "/app/church-admin/operations/documents/[id]/edit",
+      "file": "app/app/church-admin/operations/documents/[id]/edit/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/operations/documents/new": {
+      "path": "/app/church-admin/operations/documents/new",
+      "file": "app/app/church-admin/operations/documents/new/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/operations/onboarding": {
+      "path": "/app/church-admin/operations/onboarding",
+      "file": "app/app/church-admin/operations/onboarding/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/operations/onboarding/instances": {
+      "path": "/app/church-admin/operations/onboarding/instances",
+      "file": "app/app/church-admin/operations/onboarding/instances/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/operations/onboarding/instances/[id]": {
+      "path": "/app/church-admin/operations/onboarding/instances/[id]",
+      "file": "app/app/church-admin/operations/onboarding/instances/[id]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/operations/onboarding/instances/new": {
+      "path": "/app/church-admin/operations/onboarding/instances/new",
+      "file": "app/app/church-admin/operations/onboarding/instances/new/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/operations/onboarding/templates/[id]": {
+      "path": "/app/church-admin/operations/onboarding/templates/[id]",
+      "file": "app/app/church-admin/operations/onboarding/templates/[id]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/operations/onboarding/templates/[id]/edit": {
+      "path": "/app/church-admin/operations/onboarding/templates/[id]/edit",
+      "file": "app/app/church-admin/operations/onboarding/templates/[id]/edit/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/operations/onboarding/templates/new": {
+      "path": "/app/church-admin/operations/onboarding/templates/new",
+      "file": "app/app/church-admin/operations/onboarding/templates/new/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/people": {
+      "path": "/app/church-admin/people",
+      "file": "app/app/church-admin/people/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/people/import": {
+      "path": "/app/church-admin/people/import",
+      "file": "app/app/church-admin/people/import/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/readiness": {
+      "path": "/app/church-admin/readiness",
+      "file": "app/app/church-admin/readiness/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/settings": {
+      "path": "/app/church-admin/settings",
+      "file": "app/app/church-admin/settings/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/visitors": {
+      "path": "/app/church-admin/visitors",
+      "file": "app/app/church-admin/visitors/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/volunteers": {
+      "path": "/app/church-admin/volunteers",
+      "file": "app/app/church-admin/volunteers/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/volunteers/role-types": {
+      "path": "/app/church-admin/volunteers/role-types",
+      "file": "app/app/church-admin/volunteers/role-types/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/volunteers/schedules": {
+      "path": "/app/church-admin/volunteers/schedules",
+      "file": "app/app/church-admin/volunteers/schedules/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/volunteers/schedules/[id]": {
+      "path": "/app/church-admin/volunteers/schedules/[id]",
+      "file": "app/app/church-admin/volunteers/schedules/[id]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/church-admin/workflows": {
+      "path": "/app/church-admin/workflows",
+      "file": "app/app/church-admin/workflows/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/communications": {
+      "path": "/app/communications",
+      "file": "app/app/communications/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/communications/compose": {
+      "path": "/app/communications/compose",
+      "file": "app/app/communications/compose/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/communications/compose/[templateId]": {
+      "path": "/app/communications/compose/[templateId]",
+      "file": "app/app/communications/compose/[templateId]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/communications/history": {
+      "path": "/app/communications/history",
+      "file": "app/app/communications/history/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/communications/history/[logId]": {
+      "path": "/app/communications/history/[logId]",
+      "file": "app/app/communications/history/[logId]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/communications/templates": {
+      "path": "/app/communications/templates",
+      "file": "app/app/communications/templates/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/communications/templates/[id]/edit": {
+      "path": "/app/communications/templates/[id]/edit",
+      "file": "app/app/communications/templates/[id]/edit/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/communications/templates/new": {
+      "path": "/app/communications/templates/new",
+      "file": "app/app/communications/templates/new/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/council/forge": {
+      "path": "/app/council/forge",
+      "file": "app/app/council/forge/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/daily-desk": {
+      "path": "/app/daily-desk",
+      "file": "app/app/daily-desk/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/elders/discernment": {
+      "path": "/app/elders/discernment",
+      "file": "app/app/elders/discernment/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/elders/discernment/[sessionId]": {
+      "path": "/app/elders/discernment/[sessionId]",
+      "file": "app/app/elders/discernment/[sessionId]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/giving": {
+      "path": "/app/giving",
+      "file": "app/app/giving/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/member/data-rights": {
+      "path": "/app/member/data-rights",
+      "file": "app/app/member/data-rights/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/member/directory": {
+      "path": "/app/member/directory",
+      "file": "app/app/member/directory/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/member/family": {
+      "path": "/app/member/family",
+      "file": "app/app/member/family/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/member/giving": {
+      "path": "/app/member/giving",
+      "file": "app/app/member/giving/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/member/groups": {
+      "path": "/app/member/groups",
+      "file": "app/app/member/groups/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/member/ministries": {
+      "path": "/app/member/ministries",
+      "file": "app/app/member/ministries/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/member/schedule": {
+      "path": "/app/member/schedule",
+      "file": "app/app/member/schedule/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/pastor/bible-study": {
+      "path": "/app/pastor/bible-study",
+      "file": "app/app/pastor/bible-study/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/pastor/people": {
+      "path": "/app/pastor/people",
+      "file": "app/app/pastor/people/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/reports": {
+      "path": "/app/reports",
+      "file": "app/app/reports/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/reports/custom": {
+      "path": "/app/reports/custom",
+      "file": "app/app/reports/custom/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/reports/events": {
+      "path": "/app/reports/events",
+      "file": "app/app/reports/events/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/reports/giving": {
+      "path": "/app/reports/giving",
+      "file": "app/app/reports/giving/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/app/reports/members": {
+      "path": "/app/reports/members",
+      "file": "app/app/reports/members/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/calendar": {
+      "path": "/calendar",
+      "file": "app/calendar/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/control": {
+      "path": "/control",
+      "file": "app/control/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/control/[section]": {
+      "path": "/control/[section]",
+      "file": "app/control/[section]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/control/demo-feedback": {
+      "path": "/control/demo-feedback",
+      "file": "app/control/demo-feedback/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/control/launch-checklist": {
+      "path": "/control/launch-checklist",
+      "file": "app/control/launch-checklist/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/controll": {
+      "path": "/controll",
+      "file": "app/controll/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/give/[slug]": {
+      "path": "/give/[slug]",
+      "file": "app/give/[slug]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/hq": {
+      "path": "/hq",
+      "file": "app/hq/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/plan": {
+      "path": "/plan",
+      "file": "app/plan/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/portal": {
+      "path": "/portal",
+      "file": "app/portal/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/portal/children/checkin/[token]": {
+      "path": "/portal/children/checkin/[token]",
+      "file": "app/portal/children/checkin/[token]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/portal/children/checkout/[token]": {
+      "path": "/portal/children/checkout/[token]",
+      "file": "app/portal/children/checkout/[token]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/portal/events/register": {
+      "path": "/portal/events/register",
+      "file": "app/portal/events/register/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/portal/register": {
+      "path": "/portal/register",
+      "file": "app/portal/register/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/portal/volunteer/confirm/[token]": {
+      "path": "/portal/volunteer/confirm/[token]",
+      "file": "app/portal/volunteer/confirm/[token]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/portal/volunteer/schedule/[token]": {
+      "path": "/portal/volunteer/schedule/[token]",
+      "file": "app/portal/volunteer/schedule/[token]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/sign-in": {
+      "path": "/sign-in",
+      "file": "app/sign-in/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/workspace": {
+      "path": "/workspace",
+      "file": "app/workspace/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    },
+    "/workspace/[role]": {
+      "path": "/workspace/[role]",
+      "file": "app/workspace/[role]/page.tsx",
+      "allowedRoles": [],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "envGated": null,
+      "tests": [
+        "TODO"
+      ]
+    }
+  },
+  "routes": {
+    "/api/ai": {
+      "path": "/api/ai",
+      "file": "app/api/ai/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "session",
+      "tests": [
+        "tests/e2e/api-session-routes.spec.ts"
+      ]
+    },
+    "/api/control/db-health": {
+      "path": "/api/control/db-health",
+      "file": "app/api/control/db-health/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "control",
+      "tests": [
+        "tests/e2e/api-session-routes.spec.ts"
+      ]
+    },
+    "/api/control/demo-feedback/[id]": {
+      "path": "/api/control/demo-feedback/[id]",
+      "file": "app/api/control/demo-feedback/[id]/route.ts",
+      "methods": [
+        "PATCH"
+      ],
+      "auth": "control",
+      "tests": [
+        "tests/e2e/api-session-routes.spec.ts"
+      ]
+    },
+    "/api/cron/communications-retry": {
+      "path": "/api/cron/communications-retry",
+      "file": "app/api/cron/communications-retry/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "cron",
+      "tests": [
+        "tests/e2e/api-cron.spec.ts"
+      ]
+    },
+    "/api/cron/communications-scheduled": {
+      "path": "/api/cron/communications-scheduled",
+      "file": "app/api/cron/communications-scheduled/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "cron",
+      "tests": [
+        "tests/e2e/api-cron.spec.ts"
+      ]
+    },
+    "/api/cron/shepherd-ai": {
+      "path": "/api/cron/shepherd-ai",
+      "file": "app/api/cron/shepherd-ai/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "cron",
+      "tests": [
+        "tests/e2e/api-cron.spec.ts"
+      ]
+    },
+    "/api/demo/complete-payment": {
+      "path": "/api/demo/complete-payment",
+      "file": "app/api/demo/complete-payment/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "public",
+      "tests": [
+        "tests/e2e/api-demo.spec.ts"
+      ]
+    },
+    "/api/demo/feedback": {
+      "path": "/api/demo/feedback",
+      "file": "app/api/demo/feedback/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "public",
+      "tests": [
+        "tests/e2e/api-demo.spec.ts"
+      ]
+    },
+    "/api/push/subscribe": {
+      "path": "/api/push/subscribe",
+      "file": "app/api/push/subscribe/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "session",
+      "tests": [
+        "tests/e2e/api-session-routes.spec.ts"
+      ]
+    },
+    "/api/reports/custom": {
+      "path": "/api/reports/custom",
+      "file": "app/api/reports/custom/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "session",
+      "tests": [
+        "tests/e2e/api-session-routes.spec.ts"
+      ]
+    },
+    "/api/unsubscribe": {
+      "path": "/api/unsubscribe",
+      "file": "app/api/unsubscribe/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "hmac",
+      "tests": [
+        "tests/e2e/api-unsubscribe.spec.ts"
+      ]
+    },
+    "/api/webhooks/resend": {
+      "path": "/api/webhooks/resend",
+      "file": "app/api/webhooks/resend/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "webhook",
+      "tests": [
+        "tests/e2e/api-webhooks.spec.ts"
+      ]
+    },
+    "/api/webhooks/sendgrid": {
+      "path": "/api/webhooks/sendgrid",
+      "file": "app/api/webhooks/sendgrid/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "webhook",
+      "tests": [
+        "tests/e2e/api-webhooks.spec.ts"
+      ]
+    },
+    "/api/webhooks/stripe": {
+      "path": "/api/webhooks/stripe",
+      "file": "app/api/webhooks/stripe/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "webhook",
+      "tests": [
+        "tests/e2e/api-webhooks.spec.ts"
+      ]
+    },
+    "/api/webhooks/twilio": {
+      "path": "/api/webhooks/twilio",
+      "file": "app/api/webhooks/twilio/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "webhook",
+      "tests": [
+        "tests/e2e/api-webhooks.spec.ts"
+      ]
+    }
+  },
+  "actions": {
+    "app/app/actions.ts": {
+      "module": "app/app/actions.ts",
+      "exports": [
+        "acknowledgeBurnoutAlertAction",
+        "addChurchgoerAction",
+        "assignMembersToMinistryAction",
+        "calculateBurnoutAlertsAction",
+        "createCareAssignmentAction",
+        "createMinistryAction",
+        "createPastoralNoteAction",
+        "deactivateChurchAdminPersonAction",
+        "deleteMinistryAction",
+        "inviteUserAction",
+        "logKingdomImpactAction",
+        "mergeChurchAdminDuplicateAction",
+        "reassignChurchAdminPersonFamilyAction",
+        "removeMemberFromMinistryAction",
+        "reviewMemberChangeRequestAction",
+        "reviewVolunteerMatchAction",
+        "suggestVolunteersAction",
+        "updateCareAssignmentStatusAction",
+        "updateChurchAdminPeopleBulkAction",
+        "updateChurchAdminPersonAction",
+        "updateMemberProfileAction",
+        "updateMinistryAction",
+        "updateMinistryHealthScoreAction",
+        "updateMinistryVisionAction",
+        "upsertMemberFamilyAction"
+      ],
+      "tests": [
+        "app/app/actions.test.ts"
+      ]
+    },
+    "app/app/ccm-actions.ts": {
+      "module": "app/app/ccm-actions.ts",
+      "exports": [
+        "addCustodyRestrictionAction",
+        "assignVolunteerAction",
+        "checkinChildAction",
+        "checkoutChildAction",
+        "closeServiceAction",
+        "fileIncidentAction",
+        "openServiceAction",
+        "silentPageAction",
+        "transferChildAction",
+        "updateCheckinSessionLifecycleAction",
+        "updateChildProfileAction",
+        "upsertAuthorizedPickupAction"
+      ],
+      "tests": [
+        "app/app/ccm-actions.test.ts"
+      ]
+    },
+    "app/app/church-admin-actions.ts": {
+      "module": "app/app/church-admin-actions.ts",
+      "exports": [
+        "addRosterAssignmentAction",
+        "approveAccountRequestAction",
+        "approveRegistrationAction",
+        "cancelRegistrationAction",
+        "checkInRegistrantAction",
+        "createEventAction",
+        "initiateRegistrationRefundAction",
+        "quickAddVisitorCheckInAction",
+        "quickCheckInEventMemberAction",
+        "registerForEventAction",
+        "rejectAccountRequestAction",
+        "removeRosterAssignmentAction",
+        "toggleRosterConfirmationAction",
+        "updateChurchSettingsAction",
+        "updateRegistrationPaymentFollowUpAction",
+        "upsertRegistrationFormFieldsAction",
+        "upsertRegistrationSettingsAction"
+      ],
+      "tests": [
+        "app/app/church-admin-actions.test.ts",
+        "app/app/church-admin-refund-actions.test.ts"
+      ]
+    },
+    "app/app/church-admin/attendance/import/actions.ts": {
+      "module": "app/app/church-admin/attendance/import/actions.ts",
+      "exports": [
+        "commitAttendanceImportBatchAction",
+        "runAttendanceImportDryRunAction"
+      ],
+      "tests": [
+        "app/app/church-admin/attendance/import/actions.test.ts"
+      ]
+    },
+    "app/app/church-admin/events/import/actions.ts": {
+      "module": "app/app/church-admin/events/import/actions.ts",
+      "exports": [
+        "commitEventsImportBatchAction",
+        "runEventsImportDryRunAction"
+      ],
+      "tests": [
+        "app/app/church-admin/events/import/actions.test.ts"
+      ]
+    },
+    "app/app/church-admin/giving/import/actions.ts": {
+      "module": "app/app/church-admin/giving/import/actions.ts",
+      "exports": [
+        "commitGivingImportBatchAction",
+        "runGivingImportDryRunAction"
+      ],
+      "tests": [
+        "app/app/church-admin/giving/import/actions.test.ts"
+      ]
+    },
+    "app/app/church-admin/groups/import/actions.ts": {
+      "module": "app/app/church-admin/groups/import/actions.ts",
+      "exports": [
+        "commitGroupsImportBatchAction",
+        "runGroupsImportDryRunAction"
+      ],
+      "tests": [
+        "app/app/church-admin/groups/import/actions.test.ts"
+      ]
+    },
+    "app/app/church-admin/localization/actions.ts": {
+      "module": "app/app/church-admin/localization/actions.ts",
+      "exports": [
+        "activateVersion",
+        "approveVersion",
+        "assignReviewer",
+        "createCatalogVersion",
+        "createLocale",
+        "evaluateCiPolicy",
+        "getLocalizationStatus",
+        "listLocales",
+        "requestReview",
+        "rollbackVersion",
+        "submitReview",
+        "translateVersion",
+        "validateVersion"
+      ],
+      "tests": [
+        "app/app/church-admin/localization/actions.test.ts"
+      ]
+    },
+    "app/app/church-admin/onboarding/actions.ts": {
+      "module": "app/app/church-admin/onboarding/actions.ts",
+      "exports": [
+        "hydrateSandboxDataAction"
+      ],
+      "tests": [
+        "app/app/church-admin/onboarding/actions.test.ts"
+      ]
+    },
+    "app/app/church-admin/operations/actions.ts": {
+      "module": "app/app/church-admin/operations/actions.ts",
+      "exports": [
+        "closeOnboardingInstanceAction",
+        "completeOnboardingStepAction",
+        "createChurchDocumentAction",
+        "createOnboardingTemplateAction",
+        "deleteChurchDocumentAction",
+        "deleteOnboardingTemplateAction",
+        "getChurchDocumentAction",
+        "getOnboardingInstanceAction",
+        "getOnboardingTemplateAction",
+        "listChurchDocumentsAction",
+        "listOnboardingInstancesAction",
+        "listOnboardingTemplatesAction",
+        "startOnboardingInstanceAction",
+        "updateChurchDocumentAction",
+        "updateOnboardingTemplateAction"
+      ],
+      "tests": [
+        "app/app/church-admin/operations/actions.test.ts"
+      ]
+    },
+    "app/app/church-admin/people/import/actions.ts": {
+      "module": "app/app/church-admin/people/import/actions.ts",
+      "exports": [
+        "commitPeopleImportBatchAction",
+        "runPeopleImportDryRunAction"
+      ],
+      "tests": [
+        "app/app/church-admin/people/import/actions.test.ts"
+      ]
+    },
+    "app/app/communications-actions.ts": {
+      "module": "app/app/communications-actions.ts",
+      "exports": [
+        "broadcastMessageAction",
+        "cancelScheduledMessageAction",
+        "composeAndSendMessageAction",
+        "createTemplateAction",
+        "deleteTemplateAction",
+        "getCommunicationDeliveryEventsAction",
+        "getMessageAnalyticsAction",
+        "listCommunicationLogsAction",
+        "listTemplatesAction",
+        "previewRecipientsAction",
+        "retryAllEligibleAction",
+        "retryCommunicationAction",
+        "suppressContactAction",
+        "updateNotificationPreferencesAction",
+        "updateTemplateAction"
+      ],
+      "tests": [
+        "app/app/communications-actions.test.ts",
+        "app/app/communications-compose-actions.test.ts"
+      ]
+    },
+    "app/app/daily-desk-actions.ts": {
+      "module": "app/app/daily-desk-actions.ts",
+      "exports": [
+        "createDailyWorkItemAction",
+        "updateDailyWorkItemStatusAction"
+      ],
+      "tests": [
+        "app/app/daily-desk-actions.test.ts"
+      ]
+    },
+    "app/app/donations-actions.ts": {
+      "module": "app/app/donations-actions.ts",
+      "exports": [
+        "cancelRecurringDonationAction",
+        "confirmDonationAction",
+        "initiateDonationAction"
+      ],
+      "tests": [
+        "app/app/donations-actions.test.ts"
+      ]
+    },
+    "app/app/elders-actions.ts": {
+      "module": "app/app/elders-actions.ts",
+      "exports": [
+        "addElderNoteAction",
+        "addPrayerRequestAction",
+        "createCouncilNoteAction",
+        "createDiscernmentSessionAction",
+        "generateBibleStudyAnswerAction",
+        "generateSermonOutlineAction",
+        "generateWisdomPromptAction",
+        "markPrayedAction",
+        "updateCouncilNoteAction",
+        "updateDiscernmentSessionStatusAction"
+      ],
+      "tests": [
+        "app/app/elders-actions.test.ts"
+      ]
+    },
+    "app/app/finance-actions.ts": {
+      "module": "app/app/finance-actions.ts",
+      "exports": [
+        "createAccountAction",
+        "createBudgetAction",
+        "createJournalAction",
+        "deleteJournalDraftAction",
+        "importFinanceRowsAction",
+        "postJournalAction",
+        "updateAccountAction",
+        "upsertBudgetLinesAction",
+        "voidJournalAction"
+      ],
+      "tests": [
+        "app/app/finance-actions.test.ts"
+      ]
+    },
+    "app/app/giving-actions.ts": {
+      "module": "app/app/giving-actions.ts",
+      "exports": [
+        "postDonationToGlAction",
+        "upsertFundMappingAction",
+        "upsertGivingPageAction"
+      ],
+      "tests": [
+        "app/app/giving-actions.test.ts"
+      ]
+    },
+    "app/app/groups-actions.ts": {
+      "module": "app/app/groups-actions.ts",
+      "exports": [
+        "addFirstTimeVisitorAction",
+        "addGroupMemberAction",
+        "advanceVisitorWorkflowAction",
+        "createGroupAction",
+        "joinGroupAction",
+        "logGroupMeetingAction",
+        "logServiceAttendanceAction",
+        "recordAttendanceAction",
+        "removeGroupMemberAction",
+        "updateGroupAction"
+      ],
+      "tests": [
+        "app/app/groups-actions.test.ts"
+      ]
+    },
+    "app/app/member-actions.ts": {
+      "module": "app/app/member-actions.ts",
+      "exports": [
+        "memberMobileCheckInAction",
+        "memberRegisterForEventAction"
+      ],
+      "tests": [
+        "app/app/member-actions.test.ts"
+      ]
+    },
+    "app/app/shepherd-ai-actions.ts": {
+      "module": "app/app/shepherd-ai-actions.ts",
+      "exports": [
+        "assignWorkflowAction",
+        "completeWorkflowAction",
+        "deferWorkflowAction",
+        "dismissWorkflowAction",
+        "promoteSuggestionToWorkflowAction",
+        "recordWorkflowFeedbackAction",
+        "runShepherdAiEvaluationAction"
+      ],
+      "tests": [
+        "app/app/shepherd-ai-actions.test.ts"
+      ]
+    },
+    "app/app/volunteer-actions.ts": {
+      "module": "app/app/volunteer-actions.ts",
+      "exports": [
+        "addPlanPositionAction",
+        "addRunOfServiceItemAction",
+        "addSongToServicePlanAction",
+        "assignVolunteerAction",
+        "createRoleTypeAction",
+        "createServicePlanAction",
+        "createSongAndAddToServicePlanAction",
+        "deactivateRoleTypeAction",
+        "getPublicVolunteerScheduleByToken",
+        "getPublicVolunteerShiftByToken",
+        "logVolunteerHoursAction",
+        "removeAssignmentAction",
+        "removeServicePlanItemAction",
+        "reorderServicePlanItemsAction",
+        "respondToPublicShiftAction",
+        "respondToShiftAction",
+        "saveServicePlanTemplateAction",
+        "searchSongLibraryAction",
+        "sendVolunteerReminderAction",
+        "updateRoleTypeAction",
+        "updateServicePlanDetailsAction",
+        "updateServicePlanStatusAction"
+      ],
+      "tests": [
+        "app/app/volunteer-actions.test.ts"
+      ]
+    },
+    "app/calendar/actions.ts": {
+      "module": "app/calendar/actions.ts",
+      "exports": [
+        "createCalendarEventAction",
+        "deleteCalendarEventAction",
+        "persistCalendarBoardStateAction",
+        "respondToCalendarEventRsvpAction",
+        "updateCalendarEventAction"
+      ],
+      "tests": [
+        "app/calendar/actions.test.ts"
+      ]
+    },
+    "app/control/actions.ts": {
+      "module": "app/control/actions.ts",
+      "exports": [
+        "deleteTenantAction",
+        "eraseTenantDataAction",
+        "launchTenantViewAction",
+        "returnToControlPlaneAction",
+        "updateTenantAction"
+      ],
+      "tests": [
+        "app/control/actions.test.ts"
+      ]
+    },
+    "app/language-actions.ts": {
+      "module": "app/language-actions.ts",
+      "exports": [
+        "setLocaleAction"
+      ],
+      "tests": [
+        "app/language-actions.test.ts"
+      ]
+    },
+    "app/portal/actions.ts": {
+      "module": "app/portal/actions.ts",
+      "exports": [
+        "submitPortalAccountRequestAction",
+        "submitPublicEventRegistrationAction"
+      ],
+      "tests": [
+        "app/portal/actions.test.ts"
+      ]
+    },
+    "app/portal/children/actions.ts": {
+      "module": "app/portal/children/actions.ts",
+      "exports": [
+        "submitPublicChildCheckinAction",
+        "submitPublicChildCheckoutAction"
+      ],
+      "tests": [
+        "app/portal/children/actions.test.ts"
+      ]
+    },
+    "app/sign-in/actions.ts": {
+      "module": "app/sign-in/actions.ts",
+      "exports": [
+        "signInAction",
+        "signOutAction"
+      ],
+      "tests": [
+        "app/sign-in/actions.test.ts"
+      ]
+    },
+    "app/workspace/actions.ts": {
+      "module": "app/workspace/actions.ts",
+      "exports": [
+        "persistChurchAdminWorkspaceStateAction"
+      ],
+      "tests": [
+        "app/workspace/actions.test.ts"
+      ]
+    },
+    "lib/actions/erasure.ts": {
+      "module": "lib/actions/erasure.ts",
+      "exports": [
+        "eraseProfileData"
+      ],
+      "tests": [
+        "lib/actions/erasure.test.ts"
+      ]
+    },
+    "lib/compliance/data-rights-actions.ts": {
+      "module": "lib/compliance/data-rights-actions.ts",
+      "exports": [
+        "cancelDeletionRequestAction",
+        "generateDataExportAction",
+        "requestAccountDeletionAction",
+        "requestDataExportAction"
+      ],
+      "tests": [
+        "lib/compliance/data-rights-actions.test.ts"
+      ]
+    }
+  }
+}

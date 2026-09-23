@@ -25,6 +25,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Test-surface manifest check
+        run: npm run test:surfaces
+
       - name: Verify
         run: npm run check
 
@@ -39,6 +42,128 @@ jobs:
 
       - name: RLS audit
         run: npm run audit:rls
+
+      - name: Stop local Supabase
+        if: always()
+        run: npx supabase stop
+
+  e2e:
+    name: e2e (shard ${{ matrix.shard }}/4)
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      NEXT_PUBLIC_APP_URL: http://localhost:4200
+      NEXT_PUBLIC_DEMO_MODE: "true"
+      NEXT_PUBLIC_DEMO_VERSION: "ci"
+      # Dummy secrets only — no real provider credentials or sends in CI
+      # (Story A brief AC10/AC11). The webhook contract specs only assert
+      # rejection behavior, which requires *a* secret to be configured
+      # (see each adapter's verifyWebhookSignature), not a real one.
+      CRON_SECRET: ci-dummy-cron-secret
+      UNSUBSCRIBE_SECRET: ci-dummy-unsubscribe-secret
+      STRIPE_WEBHOOK_SECRET: whsec_ci_dummy_stripe
+      SENDGRID_WEBHOOK_VERIFICATION_KEY: ci-dummy-sendgrid-verification-key
+      TWILIO_AUTH_TOKEN: ci-dummy-twilio-auth-token
+      RESEND_WEBHOOK_SECRET: whsec_ci_dummy_resend
+      PASTORAL_ENCRYPTION_KEY: "J0f0kIeITUzzTmaDfAcCWQhbDYM2AMn/NNpo7APHfp0="
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(node -e "console.log(require('@playwright/test/package.json').version)")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright OS dependencies (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Start local Supabase
+        run: npx supabase start
+
+      - name: Apply migrations
+        run: npx supabase db reset
+
+      - name: Map local Supabase env vars onto app config names
+        # `supabase status -o env` names its output after the CLI's own
+        # conventions, not this app's — see lib/supabase/config.ts and
+        # .env.example. Reuses the single local stack for the control plane
+        # too (CONTROL_PLANE_* -> the same local URL/DB), per this story's
+        # brief, instead of a separate hosted control-plane project.
+        run: |
+          npx supabase status -o env > /tmp/supabase-status.env
+          set -a
+          # shellcheck disable=SC1091
+          source /tmp/supabase-status.env
+          set +a
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL}"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+            echo "TENANT_SUPABASE_URL=${API_URL}"
+            echo "TENANT_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}"
+            echo "TENANT_SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+            echo "TENANT_DB_URL=${DB_URL}"
+            echo "CONTROL_PLANE_SUPABASE_URL=${API_URL}"
+            echo "CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}"
+            echo "CONTROL_PLANE_SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+            echo "CONTROL_PLANE_DB_URL=${DB_URL}"
+          } >> "$GITHUB_ENV"
+
+      - name: Create dev users and seed
+        run: ./supabase/scripts/create-dev-users.sh
+
+      - name: Build
+        run: npm run build
+
+      - name: Server-reference manifest check
+        run: npm run check:server-reference-manifest
+
+      - name: Run Playwright (shard ${{ matrix.shard }}/4)
+        run: npx playwright test --shard=${{ matrix.shard }}/4
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-shard-${{ matrix.shard }}
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload Playwright test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-shard-${{ matrix.shard }}
+          path: test-results/
+          retention-days: 14
 
       - name: Stop local Supabase
         if: always()
