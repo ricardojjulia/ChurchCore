@@ -5,6 +5,7 @@ import {
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
 import { sendWithSuppression } from "@/lib/communications/send-with-suppression";
+import type { QueueCommunicationResult } from "@/lib/notifications/queue-communication";
 
 export type RetryEligibleResult = {
   selected: number;
@@ -59,17 +60,24 @@ export async function retryEligibleCommunications(
 
     if (contact === null) {
       skipped++;
-      // Increment retry_count so this row is not retried indefinitely if the
-      // profile is permanently missing, but do not change status.
-      await incrementRetryCountOnly(row);
+      // Consume the attempt so a permanently missing profile is not retried
+      // indefinitely, but do not change status.
+      await consumeAttemptWithoutSend(row, {
+        code: "recipient_missing",
+        message: "Recipient profile or contact detail not found.",
+      });
       continue;
     }
 
     // Synthetic session: profile.id = null is safe — sentBy accepts null.
     const syntheticSession = buildSyntheticSession(row.church_id);
 
+    let result: QueueCommunicationResult;
     try {
-      const result = await sendWithSuppression({
+      // recordLog: false — the outcome is recorded on this row below. Letting
+      // the dispatcher insert its own log would create a second failed,
+      // retry-eligible row for the same logical message on every failure.
+      result = await sendWithSuppression({
         session: syntheticSession,
         recipientProfileId: row.recipient_id,
         recipientContact: contact,
@@ -77,22 +85,32 @@ export async function retryEligibleCommunications(
         subject: row.subject ?? undefined,
         body: row.body_preview ?? "",
         retryCount: row.retry_count + 1,
+        recordLog: false,
       });
-
-      if (result.skipped) {
-        skipped++;
-        await incrementRetryCountOnly(row);
-      } else if (result.sent && !result.error) {
-        succeeded++;
-        await markSent(row);
-      } else {
-        failedAgain++;
-        await markFailedAgain(row, result.error ?? "unknown_error");
-      }
     } catch (err) {
       failedAgain++;
-      const code = err instanceof Error ? err.message.slice(0, 64) : "unknown_error";
-      await markFailedAgain(row, code);
+      await markFailedAgain(row, {
+        code: "unknown_error",
+        message: err instanceof Error ? err.message : String(err),
+      });
+      continue;
+    }
+
+    if (result.skipped) {
+      skipped++;
+      await consumeAttemptWithoutSend(row, {
+        code: "recipient_suppressed",
+        message: result.skipReason ?? "Recipient is suppressed.",
+      });
+    } else if (result.sent && !result.error) {
+      succeeded++;
+      await markSent(row, result);
+    } else {
+      failedAgain++;
+      await markFailedAgain(row, {
+        code: result.errorCode ?? "unknown_error",
+        message: result.error ?? "unknown_error",
+      });
     }
   }
 
@@ -198,64 +216,110 @@ async function resolveContact(row: EligibleRow): Promise<string | null> {
 
 // ── Update helpers ────────────────────────────────────────────────────────────
 
-async function markSent(row: EligibleRow): Promise<void> {
-  if (shouldUseLocalTenantFallback()) {
-    await queryTenantLocalDb(
-      `update public.communication_logs
-       set status = 'sent',
-           retry_count = retry_count + 1,
-           last_retry_at = now()
-       where id = $1
-         and retry_count < 3`,
-      [row.id],
-    );
-    return;
-  }
-
-  const admin = createTenantAdminClient();
-  await admin
-    .from("communication_logs")
-    .update({
-      status: "sent",
-      retry_count: row.retry_count + 1,
-      last_retry_at: new Date().toISOString(),
-    })
-    .eq("id", row.id)
-    .lt("retry_count", 3);
-}
-
 const MAX_RETRY_COUNT = 3;
 
-async function markFailedAgain(row: EligibleRow, errorCode: string): Promise<void> {
-  const newRetryCount = row.retry_count + 1;
+type AttemptError = { code: string; message: string };
 
-  if (shouldUseLocalTenantFallback()) {
-    await queryTenantLocalDb(
-      `update public.communication_logs
-       set status = 'failed',
-           retry_count = retry_count + 1,
-           last_retry_at = now(),
-           error_code = $2
-       where id = $1
-         and retry_count < 3`,
-      [row.id, errorCode],
-    );
-  } else {
+type LogPatch = Record<string, string | number | null>;
+
+/**
+ * Applies `patch` to the source communication_logs row, guarded on the
+ * retry_count this run selected so two overlapping runs cannot both consume
+ * the same attempt. Returns true only when the row was actually updated —
+ * callers must not record terminal state (DLQ) unless it was. Never throws:
+ * one failed bookkeeping write must not abort the rest of the run.
+ */
+async function updateSourceRow(row: EligibleRow, patch: LogPatch): Promise<boolean> {
+  try {
+    if (shouldUseLocalTenantFallback()) {
+      const columns = Object.keys(patch);
+      const assignments = columns.map((column, index) => `${column} = $${index + 3}`).join(", ");
+      const result = await queryTenantLocalDb<{ id: string }>(
+        `update public.communication_logs
+         set ${assignments}
+         where id = $1
+           and retry_count = $2
+         returning id`,
+        [row.id, row.retry_count, ...columns.map((column) => patch[column])],
+      );
+      return result.rows.length > 0;
+    }
+
     const admin = createTenantAdminClient();
-    await admin
+    const { data, error } = await admin
       .from("communication_logs")
-      .update({
-        status: "failed",
-        retry_count: newRetryCount,
-        last_retry_at: new Date().toISOString(),
-        error_code: errorCode,
-      })
+      .update(patch)
       .eq("id", row.id)
-      .lt("retry_count", 3);
+      .eq("retry_count", row.retry_count)
+      .select("id");
+
+    if (error) {
+      console.error(`Failed to update communication_log ${row.id} after retry: ${error.message}`);
+      return false;
+    }
+    return (data ?? []).length > 0;
+  } catch (err) {
+    console.error(`Failed to update communication_log ${row.id} after retry:`, err);
+    return false;
+  }
+}
+
+async function markSent(row: EligibleRow, result: QueueCommunicationResult): Promise<void> {
+  const now = new Date().toISOString();
+  const patch: LogPatch = {
+    status: "sent",
+    retry_count: row.retry_count + 1,
+    last_retry_at: now,
+    sent_at: now,
+  };
+  // Delivery webhooks match on provider_message_id / external_id, so the
+  // source row must carry the id of the attempt that actually went out.
+  if (result.provider) patch.provider = result.provider;
+  if (result.externalId) {
+    patch.provider_message_id = result.externalId;
+    patch.external_id = result.externalId;
   }
 
-  if (newRetryCount >= MAX_RETRY_COUNT) {
-    await moveToDeadLetterQueue(row, errorCode, newRetryCount);
+  await updateSourceRow(row, patch);
+}
+
+async function markFailedAgain(row: EligibleRow, failure: AttemptError): Promise<void> {
+  const newRetryCount = row.retry_count + 1;
+
+  const updated = await updateSourceRow(row, {
+    status: "failed",
+    retry_count: newRetryCount,
+    last_retry_at: new Date().toISOString(),
+    error_code: failure.code,
+    error_message: failure.message,
+  });
+
+  // A non-transient code drops the row out of the eligible query just as
+  // surely as exhausting the budget does, so both are terminal.
+  const terminal =
+    newRetryCount >= MAX_RETRY_COUNT || !TRANSIENT_ERROR_CODES.includes(failure.code);
+
+  if (updated && terminal) {
+    await moveToDeadLetterQueue(row, failure, newRetryCount);
+  }
+}
+
+/**
+ * Consumes a retry attempt without a send (missing recipient, suppressed).
+ * Status and error_code are left alone, so the row stays eligible until the
+ * budget runs out — at which point it is dead-lettered like any other
+ * exhausted retry.
+ */
+async function consumeAttemptWithoutSend(row: EligibleRow, reason: AttemptError): Promise<void> {
+  const newRetryCount = row.retry_count + 1;
+
+  const updated = await updateSourceRow(row, {
+    retry_count: newRetryCount,
+    last_retry_at: new Date().toISOString(),
+  });
+
+  if (updated && newRetryCount >= MAX_RETRY_COUNT) {
+    await moveToDeadLetterQueue(row, reason, newRetryCount);
   }
 }
 
@@ -266,17 +330,15 @@ async function markFailedAgain(row: EligibleRow, errorCode: string): Promise<voi
  * false today; the dual-path branches elsewhere in this file are legacy dead
  * code, not a pattern to extend).
  *
- * Deliberately never throws: it's called from inside markFailedAgain's own
- * try block in the caller's loop, and a throw here would be caught by that
- * same loop's catch clause, which calls markFailedAgain a second time —
- * double-counting failedAgain and double-writing communication_logs. The
- * primary record of exhaustion (communication_logs.status/retry_count) is
- * already durable by the time this runs; a failed DLQ write is a lost
- * observability record, not a lost retry-cron result, so log and move on.
+ * Only called after the source row update succeeded, so the primary record
+ * of exhaustion (communication_logs.status/retry_count) is already durable.
+ * Deliberately never throws: a failed DLQ write is a lost observability
+ * record, not a lost retry-cron result, so log and move on rather than abort
+ * the rest of the run.
  */
 async function moveToDeadLetterQueue(
   row: EligibleRow,
-  errorCode: string,
+  failure: AttemptError,
   attemptedCount: number,
 ): Promise<void> {
   try {
@@ -288,8 +350,8 @@ async function moveToDeadLetterQueue(
         channel: row.channel,
         recipient_id: row.recipient_id,
         attempted_count: attemptedCount,
-        last_error_code: errorCode,
-        last_error_message: errorCode,
+        last_error_code: failure.code,
+        last_error_message: failure.message,
         moved_to_dlq_at: new Date().toISOString(),
       },
       { onConflict: "communication_log_id" },
@@ -306,30 +368,6 @@ async function moveToDeadLetterQueue(
       err,
     );
   }
-}
-
-async function incrementRetryCountOnly(row: EligibleRow): Promise<void> {
-  if (shouldUseLocalTenantFallback()) {
-    await queryTenantLocalDb(
-      `update public.communication_logs
-       set retry_count = retry_count + 1,
-           last_retry_at = now()
-       where id = $1
-         and retry_count < 3`,
-      [row.id],
-    );
-    return;
-  }
-
-  const admin = createTenantAdminClient();
-  await admin
-    .from("communication_logs")
-    .update({
-      retry_count: row.retry_count + 1,
-      last_retry_at: new Date().toISOString(),
-    })
-    .eq("id", row.id)
-    .lt("retry_count", 3);
 }
 
 // ── Session builder ───────────────────────────────────────────────────────────

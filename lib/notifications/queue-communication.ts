@@ -45,6 +45,13 @@ export interface QueueCommunicationInput {
   /** ISO datetime string — if set, log is recorded but send is deferred. */
   scheduledFor?: string;
   retryCount?: number;
+  /**
+   * Set false when the caller already owns a communication_logs row for this
+   * message and will record the outcome on it itself (the retry cron). A new
+   * row here would be a second retry-eligible copy of the same message.
+   * Defaults to true.
+   */
+  recordLog?: boolean;
 }
 
 export interface QueueCommunicationResult {
@@ -52,8 +59,11 @@ export interface QueueCommunicationResult {
   skipped: boolean;
   skipReason?: string;
   externalId?: string;
+  provider?: "sendgrid" | "twilio";
   logId?: string;
   error?: string;
+  /** Provider error code (e.g. "timeout"), distinct from the `error` message. */
+  errorCode?: string;
 }
 
 export async function queueCommunicationAction(
@@ -132,7 +142,7 @@ export async function queueCommunicationAction(
       : "sent";
 
   // ── 3. Write audit log ────────────────────────────────────────
-  const logId = await writeLog({
+  const logId = input.recordLog === false ? undefined : await writeLog({
     churchId,
     sentBy: callerProfileId,
     recipientId: input.recipientProfileId,
@@ -156,8 +166,10 @@ export async function queueCommunicationAction(
     sent: !isScheduled && !sendError,
     skipped: false,
     externalId,
+    provider,
     logId,
     error: sendError,
+    errorCode: sendError ? errorCode : undefined,
   };
 }
 

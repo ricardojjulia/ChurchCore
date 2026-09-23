@@ -643,6 +643,7 @@ Current tracked follow-up:
 - ADR 0002 is now accepted in favor of separating control-plane and tenant data boundaries, including separate databases.
 - The current repo establishes the frontend shell, Supabase SSR auth foundation, boundary-aware control-plane and tenant data access wrappers, member portal, live calendar read path, initial multi-tenant schema scaffold, design system baseline, and release discipline expected for future feature work across RBAC portals, ministry operations, calendar workflows, and AI-assisted features.
 - Route-segment recovery: `app/{app,portal,control}/loading.tsx` render a shared `PageLoadingSkeleton` during server-side data fetches, and `app/{app,portal,control}/error.tsx` render a shared `PageErrorBoundary` (Sentry-reported, retryable via Next's `reset()`) for runtime errors at those three roots. A root `app/global-error.tsx` still catches anything that escapes all of the above, including errors in the root layout itself.
+- Communications retry: the retry cron (`lib/communications/retry-eligible.ts`) records every attempt's outcome on the original `communication_logs` row and dispatches with `recordLog: false`, so a retry never creates a second retry-eligible row. A message is dead-lettered to `communication_dlq` once its 3-attempt budget is spent or it fails with a non-transient code, and only after the source-row update succeeds.
 
 ## CI
 
