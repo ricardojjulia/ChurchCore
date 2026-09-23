@@ -7,7 +7,7 @@ import {
   getChurchAdminEventsList,
   getChurchAdminEventWorkspaceData,
 } from "@/lib/church-admin-events-data";
-import { getServicePlanDetail, getVolunteerPool } from "@/lib/volunteer-data";
+import { getRoleTypes, getServicePlanDetail, getVolunteerPool } from "@/lib/volunteer-data";
 import type { ServicePlanLinkedEventOps } from "@/lib/volunteer-types";
 
 export default async function ServicePlanDetailPage({
@@ -28,9 +28,10 @@ export default async function ServicePlanDetailPage({
   const detail = await getServicePlanDetail(session, id);
   if (!detail) notFound();
 
-  const [pool, events, linkedEventWorkspace] = await Promise.all([
+  const [pool, events, roleTypes, linkedEventWorkspace] = await Promise.all([
     getVolunteerPool(session, detail.plan.serviceDate),
     getChurchAdminEventsList(session),
+    getRoleTypes(session, { activeOnly: true }),
     detail.plan.eventId
       ? getChurchAdminEventWorkspaceData(session, detail.plan.eventId)
       : Promise.resolve(null),
@@ -49,6 +50,7 @@ export default async function ServicePlanDetailPage({
     { href: "/app/church-admin", label: "Home", description: "Church admin", icon: "Users" },
     { href: "/app/church-admin/volunteers", label: "Volunteers", description: "Directory & hours", icon: "Users" },
     { href: "/app/church-admin/volunteers/schedules", label: "Schedules", description: "Service plans", icon: "CalendarCheck", active: true },
+    { href: "/app/church-admin/volunteers/role-types", label: "Role Types", description: "Team roster taxonomy", icon: "ShieldCheck" },
   ];
 
   return (
@@ -65,7 +67,13 @@ export default async function ServicePlanDetailPage({
       navItems={NAV_ITEMS}
     >
       <div style={{ padding: "var(--mantine-spacing-md)" }}>
-        <ServicePlanBuilder detail={detail} events={events} pool={pool} linkedEventOps={linkedEventOps} />
+        <ServicePlanBuilder
+          detail={detail}
+          events={events}
+          pool={pool}
+          linkedEventOps={linkedEventOps}
+          roleTypes={roleTypes}
+        />
       </div>
     </ApplicationShell>
   );

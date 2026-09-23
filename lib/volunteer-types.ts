@@ -52,10 +52,31 @@ export type ServicePlanPosition = {
   id: string;
   planId: string;
   churchId: string;
+  roleTypeId: string;
+  // Live-joined from service_plan_role_types.name — never a stored copy, so
+  // a role-type rename is reflected immediately on every plan that
+  // references it. Contrast with VolunteerShift.title, which IS a
+  // point-in-time snapshot (see below).
   roleName: string;
+  requiredSkills: string[];
   quantityNeeded: number;
   ministryId: string | null;
   sortOrder: number;
+};
+
+// A church-wide, reusable service-plan role definition (e.g. "Sound Tech",
+// "Greeter"). Positions reference a role type by id; VolunteerShift.title
+// remains a separate point-in-time snapshot taken at assignment time, so
+// renaming or deactivating a role type never rewrites already-assigned
+// shift history.
+export type ServicePlanRoleType = {
+  id: string;
+  churchId: string;
+  name: string;
+  description: string | null;
+  requiredSkills: string[];
+  isActive: boolean;
+  createdAt: string;
 };
 
 export type VolunteerShift = {

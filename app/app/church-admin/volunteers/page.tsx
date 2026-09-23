@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/app/church-admin", label: "Home", description: "Church admin", icon: "Users" },
   { href: "/app/church-admin/volunteers", label: "Volunteers", description: "Directory & hours", icon: "Users", active: true },
   { href: "/app/church-admin/volunteers/schedules", label: "Schedules", description: "Service plans", icon: "CalendarCheck" },
+  { href: "/app/church-admin/volunteers/role-types", label: "Role Types", description: "Team roster taxonomy", icon: "ShieldCheck" },
 ];
 
 const ONE_YEAR_AGO = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
