@@ -74,3 +74,23 @@ ADR 0022 stands, but must be **amended in this branch**:
 - [agent-2-route-page](2026-09-23-council-review-17-agent-2-route-page.md)
 - [agent-3-ux-shell](2026-09-23-council-review-17-agent-3-ux-shell.md)
 - [agent-4-feature-competitive](2026-09-23-council-review-17-agent-4-feature-competitive.md)
+
+## §7 Execution & Documenter sign-off
+
+The human approved P1–P4. All four landed in commit `6e005d4`:
+
+- **P1:** `lib/notifications/queue-communication.ts` and `lib/actions/audit.ts` are now `import "server-only"` instead of `"use server"`. `pruneAuditLogsAction` was kept rather than deleted — ADR 0012's `pg_cron` retention lineage, and the function already has its own test; `server-only` closes the external HTTP path either way, per the implementation note in §4.
+- **P2:** `resolveRecipients` and `composeAndSendMessageAction`'s parent-log insert/close-out moved to the admin client under ADR 0022. Scheduled broadcasts now actually deliver on Supabase for the first time, SMS included (Twilio-billed); the cron marks a broadcast `failed`/`no_delivery` instead of `sent` when nobody was delivered; compose closes out its parent row (previously left `queued` indefinitely) and returns honest counts.
+- **P3:** per-recipient `try`/`catch` with honest sent/skipped/error counts in `broadcastMessageAction` and `composeAndSendMessageAction`; `writeSuppressedLog` honours `recordLog: false`; a thrown retry dispatch/lookup is recorded as `temporary_failure` (retries within budget) instead of dead-lettering immediately.
+- **P4:** the unsubscribe route checks its upsert `error`; `findSuppression`'s `ilike` escapes `%`/`_`; dead `lib/notifications/send-sms.ts` deleted; ADR 0022 corrected per §2 item 1.
+
+**Verification (independently re-run by the Documenter, not just taken from the implementation commit):**
+
+- `npx tsc --noEmit`: clean.
+- `npx vitest run`: **1629/1629 passed**, 135 test files.
+- `npm run lint`: 0 errors, 7 pre-existing unrelated warnings (unchanged baseline).
+- `npm run build`: clean.
+- Manifest check: `grep -o` for `queueCommunicationAction` / `logAuditEvent` / `pruneAuditLogsAction` against `.next/server/server-reference-manifest.json` after a fresh build returns no matches — all three are gone from the server-action surface.
+- Source check on the ADR's new rule: the two remaining `"use server"` exports under `lib/` (`lib/actions/erasure.ts`, `lib/compliance/data-rights-actions.ts`) both call `requireChurchSession` before doing anything else, so they correctly stay `"use server"` per §3's rule.
+
+**Sign-off:** F1 (Council Review 16) and P1–P4 (Council Review 17) are documented, verified, and ready to merge from the Documenter's side. `CHANGELOG.md`, `DEVELOPMENT_PLAN.md`, `README.md`, ADR 0022, this synthesis, and the prior factory-run doc's F1 entry are all updated to match what's actually in `6e005d4`. Open follow-ups (F2, F3, F4, F6, F7, F8) are carried forward, not silently dropped, with F4 flagged as needing to land before or with F2.
