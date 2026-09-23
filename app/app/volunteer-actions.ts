@@ -3,9 +3,10 @@
 import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 
-import { requireChurchSession } from "@/lib/auth";
+import { requireChurchSession, type ChurchAppSession } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/actions/audit";
 import { checkVolunteerBurnout } from "@/lib/burnout-calculator";
+import { getChurchSkillOptions } from "@/lib/volunteer-data";
 import {
   createTenantServerClient,
   createTenantAdminClient,
@@ -321,7 +322,18 @@ export async function createServicePlanAction(
     const planId = result.rows[0]?.id;
     if (!planId) return { ok: false, error: "Failed to create plan." };
 
-    // Apply template positions if provided
+    // Apply template positions if provided.
+    // KNOWN GAP (pre-existing, not introduced by Story 2, left as-is per that
+    // story's explicit scope): this local-fallback-only branch inserts
+    // service_plan_positions rows by role_name text, with no role_type_id —
+    // that column is now NOT NULL (Story 2's role-taxonomy migration), so
+    // this insert would fail against a live schema. This code path is dead
+    // in production (shouldUseLocalTenantFallback() is hardcoded to return
+    // false — see lib/supabase/tenant.ts), and the Supabase branch of this
+    // same action never implemented template application at all, so there is
+    // no live regression today. Resolving template-driven position creation
+    // to a role_type_id (by name lookup, on-the-fly creation, or otherwise)
+    // is left for a follow-up story rather than widening this one's scope.
     if (input.templateId) {
       const tmpl = await queryTenantLocalDb<{ positions: string }>(
         `select positions from public.service_plan_templates where id = $1 and church_id = $2`,
@@ -768,31 +780,356 @@ export async function updateServicePlanStatusAction(
   return { ok: true };
 }
 
+// ── Role Taxonomy & Team Roster (Story 2) ────────────────────
+// Church-wide, reusable service-plan role types (e.g. "Sound Tech",
+// "Greeter"). service_plan_positions references these by role_type_id;
+// display name is always resolved via a live join, never copied — unlike
+// volunteer_shifts.title, which remains an intentional point-in-time
+// snapshot taken at assignment time (see assignVolunteerAction below).
+
+export type CreateRoleTypeInput = {
+  name: string;
+  description?: string;
+  requiredSkills?: string[];
+};
+
+function duplicateRoleTypeNameError(name: string): string {
+  return `A role type named '${name}' already exists.`;
+}
+
+// Defense in depth, mirroring addPlanPositionAction's server-side
+// re-validation of client-supplied IDs: the MultiSelect UI is non-creatable
+// (sourced from getChurchSkillOptions), but that's a UI constraint, not a
+// server one. Reject any requiredSkills value that isn't currently a real
+// skill on file for this church, rather than trusting the client.
+async function validateRequiredSkills(
+  session: ChurchAppSession,
+  requiredSkills: string[],
+): Promise<string | null> {
+  if (requiredSkills.length === 0) return null;
+  const validSkills = new Set(await getChurchSkillOptions(session));
+  const invalid = requiredSkills.filter((skill) => !validSkills.has(skill));
+  if (invalid.length > 0) {
+    return `Unknown skill${invalid.length > 1 ? "s" : ""}: ${invalid.join(", ")}.`;
+  }
+  return null;
+}
+
+export async function createRoleTypeAction(
+  input: CreateRoleTypeInput,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const session = await requireServicePlanWriteAccess();
+  const churchId = session.appContext.church.id;
+  const profileId = session.profile.id;
+
+  const name = input.name?.trim() ?? "";
+  if (!name) {
+    return { ok: false, error: "Role name is required." };
+  }
+  const description = input.description?.trim() || null;
+  const requiredSkills = input.requiredSkills ?? [];
+
+  const skillsError = await validateRequiredSkills(session, requiredSkills);
+  if (skillsError) {
+    return { ok: false, error: skillsError };
+  }
+
+  if (shouldUseLocalTenantFallback()) {
+    let id: string | undefined;
+    try {
+      const result = await queryTenantLocalDb<{ id: string }>(
+        `insert into public.service_plan_role_types
+           (church_id, name, description, required_skills, created_by)
+         values ($1, $2, $3, $4, $5)
+         returning id`,
+        [churchId, name, description, requiredSkills, profileId],
+      );
+      id = result.rows[0]?.id;
+    } catch (err) {
+      const code = (err as { code?: string } | null | undefined)?.code;
+      if (code === "23505") {
+        return { ok: false, error: duplicateRoleTypeNameError(name) };
+      }
+      throw err;
+    }
+
+    if (!id) {
+      return { ok: false, error: "Failed to create role type." };
+    }
+
+    try {
+      await logAuditEvent({
+        tableName: "service_plan_role_types",
+        recordId: id,
+        operation: "INSERT",
+        actorId: profileId,
+        churchId,
+        actorRole: session.appContext.roleId,
+        newValues: { name, description, requiredSkills },
+      });
+    } catch (auditError) {
+      console.error("Failed to log service_plan_role_types create audit event (local fallback):", auditError);
+    }
+
+    revalidatePath(SCHEDULES_PATH);
+    return { ok: true, id };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("service_plan_role_types")
+    .insert({
+      church_id: churchId,
+      name,
+      description,
+      required_skills: requiredSkills,
+      created_by: profileId,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    if (error.code === "23505") {
+      return { ok: false, error: duplicateRoleTypeNameError(name) };
+    }
+    return { ok: false, error: error.message };
+  }
+  if (!data?.id) {
+    return { ok: false, error: "Failed to create role type." };
+  }
+
+  try {
+    await logAuditEvent({
+      tableName: "service_plan_role_types",
+      recordId: data.id,
+      operation: "INSERT",
+      actorId: profileId,
+      churchId,
+      actorRole: session.appContext.roleId,
+      newValues: { name, description, requiredSkills },
+    });
+  } catch (auditError) {
+    console.error("Failed to log service_plan_role_types create audit event:", auditError);
+  }
+
+  revalidatePath(SCHEDULES_PATH);
+  return { ok: true, id: data.id };
+}
+
+export type UpdateRoleTypeInput = {
+  roleTypeId: string;
+  name: string;
+  description?: string;
+  requiredSkills?: string[];
+};
+
+// No audit event on rename/edit — matching this module's existing
+// create-only audit asymmetry (Story 1's song_library only audits creates,
+// not edits either).
+export async function updateRoleTypeAction(
+  input: UpdateRoleTypeInput,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireServicePlanWriteAccess();
+  const churchId = session.appContext.church.id;
+
+  const name = input.name?.trim() ?? "";
+  if (!name) {
+    return { ok: false, error: "Role name is required." };
+  }
+  const description = input.description?.trim() || null;
+  const requiredSkills = input.requiredSkills ?? [];
+
+  const skillsError = await validateRequiredSkills(session, requiredSkills);
+  if (skillsError) {
+    return { ok: false, error: skillsError };
+  }
+
+  if (shouldUseLocalTenantFallback()) {
+    try {
+      const result = await queryTenantLocalDb<{ id: string }>(
+        `update public.service_plan_role_types
+         set name = $3, description = $4, required_skills = $5, updated_at = now()
+         where id = $1 and church_id = $2
+         returning id`,
+        [input.roleTypeId, churchId, name, description, requiredSkills],
+      );
+      if (!result.rows[0]?.id) {
+        return { ok: false, error: "Role type not found." };
+      }
+    } catch (err) {
+      const code = (err as { code?: string } | null | undefined)?.code;
+      if (code === "23505") {
+        return { ok: false, error: duplicateRoleTypeNameError(name) };
+      }
+      throw err;
+    }
+
+    revalidatePath(SCHEDULES_PATH);
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase
+    .from("service_plan_role_types")
+    .update({ name, description, required_skills: requiredSkills })
+    .eq("id", input.roleTypeId)
+    .eq("church_id", churchId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === "23505") {
+      return { ok: false, error: duplicateRoleTypeNameError(name) };
+    }
+    return { ok: false, error: error.message };
+  }
+  if (!data?.id) {
+    return { ok: false, error: "Role type not found." };
+  }
+
+  revalidatePath(SCHEDULES_PATH);
+  return { ok: true };
+}
+
+// Naturally idempotent — two concurrent/duplicate calls both land on
+// is_active = false with no error on the second call. Each call still
+// audit-logs its own old/new is_active transition.
+export async function deactivateRoleTypeAction(
+  roleTypeId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireServicePlanWriteAccess();
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const current = await queryTenantLocalDb<{ is_active: boolean }>(
+      `select is_active from public.service_plan_role_types where id = $1 and church_id = $2 limit 1`,
+      [roleTypeId, churchId],
+    );
+    const wasActive = current.rows[0]?.is_active;
+    if (wasActive === undefined) {
+      return { ok: false, error: "Role type not found." };
+    }
+
+    await queryTenantLocalDb(
+      `update public.service_plan_role_types
+       set is_active = false, updated_at = now()
+       where id = $1 and church_id = $2`,
+      [roleTypeId, churchId],
+    );
+
+    try {
+      await logAuditEvent({
+        tableName: "service_plan_role_types",
+        recordId: roleTypeId,
+        operation: "UPDATE",
+        actorId: session.profile.id,
+        churchId,
+        actorRole: session.appContext.roleId,
+        oldValues: { isActive: wasActive },
+        newValues: { isActive: false },
+      });
+    } catch (auditError) {
+      console.error("Failed to log service_plan_role_types deactivate audit event (local fallback):", auditError);
+    }
+
+    revalidatePath(SCHEDULES_PATH);
+    return { ok: true };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data: current } = await supabase
+    .from("service_plan_role_types")
+    .select("is_active")
+    .eq("id", roleTypeId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  if (!current) {
+    return { ok: false, error: "Role type not found." };
+  }
+
+  const { error } = await supabase
+    .from("service_plan_role_types")
+    .update({ is_active: false })
+    .eq("id", roleTypeId)
+    .eq("church_id", churchId);
+
+  if (error) return { ok: false, error: error.message };
+
+  try {
+    await logAuditEvent({
+      tableName: "service_plan_role_types",
+      recordId: roleTypeId,
+      operation: "UPDATE",
+      actorId: session.profile.id,
+      churchId,
+      actorRole: session.appContext.roleId,
+      oldValues: { isActive: current.is_active },
+      newValues: { isActive: false },
+    });
+  } catch (auditError) {
+    console.error("Failed to log service_plan_role_types deactivate audit event:", auditError);
+  }
+
+  revalidatePath(SCHEDULES_PATH);
+  return { ok: true };
+}
+
 // ── Add position to plan ─────────────────────────────────────
+// roleTypeId must reference an active service_plan_role_types row scoped to
+// this church — validated on BOTH paths below (defense in depth: the server
+// must not trust the UI only offering active role types).
 
 export async function addPlanPositionAction(input: {
   planId: string;
-  roleName: string;
+  roleTypeId: string;
   quantityNeeded: number;
   sortOrder?: number;
 }): Promise<{ ok: boolean; id?: string; error?: string }> {
   const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
 
+  const plan = await fetchServicePlanForWrite(churchId, input.planId);
+  if (!plan) {
+    return { ok: false, error: "Service plan not found." };
+  }
+
   if (shouldUseLocalTenantFallback()) {
+    const roleTypeCheck = await queryTenantLocalDb<{ id: string }>(
+      `select id from public.service_plan_role_types
+       where id = $1 and church_id = $2 and is_active = true
+       limit 1`,
+      [input.roleTypeId, churchId],
+    );
+    if (!roleTypeCheck.rows[0]?.id) {
+      return { ok: false, error: "A valid, active role type is required." };
+    }
+
     const result = await queryTenantLocalDb<{ id: string }>(
-      `insert into public.service_plan_positions (plan_id, church_id, role_name, quantity_needed, sort_order)
+      `insert into public.service_plan_positions (plan_id, church_id, role_type_id, quantity_needed, sort_order)
        values ($1, $2, $3, $4, $5)
        returning id`,
-      [input.planId, churchId, input.roleName.trim(), input.quantityNeeded, input.sortOrder ?? 0],
+      [input.planId, churchId, input.roleTypeId, input.quantityNeeded, input.sortOrder ?? 0],
     );
     revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
     return { ok: true, id: result.rows[0]?.id };
   }
 
   const supabase = await createTenantServerClient();
+  const { data: roleType } = await supabase
+    .from("service_plan_role_types")
+    .select("id")
+    .eq("id", input.roleTypeId)
+    .eq("church_id", churchId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!roleType?.id) {
+    return { ok: false, error: "A valid, active role type is required." };
+  }
+
   const { data, error } = await supabase.from("service_plan_positions").insert({
-    plan_id: input.planId, church_id: churchId, role_name: input.roleName.trim(),
+    plan_id: input.planId, church_id: churchId, role_type_id: input.roleTypeId,
     quantity_needed: input.quantityNeeded, sort_order: input.sortOrder ?? 0,
   }).select("id").single();
   if (error) return { ok: false, error: error.message };

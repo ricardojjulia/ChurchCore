@@ -65,6 +65,7 @@ import {
   quickCheckInEventMemberAction,
 } from "@/app/app/church-admin-actions";
 import type {
+  ConfirmationStatus,
   ServicePlanDetail,
   ServicePlanEventOption,
   ServicePlanItem,
@@ -126,6 +127,132 @@ const STATUS_COLOR: Record<string, string> = {
 const CONFIRM_COLOR: Record<string, string> = {
   pending: "yellow", confirmed: "green", declined: "red", substitute: "orange",
 };
+
+// ── Team roster (scan view) ──────────────────────────────────
+// One row per quantityNeeded slot per position, not one row per filled
+// shift — a position needing 3 with 1 filled renders 3 rows (1 filled + 2
+// flagged "Unassigned"), so gaps are always visible rather than only
+// implied by a missing row. Declined shifts don't occupy a slot, matching
+// this file's existing `filled` semantics elsewhere (positions with a
+// declined shift still count that slot as open).
+type RosterRow = {
+  key: string;
+  roleName: string;
+  volunteerName: string | null;
+  confirmationStatus: ConfirmationStatus | null;
+};
+
+function buildRosterRows(positions: ServicePlanDetail["positions"]): RosterRow[] {
+  const rows: RosterRow[] = [];
+  for (const pos of positions) {
+    const activeShifts = pos.shifts.filter((s) => s.confirmationStatus !== "declined");
+    for (let i = 0; i < pos.quantityNeeded; i++) {
+      const shift = activeShifts[i];
+      rows.push({
+        key: `${pos.id}-${i}`,
+        roleName: pos.roleName,
+        volunteerName: shift?.volunteerName ?? null,
+        confirmationStatus: shift?.confirmationStatus ?? null,
+      });
+    }
+  }
+  return rows;
+}
+
+// ── Skill-based ranking (assign modal) ───────────────────────
+// Case-insensitive count of how many of a position's role type's
+// requiredSkills a given volunteer's own skills satisfy. Purely
+// informational/ranking — never used to filter the pool (see filteredPool).
+function countMatchedSkills(volunteerSkills: string[], requiredSkills: string[]): number {
+  if (requiredSkills.length === 0) return 0;
+  const skillSet = new Set(volunteerSkills.map((s) => s.toLowerCase()));
+  return requiredSkills.filter((skill) => skillSet.has(skill.toLowerCase())).length;
+}
+
+// "Open" (not "Unassigned") for the status column — the Volunteer column
+// already says "Unassigned" for these rows, so this avoids repeating the
+// same word twice in one row while still visually flagging the gap (never a
+// blank cell) with a color distinct from the four real confirmation states.
+function RosterStatusBadge({ status }: { status: ConfirmationStatus | null }) {
+  if (!status) {
+    return <Badge size="sm" color="gray" variant="light">Open</Badge>;
+  }
+  return (
+    <Badge size="sm" color={CONFIRM_COLOR[status]} variant="dot" tt="capitalize">
+      {status}
+    </Badge>
+  );
+}
+
+function RosterTable({ positions }: { positions: ServicePlanDetail["positions"] }) {
+  if (positions.length === 0) {
+    return (
+      <Paper withBorder radius="md" p="md" data-testid="team-roster">
+        <Title order={4} size="h5" mb="xs">Team Roster</Title>
+        <Text size="sm" c="dimmed">No positions yet — add positions to build a roster.</Text>
+      </Paper>
+    );
+  }
+
+  const rows = buildRosterRows(positions);
+
+  return (
+    <Paper withBorder radius="md" p="md" data-testid="team-roster">
+      <Title order={4} size="h5" mb="sm">Team Roster</Title>
+
+      {/* Desktop: table */}
+      <Table visibleFrom="sm" highlightOnHover>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Role</Table.Th>
+            <Table.Th>Volunteer</Table.Th>
+            <Table.Th>Status</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {rows.map((row) => (
+            <Table.Tr key={row.key}>
+              <Table.Td><Text size="sm" fw={500}>{row.roleName}</Text></Table.Td>
+              <Table.Td>
+                {row.volunteerName ? (
+                  <Text size="sm">{row.volunteerName}</Text>
+                ) : (
+                  <Text size="sm" c="dimmed" fs="italic">Unassigned</Text>
+                )}
+              </Table.Td>
+              <Table.Td><RosterStatusBadge status={row.confirmationStatus} /></Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+
+      {/* Mobile: stacked cards */}
+      <Stack hiddenFrom="sm" gap="xs">
+        {rows.map((row) => (
+          <Paper
+            key={row.key}
+            withBorder
+            p="sm"
+            radius="sm"
+            style={row.volunteerName ? undefined : { borderStyle: "dashed" }}
+          >
+            <Group justify="space-between" wrap="nowrap" align="flex-start">
+              <Stack gap={2}>
+                <Text size="sm" fw={600}>{row.roleName}</Text>
+                {row.volunteerName ? (
+                  <Text size="sm">{row.volunteerName}</Text>
+                ) : (
+                  <Text size="sm" c="dimmed" fs="italic">Unassigned</Text>
+                )}
+              </Stack>
+              <RosterStatusBadge status={row.confirmationStatus} />
+            </Group>
+          </Paper>
+        ))}
+      </Stack>
+    </Paper>
+  );
+}
 
 // ── Service plans list ───────────────────────────────────────
 
@@ -533,11 +660,13 @@ export function ServicePlanBuilder({
   events,
   pool,
   linkedEventOps: initialLinkedEventOps,
+  roleTypes = [],
 }: {
   detail: ServicePlanDetail;
   events: ServicePlanEventOption[];
   pool: VolunteerPoolEntry[];
   linkedEventOps: ServicePlanLinkedEventOps | null;
+  roleTypes?: Array<{ id: string; name: string }>;
 }) {
   const [detail, setDetail] = useState(initialDetail);
   const [linkedEventOps, setLinkedEventOps] = useState(initialLinkedEventOps);
@@ -545,7 +674,9 @@ export function ServicePlanBuilder({
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showAddPosition, setShowAddPosition] = useState(false);
   const [showRunItemForm, setShowRunItemForm] = useState(false);
-  const [posForm, setPosForm] = useState({ roleName: "", quantityNeeded: 1 });
+  const [posForm, setPosForm] = useState({ roleTypeId: "", quantityNeeded: 1 });
+  const [posFormError, setPosFormError] = useState<string | null>(null);
+  const roleTypeNameById = new Map(roleTypes.map((rt) => [rt.id, rt.name]));
   const [detailsForm, setDetailsForm] = useState({
     name: initialDetail.plan.name,
     eventId: initialDetail.plan.eventId ?? "",
@@ -604,7 +735,11 @@ export function ServicePlanBuilder({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  const [assignTarget, setAssignTarget] = useState<{ positionId: string; roleName: string } | null>(null);
+  const [assignTarget, setAssignTarget] = useState<{
+    positionId: string;
+    roleName: string;
+    requiredSkills: string[];
+  } | null>(null);
   const [volunteerSearch, setVolunteerSearch] = useState("");
   const [burnoutConfirmation, setBurnoutConfirmation] = useState<{
     profileId: string;
@@ -625,10 +760,27 @@ export function ServicePlanBuilder({
     ? eventOptions.find((event) => event.value === detail.plan.eventId) ?? null
     : null;
 
-  const filteredPool = pool.filter((v) =>
+  const assignTargetRequiredSkills = assignTarget?.requiredSkills ?? [];
+
+  const searchedPool = pool.filter((v) =>
     !volunteerSearch ||
     [v.fullName, v.email].filter(Boolean).join(" ").toLowerCase().includes(volunteerSearch.toLowerCase())
   );
+
+  // Skill-based ranking is informational only — never filters anyone out of
+  // the pool. A required skill matching no current volunteer leaves the
+  // pool exactly as-is (everyone shows, unbadged, in name order). A role
+  // type with no required skills also leaves the pool unranked, matching
+  // this file's Story 1 baseline behavior (regression-guarded by tests).
+  const filteredPool =
+    assignTargetRequiredSkills.length === 0
+      ? searchedPool
+      : [...searchedPool].sort((a, b) => {
+          const aMatches = countMatchedSkills(a.skills, assignTargetRequiredSkills);
+          const bMatches = countMatchedSkills(b.skills, assignTargetRequiredSkills);
+          if (aMatches !== bMatches) return bMatches - aMatches;
+          return a.fullName.localeCompare(b.fullName);
+        });
   const rosterProfileIds = new Set(linkedEventOps?.rosterProfileIds ?? []);
   const attendanceProfileIds = new Set(linkedEventOps?.attendanceProfileIds ?? []);
 
@@ -1064,10 +1216,15 @@ export function ServicePlanBuilder({
   }
 
   function handleAddPosition() {
-    if (!posForm.roleName.trim()) return;
+    if (!posForm.roleTypeId) {
+      setPosFormError("Select a role type.");
+      return;
+    }
+    setPosFormError(null);
+    const roleName = roleTypeNameById.get(posForm.roleTypeId) ?? "";
     startTransition(async () => {
       const res = await addPlanPositionAction({
-        planId: detail.plan.id, roleName: posForm.roleName, quantityNeeded: posForm.quantityNeeded,
+        planId: detail.plan.id, roleTypeId: posForm.roleTypeId, quantityNeeded: posForm.quantityNeeded,
         sortOrder: detail.positions.length,
       });
       if (res.ok && res.id) {
@@ -1075,15 +1232,22 @@ export function ServicePlanBuilder({
           ...d,
           positions: [...d.positions, {
             id: res.id!, planId: d.plan.id, churchId: d.plan.churchId,
-            roleName: posForm.roleName, quantityNeeded: posForm.quantityNeeded,
+            roleTypeId: posForm.roleTypeId,
+            // Optimistic only — the picker only carries { id, name }, not the
+            // role type's requiredSkills, so skill-based ranking for a
+            // freshly-added position falls back to unranked until the next
+            // server refetch (getServicePlanDetail live-joins it). Matches
+            // this file's existing pattern of intentionally-partial
+            // optimistic inserts elsewhere (e.g. handleAddRunItem).
+            roleName, requiredSkills: [], quantityNeeded: posForm.quantityNeeded,
             ministryId: null, sortOrder: d.positions.length,
             shifts: [], filled: 0, pending: 0,
           }],
         }));
         setShowAddPosition(false);
-        setPosForm({ roleName: "", quantityNeeded: 1 });
+        setPosForm({ roleTypeId: "", quantityNeeded: 1 });
       } else {
-        setMsg({ type: "error", text: res.error ?? "Failed." });
+        setPosFormError(res.error ?? "Failed to add position.");
       }
     });
   }
@@ -1839,14 +2003,38 @@ export function ServicePlanBuilder({
         </Alert>
       )}
 
+      <RosterTable positions={detail.positions} />
+
       {/* Positions */}
       <Group justify="space-between">
         <Title order={4} size="h5">Positions</Title>
-        <Button size="xs" leftSection={<Plus size={13} />} variant="default"
-          onClick={() => setShowAddPosition(true)}>
-          Add Position
-        </Button>
+        {roleTypes.length > 0 ? (
+          <Button size="xs" leftSection={<Plus size={13} />} variant="default"
+            onClick={() => setShowAddPosition(true)}>
+            Add Position
+          </Button>
+        ) : null}
       </Group>
+
+      {roleTypes.length === 0 ? (
+        <Alert color="blue" radius="sm" title="No role types yet">
+          <Stack gap="xs">
+            <Text size="sm">
+              Create a role type (e.g. Worship Leader, Sound Tech, Greeter) before adding positions to this plan.
+            </Text>
+            <Group>
+              <Button
+                component={Link}
+                href="/app/church-admin/volunteers/role-types"
+                size="xs"
+                variant="light"
+              >
+                Manage role types
+              </Button>
+            </Group>
+          </Stack>
+        </Alert>
+      ) : null}
 
       {detail.positions.length === 0 ? (
         <Text size="sm" c="dimmed">No positions yet. Add positions to start scheduling volunteers.</Text>
@@ -1864,7 +2052,9 @@ export function ServicePlanBuilder({
                 </Badge>
               </Group>
               <Button size="xs" leftSection={<UserPlus size={13} />}
-                onClick={() => setAssignTarget({ positionId: pos.id, roleName: pos.roleName })}
+                onClick={() => setAssignTarget({
+                  positionId: pos.id, roleName: pos.roleName, requiredSkills: pos.requiredSkills,
+                })}
                 disabled={pos.filled >= pos.quantityNeeded}>
                 Assign
               </Button>
@@ -1963,14 +2153,30 @@ export function ServicePlanBuilder({
       )}
 
       {/* Add position modal */}
-      <Modal opened={showAddPosition} onClose={() => setShowAddPosition(false)} title="Add Position" centered>
+      <Modal
+        opened={showAddPosition}
+        onClose={() => { setShowAddPosition(false); setPosFormError(null); }}
+        title="Add Position"
+        centered
+        transitionProps={{ duration: 0 }}
+      >
         <Stack gap="sm">
-          <TextInput label="Role name" placeholder="Worship Leader, Sound Tech, Greeter…" required
-            value={posForm.roleName} onChange={(e) => setPosForm((f) => ({ ...f, roleName: e.target.value }))} />
+          <Select
+            label="Role type"
+            placeholder="Choose a role type"
+            required
+            data={roleTypes.map((rt) => ({ value: rt.id, label: rt.name }))}
+            value={posForm.roleTypeId || null}
+            error={posFormError}
+            onChange={(v) => {
+              setPosFormError(null);
+              setPosForm((f) => ({ ...f, roleTypeId: v ?? "" }));
+            }}
+          />
           <NumberInput label="Quantity needed" min={1} max={50}
             value={posForm.quantityNeeded} onChange={(v) => setPosForm((f) => ({ ...f, quantityNeeded: Number(v) }))} />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setShowAddPosition(false)}>Cancel</Button>
+            <Button variant="default" onClick={() => { setShowAddPosition(false); setPosFormError(null); }}>Cancel</Button>
             <Button onClick={handleAddPosition} loading={isPending}>Add</Button>
           </Group>
         </Stack>
@@ -1982,6 +2188,7 @@ export function ServicePlanBuilder({
         onClose={() => { setAssignTarget(null); setVolunteerSearch(""); }}
         title={`Assign volunteer — ${assignTarget?.roleName}`}
         size="lg" centered
+        transitionProps={{ duration: 0 }}
       >
         <Stack gap="sm">
           <TextInput
@@ -1991,33 +2198,41 @@ export function ServicePlanBuilder({
             leftSection={<UserCheck size={15} />}
           />
           <Stack gap="xs" style={{ maxHeight: 360, overflowY: "auto" }}>
-            {filteredPool.slice(0, 20).map((v) => (
-              <Paper key={v.profileId} withBorder p="sm" radius="sm">
-                <Group justify="space-between">
-                  <Stack gap={2}>
-                    <Group gap="xs">
-                      <Text size="sm" fw={600}>{v.fullName}</Text>
-                      {v.isBlocked && <Badge size="xs" color="red">Blocked date</Badge>}
-                      {v.recentShiftCount >= 3 && (
-                        <Badge size="xs" color="yellow">{v.recentShiftCount} shifts (30d)</Badge>
-                      )}
-                    </Group>
-                    <Text size="xs" c="dimmed">{v.email ?? "No email"}</Text>
-                    {v.skills.length > 0 && (
-                      <Group gap={4}>
-                        {v.skills.slice(0, 4).map((s) => (
-                          <Badge key={s} size="xs" variant="outline">{s}</Badge>
-                        ))}
+            {filteredPool.slice(0, 20).map((v) => {
+              const matchedSkillCount = countMatchedSkills(v.skills, assignTargetRequiredSkills);
+              return (
+                <Paper key={v.profileId} withBorder p="sm" radius="sm">
+                  <Group justify="space-between">
+                    <Stack gap={2}>
+                      <Group gap="xs">
+                        <Text size="sm" fw={600}>{v.fullName}</Text>
+                        {assignTargetRequiredSkills.length > 0 && matchedSkillCount > 0 && (
+                          <Badge size="xs" color="teal" variant="light">
+                            {matchedSkillCount}/{assignTargetRequiredSkills.length} skills
+                          </Badge>
+                        )}
+                        {v.isBlocked && <Badge size="xs" color="red">Blocked date</Badge>}
+                        {v.recentShiftCount >= 3 && (
+                          <Badge size="xs" color="yellow">{v.recentShiftCount} shifts (30d)</Badge>
+                        )}
                       </Group>
-                    )}
-                  </Stack>
-                  <Button size="xs" onClick={() => handleAssign(v.profileId, v.fullName)}
-                    loading={isPending} disabled={v.isBlocked}>
-                    Assign
-                  </Button>
-                </Group>
-              </Paper>
-            ))}
+                      <Text size="xs" c="dimmed">{v.email ?? "No email"}</Text>
+                      {v.skills.length > 0 && (
+                        <Group gap={4}>
+                          {v.skills.slice(0, 4).map((s) => (
+                            <Badge key={s} size="xs" variant="outline">{s}</Badge>
+                          ))}
+                        </Group>
+                      )}
+                    </Stack>
+                    <Button size="xs" onClick={() => handleAssign(v.profileId, v.fullName)}
+                      loading={isPending} disabled={v.isBlocked}>
+                      Assign
+                    </Button>
+                  </Group>
+                </Paper>
+              );
+            })}
             {filteredPool.length === 0 && (
               <Text size="sm" c="dimmed" ta="center" py="md">
                 <Link2Off size={16} /> No volunteers found.
@@ -2033,6 +2248,7 @@ export function ServicePlanBuilder({
         title="Volunteer Burnout Warning"
         radius="md"
         centered
+        transitionProps={{ duration: 0 }}
       >
         <Stack gap="md">
           <Text size="sm">

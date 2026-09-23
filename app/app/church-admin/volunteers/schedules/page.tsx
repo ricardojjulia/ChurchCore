@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/app/church-admin", label: "Home", description: "Church admin", icon: "Users" },
   { href: "/app/church-admin/volunteers", label: "Volunteers", description: "Directory & hours", icon: "Users" },
   { href: "/app/church-admin/volunteers/schedules", label: "Schedules", description: "Service plans", icon: "CalendarCheck", active: true },
+  { href: "/app/church-admin/volunteers/role-types", label: "Role Types", description: "Team roster taxonomy", icon: "ShieldCheck" },
 ];
 
 export default async function ServicePlansPage() {

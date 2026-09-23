@@ -11,6 +11,7 @@ const {
   getChurchAdminEventWorkspaceDataMock,
   getServicePlanDetailMock,
   getVolunteerPoolMock,
+  getRoleTypesMock,
   applicationShellMock,
   builderMock,
 } = vi.hoisted(() => ({
@@ -25,6 +26,7 @@ const {
   getChurchAdminEventWorkspaceDataMock: vi.fn(),
   getServicePlanDetailMock: vi.fn(),
   getVolunteerPoolMock: vi.fn(),
+  getRoleTypesMock: vi.fn(),
   applicationShellMock: vi.fn(({ title, description, children }: { title: string; description: string; children: React.ReactNode }) => (
     <div>
       <h1>{title}</h1>
@@ -52,6 +54,7 @@ vi.mock("@/lib/church-admin-events-data", () => ({
 vi.mock("@/lib/volunteer-data", () => ({
   getServicePlanDetail: getServicePlanDetailMock,
   getVolunteerPool: getVolunteerPoolMock,
+  getRoleTypes: getRoleTypesMock,
 }));
 
 vi.mock("@/components/application/app-shell", () => ({
@@ -75,6 +78,7 @@ describe("service plan detail page", () => {
       plan: { id: "plan-1", name: "Sunday Worship", serviceDate: "2026-04-21", eventId: "event-1" },
     });
     getVolunteerPoolMock.mockResolvedValue([{ profileId: "member-1" }]);
+    getRoleTypesMock.mockResolvedValue([{ id: "role-1", name: "Greeter" }]);
     getChurchAdminEventsListMock.mockResolvedValue([{ id: "event-1", title: "Sunday Worship", startsAt: "2026-04-21T09:00:00Z" }]);
     getChurchAdminEventWorkspaceDataMock.mockResolvedValue({
       event: { id: "event-1", title: "Sunday Worship" },
@@ -126,6 +130,7 @@ describe("service plan detail page", () => {
           attendanceProfileIds: ["member-2"],
         },
         pool: [{ profileId: "member-1" }],
+        roleTypes: [{ id: "role-1", name: "Greeter" }],
       },
       undefined,
     );
@@ -145,6 +150,7 @@ describe("service plan detail page", () => {
         events: [{ id: "event-1", title: "Sunday Worship", startsAt: "2026-04-21T09:00:00Z" }],
         linkedEventOps: null,
         pool: [{ profileId: "member-1" }],
+        roleTypes: [{ id: "role-1", name: "Greeter" }],
       },
       undefined,
     );

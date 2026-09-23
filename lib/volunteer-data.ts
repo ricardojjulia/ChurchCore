@@ -12,6 +12,7 @@ import type {
   ServicePlanDetail,
   ServicePlanItem,
   ServicePlanListEntry,
+  ServicePlanRoleType,
   ServicePlanTemplate,
   VolunteerDirectoryEntry,
   VolunteerPoolEntry,
@@ -128,13 +129,17 @@ export async function getServicePlanDetail(
         [planId, churchId],
       ),
       queryTenantLocalDb<{
-        id: string; plan_id: string; church_id: string;
-        role_name: string; quantity_needed: number; ministry_id: string | null; sort_order: number;
+        id: string; plan_id: string; church_id: string; role_type_id: string;
+        role_name: string; required_skills: string[];
+        quantity_needed: number; ministry_id: string | null; sort_order: number;
       }>(
-        `select id, plan_id, church_id, role_name, quantity_needed, ministry_id, sort_order
-         from public.service_plan_positions
-         where plan_id = $1
-         order by sort_order, role_name`,
+        `select spp.id, spp.plan_id, spp.church_id, spp.role_type_id,
+                spr.name as role_name, coalesce(spr.required_skills, '{}') as required_skills,
+                spp.quantity_needed, spp.ministry_id, spp.sort_order
+         from public.service_plan_positions spp
+         join public.service_plan_role_types spr on spr.id = spp.role_type_id
+         where spp.plan_id = $1
+         order by spp.sort_order, spr.name`,
         [planId],
       ),
       queryTenantLocalDb<{
@@ -229,7 +234,9 @@ export async function getServicePlanDetail(
       const posShifts = shifts.filter((s) => s.positionId === pos.id);
       return {
         id: pos.id, planId: pos.plan_id, churchId: pos.church_id,
-        roleName: pos.role_name, quantityNeeded: pos.quantity_needed,
+        roleTypeId: pos.role_type_id,
+        roleName: pos.role_name, requiredSkills: pos.required_skills ?? [],
+        quantityNeeded: pos.quantity_needed,
         ministryId: pos.ministry_id, sortOrder: pos.sort_order,
         shifts: posShifts,
         filled: posShifts.filter((s) => s.confirmationStatus !== "declined").length,
@@ -263,7 +270,9 @@ export async function getServicePlanDetail(
   if (!plan) return null;
 
   const [{ data: positions }, { data: shifts }, { data: runItems }] = await Promise.all([
-    supabase.from("service_plan_positions").select("*").eq("plan_id", planId).order("sort_order"),
+    supabase.from("service_plan_positions")
+      .select("*, service_plan_role_types(name, required_skills)")
+      .eq("plan_id", planId).order("sort_order"),
     supabase.from("volunteer_shifts").select("*, profiles(full_name, email, phone)")
       .eq("plan_id", planId).order("starts_at"),
     supabase.from("service_plan_items").select("*").eq("plan_id", planId).order("sort_order"),
@@ -312,9 +321,14 @@ export async function getServicePlanDetail(
 
   const mappedPositions = (positions ?? []).map((pos) => {
     const posShifts = mappedShifts.filter((s) => s.positionId === pos.id);
+    const roleType = (pos.service_plan_role_types as unknown) as
+      | { name: string; required_skills: string[] }
+      | null;
     return {
       id: pos.id, planId: pos.plan_id, churchId: pos.church_id,
-      roleName: pos.role_name, quantityNeeded: pos.quantity_needed,
+      roleTypeId: pos.role_type_id,
+      roleName: roleType?.name ?? "", requiredSkills: roleType?.required_skills ?? [],
+      quantityNeeded: pos.quantity_needed,
       ministryId: pos.ministry_id, sortOrder: pos.sort_order,
       shifts: posShifts,
       filled: posShifts.filter((s) => s.confirmationStatus !== "declined").length,
@@ -356,6 +370,108 @@ export async function getServicePlanDetail(
     confirmedCount: mappedPositions.reduce((sum, p) => sum + p.shifts.filter((s) => s.confirmationStatus === "confirmed").length, 0),
     pendingCount: mappedPositions.reduce((sum, p) => sum + p.pending, 0),
   };
+}
+
+// ── Role types (taxonomy) ────────────────────────────────────
+// activeOnly=true returns the lightweight { id, name } shape that feeds the
+// Add Position picker (only active role types should be offered there —
+// addPlanPositionAction independently re-validates this server-side).
+// activeOnly=false (default) returns the full row for the management table.
+
+export async function getRoleTypes(
+  session: ChurchAppSession,
+  options: { activeOnly: true },
+): Promise<Array<{ id: string; name: string }>>;
+export async function getRoleTypes(
+  session: ChurchAppSession,
+  options?: { activeOnly?: false },
+): Promise<ServicePlanRoleType[]>;
+export async function getRoleTypes(
+  session: ChurchAppSession,
+  { activeOnly = false }: { activeOnly?: boolean } = {},
+): Promise<Array<{ id: string; name: string }> | ServicePlanRoleType[]> {
+  if (!hasTenantBackendEnv() || session.source !== "supabase") return [];
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    if (activeOnly) {
+      const result = await queryTenantLocalDb<{ id: string; name: string }>(
+        `select id, name from public.service_plan_role_types
+         where church_id = $1 and is_active = true
+         order by name`,
+        [churchId],
+      );
+      return result.rows;
+    }
+
+    const result = await queryTenantLocalDb<{
+      id: string; church_id: string; name: string; description: string | null;
+      required_skills: string[]; is_active: boolean; created_at: string;
+    }>(
+      `select id, church_id, name, description, required_skills, is_active, created_at
+       from public.service_plan_role_types
+       where church_id = $1
+       order by name`,
+      [churchId],
+    );
+    return result.rows.map((r) => ({
+      id: r.id, churchId: r.church_id, name: r.name, description: r.description,
+      requiredSkills: r.required_skills ?? [], isActive: r.is_active, createdAt: r.created_at,
+    }));
+  }
+
+  const supabase = await createTenantServerClient();
+
+  if (activeOnly) {
+    const { data } = await supabase
+      .from("service_plan_role_types")
+      .select("id, name")
+      .eq("church_id", churchId)
+      .eq("is_active", true)
+      .order("name");
+    return data ?? [];
+  }
+
+  const { data } = await supabase
+    .from("service_plan_role_types")
+    .select("id, church_id, name, description, required_skills, is_active, created_at")
+    .eq("church_id", churchId)
+    .order("name");
+
+  return (data ?? []).map((r) => ({
+    id: r.id, churchId: r.church_id, name: r.name, description: r.description,
+    requiredSkills: r.required_skills ?? [], isActive: r.is_active, createdAt: r.created_at,
+  }));
+}
+
+// ── Church-wide skill options ────────────────────────────────
+// Flattens volunteer_profiles.skills (one small row per volunteer) into a
+// de-duplicated, sorted list for the role-type "required skills" picker.
+// Deliberately done in JS, not a Postgres unnest()/RPC — no precedent for
+// that in this codebase and the source dataset is already small and
+// church-scoped.
+
+export async function getChurchSkillOptions(session: ChurchAppSession): Promise<string[]> {
+  if (!hasTenantBackendEnv() || session.source !== "supabase") return [];
+  const churchId = session.appContext.church.id;
+
+  if (shouldUseLocalTenantFallback()) {
+    const result = await queryTenantLocalDb<{ skills: string[] }>(
+      `select skills from public.volunteer_profiles where church_id = $1`,
+      [churchId],
+    );
+    const flattened = result.rows.flatMap((r) => r.skills ?? []);
+    return Array.from(new Set(flattened)).sort();
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data } = await supabase
+    .from("volunteer_profiles")
+    .select("skills")
+    .eq("church_id", churchId);
+
+  const flattened = (data ?? []).flatMap((r: { skills: string[] | null }) => r.skills ?? []);
+  return Array.from(new Set(flattened)).sort();
 }
 
 // ── Volunteer pool (for assignment picker) ───────────────────
