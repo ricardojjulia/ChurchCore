@@ -1,6 +1,6 @@
 import type { ChurchAppSession } from "@/lib/auth";
 import {
-  createTenantServerClient,
+  createTenantAdminClient,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
@@ -50,7 +50,11 @@ async function findSuppression(
     return result.rows[0] ?? null;
   }
 
-  const supabase = await createTenantServerClient();
+  // Admin client, scoped by the server-side church id: whether a recipient is
+  // suppressed must not depend on the sender's RLS visibility. Crons have no
+  // user at all, and roles that may send (secretary) are outside
+  // can_manage_church — both would read "not suppressed". See ADR 0022.
+  const supabase = createTenantAdminClient();
   const { data, error } = await supabase
     .from("communication_suppressions")
     .select("reason")
@@ -102,7 +106,8 @@ async function writeSuppressedLog(input: {
     return result.rows[0]?.id;
   }
 
-  const supabase = await createTenantServerClient();
+  // Admin client for the same reason as findSuppression (ADR 0022).
+  const supabase = createTenantAdminClient();
   const { data, error } = await supabase
     .from("communication_logs")
     .insert({
