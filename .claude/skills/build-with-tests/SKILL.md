@@ -34,3 +34,4 @@ Read these before editing:
 - Do not edit migrations after they are merged unless the task explicitly requires a corrective migration.
 - Do not expose raw provider payloads, secrets, payment details, child-sensitive data, pastoral notes, or database errors.
 - If verification fails, report the exact command and failure; do not claim completion.
+- **Test surfaces ship with the feature.** Any change that adds or changes a page, API route, or server action updates its entry in `tests/coverage-manifest.json` (allowed roles read from the real gates, never guessed) and ships the tests that entry points to. `npm run test:surfaces` and the CI `e2e` job must pass before merge. See `docs/testing.md`. Run `npm run test:surfaces` alongside `npm run lint` and `npm run build`.

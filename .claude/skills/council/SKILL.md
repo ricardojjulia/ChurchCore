@@ -26,3 +26,4 @@ Mandate: per `AGENTS.md` and `improve-software.md` §0, the council runs before 
 - Documenter is write-role but scoped to docs/changelog/plan/ADRs/memory only — never application code.
 - Do not skip step 6 to save time; a build/test failure routes back to the relevant builder, not to Documenter.
 - If this is being run against a branch with accumulated, unreviewed history (not a fresh feature branch), say so explicitly in the synthesis — that's itself a council finding.
+- Before Documenter sign-off, confirm `npm run test:surfaces` passes and the CI `e2e` job is green for any branch that touches pages, API routes, or server actions. A branch that adds surfaces without manifest entries and tests is not ready.

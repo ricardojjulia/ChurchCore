@@ -31,3 +31,4 @@ Mandate: per `AGENTS.md` and `improve-software.md` §0, the council runs before 
 - Missing business rule affecting data boundaries, RLS, role access, payments, or child safety.
 - Build, lint, or test failures that can't be isolated from the change.
 - The branch under review carries large accumulated, unreviewed history — flag this as a finding, don't merge around it.
+- A branch that touches pages, API routes, or server actions where `npm run test:surfaces` fails, the CI `e2e` job isn't green, or a new surface has no `tests/coverage-manifest.json` entry and tests. The Documenter withholds sign-off until this is resolved.

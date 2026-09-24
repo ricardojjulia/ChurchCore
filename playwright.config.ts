@@ -11,6 +11,10 @@ import "./tests/e2e/fixtures/env";
 
 const baseURL = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:4200";
 const isCI = Boolean(process.env.CI);
+// `npm run test:e2e:local` (scripts/e2e-local.sh) builds first and sets this so
+// local runs use the production server like CI; `next dev` compiles routes on
+// demand and times out under a full parallel run.
+const useProductionServer = isCI || process.env.E2E_SERVER === "start";
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -23,15 +27,20 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   retries: isCI ? 2 : 0,
+  // Every page request calls the tenant (and, locally, control-plane) auth
+  // /user endpoint. Past ~4 parallel workers the local auth containers run out
+  // of Postgres connections ("cannot assign requested address") and sessions
+  // read as signed out. CI keeps Playwright's default (half the runner cores).
+  workers: isCI ? undefined : 4,
   reporter: isCI ? [["list"], ["html", { open: "never" }]] : [["list"]],
   webServer: {
     // CI builds and runs the production server against the local Supabase
     // stack (see .github/workflows/ci.yml's `e2e` job); locally, `npm run
     // dev` against reuseExistingServer lets a developer keep a dev server
     // running across test runs (see docs/testing.md).
-    command: isCI ? "npm run start" : "npm run dev",
+    command: useProductionServer ? "npm run start" : "npm run dev",
     url: baseURL,
-    reuseExistingServer: !isCI,
+    reuseExistingServer: !useProductionServer,
     timeout: 120_000,
     // Explicit for clarity — this is also Playwright's own default, but the
     // app's Supabase/cron/unsubscribe/webhook secrets (set by the CI job or

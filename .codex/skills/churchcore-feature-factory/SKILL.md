@@ -29,6 +29,7 @@ Use the role contracts in `references/agent-roles.md`.
 5. Run write phases sequentially to avoid file conflicts.
 6. Ask for human approval before implementing if product rules or technical approach are unresolved.
 7. Validate before handoff with targeted tests, `npm run lint`, and `npm run build` when feasible.
+- **Test surfaces ship with the feature.** Any change that adds or changes a page, API route, or server action updates its entry in `tests/coverage-manifest.json` (allowed roles read from the real gates, never guessed) and ships the tests that entry points to. `npm run test:surfaces` and the CI `e2e` job must pass before merge. See `docs/testing.md`.
 
 ## Stop Conditions
 

@@ -29,3 +29,4 @@ Run structured feature work through focused agents and approval gates.
 - If an agent reports a blocker, stop and surface it.
 - Keep each feature as one coherent vertical slice; split oversized work at the story level.
 - End with verification evidence: targeted tests, `npm run lint`, `npm run build`, and any known residual failures.
+- **Test surfaces ship with the feature.** Any change that adds or changes a page, API route, or server action updates its entry in `tests/coverage-manifest.json` (allowed roles read from the real gates, never guessed) and ships the tests that entry points to. `npm run test:surfaces` and the CI `e2e` job must pass before merge. See `docs/testing.md`.

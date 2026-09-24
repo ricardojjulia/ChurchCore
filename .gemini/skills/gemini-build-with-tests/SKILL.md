@@ -29,3 +29,4 @@ Always verify repository state and guidelines before editing:
 - **Data Boundaries:** Keep the control-plane and tenant data surfaces strictly isolated.
 - **Security & Privacy:** Enforce tenant-scoped Row Level Security (RLS) policies. Do not expose raw database errors, secrets, provider payloads, child-sensitive data, or pastoral notes.
 - **Dependencies:** Avoid adding new packages unless explicitly approved via ADR.
+- **Test surfaces ship with the feature.** Any change that adds or changes a page, API route, or server action updates its entry in `tests/coverage-manifest.json` (allowed roles read from the real gates, never guessed) and ships the tests that entry points to. `npm run test:surfaces` and the CI `e2e` job must pass before merge. See `docs/testing.md`. Run `npm run test:surfaces` alongside `npm run lint` and `npm run build`.
