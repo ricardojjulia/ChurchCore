@@ -92,7 +92,11 @@ TENANT_API_URL="$(status_value API_URL)"
 TENANT_ANON_KEY="$(status_value ANON_KEY)"
 TENANT_SERVICE_KEY="$(status_value SERVICE_ROLE_KEY)"
 TENANT_DB="$(status_value DB_URL)"
-CP_API_URL="$(status_value API_URL --workdir "${CONTROL_PLANE_WORKDIR}")"
+# Address the control plane as localhost (the tenant stack is 127.0.0.1) so the
+# two get different @supabase/ssr cookie names (sb-localhost-… vs sb-127-…),
+# as two hosted projects would. Sharing one name made the app send every tenant
+# session to the control-plane auth server too.
+CP_API_URL="$(status_value API_URL --workdir "${CONTROL_PLANE_WORKDIR}" | sed 's#//127\.0\.0\.1:#//localhost:#')"
 CP_ANON_KEY="$(status_value ANON_KEY --workdir "${CONTROL_PLANE_WORKDIR}")"
 CP_SERVICE_KEY="$(status_value SERVICE_ROLE_KEY --workdir "${CONTROL_PLANE_WORKDIR}")"
 CP_DB="$(status_value DB_URL --workdir "${CONTROL_PLANE_WORKDIR}")"

@@ -27,3 +27,4 @@ Rules:
 - Write focused tests with the implementation.
 - Run the relevant tests, then `npm run lint` and `npm run build` before handoff when feasible.
 - Report any pre-existing failures separately from new failures.
+- New or changed pages, API routes, and server actions need an accurate `tests/coverage-manifest.json` entry (allowed roles read from the real gates) and real tests: a server-action export must be named in a test that imports or mocks its module. Run `npm run test:surfaces` with lint and build. See `docs/testing.md`.

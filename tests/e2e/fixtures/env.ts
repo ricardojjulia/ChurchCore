@@ -146,7 +146,8 @@ function deriveLocalSupabaseEnv() {
     TENANT_SUPABASE_PUBLISHABLE_KEY: tenant.ANON_KEY,
     TENANT_SUPABASE_SERVICE_ROLE_KEY: tenant.SERVICE_ROLE_KEY,
     TENANT_DB_URL: tenant.DB_URL,
-    CONTROL_PLANE_SUPABASE_URL: controlPlane.API_URL,
+    // localhost, not 127.0.0.1: distinct cookie name from the tenant stack (see setup-e2e.sh).
+    CONTROL_PLANE_SUPABASE_URL: controlPlane.API_URL.replace("//127.0.0.1:", "//localhost:"),
     CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY: controlPlane.ANON_KEY,
     CONTROL_PLANE_SUPABASE_SERVICE_ROLE_KEY: controlPlane.SERVICE_ROLE_KEY,
     CONTROL_PLANE_DB_URL: controlPlane.DB_URL,

@@ -24,11 +24,16 @@ test.describe("Member mobile PWA foundation baseline", () => {
   test("renders member routes in a phone viewport with shell controls and no obvious overflow", async ({ page }, testInfo) => {
     for (const route of memberMobileRoutes) {
       await page.goto(route);
+      // Let streaming finish: until it does, the previous route's app shell can
+      // still be mounted beside the new one (CI saw two footers mid-navigation).
+      await page.waitForLoadState("networkidle");
 
       expect(new URL(page.url()).pathname).not.toBe("/sign-in");
       await expect(
         page.locator("button[aria-label*='navigation' i], button[aria-label='Toggle navigation']").first(),
       ).toBeVisible();
+      // Exactly one bottom nav once settled; a real duplicate still fails here.
+      await expect(page.locator("footer")).toHaveCount(1);
       await expect(page.locator("footer")).toBeVisible();
       await expect(page.locator("footer a")).toHaveCount(5);
       await expect(page.getByText("Application error", { exact: false })).toHaveCount(0);
@@ -56,7 +61,6 @@ test.describe("Member mobile PWA foundation baseline", () => {
     // `getByRole("heading", { name: "Calendar" })` can never match. Flagging
     // rather than loosening the assertion, since a real heading here would
     // also be a real accessibility improvement.
-    test.fail(true, "No element with role=heading and accessible name \"Calendar\" exists on /app/calendar — see comment above.");
 
     await page.goto("/app/calendar");
 
@@ -64,7 +68,10 @@ test.describe("Member mobile PWA foundation baseline", () => {
     await expect(
       page.locator("button[aria-label*='navigation' i], button[aria-label='Toggle navigation']").first(),
     ).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Calendar" })).toBeVisible();
+    // KNOWN BUG (a11y), pinned to its exact symptom: the page has no heading
+    // named "Calendar" (see comment above). When one is added this fails;
+    // change it to toBeVisible().
+    await expect(page.getByRole("heading", { name: "Calendar" })).toHaveCount(0);
     await expect(page.locator("footer a")).toHaveCount(5);
     await expect(page.getByText("Application error", { exact: false })).toHaveCount(0);
 

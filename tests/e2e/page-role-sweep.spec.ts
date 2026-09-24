@@ -42,32 +42,49 @@ interface PageEntry {
   controlPlane?: boolean;
   dynamicParams?: Record<string, string> | null;
   sweepMode?: SweepMode;
+  /** Where an allowed identity ends up; "$homePath" means its own homePath. */
   redirectsTo?: string;
+  /** Per-identity override of redirectsTo. */
+  redirectsToByRole?: Partial<Record<IdentityId, string>>;
   deniedRedirectsTo?: string;
+  /** Where a nonexistent-record visit lands when the page redirects instead of rendering not-found. */
+  missingRecordRedirectsTo?: string;
+  /** Text an invalid-token page must show. */
+  expectText?: string;
 }
 
 const manifest = JSON.parse(
   readFileSync(resolve(process.cwd(), "tests/coverage-manifest.json"), "utf8"),
 ) as { pages: Record<string, PageEntry> };
 
-/** Pages that answer a denied role with an in-page message instead of a redirect. */
-const INLINE_DENIAL: Record<string, string> = {
-  "/app/church-admin/localization": "Access Denied",
+/**
+ * Pages that answer a denied role with an in-page message instead of a
+ * redirect: the message must show and the page's own content must not.
+ */
+const INLINE_DENIAL: Record<string, { message: string; absentHeading: string }> = {
+  "/app/church-admin/localization": { message: "Access Denied", absentHeading: "Localization" },
 };
 
 /**
- * Known app bugs the sweep surfaces, as `${identity} ${path}` → reason. Each
- * pair still runs under test.fail(), so the day it's fixed the suite reports an
- * unexpected pass and the entry must be removed.
+ * Known app bugs, keyed `${identity} ${path}`. Instead of a blanket test.fail
+ * (which would stay green on any failure, a new 5xx included), each pins the
+ * bug's exact current symptom. When the bug is fixed the symptom disappears,
+ * the test fails, and the entry must be removed.
  */
-const KNOWN_BUGS: Record<string, string> = {
-  "secretary /hq":
-    "app/hq/layout.tsx gates on current_user_role(), which reads profiles.role, while the rest of the " +
-    "app uses church_memberships.role. The seeded secretary's profile role is member_volunteer, so " +
-    "current_user_role() returns 'member' and /hq redirects her to /app. Two role sources disagree.",
-  "secretary /app/communications/history/[logId]":
-    "The page's gate admits secretary, but communication_logs RLS (communication_logs_select_management = " +
-    "can_manage_church) excludes secretary, so the log renders as not found. Council Review 17 follow-up F7.",
+const KNOWN_BUGS: Record<string, { reason: string; landing?: string; text?: string }> = {
+  "secretary /hq": {
+    reason:
+      "app/hq/layout.tsx gates on current_user_role(), which reads profiles.role, while the rest of the app uses " +
+      "church_memberships.role. The local secretary's profile role is member_volunteer (seed.sql sets 'secretary'; " +
+      "the cause of that drift is a Council Review 18 follow-up), so /hq sends her to /app and on to her homePath.",
+    landing: "/app/secretary",
+  },
+  "secretary /app/communications/history/[logId]": {
+    reason:
+      "The page's gate admits secretary, but communication_logs RLS (can_manage_church) excludes her, so the log " +
+      "renders as not found. Council Review 17 F7 / Review 18 follow-up 1.",
+    text: "This page could not be found",
+  },
 };
 
 const MISSING_ID = "00000000-0000-0000-0000-000000000000";
@@ -142,8 +159,10 @@ async function waitToLeave(page: Page, requestedPath: string) {
  * - /sign-in when signed out;
  * - /sign-in (?force=1) for a tenant role on a control-plane page, since
  *   requireControlPlaneSession offers an account switch;
- * - /sign-in for super-admin on a tenant page: its session belongs to the
- *   control-plane auth, so requireSession finds no tenant user;
+ * - /control for super-admin on a tenant page (requireChurchSession sends a
+ *   control-context session to its homePath). This only shows once the two
+ *   local stacks have distinct auth cookie names, as hosted projects do;
+ *   sharing one name made it look like /sign-in;
  * - the page's documented `deniedRedirectsTo` when it sends denied roles
  *   somewhere specific and the visitor is allowed there (otherwise that page
  *   redirects them on to their homePath);
@@ -152,7 +171,7 @@ async function waitToLeave(page: Page, requestedPath: string) {
 function expectedDeniedLanding(entry: PageEntry, visitor: Visitor): string {
   if (visitor === "signed-out") return "/sign-in";
   if (entry.controlPlane) return "/sign-in";
-  if (visitor === "super-admin") return "/sign-in";
+  if (visitor === "super-admin") return roles[visitor].homePath;
   if (entry.deniedRedirectsTo) {
     // The target may deny this visitor too, in which case its own gate sends
     // them on to their homePath; the final landing is what counts.
@@ -160,6 +179,18 @@ function expectedDeniedLanding(entry: PageEntry, visitor: Visitor): string {
     if (target?.allowedRoles.includes(visitor)) return entry.deniedRedirectsTo;
   }
   return roles[visitor].homePath;
+}
+
+/**
+ * Where an allowed visitor of a redirect-only page must end up. Signed-out
+ * visitors of the public redirect-only pages land on /sign-in, because every
+ * destination is gated.
+ */
+function expectedRedirectLanding(entry: PageEntry, visitor: Visitor): string | null {
+  if (visitor === "signed-out") return "/sign-in";
+  const target = entry.redirectsToByRole?.[visitor] ?? entry.redirectsTo;
+  if (!target) return null;
+  return target === "$homePath" ? roles[visitor].homePath : target;
 }
 
 function isAllowed(entry: PageEntry, visitor: Visitor): boolean {
@@ -186,17 +217,25 @@ for (const visitor of visitors) {
       const bugKey = `${visitor} ${entry.path}`;
 
       test(`${entry.path} → ${allowed ? mode : "denied"}`, async ({ page }) => {
-        if (KNOWN_BUGS[bugKey]) test.fail(true, KNOWN_BUGS[bugKey]);
-
         const consoleErrors = captureConsoleErrors(page);
         const response = await page.goto(url);
         const status = response?.status() ?? 0;
         expect(status, `document status for ${url}`).toBeLessThan(500);
 
+        const knownBug = KNOWN_BUGS[bugKey];
+        if (knownBug) {
+          test.info().annotations.push({ type: "known bug", description: knownBug.reason });
+          await page.waitForLoadState("networkidle");
+          if (knownBug.landing) expect(new URL(page.url()).pathname).toBe(knownBug.landing);
+          if (knownBug.text) await expect(page.getByText(knownBug.text, { exact: false }).first()).toBeVisible();
+          return;
+        }
+
         if (!allowed) {
           const inline = INLINE_DENIAL[entry.path];
           if (inline && visitor !== "signed-out" && !roles[visitor].controlPlane) {
-            await expect(page.getByText(inline).first()).toBeVisible();
+            await expect(page.getByText(inline.message).first()).toBeVisible();
+            await expect(page.getByRole("heading", { name: inline.absentHeading, exact: true })).toHaveCount(0);
             return;
           }
           await waitToLeave(page, requestedPath);
@@ -211,10 +250,22 @@ for (const visitor of visitors) {
 
         if (mode === "redirect") {
           await waitToLeave(page, requestedPath);
-          if (entry.redirectsTo && visitor !== "signed-out") {
-            expect(new URL(page.url()).pathname).toBe(entry.redirectsTo);
+          const expected = expectedRedirectLanding(entry, visitor);
+          if (expected) {
+            await expect
+              .poll(() => new URL(page.url()).pathname, { message: `redirect landing for ${visitor} on ${url}` })
+              .toBe(expected);
           }
           await expectNoErrorUi(page);
+          return;
+        }
+
+        if (mode === "invalid-token") {
+          await page.waitForLoadState("networkidle");
+          expect(new URL(page.url()).pathname, `stayed on ${requestedPath}`).toBe(requestedPath);
+          if (entry.expectText) await expect(page.getByText(entry.expectText).first()).toBeVisible();
+          await expectNoErrorUi(page);
+          expect(consoleErrors, `console errors on ${url} as ${visitor}`).toEqual([]);
           return;
         }
 
@@ -223,6 +274,10 @@ for (const visitor of visitors) {
           // produce a clean not-found, never a server error (status < 500 is
           // asserted above).
           await page.waitForLoadState("networkidle");
+          // The allowed role must still be on the page (seeing its not-found
+          // state) or on its documented fallback, not bounced by its gate.
+          const landed = new URL(page.url()).pathname;
+          expect([requestedPath, entry.missingRecordRedirectsTo].filter(Boolean), `landing for ${url}`).toContain(landed);
           await expectNoErrorUi(page);
           expect(consoleErrors, `console errors on ${url} as ${visitor}`).toEqual([]);
           return;
@@ -241,8 +296,20 @@ for (const visitor of visitors) {
   });
 }
 
-// Guard against a silently shrinking sweep: every identity in roles.ts must
-// have a storageState produced by the setup project.
-test("every identity has a role fixture", () => {
-  for (const id of identityIds) expect(roles[id].homePath).toMatch(/^\//);
+// /app/[role] only serves the caller's own role: each church identity visiting
+// another role's workspace is sent back to its own homePath.
+test.describe("cross-role /app/[role]", () => {
+  const churchIdentities = identityIds.filter((id) => !roles[id].controlPlane);
+  for (const [index, identity] of churchIdentities.entries()) {
+    const otherRole = churchIdentities[(index + 1) % churchIdentities.length];
+    test.describe(`as ${identity}`, () => {
+      test.use({ storageState: authFilePath(identity) });
+      test(`/app/${otherRole} → own homePath`, async ({ page }) => {
+        const response = await page.goto(`/app/${otherRole}`);
+        expect(response?.status() ?? 0).toBeLessThan(500);
+        await expect.poll(() => new URL(page.url()).pathname).toBe(roles[identity].homePath);
+        await expectNoErrorUi(page);
+      });
+    });
+  }
 });

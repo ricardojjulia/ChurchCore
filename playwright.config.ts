@@ -35,6 +35,9 @@ export default defineConfig({
   // reads as signed out. One local retry absorbs that; Playwright still reports
   // those tests as "flaky" in the summary, so they stay visible.
   retries: isCI ? 2 : 1,
+  // In CI a test that only passes on retry fails the run: both CI flakes so
+  // far were real logic bugs, and retries must not hide an intermittent gate.
+  failOnFlakyTests: isCI,
   workers: isCI ? undefined : 3,
   reporter: isCI ? [["list"], ["html", { open: "never" }]] : [["list"]],
   webServer: {

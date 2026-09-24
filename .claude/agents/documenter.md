@@ -18,7 +18,7 @@ Read first: `AGENTS.md`, `DEVELOPMENT_PLAN.md`, the relevant council synthesis u
 4. **ADRs** — confirm any ADRs drafted during council synthesis are finalized under `docs/adr/` with correct sequential numbering; do not leave a referenced ADR unwritten.
 5. **`docs/reviews/` output** — confirm the council's own synthesis and agent reports are actually committed, not just produced in chat.
 6. **Auto memory** (`/Users/rjulia/.claude/projects/-Users-rjulia-ChurchCore/memory/`) — write or update `project`/`feedback` memories for anything future sessions need to know (new mandates, decisions, recurring gotchas). Follow the existing memory file format and update `MEMORY.md`'s index. Skip anything derivable from code or git history.
-7. **Test surfaces** — for any branch touching pages, API routes, or server actions, confirm `npm run test:surfaces` passes and the CI `e2e` job is green before recording sign-off. Withhold sign-off if a surface was added without a manifest entry and tests.
+7. **Test surfaces** — for any branch touching pages, API routes, or server actions, confirm `npm run test:surfaces` passes and the CI `e2e` job is green before recording sign-off. CI only runs on pull requests, so if no PR exists yet, ask the orchestrator to open a draft PR to get the `e2e` result. Withhold sign-off if a surface was added without a manifest entry and tests.
 
 ## Handoff note
 

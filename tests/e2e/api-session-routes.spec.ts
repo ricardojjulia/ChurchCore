@@ -75,15 +75,14 @@ test.describe("GET /api/reports/custom — signed out", () => {
   // catch-all. A signed-out request gets an unhandled-looking 500
   // ("Failed to generate report") instead of a redirect to /sign-in.
   //
-  // test.fail() keeps this documented and executable: it runs the real
-  // assertion below, currently expects it to fail, and will loudly flag an
-  // "unexpected pass" in CI the day someone fixes the try/catch — at which
-  // point this annotation should be deleted.
-  test.fail();
-  test("-> redirect to /sign-in, not a 500", async ({ request }) => {
+  // Pinned to the bug's exact current symptom (500 with the handler's generic
+  // error body), rather than test.fail(), so a different failure can't hide
+  // here. When the redirect is moved out of the try/catch this assertion
+  // fails; replace it with `307` + a /sign-in Location.
+  test("KNOWN BUG: -> 500 instead of a /sign-in redirect", async ({ request }) => {
     const response = await request.get("/api/reports/custom", { maxRedirects: 0 });
-    expect(response.status()).toBe(307);
-    expect(response.headers()["location"]).toContain("/sign-in");
+    expect(response.status()).toBe(500);
+    expect(await response.json()).toEqual({ error: "Failed to generate report" });
   });
 });
 
@@ -137,5 +136,59 @@ test.describe("session routes — signed in as member", () => {
       },
     });
     expect(response.status()).toBe(403);
+  });
+});
+
+// ── /api/reports/custom by role (PII and donation CSV exports) ───────────────
+
+for (const identity of ["member", "secretary", "ministry-leader"] as const) {
+  test.describe(`GET /api/reports/custom — signed in as ${identity}`, () => {
+    test.use({ storageState: authFilePath(identity) });
+
+    test("-> 403, no data", async ({ page }) => {
+      const response = await page.request.get("/api/reports/custom?entity=people", { maxRedirects: 0 });
+      expect(response.status()).toBe(403);
+      expect(await response.json()).toEqual({ error: "Unauthorized" });
+    });
+  });
+}
+
+test.describe("GET /api/reports/custom — signed in as pastor", () => {
+  test.use({ storageState: authFilePath("pastor") });
+
+  test("people -> CSV of this church's profiles", async ({ page }) => {
+    const response = await page.request.get("/api/reports/custom?entity=people");
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toContain("text/csv");
+    const [header, ...rows] = (await response.text()).trim().split("\n");
+    expect(header).toContain("full_name");
+    expect(rows.length).toBeGreaterThan(0);
+  });
+
+  test("an unknown entity -> 400", async ({ page }) => {
+    const response = await page.request.get("/api/reports/custom?entity=nope");
+    expect(response.status()).toBe(400);
+  });
+});
+
+// ── Control-plane routes reject tenant roles ─────────────────────────────────
+
+test.describe("control-plane routes — signed in as a tenant role (church-admin context excluded: it is a platform admin)", () => {
+  test.use({ storageState: authFilePath("pastor") });
+
+  test("GET /api/control/db-health -> redirect to /sign-in (force) for a tenant role", async ({ page }) => {
+    const response = await page.request.get("/api/control/db-health", { maxRedirects: 0 });
+    expect(response.status()).toBe(307);
+    expect(response.headers()["location"]).toContain("/sign-in");
+    expect(response.headers()["location"]).toContain("force=1");
+  });
+
+  test("PATCH /api/control/demo-feedback/[id] -> redirect to /sign-in (force) for a tenant role", async ({ page }) => {
+    const response = await page.request.patch("/api/control/demo-feedback/00000000-0000-0000-0000-000000000000", {
+      data: { status: "reviewed" },
+      maxRedirects: 0,
+    });
+    expect(response.status()).toBe(307);
+    expect(response.headers()["location"]).toContain("force=1");
   });
 });

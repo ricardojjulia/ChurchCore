@@ -39,7 +39,8 @@
         "tests/e2e/page-role-sweep.spec.ts"
       ],
       "sweepMode": "redirect",
-      "note": "requireChurchSession denies super-admin (control context) here, redirecting it to /control. Every church role that passes lands on its own homePath via redirect(session.homePath)."
+      "note": "Every church role that passes requireChurchSession is redirected to its own homePath. super-admin (control context) is denied and sent to /control.",
+      "redirectsTo": "$homePath"
     },
     "/app/[role]": {
       "path": "/app/[role]",
@@ -528,7 +529,8 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "No seed rows for finance_journals in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+      "note": "No seed rows for finance_journals, so the sweep uses a nonexistent id. A missing journal redirects to the journals list (page.tsx: redirect when !journal) rather than rendering not-found.",
+      "missingRecordRedirectsTo": "/app/church-admin/finance/journals"
     },
     "/app/church-admin/finance/journals/new": {
       "path": "/app/church-admin/finance/journals/new",
@@ -1438,7 +1440,11 @@
         "tests/e2e/page-role-sweep.spec.ts"
       ],
       "sweepMode": "redirect",
-      "note": "requireSession requires any signed-in identity (including super-admin); redirects church-context identities to /app/calendar and super-admin/control-context to /control. Signed-out -> /sign-in."
+      "note": "requireSession requires any signed-in identity (including super-admin); redirects church-context identities to /app/calendar and super-admin/control-context to /control. Signed-out -> /sign-in.",
+      "redirectsTo": "/app/calendar",
+      "redirectsToByRole": {
+        "super-admin": "/control"
+      }
     },
     "/control": {
       "path": "/control",
@@ -1528,7 +1534,6 @@
       "path": "/hq",
       "file": "app/hq/page.tsx",
       "allowedRoles": [
-        "super-admin",
         "church-admin",
         "secretary",
         "pastor",
@@ -1540,7 +1545,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "Gated entirely by app/hq/layout.tsx, NOT by lib/auth's requireChurchSession/requireControlPlaneSession \u2014 it checks a raw Supabase auth session directly plus the current_user_role() Postgres RPC (supabase/migrations/20260713000000_hq.sql), which maps platform_admins -> 'admin', church_admin -> 'admin', pastor_elder/secretary/ministry_leader -> 'manager', and member_volunteer -> 'member' (or 'teacher' if the profile has a ccm_volunteer_assignments row with role='lead_teacher'). Only the mapped role 'member' is denied (redirect to /app). ACCESS-CONTROL INCONSISTENCY worth flagging: because this check is independent of lib/auth's appContext, super-admin (sarah) can open /app/hq even while in CONTROL context \u2014 unlike every other /app/* page, which requireChurchSession denies to super-admin outright. Also: a plain 'member' role person WITH a lead_teacher CCM assignment passes this gate (mapped to 'teacher', which is not 'member') \u2014 an edge case not covered by the current 6-identity fixture set."
+      "note": "Gated by app/hq/layout.tsx, not lib/auth: it reads the tenant Supabase session and the current_user_role() RPC (supabase/migrations/20260713000000_hq.sql: church_admin -> admin; pastor_elder/secretary/ministry_leader -> manager; member_volunteer -> member, or teacher with a lead_teacher CCM assignment). Only 'member' is redirected (to /app). super-admin signed in to the control plane has no tenant session here and ends up on /control. Known issues: current_user_role() reads profiles.role while the rest of the app uses church_memberships.role, and the hq_* tables have no church_id (Council Review 18 follow-up)."
     },
     "/plan": {
       "path": "/plan",
@@ -1577,7 +1582,8 @@
         "tests/e2e/member-mobile-foundation.spec.ts"
       ],
       "sweepMode": "invalid-token",
-      "note": "Token is an ephemeral per-session checkin_session_token on ccm_services, not seeded statically in supabase/seed.sql \u2014 cannot be deterministically fixtured. getPublicCcmSessionByToken() returns null for an unknown token and the page renders a graceful 'unavailable' state (verified: no throw). The sweep should assert that graceful state with a garbage token, not a happy path."
+      "note": "Token is an ephemeral per-session checkin_session_token on ccm_services, not seeded statically in supabase/seed.sql \u2014 cannot be deterministically fixtured. getPublicCcmSessionByToken() returns null for an unknown token and the page renders a graceful 'unavailable' state (verified: no throw). The sweep should assert that graceful state with a garbage token, not a happy path.",
+      "expectText": "Session link unavailable"
     },
     "/portal/children/checkout/[token]": {
       "path": "/portal/children/checkout/[token]",
@@ -1591,7 +1597,8 @@
         "tests/e2e/member-mobile-foundation.spec.ts"
       ],
       "sweepMode": "invalid-token",
-      "note": "Same token mechanism and graceful-degradation behavior as /portal/children/checkin/[token]."
+      "note": "Same token mechanism and graceful-degradation behavior as /portal/children/checkin/[token].",
+      "expectText": "Session link unavailable"
     },
     "/portal/events/register": {
       "path": "/portal/events/register",
@@ -1627,7 +1634,8 @@
         "tests/e2e/page-role-sweep.spec.ts"
       ],
       "sweepMode": "invalid-token",
-      "note": "Token is volunteer_shifts.confirmation_token, generated per-shift and not seeded statically. getPublicVolunteerShiftByToken() returns null for an unknown/expired token (verified: no throw) and the page renders 'Invalid or Expired Link'. The sweep should assert that state with a garbage token."
+      "note": "Token is volunteer_shifts.confirmation_token, generated per-shift and not seeded statically. getPublicVolunteerShiftByToken() returns null for an unknown/expired token (verified: no throw) and the page renders 'Invalid or Expired Link'. The sweep should assert that state with a garbage token.",
+      "expectText": "Invalid or Expired Link"
     },
     "/portal/volunteer/schedule/[token]": {
       "path": "/portal/volunteer/schedule/[token]",
@@ -1640,7 +1648,8 @@
         "tests/e2e/page-role-sweep.spec.ts"
       ],
       "sweepMode": "invalid-token",
-      "note": "Same confirmation_token mechanism as /portal/volunteer/confirm/[token]. getPublicVolunteerScheduleByToken() returns an empty array for an unknown token (verified: no throw) and the page renders 'No Upcoming Assignments' \u2014 that IS this route's graceful invalid-token state."
+      "note": "Same confirmation_token mechanism as /portal/volunteer/confirm/[token]. getPublicVolunteerScheduleByToken() returns an empty array for an unknown token (verified: no throw) and the page renders 'No Upcoming Assignments' \u2014 that IS this route's graceful invalid-token state.",
+      "expectText": "No Upcoming Assignments"
     },
     "/sign-in": {
       "path": "/sign-in",
@@ -1673,7 +1682,8 @@
         "tests/e2e/page-role-sweep.spec.ts"
       ],
       "sweepMode": "redirect",
-      "note": "requireSession requires any signed-in identity, then redirect(session.homePath) \u2014 own homePath, not role-param-dependent."
+      "note": "requireSession requires any signed-in identity, then redirect(session.homePath) \u2014 own homePath, not role-param-dependent.",
+      "redirectsTo": "$homePath"
     },
     "/workspace/[role]": {
       "path": "/workspace/[role]",
@@ -1695,8 +1705,9 @@
         "tests/e2e/page-role-sweep.spec.ts"
       ],
       "sweepMode": "redirect",
-      "note": "requireSession only requires ANY signed-in identity, then unconditionally redirect(getRoleHomePath(:role)) \u2014 the redirect target depends on the :role URL param, NOT on the caller's own role, so e.g. a signed-in 'member' hitting /workspace/church-admin is redirected to /app/church-admin (which then itself denies them via requireChurchSession's own role check). Not a data leak, but worth the sweep knowing the redirect target varies by :role, not by identity.",
-      "seedSource": "not a DB id \u2014 static enum member of lib/portal.ts's portalRoles (super-admin|church-admin|secretary|pastor|ministry-leader|member); an unrecognized value 404s (notFound()) before the session check even runs."
+      "note": "Redirects to getRoleHomePath(:role) (here /app/church-admin) for any signed-in identity. That page admits church-admin and sends every other identity, super-admin included, on to its own homePath.",
+      "seedSource": "not a DB id \u2014 static enum member of lib/portal.ts's portalRoles (super-admin|church-admin|secretary|pastor|ministry-leader|member); an unrecognized value 404s (notFound()) before the session check even runs.",
+      "redirectsTo": "$homePath"
     }
   },
   "routes": {

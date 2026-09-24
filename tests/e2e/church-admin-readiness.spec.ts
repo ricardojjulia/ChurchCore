@@ -98,12 +98,13 @@ test.describe("ChurchAdmin weekly readiness browser path", () => {
     // as a description string in components/application/launch-checklist.tsx).
     // Flagging rather than deleting, so a future implementation of this
     // readiness target has a test ready to un-skip.
-    test.fail(true, "GET /app/communications ignores ?view=readiness and never renders \"Communications Hub\" — see comment above.");
-
+    // KNOWN BUG, pinned to its exact symptom: the query is dropped and the
+    // page redirects to /history with no readiness target state. When the
+    // readiness view is implemented, this fails; assert the view instead.
     await page.goto("/app/communications?view=readiness");
-    expect(new URL(page.url()).pathname).not.toBe("/sign-in");
-    await expect(page.getByText("Communications Hub", { exact: false }).first()).toBeVisible();
-    await expect(page.locator("[data-testid^='readiness-target-state-']")).toBeVisible();
+    await expect.poll(() => new URL(page.url()).pathname).toBe("/app/communications/history");
+    expect(new URL(page.url()).searchParams.get("view")).toBeNull();
+    await expect(page.locator("[data-testid^='readiness-target-state-']")).toHaveCount(0);
   });
 });
 

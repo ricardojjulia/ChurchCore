@@ -1,6 +1,6 @@
 # Testing
 
-ChurchCore ships three layers of tests. CI runs all of them on every PR, and all of them block merge.
+ChurchCore ships three layers of tests. CI runs all of them on every PR. They block merge once a repo admin marks them as required status checks (see [CI](#ci)).
 
 | Layer | Command | What it covers |
 |---|---|---|
@@ -15,14 +15,26 @@ Real-Postgres integration tests (`npm run test:db`) and migration checks stay ma
 Any PR that adds or changes a **page**, **API route**, or **server action** must:
 
 1. Add or update its entry in `tests/coverage-manifest.json`.
-2. Ship the tests that entry points to.
+2. Ship the tests that entry points to. For a server action, every exported function must be named in a test file that imports or mocks its module. An export that can't be tested yet goes in the module's `untestedExports`, with a reason.
 3. Pass `npm run test:surfaces` and the CI `e2e` job.
+
+`npm run test:surfaces` enforces this. It fails when:
+- a page, route, or action module has no entry;
+- an entry points at a missing file or test;
+- a module's exports differ from its entry (so adding an action to an existing module fails until the manifest catches up);
+- an action's test doesn't import or mock the module;
+- an export is neither tested nor waived;
+- a waiver is stale because the export is now tested or gone. The waiver list can only shrink.
 
 This is in `AGENTS.md`, in all three factory skill sets (`.claude`, `.codex`, `.gemini`), and in the PR template. The Council Documenter withholds sign-off until it holds.
 
 ## Running everything locally
 
-Prerequisites: Docker running, `npm ci`, and `npm run test:e2e:install` (Chromium) once.
+Prerequisites:
+- Docker, with enough memory for two Supabase stacks;
+- `npm ci`, then `npm run test:e2e:install` (Chromium) once;
+- `psql` (on macOS: `brew install libpq`), `python3`, `openssl` and `curl`;
+- free ports 4200–4205 (app, tenant stack, Mailpit) and 4211–4213 (control-plane stack).
 
 ```bash
 npm run test:e2e:local                                    # whole suite
@@ -36,11 +48,11 @@ npm run test:e2e:local -- -g "as pastor"                  # one identity's sweep
    - starts both local Supabase stacks: tenant (API 4201, DB 4202) and control plane (API 4211, DB 4212);
    - creates the demo users;
    - registers the admin as a platform admin in the control plane;
-   - encrypts the seeded pastoral fields.
+   - encrypts the seeded pastoral fields. Locally it uses a test-only key kept in the gitignored `.e2e-pastoral-key.local`, which is created on first run and survives `npm ci`.
 2. Exports the same dummy secrets CI uses, with every provider API key empty so SendGrid, Twilio, Resend, Stripe, and Anthropic stay in stub mode.
 3. Builds the app and runs Playwright against `next start` on port 4200.
 
-To start from clean seed data, run `npm run setup:e2e -- --reset` first.
+To start from clean seed data, run `npm run setup:e2e -- --reset`, then `npm run test:e2e:local`.
 
 ### Safety: the suite only ever touches local Supabase
 
@@ -54,20 +66,25 @@ Your `.env.local` may point at hosted projects. The suite cannot reach them, for
 
 ### Local notes
 
-- Local runs cap Playwright at 4 workers. Past that, the local auth containers run out of Postgres connections and sessions read as signed out.
-- `npm run test:e2e` on its own uses `next dev` and your current env. That's fine for iterating on one spec with a dev server already running, but use `test:e2e:local` for anything broad.
+- Local runs use 3 workers and 1 retry. Every page load calls the auth `/user` endpoint on both local stacks. On a busy Docker host (several Supabase stacks running), the auth containers intermittently fail to open Postgres connections, and the session reads as signed out. A test that passes on retry is reported as **flaky** in the summary, not hidden. In CI, `failOnFlakyTests` makes any flaky test fail the run.
+- The control-plane stack is addressed as `localhost` and the tenant stack as `127.0.0.1`, so they get different auth cookie names, as two hosted projects would. With one shared name, the app sent every tenant session to both auth servers, and a control-plane login looked like a tenant login.
+- The suite never attaches to a server it didn't start: an already-running `next dev` reads `.env.local`, which may point at a hosted project. Stop your dev server first, or run `npm run test:e2e` (which starts `next dev` itself with the guarded env) for quick iteration on one spec.
 - If a run fails with "storageState looks stale", the saved sessions were invalidated (for example by a re-seed). The `setup` project re-creates them on the next run.
 
 ## What the e2e suite checks
 
 - **`tests/e2e/fixtures/auth.setup.ts`:** signs in once per identity and saves the session: `super-admin` (control plane), `church-admin`, `secretary`, `pastor`, `ministry-leader`, `member`.
 - **`tests/e2e/page-role-sweep.spec.ts`:** visits every manifest page as each identity and signed out.
+  - Allowed identities on redirect-only pages land exactly on `redirectsTo`: a path, or `$homePath`, with per-identity overrides in `redirectsToByRole`.
   - Allowed identities: the page renders on its own URL with no 5xx, no error screen ("Something went wrong" / "Application error"), no not-found UI, and no console errors outside `tests/e2e/fixtures/console-allowlist.ts`.
   - Denied identities: land exactly on their own home path (tenant roles on `/control` land on `/sign-in` to switch accounts; a page's `deniedRedirectsTo` overrides), never shown a 5xx.
   - Signed-out visitors: land on `/sign-in` unless the page is public.
   - Dynamic pages use real seeded ids. A `$sql:` value resolves an id at run time for seed rows with random ids; a query that returns nothing fails the run.
-  - Pages whose record type has no seed rows are visited with a nonexistent id and must not crash.
-  - Known app bugs are listed in `KNOWN_BUGS` and run under `test.fail()`, so fixing one makes the suite report it.
+  - Pages whose record type has no seed rows are visited with a nonexistent id. The allowed role must stay on the page (seeing its not-found state), or land on `missingRecordRedirectsTo`, and must not crash.
+  - Invalid-token pages must show their graceful `expectText`.
+  - Pages that deny inline (`INLINE_DENIAL` in the spec) must show the denial and not the page's own heading.
+  - Known app bugs are listed in `KNOWN_BUGS` with their **exact current symptom** (landing page or text). A blanket `test.fail()` would stay green on any failure; a pinned symptom fails as soon as the bug changes, so the entry gets removed when it's fixed.
+  - `/app/[role]` is also checked cross-role: each church identity visiting another role's workspace is sent home.
 - **`tests/e2e/api-*.spec.ts`:** contract tests for all 15 API routes. They check rejection paths (missing or wrong cron secret, missing or bad webhook signatures, bad unsubscribe tokens, signed-out session routes) and safe happy paths (a valid cron run, a valid unsubscribe writing one suppression row, idempotent re-calls).
 - **Journeys:** `church-admin-readiness`, `member-mobile-foundation` (390×844 viewport), and `onboarding-flow` (uses Mailpit on 4205).
 - **`npm run check:server-reference-manifest`:** after `next build`, fails if `queueCommunicationAction`, `logAuditEvent`, or `pruneAuditLogsAction` is exposed as a callable server action (ADR 0022).
@@ -84,7 +101,7 @@ Your `.env.local` may point at hosted projects. The suite cannot reach them, for
      - Set `sweepMode` to `redirect` for pages that only redirect, or `invalid-token` for token links.
      - Add a `note` for anything unusual.
    - **API route:** `methods`, `auth` (`cron` / `webhook` / `hmac` / `session` / `public` / `control`), and a contract spec under `tests/e2e/api-*.spec.ts`.
-   - **Server action module:** list its `exports` and point `tests` at a unit test that actually exercises the module. A mock of the module elsewhere doesn't count.
+   - **Server action module:** list its `exports` and point `tests` at unit tests that import (or `vi.mock`) the module and name each export. A mock of the module inside some other module's test doesn't count. Waive an export in `untestedExports` only with a reason.
 4. Pages are swept automatically once the entry exists. Add a journey spec when the feature is a multi-step workflow.
 5. Run `npm run test:e2e:local` and make sure it passes before opening the PR.
 
@@ -100,14 +117,25 @@ Your `.env.local` may point at hosted projects. The suite cannot reach them, for
       "public": false,
       "controlPlane": false,
       "dynamicParams": { "id": "77777777-0000-0000-0000-000000000001" },  // or "$sql:select id from ..."
-      "envGated": null,                              // "stripe" | "ai" | "vapid" | null
       "sweepMode": "render",                         // render | redirect | invalid-token
-      "deniedRedirectsTo": null,                     // set when denied roles land somewhere other than their homePath
+      "redirectsTo": null,                           // redirect pages: target path or "$homePath"
+      "redirectsToByRole": null,                     // per-identity override, e.g. { "super-admin": "/control" }
+      "deniedRedirectsTo": null,                     // where denied roles land when it isn't their homePath
+      "missingRecordRedirectsTo": null,              // where a nonexistent record redirects, if not a not-found page
+      "expectText": null,                            // invalid-token pages: the graceful text they must show
+      "note": "…",
       "tests": ["tests/e2e/page-role-sweep.spec.ts"]
     }
   },
   "routes":  { "/api/unsubscribe": { "path": "...", "file": "...", "methods": ["GET"], "auth": "hmac", "tests": ["tests/e2e/api-unsubscribe.spec.ts"] } },
-  "actions": { "app/app/communications-actions.ts": { "module": "...", "exports": ["..."], "tests": ["app/app/communications-actions.test.ts"] } }
+  "actions": {
+    "app/app/communications-actions.ts": {
+      "module": "app/app/communications-actions.ts",
+      "exports": ["..."],                                        // must match the module's exports exactly
+      "tests": ["app/app/communications-actions.test.ts"],       // each must import or vi.mock the module
+      "untestedExports": { "someAction": "Why it isn't tested yet" }  // optional; the list can only shrink
+    }
+  }
 }
 ```
 

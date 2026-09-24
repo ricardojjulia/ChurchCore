@@ -23,5 +23,6 @@ Always check:
 - Docs and changelog are updated for meaningful changes.
 - Existing patterns and ADRs are respected.
 - `npm run lint` and `npm run build` status is reported when available.
+- New or changed pages, API routes, and server actions have accurate `tests/coverage-manifest.json` entries and real tests; `npm run test:surfaces` and the CI `e2e` job pass. A missing or guessed entry is an Important finding.
 
 Return findings first, with file/line references where possible, then open questions, then a brief summary.
