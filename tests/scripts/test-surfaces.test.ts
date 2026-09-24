@@ -177,7 +177,7 @@ describe("scanPages / scanRoutes / scanActions", () => {
 });
 
 describe("bootstrapManifest", () => {
-  it("writes skeleton entries with TODO markers and prefilled file/path", () => {
+  it("writes skeleton entries (TODO for routes/actions, the sweep for pages) with prefilled file/path", () => {
     const { manifest, added } = bootstrapManifest(root, join(root, "tests", "coverage-manifest.json"));
 
     expect(added.pages.sort()).toEqual(["/", "/church-admin"]);
@@ -191,12 +191,10 @@ describe("bootstrapManifest", () => {
       public: false,
       controlPlane: false,
       dynamicParams: null,
-      envGated: null,
-      tests: ["TODO"],
+      tests: ["tests/e2e/page-role-sweep.spec.ts"],
     });
     expect(manifest.routes["/api/widgets"].tests).toEqual(["TODO"]);
     expect(manifest.actions["app/my-actions.ts"].tests).toEqual(["TODO"]);
-    expect(manifest.counts).toEqual({ pages: 2, routes: 1, actions: 2 });
   });
 
   it("never overwrites an existing entry", () => {
@@ -218,15 +216,11 @@ describe("bootstrapManifest", () => {
 
 describe("validateManifest", () => {
   function fullyFilledManifest(): {
-    generated_at: string;
-    counts: { pages: number; routes: number; actions: number };
     pages: Record<string, Record<string, unknown>>;
     routes: Record<string, Record<string, unknown>>;
     actions: Record<string, Record<string, unknown>>;
   } {
     return {
-      generated_at: new Date().toISOString(),
-      counts: { pages: 2, routes: 1, actions: 2 },
       pages: {
         "/": {
           path: "/",
@@ -235,7 +229,6 @@ describe("validateManifest", () => {
           public: true,
           controlPlane: false,
           dynamicParams: null,
-          envGated: null,
           tests: ["tests/e2e/page-role-sweep.spec.ts"],
         },
         "/church-admin": {
@@ -245,7 +238,6 @@ describe("validateManifest", () => {
           public: false,
           controlPlane: false,
           dynamicParams: null,
-          envGated: null,
           tests: ["tests/e2e/page-role-sweep.spec.ts"],
         },
       },
@@ -273,11 +265,21 @@ describe("validateManifest", () => {
     };
   }
 
-  it("passes with no errors when the manifest fully and correctly covers every scanned surface", () => {
+  function writeTests() {
     write("tests/e2e/page-role-sweep.spec.ts", "// spec\n");
     write("tests/e2e/api-widgets.spec.ts", "// spec\n");
-    write("app/my-actions.test.ts", "// test\n");
-    write("app/commented-actions.test.ts", "// test\n");
+    write(
+      "app/my-actions.test.ts",
+      `import { doThingAction, someConstAction } from "@/app/my-actions";\nvoid doThingAction; void someConstAction;\n`,
+    );
+    write(
+      "app/commented-actions.test.ts",
+      `import { doOtherAction } from "./commented-actions";\nvoid doOtherAction;\n`,
+    );
+  }
+
+  it("passes with no errors when the manifest fully and correctly covers every scanned surface", () => {
+    writeTests();
 
     const { errors } = validateManifest(root, fullyFilledManifest());
     expect(errors).toEqual([]);
@@ -286,7 +288,6 @@ describe("validateManifest", () => {
   it("fails on a missing entry", () => {
     const manifest = fullyFilledManifest();
     delete manifest.pages["/church-admin"];
-    manifest.counts.pages = 1;
 
     const { errors } = validateManifest(root, manifest);
     expect(errors.some((e) => e.includes("missing entry: page /church-admin"))).toBe(true);
@@ -304,7 +305,6 @@ describe("validateManifest", () => {
       envGated: null,
       tests: ["tests/e2e/page-role-sweep.spec.ts"],
     };
-    manifest.counts.pages = 3;
 
     const { errors } = validateManifest(root, manifest);
     expect(errors.some((e) => e.includes("stale entry: page /deleted-page"))).toBe(true);
@@ -320,19 +320,63 @@ describe("validateManifest", () => {
     ).toBe(true);
   });
 
-  it("fails on a header count mismatch", () => {
-    write("tests/e2e/page-role-sweep.spec.ts", "// spec\n");
-    write("tests/e2e/api-widgets.spec.ts", "// spec\n");
-    write("app/my-actions.test.ts", "// test\n");
-    write("app/commented-actions.test.ts", "// test\n");
-
+  it("fails on export drift in either direction", () => {
+    writeTests();
     const manifest = fullyFilledManifest();
-    manifest.counts.pages = 99;
+    manifest.actions["app/my-actions.ts"].exports = ["doThingAction", "removedAction"];
 
     const { errors } = validateManifest(root, manifest);
-    expect(errors.some((e) => e.includes("header count mismatch") && e.includes("counts.pages"))).toBe(
-      true,
+    expect(errors).toContainEqual(expect.stringContaining("exports someConstAction not listed"));
+    expect(errors).toContainEqual(expect.stringContaining("lists removedAction, which the module no longer exports"));
+  });
+
+  it("fails when an action's test file doesn't import or mock the module", () => {
+    writeTests();
+    write("app/unrelated.test.ts", `import { other } from "@/lib/other";\nvoid other;\n`);
+    const manifest = fullyFilledManifest();
+    manifest.actions["app/my-actions.ts"].tests = ["app/unrelated.test.ts"];
+
+    const { errors } = validateManifest(root, manifest);
+    expect(errors).toContainEqual(expect.stringContaining("unrelated test: action app/my-actions.ts"));
+  });
+
+  it("accepts a vi.mock path as a reference to the module", () => {
+    writeTests();
+    write(
+      "app/my-actions.test.ts",
+      `vi.mock("@/app/my-actions", () => ({}));\n// doThingAction someConstAction\n`,
     );
+    const { errors } = validateManifest(root, fullyFilledManifest());
+    expect(errors).toEqual([]);
+  });
+
+  it("fails on an export no test names, unless it is waived with a reason", () => {
+    writeTests();
+    write("app/my-actions.test.ts", `import { doThingAction } from "@/app/my-actions";\nvoid doThingAction;\n`);
+    const manifest = fullyFilledManifest();
+
+    expect(validateManifest(root, manifest).errors).toContainEqual(
+      expect.stringContaining("untested export: action app/my-actions.ts export someConstAction"),
+    );
+
+    manifest.actions["app/my-actions.ts"].untestedExports = { someConstAction: "Covered by Story B." };
+    expect(validateManifest(root, manifest).errors).toEqual([]);
+
+    manifest.actions["app/my-actions.ts"].untestedExports = { someConstAction: "" };
+    expect(validateManifest(root, manifest).errors).toContainEqual(expect.stringContaining("waiver without a reason"));
+  });
+
+  it("fails on a stale waiver for an export that is now tested or no longer exists", () => {
+    writeTests();
+    const manifest = fullyFilledManifest();
+    manifest.actions["app/my-actions.ts"].untestedExports = {
+      doThingAction: "was untested",
+      goneAction: "was untested",
+    };
+
+    const { errors } = validateManifest(root, manifest);
+    expect(errors).toContainEqual(expect.stringContaining("stale waiver: action app/my-actions.ts export doThingAction is now tested"));
+    expect(errors).toContainEqual(expect.stringContaining("waives goneAction, which the module doesn't export"));
   });
 
   it("fails on a page with empty allowedRoles that isn't public or controlPlane", () => {
@@ -344,10 +388,7 @@ describe("validateManifest", () => {
   });
 
   it("does not require allowedRoles for public or controlPlane pages", () => {
-    write("tests/e2e/page-role-sweep.spec.ts", "// spec\n");
-    write("tests/e2e/api-widgets.spec.ts", "// spec\n");
-    write("app/my-actions.test.ts", "// test\n");
-    write("app/commented-actions.test.ts", "// test\n");
+    writeTests();
 
     const manifest = fullyFilledManifest();
     manifest.pages["/"].allowedRoles = [];
@@ -371,10 +412,7 @@ describe("validateManifest", () => {
   });
 
   it("accepts a page carrying the optional note/seedSource/sweepMode/redirectsTo fields", () => {
-    write("tests/e2e/page-role-sweep.spec.ts", "// spec\n");
-    write("tests/e2e/api-widgets.spec.ts", "// spec\n");
-    write("app/my-actions.test.ts", "// test\n");
-    write("app/commented-actions.test.ts", "// test\n");
+    writeTests();
 
     const manifest = fullyFilledManifest();
     manifest.pages["/church-admin"] = {

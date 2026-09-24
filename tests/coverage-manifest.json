@@ -1,10 +1,4 @@
 {
-  "generated_at": "2026-09-24T03:24:14.424Z",
-  "counts": {
-    "pages": 117,
-    "routes": 15,
-    "actions": 30
-  },
   "pages": {
     "/": {
       "path": "/",
@@ -13,7 +7,6 @@
       "public": true,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -25,7 +18,6 @@
       "public": true,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -43,7 +35,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -65,7 +56,6 @@
       "dynamicParams": {
         "role": "$identity"
       },
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts",
@@ -87,7 +77,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts"
@@ -102,7 +91,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/church-admin-readiness.spec.ts",
@@ -119,7 +107,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -133,7 +120,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -147,7 +133,6 @@
       "public": true,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -164,7 +149,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts"
@@ -179,7 +163,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -193,7 +176,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -209,7 +191,6 @@
       "dynamicParams": {
         "id": "22222222-0000-0000-0000-000000000011"
       },
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -224,7 +205,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -238,7 +218,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/church-admin-readiness.spec.ts"
@@ -253,7 +232,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -267,7 +245,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -281,7 +258,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -295,7 +271,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -311,7 +286,6 @@
       "dynamicParams": {
         "serviceId": "cccccccc-0000-0000-0000-000000000001"
       },
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -326,7 +300,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts"
@@ -343,7 +316,6 @@
       "dynamicParams": {
         "id": "cccccccc-0000-0000-0000-000000000001"
       },
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -358,7 +330,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -372,7 +343,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -386,7 +356,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -400,7 +369,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/church-admin-readiness.spec.ts"
@@ -418,7 +386,6 @@
       "dynamicParams": {
         "id": "77777777-0000-0000-0000-000000000001"
       },
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -433,7 +400,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -447,7 +413,6 @@
       "public": true,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -464,7 +429,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -480,7 +444,6 @@
       "dynamicParams": {
         "id": "$sql:select id from public.finance_accounts where church_id = '11111111-0000-0000-0000-000000000001' order by name, id limit 1"
       },
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -495,7 +458,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -509,7 +471,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -524,7 +485,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -538,7 +498,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -552,7 +511,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/church-admin-readiness.spec.ts"
@@ -567,7 +525,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -582,7 +539,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -596,7 +552,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -610,7 +565,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/church-admin-readiness.spec.ts"
@@ -625,7 +579,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -642,7 +595,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -657,7 +609,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -672,7 +623,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -689,7 +639,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -705,7 +654,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -722,7 +670,6 @@
       "dynamicParams": {
         "id": "44444444-0000-0000-0000-000000000001"
       },
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -735,7 +682,6 @@
       "public": true,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -752,7 +698,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -764,7 +709,6 @@
       "public": true,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -782,7 +726,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -797,7 +740,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -813,7 +755,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -829,7 +770,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -844,7 +784,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -859,7 +798,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -874,7 +812,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -890,7 +827,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -905,7 +841,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -921,7 +856,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -937,7 +871,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -951,7 +884,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/church-admin-readiness.spec.ts"
@@ -966,7 +898,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -980,7 +911,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts",
@@ -996,7 +926,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/church-admin-readiness.spec.ts"
@@ -1011,7 +940,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1027,7 +955,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1043,7 +970,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1059,7 +985,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/church-admin-readiness.spec.ts"
@@ -1076,7 +1001,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -1092,7 +1016,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/church-admin-readiness.spec.ts"
@@ -1109,7 +1032,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/church-admin-readiness.spec.ts"
@@ -1129,7 +1051,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1145,7 +1066,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -1162,7 +1082,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1180,7 +1099,6 @@
       "dynamicParams": {
         "logId": "$sql:select id from public.communication_logs where church_id = '11111111-0000-0000-0000-000000000001' order by created_at, id limit 1"
       },
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -1197,7 +1115,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1213,7 +1130,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -1230,7 +1146,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1245,7 +1160,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1261,7 +1175,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1275,7 +1188,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1289,7 +1201,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -1305,7 +1216,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1319,7 +1229,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts"
@@ -1334,7 +1243,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts"
@@ -1349,7 +1257,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts"
@@ -1364,7 +1271,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts"
@@ -1383,7 +1289,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts"
@@ -1399,7 +1304,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts"
@@ -1414,7 +1318,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts"
@@ -1429,7 +1332,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1443,7 +1345,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1458,7 +1359,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/church-admin-readiness.spec.ts"
@@ -1474,7 +1374,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1489,7 +1388,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1504,7 +1402,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1519,7 +1416,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1538,7 +1434,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -1554,7 +1449,6 @@
       "public": false,
       "controlPlane": true,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1570,7 +1464,6 @@
       "dynamicParams": {
         "section": "tenants"
       },
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -1585,7 +1478,6 @@
       "public": false,
       "controlPlane": true,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1599,7 +1491,6 @@
       "public": false,
       "controlPlane": true,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1611,7 +1502,6 @@
       "public": true,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -1628,7 +1518,6 @@
       "dynamicParams": {
         "slug": "grace-harbor"
       },
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -1648,7 +1537,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -1661,7 +1549,6 @@
       "public": true,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1673,7 +1560,6 @@
       "public": true,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -1686,7 +1572,6 @@
       "public": true,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts"
@@ -1701,7 +1586,6 @@
       "public": true,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts"
@@ -1716,7 +1600,6 @@
       "public": true,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ]
@@ -1728,7 +1611,6 @@
       "public": true,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/onboarding-flow.spec.ts"
@@ -1741,7 +1623,6 @@
       "public": true,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -1755,7 +1636,6 @@
       "public": true,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -1769,7 +1649,6 @@
       "public": true,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/onboarding-flow.spec.ts"
@@ -1790,7 +1669,6 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": null,
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -1813,7 +1691,6 @@
       "dynamicParams": {
         "role": "church-admin"
       },
-      "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
@@ -2021,7 +1898,28 @@
       ],
       "tests": [
         "app/app/actions.test.ts"
-      ]
+      ],
+      "untestedExports": {
+        "addChurchgoerAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "assignMembersToMinistryAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "calculateBurnoutAlertsAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "createCareAssignmentAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "createMinistryAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "createPastoralNoteAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "deactivateChurchAdminPersonAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "deleteMinistryAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "inviteUserAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "logKingdomImpactAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "mergeChurchAdminDuplicateAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "reassignChurchAdminPersonFamilyAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "removeMemberFromMinistryAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "reviewVolunteerMatchAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "suggestVolunteersAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateCareAssignmentStatusAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateMinistryHealthScoreAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateMinistryVisionAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "upsertMemberFamilyAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
     },
     "app/app/ccm-actions.ts": {
       "module": "app/app/ccm-actions.ts",
@@ -2041,7 +1939,15 @@
       ],
       "tests": [
         "app/app/ccm-actions.test.ts"
-      ]
+      ],
+      "untestedExports": {
+        "assignVolunteerAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "fileIncidentAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "silentPageAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "transferChildAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateChildProfileAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "upsertAuthorizedPickupAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
     },
     "app/app/church-admin-actions.ts": {
       "module": "app/app/church-admin-actions.ts",
@@ -2067,7 +1973,15 @@
       "tests": [
         "app/app/church-admin-actions.test.ts",
         "app/app/church-admin-refund-actions.test.ts"
-      ]
+      ],
+      "untestedExports": {
+        "cancelRegistrationAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "checkInRegistrantAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "quickAddVisitorCheckInAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "quickCheckInEventMemberAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "removeRosterAssignmentAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "toggleRosterConfirmationAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
     },
     "app/app/church-admin/attendance/import/actions.ts": {
       "module": "app/app/church-admin/attendance/import/actions.ts",
@@ -2160,7 +2074,11 @@
       ],
       "tests": [
         "app/app/church-admin/operations/actions.test.ts"
-      ]
+      ],
+      "untestedExports": {
+        "getOnboardingTemplateAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateOnboardingTemplateAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
     },
     "app/app/church-admin/people/import/actions.ts": {
       "module": "app/app/church-admin/people/import/actions.ts",
@@ -2194,7 +2112,10 @@
       "tests": [
         "app/app/communications-actions.test.ts",
         "app/app/communications-compose-actions.test.ts"
-      ]
+      ],
+      "untestedExports": {
+        "getCommunicationDeliveryEventsAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
     },
     "app/app/daily-desk-actions.ts": {
       "module": "app/app/daily-desk-actions.ts",
@@ -2233,7 +2154,17 @@
       ],
       "tests": [
         "app/app/elders-actions.test.ts"
-      ]
+      ],
+      "untestedExports": {
+        "addElderNoteAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "addPrayerRequestAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "createCouncilNoteAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "createDiscernmentSessionAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "generateWisdomPromptAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "markPrayedAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateCouncilNoteAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateDiscernmentSessionStatusAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
     },
     "app/app/finance-actions.ts": {
       "module": "app/app/finance-actions.ts",
@@ -2250,7 +2181,13 @@
       ],
       "tests": [
         "app/app/finance-actions.test.ts"
-      ]
+      ],
+      "untestedExports": {
+        "createBudgetAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "deleteJournalDraftAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateAccountAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "upsertBudgetLinesAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
     },
     "app/app/giving-actions.ts": {
       "module": "app/app/giving-actions.ts",
@@ -2279,7 +2216,15 @@
       ],
       "tests": [
         "app/app/groups-actions.test.ts"
-      ]
+      ],
+      "untestedExports": {
+        "addGroupMemberAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "advanceVisitorWorkflowAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "logGroupMeetingAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "logServiceAttendanceAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "removeGroupMemberAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateGroupAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
     },
     "app/app/member-actions.ts": {
       "module": "app/app/member-actions.ts",
@@ -2333,8 +2278,14 @@
         "updateServicePlanStatusAction"
       ],
       "tests": [
-        "app/app/volunteer-actions.test.ts"
-      ]
+        "app/app/volunteer-actions.test.ts",
+        "app/app/song-library-actions.test.ts",
+        "app/app/service-plan-role-type-actions.test.ts"
+      ],
+      "untestedExports": {
+        "logVolunteerHoursAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "removeAssignmentAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
     },
     "app/calendar/actions.ts": {
       "module": "app/calendar/actions.ts",
@@ -2347,7 +2298,12 @@
       ],
       "tests": [
         "app/calendar/actions.test.ts"
-      ]
+      ],
+      "untestedExports": {
+        "deleteCalendarEventAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "respondToCalendarEventRsvpAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateCalendarEventAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
     },
     "app/control/actions.ts": {
       "module": "app/control/actions.ts",
@@ -2360,7 +2316,11 @@
       ],
       "tests": [
         "app/control/actions.test.ts"
-      ]
+      ],
+      "untestedExports": {
+        "launchTenantViewAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "returnToControlPlaneAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
     },
     "app/language-actions.ts": {
       "module": "app/language-actions.ts",
@@ -2379,7 +2339,10 @@
       ],
       "tests": [
         "app/portal/actions.test.ts"
-      ]
+      ],
+      "untestedExports": {
+        "submitPortalAccountRequestAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
     },
     "app/portal/children/actions.ts": {
       "module": "app/portal/children/actions.ts",
@@ -2389,7 +2352,10 @@
       ],
       "tests": [
         "app/portal/children/actions.test.ts"
-      ]
+      ],
+      "untestedExports": {
+        "submitPublicChildCheckinAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
     },
     "app/sign-in/actions.ts": {
       "module": "app/sign-in/actions.ts",
@@ -2429,7 +2395,10 @@
       ],
       "tests": [
         "lib/compliance/data-rights-actions.test.ts"
-      ]
+      ],
+      "untestedExports": {
+        "generateDataExportAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
     }
   }
 }

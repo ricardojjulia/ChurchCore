@@ -226,8 +226,6 @@ export function loadManifest(manifestPath) {
 
 function emptyManifest() {
   return {
-    generated_at: new Date().toISOString(),
-    counts: { pages: 0, routes: 0, actions: 0 },
     pages: {},
     routes: {},
     actions: {},
@@ -249,8 +247,9 @@ export function bootstrapManifest(rootDir, manifestPath) {
       public: false,
       controlPlane: false,
       dynamicParams: null,
-      envGated: null,
-      tests: [TODO_MARKER],
+      // Every page is swept once it has an entry; empty allowedRoles still
+      // forces a human to read the page's gates before this check passes.
+      tests: ["tests/e2e/page-role-sweep.spec.ts"],
     };
     added.pages.push(page.path);
   }
@@ -282,8 +281,6 @@ export function bootstrapManifest(rootDir, manifestPath) {
     routes: Object.keys(manifest.routes).length,
     actions: Object.keys(manifest.actions).length,
   };
-  manifest.generated_at = new Date().toISOString();
-
   return { manifest, added };
 }
 
@@ -296,8 +293,6 @@ function sortManifest(manifest) {
   const sortObj = (obj) =>
     Object.fromEntries(Object.entries(obj).sort(([a], [b]) => a.localeCompare(b)));
   return {
-    generated_at: manifest.generated_at,
-    counts: manifest.counts,
     pages: sortObj(manifest.pages),
     routes: sortObj(manifest.routes),
     actions: sortObj(manifest.actions),
@@ -310,17 +305,41 @@ function sortManifest(manifest) {
 //   1. a missing entry (a scanned surface has no manifest entry)
 //   2. a stale entry (the manifest entry's source file is gone)
 //   3. a missing test file (a tests[] path that doesn't exist on disk)
-//   4. a header count mismatch (manifest.counts vs actual entry counts)
 //   5. a page with empty allowedRoles unless public or controlPlane is set
 //   6. any leftover TODO marker anywhere in the manifest
 //   7. a page's optional `sweepMode` set to something other than
 //      "render" | "redirect" | "invalid-token"
+//   8. export drift: an action module's exports differ from its manifest `exports`
+//   9. an action tests[] file that doesn't import or vi.mock the module
+//  10. an action export named in none of its tests and not waived in
+//      `untestedExports` (or a waiver that is stale or has no reason)
 //
 // Pages also accept optional free-text/documentation fields that this
 // validator does not constrain beyond rule 7 above: `note` (free text),
 // `seedSource` (where a `dynamicParams` value came from), `deniedRedirectsTo`
 // (where a denied role lands when it isn't its homePath), and `redirectsTo`
 // (the target path for a `sweepMode: "redirect"` page).
+
+const IMPORT_SPECIFIER = /(?:from\s+|import\(\s*|vi\.mock\(\s*|require\(\s*)["']([^"']+)["']/g;
+
+function stripExtension(path) {
+  return path.replace(/\.(tsx?|jsx?|mjs)$/, "");
+}
+
+/** True when a test file imports or vi.mocks `modulePath` (repo-relative). */
+export function referencesModule(rootDir, testPath, content, modulePath) {
+  const target = stripExtension(modulePath);
+  for (const match of content.matchAll(IMPORT_SPECIFIER)) {
+    const specifier = match[1];
+    let resolved = null;
+    if (specifier.startsWith("@/")) resolved = specifier.slice(2);
+    else if (specifier.startsWith(".")) {
+      resolved = relative(rootDir, join(rootDir, dirname(testPath), specifier));
+    }
+    if (resolved && stripExtension(resolved) === target) return true;
+  }
+  return false;
+}
 
 export function validateManifest(rootDir, manifest) {
   const errors = [];
@@ -385,20 +404,11 @@ export function validateManifest(rootDir, manifest) {
   for (const [key, entry] of Object.entries(manifest.routes ?? {})) checkTests("route", key, entry?.tests);
   for (const [key, entry] of Object.entries(manifest.actions ?? {})) checkTests("action", key, entry?.tests);
 
-  // 4. Header count mismatch.
   const actualCounts = {
     pages: Object.keys(manifest.pages ?? {}).length,
     routes: Object.keys(manifest.routes ?? {}).length,
     actions: Object.keys(manifest.actions ?? {}).length,
   };
-  for (const surface of ["pages", "routes", "actions"]) {
-    const declared = manifest.counts?.[surface];
-    if (declared !== actualCounts[surface]) {
-      errors.push(
-        `header count mismatch: counts.${surface} is ${declared} but the manifest has ${actualCounts[surface]} ${surface} entries`,
-      );
-    }
-  }
 
   // 5. Pages with empty allowedRoles unless public or controlPlane.
   for (const [key, entry] of Object.entries(manifest.pages ?? {})) {
@@ -437,6 +447,55 @@ export function validateManifest(rootDir, manifest) {
       errors.push(
         `invalid sweepMode: page ${key} has sweepMode ${JSON.stringify(entry.sweepMode)}, expected one of ${VALID_SWEEP_MODES.join(", ")}`,
       );
+    }
+  }
+
+  // 8. Export drift — a module's scanned exports must match its manifest
+  //    `exports` exactly, so adding an action to an existing module fails
+  //    until the manifest (and a test) catch up.
+  const scannedByModule = new Map(scannedActions.map((a) => [a.module, a.exports]));
+  for (const [key, entry] of Object.entries(manifest.actions ?? {})) {
+    const scanned = scannedByModule.get(key);
+    if (!scanned) continue; // reported as stale (rule 2)
+    const declared = Array.isArray(entry?.exports) ? entry.exports : [];
+    const added = scanned.filter((name) => !declared.includes(name));
+    const removed = declared.filter((name) => !scanned.includes(name));
+    if (added.length) errors.push(`export drift: action ${key} exports ${added.join(", ")} not listed in the manifest`);
+    if (removed.length) errors.push(`export drift: action ${key} lists ${removed.join(", ")}, which the module no longer exports`);
+  }
+
+  // 9. Every action tests[] file must import or vi.mock the module itself;
+  // 10. every export must be named in one of those files, or be waived in
+  //     `untestedExports` ({ name: reason }). A waiver for an export that is
+  //     now tested is itself an error, so the list can only shrink.
+  for (const [key, entry] of Object.entries(manifest.actions ?? {})) {
+    if (!scannedByModule.has(key)) continue;
+    const testFiles = (Array.isArray(entry?.tests) ? entry.tests : []).filter(
+      (t) => t !== TODO_MARKER && existsSync(join(rootDir, t)),
+    );
+    const referencing = [];
+    for (const testPath of testFiles) {
+      const content = readFileSync(join(rootDir, testPath), "utf8");
+      if (referencesModule(rootDir, testPath, content, key)) referencing.push(content);
+      else errors.push(`unrelated test: action ${key} lists ${testPath}, which doesn't import or mock the module`);
+    }
+    const waivers = entry?.untestedExports && typeof entry.untestedExports === "object" ? entry.untestedExports : {};
+    for (const name of scannedByModule.get(key)) {
+      const named = referencing.some((content) => new RegExp(`\\b${name}\\b`).test(content));
+      if (!named && !waivers[name]) {
+        errors.push(`untested export: action ${key} export ${name} isn't named in any of its tests (add a test, or waive it in untestedExports with a reason)`);
+      }
+      if (named && waivers[name]) {
+        errors.push(`stale waiver: action ${key} export ${name} is now tested; remove it from untestedExports`);
+      }
+    }
+    for (const [name, reason] of Object.entries(waivers)) {
+      if (!scannedByModule.get(key).includes(name)) {
+        errors.push(`stale waiver: action ${key} waives ${name}, which the module doesn't export`);
+      }
+      if (typeof reason !== "string" || reason.trim().length === 0) {
+        errors.push(`waiver without a reason: action ${key} untestedExports.${name}`);
+      }
     }
   }
 
