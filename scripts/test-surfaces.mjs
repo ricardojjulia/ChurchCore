@@ -51,6 +51,16 @@ const DEFAULT_MANIFEST_PATH = join(DEFAULT_REPO_ROOT, "tests", "coverage-manifes
 const HTTP_METHODS = ["GET", "POST", "PATCH", "PUT", "DELETE"];
 const TODO_MARKER = "TODO";
 
+// A page entry's optional `sweepMode` field (see docs/testing.md and the
+// Story A brief) tells the page×role sweep spec how to treat that page:
+//   - "render" (default): assert the allowed/denied/public render contract.
+//   - "redirect": the page always redirects (e.g. a legacy alias or a
+//     role-home router) — assert the redirect instead of page content.
+//   - "invalid-token": a token-bearing public page whose token can't be
+//     seeded deterministically (e.g. an ephemeral confirmation link) —
+//     assert the page's graceful invalid-token state instead of a happy path.
+const VALID_SWEEP_MODES = ["render", "redirect", "invalid-token"];
+
 // ── Small filesystem helpers ────────────────────────────────────────────
 
 function toPosix(p) {
@@ -303,6 +313,13 @@ function sortManifest(manifest) {
 //   4. a header count mismatch (manifest.counts vs actual entry counts)
 //   5. a page with empty allowedRoles unless public or controlPlane is set
 //   6. any leftover TODO marker anywhere in the manifest
+//   7. a page's optional `sweepMode` set to something other than
+//      "render" | "redirect" | "invalid-token"
+//
+// Pages also accept optional free-text/documentation fields that this
+// validator does not constrain beyond rule 7 above: `note` (free text),
+// `seedSource` (where a `dynamicParams` value came from), and `redirectsTo`
+// (the target path for a `sweepMode: "redirect"` page).
 
 export function validateManifest(rootDir, manifest) {
   const errors = [];
@@ -410,6 +427,16 @@ export function validateManifest(rootDir, manifest) {
   scan(manifest.actions, "actions");
   for (const loc of todoLocations) {
     errors.push(`leftover TODO marker at ${loc}`);
+  }
+
+  // 7. A page's optional `sweepMode` must be one of the known values when
+  // present (unset is equivalent to the "render" default and is fine).
+  for (const [key, entry] of Object.entries(manifest.pages ?? {})) {
+    if (entry?.sweepMode !== undefined && !VALID_SWEEP_MODES.includes(entry.sweepMode)) {
+      errors.push(
+        `invalid sweepMode: page ${key} has sweepMode ${JSON.stringify(entry.sweepMode)}, expected one of ${VALID_SWEEP_MODES.join(", ")}`,
+      );
+    }
   }
 
   const summary = {

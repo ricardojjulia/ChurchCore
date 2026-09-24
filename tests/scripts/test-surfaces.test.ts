@@ -369,4 +369,49 @@ describe("validateManifest", () => {
     const { errors } = validateManifest(root, null);
     expect(errors[0]).toMatch(/bootstrap/i);
   });
+
+  it("accepts a page carrying the optional note/seedSource/sweepMode/redirectsTo fields", () => {
+    write("tests/e2e/page-role-sweep.spec.ts", "// spec\n");
+    write("tests/e2e/api-widgets.spec.ts", "// spec\n");
+    write("app/my-actions.test.ts", "// test\n");
+    write("app/commented-actions.test.ts", "// test\n");
+
+    const manifest = fullyFilledManifest();
+    manifest.pages["/church-admin"] = {
+      ...manifest.pages["/church-admin"],
+      sweepMode: "redirect",
+      redirectsTo: "/app/church-admin/dashboard",
+      note: "Pure redirect stub; the destination page enforces its own role gate.",
+      seedSource: "not applicable — no dynamicParams on this route",
+    };
+
+    const { errors } = validateManifest(root, manifest);
+    expect(errors).toEqual([]);
+  });
+
+  it("fails on an invalid sweepMode value", () => {
+    const manifest = fullyFilledManifest();
+    manifest.pages["/church-admin"].sweepMode = "teleport";
+
+    const { errors } = validateManifest(root, manifest);
+    expect(
+      errors.some((e) => e.includes("invalid sweepMode: page /church-admin") && e.includes("teleport")),
+    ).toBe(true);
+  });
+
+  it.each(["render", "redirect", "invalid-token"])(
+    "accepts the valid sweepMode value %s",
+    (sweepMode) => {
+      write("tests/e2e/page-role-sweep.spec.ts", "// spec\n");
+      write("tests/e2e/api-widgets.spec.ts", "// spec\n");
+      write("app/my-actions.test.ts", "// test\n");
+      write("app/commented-actions.test.ts", "// test\n");
+
+      const manifest = fullyFilledManifest();
+      manifest.pages["/church-admin"].sweepMode = sweepMode;
+
+      const { errors } = validateManifest(root, manifest);
+      expect(errors.some((e) => e.includes("invalid sweepMode"))).toBe(false);
+    },
+  );
 });
