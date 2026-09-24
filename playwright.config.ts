@@ -18,6 +18,9 @@ const useProductionServer = isCI || process.env.E2E_SERVER === "start";
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  // Shard and parallelize per test, not per file: the page×role sweep is one
+  // file with ~700 tests, and file-level grouping put every test in shard 1.
+  fullyParallel: true,
   timeout: 30_000,
   expect: {
     timeout: 10_000,
@@ -26,12 +29,13 @@ export default defineConfig({
     baseURL,
     trace: "on-first-retry",
   },
-  retries: isCI ? 2 : 0,
-  // Every page request calls the tenant (and, locally, control-plane) auth
-  // /user endpoint. Past ~4 parallel workers the local auth containers run out
-  // of Postgres connections ("cannot assign requested address") and sessions
-  // read as signed out. CI keeps Playwright's default (half the runner cores).
-  workers: isCI ? undefined : 4,
+  // Every page load calls the auth /user endpoint on both local stacks. On a
+  // busy Docker host the local auth containers intermittently fail to open
+  // Postgres connections ("cannot assign requested address"), and the session
+  // reads as signed out. One local retry absorbs that; Playwright still reports
+  // those tests as "flaky" in the summary, so they stay visible.
+  retries: isCI ? 2 : 1,
+  workers: isCI ? undefined : 3,
   reporter: isCI ? [["list"], ["html", { open: "never" }]] : [["list"]],
   webServer: {
     // CI builds and runs the production server against the local Supabase
