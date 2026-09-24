@@ -145,14 +145,20 @@ async function waitToLeave(page: Page, requestedPath: string) {
  * - /sign-in for super-admin on a tenant page: its session belongs to the
  *   control-plane auth, so requireSession finds no tenant user;
  * - the page's documented `deniedRedirectsTo` when it sends denied roles
- *   somewhere specific;
+ *   somewhere specific and the visitor is allowed there (otherwise that page
+ *   redirects them on to their homePath);
  * - otherwise the visitor's own homePath (redirect(session.homePath)).
  */
 function expectedDeniedLanding(entry: PageEntry, visitor: Visitor): string {
   if (visitor === "signed-out") return "/sign-in";
   if (entry.controlPlane) return "/sign-in";
   if (visitor === "super-admin") return "/sign-in";
-  if (entry.deniedRedirectsTo) return entry.deniedRedirectsTo;
+  if (entry.deniedRedirectsTo) {
+    // The target may deny this visitor too, in which case its own gate sends
+    // them on to their homePath; the final landing is what counts.
+    const target = manifest.pages[entry.deniedRedirectsTo];
+    if (target?.allowedRoles.includes(visitor)) return entry.deniedRedirectsTo;
+  }
   return roles[visitor].homePath;
 }
 
