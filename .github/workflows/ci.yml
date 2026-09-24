@@ -105,40 +105,12 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
-      - name: Start local Supabase
-        run: npx supabase start
-
-      - name: Apply migrations
-        run: npx supabase db reset
-
-      - name: Map local Supabase env vars onto app config names
-        # `supabase status -o env` names its output after the CLI's own
-        # conventions, not this app's — see lib/supabase/config.ts and
-        # .env.example. Reuses the single local stack for the control plane
-        # too (CONTROL_PLANE_* -> the same local URL/DB), per this story's
-        # brief, instead of a separate hosted control-plane project.
-        run: |
-          npx supabase status -o env > /tmp/supabase-status.env
-          set -a
-          # shellcheck disable=SC1091
-          source /tmp/supabase-status.env
-          set +a
-          {
-            echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL}"
-            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}"
-            echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
-            echo "TENANT_SUPABASE_URL=${API_URL}"
-            echo "TENANT_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}"
-            echo "TENANT_SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
-            echo "TENANT_DB_URL=${DB_URL}"
-            echo "CONTROL_PLANE_SUPABASE_URL=${API_URL}"
-            echo "CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}"
-            echo "CONTROL_PLANE_SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
-            echo "CONTROL_PLANE_DB_URL=${DB_URL}"
-          } >> "$GITHUB_ENV"
-
-      - name: Create dev users and seed
-        run: ./supabase/scripts/create-dev-users.sh
+      - name: Set up e2e environment
+        # Starts and resets both local Supabase stacks (tenant + control
+        # plane), creates the demo users, registers the admin as a platform
+        # admin in the control plane, encrypts the seeded pastoral fields, and
+        # exports the app env onto $GITHUB_ENV. See supabase/scripts/setup-e2e.sh.
+        run: ./supabase/scripts/setup-e2e.sh --reset --env-file "$GITHUB_ENV"
 
       - name: Build
         run: npm run build
@@ -167,4 +139,6 @@ jobs:
 
       - name: Stop local Supabase
         if: always()
-        run: npx supabase stop
+        run: |
+          npx supabase stop || true
+          npx supabase stop --workdir node_modules/.cache/supabase-control-plane || true

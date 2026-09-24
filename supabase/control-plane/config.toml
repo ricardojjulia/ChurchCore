@@ -63,7 +63,11 @@ refresh_token_reuse_interval = 10
 enable_signup = false
 
 [auth.email]
-enable_signup = false
+# In the Supabase CLI this key toggles the email provider itself, so `false`
+# also disables email/password *sign-in*, leaving no way to reach /control
+# locally. Public sign-ups stay off via [auth] enable_signup = false above;
+# platform staff are provisioned by supabase/scripts/setup-e2e.sh.
+enable_signup = true
 enable_confirmations = true
 
 [studio]

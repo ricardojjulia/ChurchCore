@@ -26,11 +26,17 @@ load_env_file() {
   fi
 }
 
+# Values already in the environment win over .env/.env.local: sourcing those
+# files with `set -a` would otherwise silently replace an explicit local URL
+# with whatever .env.local points at (possibly a hosted project).
+EXPLICIT_SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL:-}"
+EXPLICIT_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-}"
+
 load_env_file "${ROOT_DIR}/.env"
 load_env_file "${ROOT_DIR}/.env.local"
 
-SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL:-http://127.0.0.1:4201}"
-SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-}"
+SUPABASE_URL="${EXPLICIT_SUPABASE_URL:-${NEXT_PUBLIC_SUPABASE_URL:-http://127.0.0.1:4201}}"
+SERVICE_ROLE_KEY="${EXPLICIT_SERVICE_ROLE_KEY:-${SUPABASE_SERVICE_ROLE_KEY:-}}"
 
 if [[ -z "${SERVICE_ROLE_KEY}" ]]; then
   echo "ERROR: SUPABASE_SERVICE_ROLE_KEY is not set."

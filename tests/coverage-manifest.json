@@ -71,8 +71,8 @@
         "tests/e2e/member-mobile-foundation.spec.ts",
         "tests/e2e/onboarding-flow.spec.ts"
       ],
-      "note": "Access depends on the :role segment matching the caller's own roleId, not merely on being one of the 5 church roles — the sweep must pair each identity with its own role value, not a single fixed dynamicParams value.",
-      "seedSource": "not a DB id — literal sentinel meaning 'substitute the signed-in identity's own roleId'. app/app/[role]/page.tsx renders only when portalRole.id === session.appContext.roleId; any other :role value (including another valid role id) redirects to session.homePath. super-admin is denied entirely (requireChurchSession)."
+      "note": "Access depends on the :role segment matching the caller's own roleId, not merely on being one of the 5 church roles \u2014 the sweep must pair each identity with its own role value, not a single fixed dynamicParams value.",
+      "seedSource": "not a DB id \u2014 literal sentinel meaning 'substitute the signed-in identity's own roleId'. app/app/[role]/page.tsx renders only when portalRole.id === session.appContext.roleId; any other :role value (including another valid role id) redirects to session.homePath. super-admin is denied entirely (requireChurchSession)."
     },
     "/app/calendar": {
       "path": "/app/calendar",
@@ -152,7 +152,7 @@
       ],
       "sweepMode": "redirect",
       "redirectsTo": "/app/church-admin/children/dashboard",
-      "note": "This page.tsx has no session/role gate at all — it's an unconditional redirect() with no requireChurchSession call. Reachable signed out. The destination (dashboard) enforces church-admin-only access on its own, so no data is exposed, but flag: this differs from the rest of the app's convention of gating every page individually."
+      "note": "This page.tsx has no session/role gate at all \u2014 it's an unconditional redirect() with no requireChurchSession call. Reachable signed out. The destination (dashboard) enforces church-admin-only access on its own, so no data is exposed, but flag: this differs from the rest of the app's convention of gating every page individually."
     },
     "/app/church-admin/children/checkin": {
       "path": "/app/church-admin/children/checkin",
@@ -212,7 +212,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "seedSource": "profiles.id (maya@graceharbor.church) where church_id = Grace Harbor. lib/ccm-data.ts's getChildProfile() only requires a matching profiles row (church_id + id) and left-joins children_sensitive_data, so any Grace Harbor profile id renders the page — but supabase/seed.sql seeds zero children_sensitive_data rows, so no profile is actually flagged as a child. This id is an ordinary adult member profile used as a fixture of convenience; the page will render with null dob/allergies/etc. Not a realistic child-profile fixture."
+      "seedSource": "profiles.id (maya@graceharbor.church) where church_id = Grace Harbor. lib/ccm-data.ts's getChildProfile() only requires a matching profiles row (church_id + id) and left-joins children_sensitive_data, so any Grace Harbor profile id renders the page \u2014 but supabase/seed.sql seeds zero children_sensitive_data rows, so no profile is actually flagged as a child. This id is an ordinary adult member profile used as a fixture of convenience; the page will render with null dob/allergies/etc. Not a realistic child-profile fixture."
     },
     "/app/church-admin/children/children/new": {
       "path": "/app/church-admin/children/children/new",
@@ -451,7 +451,7 @@
       ],
       "sweepMode": "redirect",
       "redirectsTo": "/app/church-admin/finance/dashboard",
-      "note": "No session/role gate on this page itself — unconditional redirect(); destination enforces church-admin-only."
+      "note": "No session/role gate on this page itself \u2014 unconditional redirect(); destination enforces church-admin-only."
     },
     "/app/church-admin/finance/accounts": {
       "path": "/app/church-admin/finance/accounts",
@@ -476,13 +476,13 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": {
-        "id": "29a0d8f5-d479-4f21-b85b-4cb1d7b5b8d2"
+        "id": "$sql:select id from public.finance_accounts where church_id = '11111111-0000-0000-0000-000000000001' order by name, id limit 1"
       },
       "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "seedSource": "finance_accounts.id where church_id = Grace Harbor"
+      "seedSource": "finance_accounts rows get random ids on every seed, so the sweep resolves one at run time via $sql."
     },
     "/app/church-admin/finance/budgets": {
       "path": "/app/church-admin/finance/budgets",
@@ -511,7 +511,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "No seed rows for finance_budgets in supabase/seed.sql (verified: 0 rows in the local DB) — dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+      "note": "No seed rows for finance_budgets in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
     },
     "/app/church-admin/finance/dashboard": {
       "path": "/app/church-admin/finance/dashboard",
@@ -569,7 +569,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "No seed rows for finance_journals in supabase/seed.sql (verified: 0 rows in the local DB) — dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+      "note": "No seed rows for finance_journals in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
     },
     "/app/church-admin/finance/journals/new": {
       "path": "/app/church-admin/finance/journals/new",
@@ -658,7 +658,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "No seed rows for groups in supabase/seed.sql (verified: 0 rows in the local DB) — dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+      "note": "No seed rows for groups in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
     },
     "/app/church-admin/groups/import": {
       "path": "/app/church-admin/groups/import",
@@ -689,7 +689,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "Denied church roles (secretary/ministry-leader/member) get an inline 200 'Access Denied' message rendered on the page itself, NOT a redirect() to session.homePath like every other gated page in the app. The sweep must not assert a redirect for denied roles on this route — only that no locale/catalog data renders."
+      "note": "Denied church roles (secretary/ministry-leader/member) get an inline 200 'Access Denied' message rendered on the page itself, NOT a redirect() to session.homePath like every other gated page in the app. The sweep must not assert a redirect for denied roles on this route \u2014 only that no locale/catalog data renders."
     },
     "/app/church-admin/ministry": {
       "path": "/app/church-admin/ministry",
@@ -737,7 +737,7 @@
       ],
       "sweepMode": "redirect",
       "redirectsTo": "/app/church-admin/ministry",
-      "note": "No session/role gate on this page itself — unconditional redirect(); destination enforces church-admin/pastor."
+      "note": "No session/role gate on this page itself \u2014 unconditional redirect(); destination enforces church-admin/pastor."
     },
     "/app/church-admin/onboarding": {
       "path": "/app/church-admin/onboarding",
@@ -766,7 +766,7 @@
       ],
       "sweepMode": "redirect",
       "redirectsTo": "/app/church-admin/operations/documents",
-      "note": "No session/role gate on this page itself — unconditional redirect(); destination enforces church-admin/pastor."
+      "note": "No session/role gate on this page itself \u2014 unconditional redirect(); destination enforces church-admin/pastor."
     },
     "/app/church-admin/operations/documents": {
       "path": "/app/church-admin/operations/documents",
@@ -797,7 +797,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "No seed rows for church_documents in supabase/seed.sql (verified: 0 rows in the local DB) — dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+      "note": "No seed rows for church_documents in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
     },
     "/app/church-admin/operations/documents/[id]/edit": {
       "path": "/app/church-admin/operations/documents/[id]/edit",
@@ -813,7 +813,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "No seed rows for church_documents in supabase/seed.sql (verified: 0 rows in the local DB) — dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+      "note": "No seed rows for church_documents in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
     },
     "/app/church-admin/operations/documents/new": {
       "path": "/app/church-admin/operations/documents/new",
@@ -874,7 +874,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "No seed rows for onboarding_instances in supabase/seed.sql (verified: 0 rows in the local DB) — dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+      "note": "No seed rows for onboarding_instances in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
     },
     "/app/church-admin/operations/onboarding/instances/new": {
       "path": "/app/church-admin/operations/onboarding/instances/new",
@@ -905,7 +905,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "No seed rows for onboarding_templates in supabase/seed.sql (verified: 0 rows in the local DB) — dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+      "note": "No seed rows for onboarding_templates in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
     },
     "/app/church-admin/operations/onboarding/templates/[id]/edit": {
       "path": "/app/church-admin/operations/onboarding/templates/[id]/edit",
@@ -921,7 +921,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "No seed rows for onboarding_templates in supabase/seed.sql (verified: 0 rows in the local DB) — dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+      "note": "No seed rows for onboarding_templates in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
     },
     "/app/church-admin/operations/onboarding/templates/new": {
       "path": "/app/church-admin/operations/onboarding/templates/new",
@@ -1076,7 +1076,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "No seed rows for service_plans in supabase/seed.sql (verified: 0 rows in the local DB) — dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+      "note": "No seed rows for service_plans in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
     },
     "/app/church-admin/workflows": {
       "path": "/app/church-admin/workflows",
@@ -1112,7 +1112,7 @@
       ],
       "sweepMode": "redirect",
       "redirectsTo": "/app/communications/history",
-      "note": "Allowed roles pass the gate and are then unconditionally redirect()ed to /app/communications/history — even for allowed roles this page never renders content itself. Known gap (see tests/e2e/church-admin-readiness.spec.ts): ?view=readiness is silently dropped."
+      "note": "Allowed roles pass the gate and are then unconditionally redirect()ed to /app/communications/history \u2014 even for allowed roles this page never renders content itself. Known gap (see tests/e2e/church-admin-readiness.spec.ts): ?view=readiness is silently dropped."
     },
     "/app/communications/compose": {
       "path": "/app/communications/compose",
@@ -1145,7 +1145,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "No seed rows for communication_templates in supabase/seed.sql (verified: 0 rows in the local DB) — dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+      "note": "No seed rows for communication_templates in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
     },
     "/app/communications/history": {
       "path": "/app/communications/history",
@@ -1174,13 +1174,13 @@
       "public": false,
       "controlPlane": false,
       "dynamicParams": {
-        "logId": "2bf3013d-26b2-4c13-86a2-fbd1dfe7b21e"
+        "logId": "$sql:select id from public.communication_logs where church_id = '11111111-0000-0000-0000-000000000001' order by created_at, id limit 1"
       },
       "envGated": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "seedSource": "communication_logs.id where church_id = Grace Harbor"
+      "seedSource": "communication_logs rows get random ids on every seed, so the sweep resolves one at run time via $sql."
     },
     "/app/communications/templates": {
       "path": "/app/communications/templates",
@@ -1213,7 +1213,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "No seed rows for communication_templates in supabase/seed.sql (verified: 0 rows in the local DB) — dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+      "note": "No seed rows for communication_templates in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
     },
     "/app/communications/templates/new": {
       "path": "/app/communications/templates/new",
@@ -1289,7 +1289,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "No seed rows for discernment_sessions in supabase/seed.sql (verified: 0 rows in the local DB) — dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+      "note": "No seed rows for discernment_sessions in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
     },
     "/app/giving": {
       "path": "/app/giving",
@@ -1384,7 +1384,7 @@
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts"
       ],
-      "note": "ACCESS-CONTROL INCONSISTENCY: unlike every sibling /app/member/* page, this page.tsx has no roleId check at all after requireChurchSession — any signed-in church role (not just member) can open it. getGroupsList(session, {activeOnly:true}) does look tenant-scoped (no obvious data leak beyond the group directory itself), but the missing role gate breaks the pattern every other member/* route follows and should be reviewed."
+      "note": "ACCESS-CONTROL INCONSISTENCY: unlike every sibling /app/member/* page, this page.tsx has no roleId check at all after requireChurchSession \u2014 any signed-in church role (not just member) can open it. getGroupsList(session, {activeOnly:true}) does look tenant-scoped (no obvious data leak beyond the group directory itself), but the missing role gate breaks the pattern every other member/* route follows and should be reviewed."
     },
     "/app/member/ministries": {
       "path": "/app/member/ministries",
@@ -1570,7 +1570,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "seedSource": "not a DB id — static enum member from lib/control-plane.ts's controlPlaneSections (id list: overview|tenants|billing|support|demo-feedback). generateStaticParams excludes 'overview' (that id notFound()s here; overview lives at /control instead)."
+      "seedSource": "not a DB id \u2014 static enum member from lib/control-plane.ts's controlPlaneSections (id list: overview|tenants|billing|support|demo-feedback). generateStaticParams excludes 'overview' (that id notFound()s here; overview lives at /control instead)."
     },
     "/control/demo-feedback": {
       "path": "/control/demo-feedback",
@@ -1613,7 +1613,7 @@
       ],
       "sweepMode": "redirect",
       "redirectsTo": "/control",
-      "note": "Typo-alias page, no session gate of its own — unconditional redirect(); destination enforces control-plane-only."
+      "note": "Typo-alias page, no session gate of its own \u2014 unconditional redirect(); destination enforces control-plane-only."
     },
     "/give/[slug]": {
       "path": "/give/[slug]",
@@ -1629,7 +1629,7 @@
         "tests/e2e/page-role-sweep.spec.ts"
       ],
       "note": "Renders demo Grace Harbor giving data for any :slug when NEXT_PUBLIC_DEMO_MODE=true; 404s otherwise. No real Stripe/production public_giving_pages lookup is wired yet (see the TODO comment in the page source).",
-      "seedSource": "not a DB lookup — app/give/[slug]/page.tsx's getGivingPageData() stub accepts any slug string and returns static Grace Harbor demo data ONLY when NEXT_PUBLIC_DEMO_MODE=true; returns null (-> notFound(), a 404) otherwise. CI's e2e job sets NEXT_PUBLIC_DEMO_MODE=true (.github/workflows/ci.yml); local runs must set it too or this page 404s for every slug."
+      "seedSource": "not a DB lookup \u2014 app/give/[slug]/page.tsx's getGivingPageData() stub accepts any slug string and returns static Grace Harbor demo data ONLY when NEXT_PUBLIC_DEMO_MODE=true; returns null (-> notFound(), a 404) otherwise. CI's e2e job sets NEXT_PUBLIC_DEMO_MODE=true (.github/workflows/ci.yml); local runs must set it too or this page 404s for every slug."
     },
     "/hq": {
       "path": "/hq",
@@ -1648,7 +1648,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "Gated entirely by app/hq/layout.tsx, NOT by lib/auth's requireChurchSession/requireControlPlaneSession — it checks a raw Supabase auth session directly plus the current_user_role() Postgres RPC (supabase/migrations/20260713000000_hq.sql), which maps platform_admins -> 'admin', church_admin -> 'admin', pastor_elder/secretary/ministry_leader -> 'manager', and member_volunteer -> 'member' (or 'teacher' if the profile has a ccm_volunteer_assignments row with role='lead_teacher'). Only the mapped role 'member' is denied (redirect to /app). ACCESS-CONTROL INCONSISTENCY worth flagging: because this check is independent of lib/auth's appContext, super-admin (sarah) can open /app/hq even while in CONTROL context — unlike every other /app/* page, which requireChurchSession denies to super-admin outright. Also: a plain 'member' role person WITH a lead_teacher CCM assignment passes this gate (mapped to 'teacher', which is not 'member') — an edge case not covered by the current 6-identity fixture set."
+      "note": "Gated entirely by app/hq/layout.tsx, NOT by lib/auth's requireChurchSession/requireControlPlaneSession \u2014 it checks a raw Supabase auth session directly plus the current_user_role() Postgres RPC (supabase/migrations/20260713000000_hq.sql), which maps platform_admins -> 'admin', church_admin -> 'admin', pastor_elder/secretary/ministry_leader -> 'manager', and member_volunteer -> 'member' (or 'teacher' if the profile has a ccm_volunteer_assignments row with role='lead_teacher'). Only the mapped role 'member' is denied (redirect to /app). ACCESS-CONTROL INCONSISTENCY worth flagging: because this check is independent of lib/auth's appContext, super-admin (sarah) can open /app/hq even while in CONTROL context \u2014 unlike every other /app/* page, which requireChurchSession denies to super-admin outright. Also: a plain 'member' role person WITH a lead_teacher CCM assignment passes this gate (mapped to 'teacher', which is not 'member') \u2014 an edge case not covered by the current 6-identity fixture set."
     },
     "/plan": {
       "path": "/plan",
@@ -1673,7 +1673,7 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "getSession() is optional (no requireSession) — renders for signed-out visitors. Signed-in identities in a CHURCH app context get redirected onward (member -> /app/member; every other church role -> session.homePath). super-admin in CONTROL context is NOT redirected (isChurchAppContext is false for control) and sees the portal page rendered normally, same as signed-out."
+      "note": "getSession() is optional (no requireSession) \u2014 renders for signed-out visitors. Signed-in identities in a CHURCH app context get redirected onward (member -> /app/member; every other church role -> session.homePath). super-admin in CONTROL context is NOT redirected (isChurchAppContext is false for control) and sees the portal page rendered normally, same as signed-out."
     },
     "/portal/children/checkin/[token]": {
       "path": "/portal/children/checkin/[token]",
@@ -1688,7 +1688,7 @@
         "tests/e2e/member-mobile-foundation.spec.ts"
       ],
       "sweepMode": "invalid-token",
-      "note": "Token is an ephemeral per-session checkin_session_token on ccm_services, not seeded statically in supabase/seed.sql — cannot be deterministically fixtured. getPublicCcmSessionByToken() returns null for an unknown token and the page renders a graceful 'unavailable' state (verified: no throw). The sweep should assert that graceful state with a garbage token, not a happy path."
+      "note": "Token is an ephemeral per-session checkin_session_token on ccm_services, not seeded statically in supabase/seed.sql \u2014 cannot be deterministically fixtured. getPublicCcmSessionByToken() returns null for an unknown token and the page renders a graceful 'unavailable' state (verified: no throw). The sweep should assert that graceful state with a garbage token, not a happy path."
     },
     "/portal/children/checkout/[token]": {
       "path": "/portal/children/checkout/[token]",
@@ -1756,7 +1756,7 @@
         "tests/e2e/page-role-sweep.spec.ts"
       ],
       "sweepMode": "invalid-token",
-      "note": "Same confirmation_token mechanism as /portal/volunteer/confirm/[token]. getPublicVolunteerScheduleByToken() returns an empty array for an unknown token (verified: no throw) and the page renders 'No Upcoming Assignments' — that IS this route's graceful invalid-token state."
+      "note": "Same confirmation_token mechanism as /portal/volunteer/confirm/[token]. getPublicVolunteerScheduleByToken() returns an empty array for an unknown token (verified: no throw) and the page renders 'No Upcoming Assignments' \u2014 that IS this route's graceful invalid-token state."
     },
     "/sign-in": {
       "path": "/sign-in",
@@ -1791,7 +1791,7 @@
         "tests/e2e/page-role-sweep.spec.ts"
       ],
       "sweepMode": "redirect",
-      "note": "requireSession requires any signed-in identity, then redirect(session.homePath) — own homePath, not role-param-dependent."
+      "note": "requireSession requires any signed-in identity, then redirect(session.homePath) \u2014 own homePath, not role-param-dependent."
     },
     "/workspace/[role]": {
       "path": "/workspace/[role]",
@@ -1814,8 +1814,8 @@
         "tests/e2e/page-role-sweep.spec.ts"
       ],
       "sweepMode": "redirect",
-      "note": "requireSession only requires ANY signed-in identity, then unconditionally redirect(getRoleHomePath(:role)) — the redirect target depends on the :role URL param, NOT on the caller's own role, so e.g. a signed-in 'member' hitting /workspace/church-admin is redirected to /app/church-admin (which then itself denies them via requireChurchSession's own role check). Not a data leak, but worth the sweep knowing the redirect target varies by :role, not by identity.",
-      "seedSource": "not a DB id — static enum member of lib/portal.ts's portalRoles (super-admin|church-admin|secretary|pastor|ministry-leader|member); an unrecognized value 404s (notFound()) before the session check even runs."
+      "note": "requireSession only requires ANY signed-in identity, then unconditionally redirect(getRoleHomePath(:role)) \u2014 the redirect target depends on the :role URL param, NOT on the caller's own role, so e.g. a signed-in 'member' hitting /workspace/church-admin is redirected to /app/church-admin (which then itself denies them via requireChurchSession's own role check). Not a data leak, but worth the sweep knowing the redirect target varies by :role, not by identity.",
+      "seedSource": "not a DB id \u2014 static enum member of lib/portal.ts's portalRoles (super-admin|church-admin|secretary|pastor|ministry-leader|member); an unrecognized value 404s (notFound()) before the session check even runs."
     }
   },
   "routes": {

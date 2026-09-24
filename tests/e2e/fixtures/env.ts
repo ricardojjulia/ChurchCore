@@ -71,6 +71,43 @@ function loadEnvFiles() {
  * overwrites a variable that's already set in `process.env` (see the
  * precedence note above the fold).
  */
+const CONTROL_PLANE_WORKDIR = resolve(process.cwd(), "node_modules/.cache/supabase-control-plane");
+
+/** Reads `npx supabase status -o env` for one local stack. */
+function readSupabaseStatus(extraArgs: string[], startHint: string): Record<string, string> {
+  let output: string;
+  try {
+    output = execFileSync("npx", ["supabase", "status", "-o", "env", ...extraArgs], {
+      cwd: resolve(process.cwd()),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Could not read local Supabase status (npx supabase status ${extraArgs.join(" ")}). ` +
+        `Run \`${startHint}\` first, then re-run the e2e suite. (${detail.split("\n")[0]})`,
+    );
+  }
+
+  const status: Record<string, string> = {};
+  for (const line of output.split(/\r?\n/)) {
+    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+    if (!match) continue;
+    const [, key, rawValue] = match;
+    status[key] = rawValue.replace(/^['"]|['"]$/g, "");
+  }
+
+  for (const key of ["API_URL", "ANON_KEY", "SERVICE_ROLE_KEY", "DB_URL"]) {
+    if (!status[key]) {
+      throw new Error(
+        `\`npx supabase status ${extraArgs.join(" ")}\` did not report ${key}. Run \`${startHint}\` first.`,
+      );
+    }
+  }
+  return status;
+}
+
 function deriveLocalSupabaseEnv() {
   if (process.env.CI) return; // ci.yml already exported these via $GITHUB_ENV
 
@@ -90,50 +127,27 @@ function deriveLocalSupabaseEnv() {
   ];
   if (SUPABASE_VARS.every(alreadySet)) return; // nothing to derive
 
-  let output: string;
-  try {
-    output = execFileSync("npx", ["supabase", "status", "-o", "env"], {
-      cwd: resolve(process.cwd()),
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      "Could not read local Supabase status (`npx supabase status -o env`). Run `npx supabase start` " +
-        `first, then re-run the e2e suite. (${detail.split("\n")[0]})`,
-    );
-  }
+  const tenant = readSupabaseStatus([], "npx supabase start");
+  // The control plane runs as its own local stack (supabase/control-plane),
+  // started by supabase/scripts/setup-e2e.sh from this linked workdir.
+  const controlPlane = readSupabaseStatus(
+    ["--workdir", CONTROL_PLANE_WORKDIR],
+    "./supabase/scripts/setup-e2e.sh",
+  );
 
-  const status: Record<string, string> = {};
-  for (const line of output.split(/\r?\n/)) {
-    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
-    if (!match) continue;
-    const [, key, rawValue] = match;
-    status[key] = rawValue.replace(/^['"]|['"]$/g, "");
-  }
-
-  for (const key of ["API_URL", "ANON_KEY", "SERVICE_ROLE_KEY", "DB_URL"]) {
-    if (!status[key]) {
-      throw new Error(
-        `\`npx supabase status -o env\` did not report ${key}. Is the local Supabase stack running (npx supabase start)?`,
-      );
-    }
-  }
-
-  // Exactly mirrors ci.yml's rename step.
+  // Exactly mirrors the env setup-e2e.sh writes for CI.
   const mapped: Record<string, string> = {
-    NEXT_PUBLIC_SUPABASE_URL: status.API_URL,
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.ANON_KEY,
-    SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,
-    TENANT_SUPABASE_URL: status.API_URL,
-    TENANT_SUPABASE_PUBLISHABLE_KEY: status.ANON_KEY,
-    TENANT_SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,
-    TENANT_DB_URL: status.DB_URL,
-    CONTROL_PLANE_SUPABASE_URL: status.API_URL,
-    CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY: status.ANON_KEY,
-    CONTROL_PLANE_SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,
-    CONTROL_PLANE_DB_URL: status.DB_URL,
+    NEXT_PUBLIC_SUPABASE_URL: tenant.API_URL,
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: tenant.ANON_KEY,
+    SUPABASE_SERVICE_ROLE_KEY: tenant.SERVICE_ROLE_KEY,
+    TENANT_SUPABASE_URL: tenant.API_URL,
+    TENANT_SUPABASE_PUBLISHABLE_KEY: tenant.ANON_KEY,
+    TENANT_SUPABASE_SERVICE_ROLE_KEY: tenant.SERVICE_ROLE_KEY,
+    TENANT_DB_URL: tenant.DB_URL,
+    CONTROL_PLANE_SUPABASE_URL: controlPlane.API_URL,
+    CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY: controlPlane.ANON_KEY,
+    CONTROL_PLANE_SUPABASE_SERVICE_ROLE_KEY: controlPlane.SERVICE_ROLE_KEY,
+    CONTROL_PLANE_DB_URL: controlPlane.DB_URL,
   };
 
   for (const [key, value] of Object.entries(mapped)) {
