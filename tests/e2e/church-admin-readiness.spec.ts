@@ -58,7 +58,14 @@ const churchAdminOnlyReadinessRoutes = [
   },
   { route: "/app/church-admin/events?view=needs-roster", deniedText: "Readiness view" },
   { route: "/app/church-admin/children/dashboard?view=readiness", deniedText: "Volunteers" },
-  { route: "/app/church-admin/volunteers/schedules?view=unassigned", deniedText: "Service Plans" },
+  // Pastor and ministry-leader were granted service-plan access in Service
+  // Planning Story 1 (matching the can_manage_church RLS policy), so they are
+  // not denied here; see tests/coverage-manifest.json.
+  {
+    route: "/app/church-admin/volunteers/schedules?view=unassigned",
+    deniedText: "Service Plans",
+    alsoAllowed: ["pastor", "ministry-leader"],
+  },
   { route: "/app/church-admin/giving?view=exceptions", deniedText: "Post to GL" },
   { route: "/app/church-admin/finance/journals?view=drafts", deniedText: "Readiness view" },
 ] as const;
@@ -108,8 +115,15 @@ test.describe("ChurchAdmin readiness denied-role browser path", () => {
       test.use({ storageState: authFilePath(identity) });
 
       test(`redirects ${identity} away from ChurchAdmin-only readiness routes`, async ({ page }) => {
-        for (const { route, deniedText } of churchAdminOnlyReadinessRoutes) {
+        for (const target of churchAdminOnlyReadinessRoutes) {
+          const { route, deniedText } = target;
+          if ("alsoAllowed" in target && (target.alsoAllowed as readonly string[]).includes(identity)) continue;
+          const deniedPath = new URL(route, "http://placeholder").pathname;
           await page.goto(route);
+          // The denial redirect can arrive as a streamed NEXT_REDIRECT applied
+          // on hydration; until it lands, the shell (nav labels included) is on
+          // screen. Wait for it before asserting the protected content is gone.
+          await page.waitForURL((url) => url.pathname !== deniedPath, { timeout: 15_000 });
           await expect(page.getByRole("heading", { name: "Weekly readiness" })).toHaveCount(0);
           await expect(page.getByText(deniedText, { exact: false })).toHaveCount(0);
         }

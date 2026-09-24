@@ -71,7 +71,6 @@ jobs:
       SENDGRID_WEBHOOK_VERIFICATION_KEY: ci-dummy-sendgrid-verification-key
       TWILIO_AUTH_TOKEN: ci-dummy-twilio-auth-token
       RESEND_WEBHOOK_SECRET: whsec_ci_dummy_resend
-      PASTORAL_ENCRYPTION_KEY: "J0f0kIeITUzzTmaDfAcCWQhbDYM2AMn/NNpo7APHfp0="
 
     steps:
       - name: Check out repository
@@ -104,6 +103,11 @@ jobs:
       - name: Install Playwright OS dependencies (cache hit)
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
+
+      - name: Generate a throwaway pastoral encryption key
+        # Random per run: the CI database is ephemeral, so the key only has to
+        # match between the seed backfill and the server in this job.
+        run: echo "PASTORAL_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
 
       - name: Set up e2e environment
         # Starts and resets both local Supabase stacks (tenant + control

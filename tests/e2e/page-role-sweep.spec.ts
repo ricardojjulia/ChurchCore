@@ -43,6 +43,7 @@ interface PageEntry {
   dynamicParams?: Record<string, string> | null;
   sweepMode?: SweepMode;
   redirectsTo?: string;
+  deniedRedirectsTo?: string;
 }
 
 const manifest = JSON.parse(
@@ -136,6 +137,25 @@ async function waitToLeave(page: Page, requestedPath: string) {
   await page.waitForURL((url) => url.pathname !== requestedPath, { timeout: 15_000 });
 }
 
+/**
+ * Where a denied visitor must end up:
+ * - /sign-in when signed out;
+ * - /sign-in (?force=1) for a tenant role on a control-plane page, since
+ *   requireControlPlaneSession offers an account switch;
+ * - /sign-in for super-admin on a tenant page: its session belongs to the
+ *   control-plane auth, so requireSession finds no tenant user;
+ * - the page's documented `deniedRedirectsTo` when it sends denied roles
+ *   somewhere specific;
+ * - otherwise the visitor's own homePath (redirect(session.homePath)).
+ */
+function expectedDeniedLanding(entry: PageEntry, visitor: Visitor): string {
+  if (visitor === "signed-out") return "/sign-in";
+  if (entry.controlPlane) return "/sign-in";
+  if (visitor === "super-admin") return "/sign-in";
+  if (entry.deniedRedirectsTo) return entry.deniedRedirectsTo;
+  return roles[visitor].homePath;
+}
+
 function isAllowed(entry: PageEntry, visitor: Visitor): boolean {
   if (visitor === "signed-out") return Boolean(entry.public);
   return entry.allowedRoles.includes(visitor);
@@ -174,9 +194,11 @@ for (const visitor of visitors) {
             return;
           }
           await waitToLeave(page, requestedPath);
-          if (visitor === "signed-out") {
-            expect(new URL(page.url()).pathname).toBe("/sign-in");
-          }
+          // Assert exactly where a denied visitor lands, so a gate that
+          // redirects to the wrong (possibly protected) page can't pass.
+          await expect
+            .poll(() => new URL(page.url()).pathname, { message: `denied landing for ${visitor} on ${url}` })
+            .toBe(expectedDeniedLanding(entry, visitor));
           await expectNoErrorUi(page);
           return;
         }

@@ -63,7 +63,7 @@ Your `.env.local` may point at hosted projects. The suite cannot reach them, for
 - **`tests/e2e/fixtures/auth.setup.ts`:** signs in once per identity and saves the session: `super-admin` (control plane), `church-admin`, `secretary`, `pastor`, `ministry-leader`, `member`.
 - **`tests/e2e/page-role-sweep.spec.ts`:** visits every manifest page as each identity and signed out.
   - Allowed identities: the page renders on its own URL with no 5xx, no error screen ("Something went wrong" / "Application error"), no not-found UI, and no console errors outside `tests/e2e/fixtures/console-allowlist.ts`.
-  - Denied identities: redirected away, never shown a 5xx.
+  - Denied identities: land exactly on their own home path (tenant roles on `/control` land on `/sign-in` to switch accounts; a page's `deniedRedirectsTo` overrides), never shown a 5xx.
   - Signed-out visitors: land on `/sign-in` unless the page is public.
   - Dynamic pages use real seeded ids. A `$sql:` value resolves an id at run time for seed rows with random ids; a query that returns nothing fails the run.
   - Pages whose record type has no seed rows are visited with a nonexistent id and must not crash.
@@ -102,6 +102,7 @@ Your `.env.local` may point at hosted projects. The suite cannot reach them, for
       "dynamicParams": { "id": "77777777-0000-0000-0000-000000000001" },  // or "$sql:select id from ..."
       "envGated": null,                              // "stripe" | "ai" | "vapid" | null
       "sweepMode": "render",                         // render | redirect | invalid-token
+      "deniedRedirectsTo": null,                     // set when denied roles land somewhere other than their homePath
       "tests": ["tests/e2e/page-role-sweep.spec.ts"]
     }
   },

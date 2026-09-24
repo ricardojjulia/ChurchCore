@@ -1,0 +1,5 @@
+# Test-only AES key that was briefly hard-coded in the CI e2e job on the
+# feat/e2e-testing-foundation branch. It only ever encrypted throwaway seed data
+# in ephemeral CI databases and is no longer used anywhere: CI now generates a
+# random key per run and local runs keep their own key in a gitignored cache.
+e63809dae44677e5c233fe8757d02a79b31aae8b:.github/workflows/ci.yml:generic-api-key:74

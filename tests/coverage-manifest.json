@@ -137,7 +137,8 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "Denied roles redirect to /app/church-admin/attendance, not session.homePath."
+      "note": "Denied roles redirect to /app/church-admin/attendance, not session.homePath.",
+      "deniedRedirectsTo": "/app/church-admin/attendance"
     },
     "/app/church-admin/children": {
       "path": "/app/church-admin/children",
@@ -436,7 +437,8 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "Denied roles redirect to /app/church-admin/events, not session.homePath."
+      "note": "Denied roles redirect to /app/church-admin/events, not session.homePath.",
+      "deniedRedirectsTo": "/app/church-admin/events"
     },
     "/app/church-admin/finance": {
       "path": "/app/church-admin/finance",
@@ -627,7 +629,8 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "Denied roles redirect to /app/church-admin/giving, not session.homePath."
+      "note": "Denied roles redirect to /app/church-admin/giving, not session.homePath.",
+      "deniedRedirectsTo": "/app/church-admin/giving"
     },
     "/app/church-admin/groups": {
       "path": "/app/church-admin/groups",
@@ -673,7 +676,8 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts"
       ],
-      "note": "Denied roles redirect to /app/church-admin/groups, not session.homePath."
+      "note": "Denied roles redirect to /app/church-admin/groups, not session.homePath.",
+      "deniedRedirectsTo": "/app/church-admin/groups"
     },
     "/app/church-admin/localization": {
       "path": "/app/church-admin/localization",

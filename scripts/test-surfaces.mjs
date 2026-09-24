@@ -318,7 +318,8 @@ function sortManifest(manifest) {
 //
 // Pages also accept optional free-text/documentation fields that this
 // validator does not constrain beyond rule 7 above: `note` (free text),
-// `seedSource` (where a `dynamicParams` value came from), and `redirectsTo`
+// `seedSource` (where a `dynamicParams` value came from), `deniedRedirectsTo`
+// (where a denied role lands when it isn't its homePath), and `redirectsTo`
 // (the target path for a `sweepMode: "redirect"` page).
 
 export function validateManifest(rootDir, manifest) {

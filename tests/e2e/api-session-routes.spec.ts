@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+import { queryTenantDb, uniqueTestIp } from "./fixtures/api";
+import { getDemoCredentials } from "./fixtures/env";
+import { authFilePath, SEED_CHURCH_ID } from "./fixtures/roles";
+
 /**
  * Contract tests for the session- and control-plane-gated routes (see
  * tests/coverage-manifest.json -> routes -> auth: "session" | "control").
@@ -80,5 +84,58 @@ test.describe("GET /api/reports/custom — signed out", () => {
     const response = await request.get("/api/reports/custom", { maxRedirects: 0 });
     expect(response.status()).toBe(307);
     expect(response.headers()["location"]).toContain("/sign-in");
+  });
+});
+
+// ── Signed in: graceful behavior without optional provider keys ─────────────
+// CI and `npm run test:e2e:local` run with ANTHROPIC_API_KEY and the VAPID
+// keys unset, so these assert the stub/graceful paths the routes promise.
+
+test.describe("session routes — signed in as member", () => {
+  test.use({ storageState: authFilePath("member") });
+
+  test("POST /api/ai without ANTHROPIC_API_KEY -> 500 with a clear message, no crash", async ({ page }) => {
+    const response = await page.request.post("/api/ai", { data: { prompt: "hello" } });
+    expect(response.status()).toBe(500);
+    expect(await response.json()).toEqual({ error: "AI features are not configured in this environment." });
+  });
+
+  test("POST /api/push/subscribe for the caller's own profile -> graceful skip without VAPID keys", async ({ page }) => {
+    const { memberEmail } = getDemoCredentials();
+    const { rows } = await queryTenantDb<{ id: string }>(
+      "select p.id from public.profiles p join auth.users u on u.id = p.user_id where u.email = $1 and p.church_id = $2",
+      [memberEmail, SEED_CHURCH_ID],
+    );
+    expect(rows).toHaveLength(1);
+
+    const response = await page.request.post("/api/push/subscribe", {
+      headers: { "x-forwarded-for": uniqueTestIp() },
+      data: {
+        subscription: { endpoint: "https://push.example.com/e2e", keys: { p256dh: "p256dh-value", auth: "auth-value" } },
+        churchId: SEED_CHURCH_ID,
+        profileId: rows[0].id,
+      },
+    });
+    expect(response.status()).toBe(200);
+    expect(await response.json()).toEqual({ received: true, skipped: true });
+  });
+
+  test("POST /api/push/subscribe for someone else's profile -> 403", async ({ page }) => {
+    const { memberEmail } = getDemoCredentials();
+    const { rows } = await queryTenantDb<{ id: string }>(
+      "select p.id from public.profiles p left join auth.users u on u.id = p.user_id where p.church_id = $2 and (u.email is null or u.email <> $1) limit 1",
+      [memberEmail, SEED_CHURCH_ID],
+    );
+    expect(rows).toHaveLength(1);
+
+    const response = await page.request.post("/api/push/subscribe", {
+      headers: { "x-forwarded-for": uniqueTestIp() },
+      data: {
+        subscription: { endpoint: "https://push.example.com/e2e", keys: { p256dh: "p256dh-value", auth: "auth-value" } },
+        churchId: SEED_CHURCH_ID,
+        profileId: rows[0].id,
+      },
+    });
+    expect(response.status()).toBe(403);
   });
 });

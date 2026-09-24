@@ -25,7 +25,15 @@ export STRIPE_WEBHOOK_SECRET=whsec_local_e2e_stripe
 export SENDGRID_WEBHOOK_VERIFICATION_KEY=local-e2e-sendgrid-verification-key
 export TWILIO_AUTH_TOKEN=local-e2e-twilio-auth-token
 export RESEND_WEBHOOK_SECRET=whsec_local_e2e_resend
-export PASTORAL_ENCRYPTION_KEY="${E2E_PASTORAL_ENCRYPTION_KEY:-J0f0kIeITUzzTmaDfAcCWQhbDYM2AMn/NNpo7APHfp0=}"
+# Pastoral fields in the local seed are encrypted with this key, so it must stay
+# the same across runs. It's generated once and kept in a gitignored cache file;
+# nothing real is ever encrypted with it.
+KEY_FILE="${ROOT_DIR}/node_modules/.cache/e2e-pastoral-encryption.key"
+if [[ -z "${E2E_PASTORAL_ENCRYPTION_KEY:-}" && ! -s "${KEY_FILE}" ]]; then
+  mkdir -p "$(dirname "${KEY_FILE}")"
+  openssl rand -base64 32 > "${KEY_FILE}"
+fi
+export PASTORAL_ENCRYPTION_KEY="${E2E_PASTORAL_ENCRYPTION_KEY:-$(cat "${KEY_FILE}")}"
 
 # Provider API keys stay empty so every provider runs in stub mode, even if a
 # developer has real keys in .env.local.
@@ -43,4 +51,5 @@ source .demo-credentials.local
 set +a
 
 npm run build
+npm run check:server-reference-manifest
 E2E_SERVER=start npx playwright test "$@"
