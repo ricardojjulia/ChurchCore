@@ -56,7 +56,9 @@ function loadEnvFiles() {
       if (!match) continue;
 
       const [, key, rawValue] = match;
-      if (process.env[key]) continue;
+      // `in`, not truthiness: an explicitly exported empty value (the local
+      // runner blanks provider API keys to force stub mode) must win too.
+      if (key in process.env) continue;
 
       process.env[key] = rawValue.replace(/^['"]|['"]$/g, "");
     }
@@ -203,8 +205,10 @@ export function assertLocalSupabaseHosts() {
 }
 
 deriveLocalSupabaseEnv();
-assertLocalSupabaseHosts();
 loadEnvFiles();
+// After loading the env files, so a hosted URL from .env.local (e.g. when CI=1
+// skips local derivation) is caught too.
+assertLocalSupabaseHosts();
 
 export function requireEnv(name: string): string {
   const value = process.env[name];

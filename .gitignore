@@ -53,3 +53,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Test-only pastoral key for local e2e seed data (supabase/scripts/setup-e2e.sh)
+/.e2e-pastoral-key.local

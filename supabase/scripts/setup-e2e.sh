@@ -13,8 +13,12 @@
 #                 $GITHUB_ENV; locally the Playwright config derives the same
 #                 values itself, so this is optional.
 #
-# Needs PASTORAL_ENCRYPTION_KEY (base64, 32 bytes) for the encryption backfill.
-# supabase/seed.sql inserts pastoral fields as plaintext.
+# Pastoral fields in supabase/seed.sql are plaintext; the backfill encrypts them
+# with PASTORAL_ENCRYPTION_KEY, or locally with the key kept in
+# .e2e-pastoral-key.local (created on first run).
+#
+# Prerequisites: Docker, npx supabase, psql, python3, openssl, curl; ports
+# 4200-4205 (tenant) and 4211-4213 (control plane) free.
 
 set -euo pipefail
 
@@ -33,6 +37,19 @@ done
 
 cd "${ROOT_DIR}"
 
+# Resolve the pastoral key before any slow work. Local runs keep one key in a
+# gitignored repo-root file so it survives `npm ci`; the seed's pastoral fields
+# are encrypted with it, and a different key would make them unreadable.
+KEY_FILE="${ROOT_DIR}/.e2e-pastoral-key.local"
+if [[ -z "${PASTORAL_ENCRYPTION_KEY:-}" ]]; then
+  if [[ ! -s "${KEY_FILE}" ]]; then
+    openssl rand -base64 32 > "${KEY_FILE}"
+    echo "Created ${KEY_FILE} (test-only pastoral key for local e2e data)."
+  fi
+  PASTORAL_ENCRYPTION_KEY="$(cat "${KEY_FILE}")"
+fi
+export PASTORAL_ENCRYPTION_KEY
+
 # The control-plane project keeps config.toml, migrations and seed.sql directly
 # under supabase/control-plane/, but the CLI expects <workdir>/supabase/. Link
 # them into a gitignored workdir so `--workdir` picks up the real config (ports
@@ -46,7 +63,13 @@ done
 status_value() {
   # status_value <KEY> [--workdir dir]
   local key="$1"; shift
-  npx supabase status -o env "$@" 2>/dev/null | sed -n "s/^${key}=\"\{0,1\}\([^\"]*\)\"\{0,1\}$/\1/p"
+  local output
+  if ! output="$(npx supabase status -o env "$@" 2>&1)"; then
+    echo "npx supabase status $* failed:" >&2
+    echo "${output}" >&2
+    exit 1
+  fi
+  printf '%s\n' "${output}" | sed -n "s/^${key}=\"\{0,1\}\([^\"]*\)\"\{0,1\}$/\1/p"
 }
 
 require_local() {
@@ -108,21 +131,18 @@ fi
 # call reports "already registered" on re-runs; the update keeps the password
 # in sync either way.
 CP_AUTH_HEADERS=(-H "apikey: ${CP_SERVICE_KEY}" -H "Authorization: Bearer ${CP_SERVICE_KEY}" -H "Content-Type: application/json")
+# POST reports 422 when the user already exists (re-runs); the PUT must succeed.
 curl -s -o /dev/null -X POST "${CP_API_URL}/auth/v1/admin/users" "${CP_AUTH_HEADERS[@]}" \
   -d "{\"id\": \"${ADMIN_USER_ID}\", \"email\": \"${ADMIN_EMAIL}\", \"password\": \"${CHURCHCORE_OPS_DEV_PASSWORD}\", \"email_confirm\": true}"
-curl -s -o /dev/null -X PUT "${CP_API_URL}/auth/v1/admin/users/${ADMIN_USER_ID}" "${CP_AUTH_HEADERS[@]}" \
+curl -sf -o /dev/null -X PUT "${CP_API_URL}/auth/v1/admin/users/${ADMIN_USER_ID}" "${CP_AUTH_HEADERS[@]}" \
   -d "{\"password\": \"${CHURCHCORE_OPS_DEV_PASSWORD}\", \"email_confirm\": true}"
 psql "${CP_DB}" -qv ON_ERROR_STOP=1 \
   -c "insert into public.profiles (id, email, full_name) values ('${ADMIN_USER_ID}', '${ADMIN_EMAIL}', 'Platform Admin') on conflict (id) do nothing" \
   -c "insert into public.platform_admins (user_id) values ('${ADMIN_USER_ID}') on conflict do nothing"
 
 echo "==> Pastoral encryption backfill"
-if [[ -z "${PASTORAL_ENCRYPTION_KEY:-}" ]]; then
-  echo "PASTORAL_ENCRYPTION_KEY is required (base64, 32 bytes)." >&2
-  exit 1
-fi
 TENANT_SUPABASE_URL="${TENANT_API_URL}" TENANT_SUPABASE_SERVICE_ROLE_KEY="${TENANT_SERVICE_KEY}" \
-  node "${ROOT_DIR}/scripts/backfill-pastoral-encryption.mjs"
+  node "${ROOT_DIR}/scripts/backfill-pastoral-encryption.mjs" --apply
 
 if [[ -n "${ENV_FILE}" ]]; then
   {
@@ -137,6 +157,7 @@ if [[ -n "${ENV_FILE}" ]]; then
     echo "CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY=${CP_ANON_KEY}"
     echo "CONTROL_PLANE_SUPABASE_SERVICE_ROLE_KEY=${CP_SERVICE_KEY}"
     echo "CONTROL_PLANE_DB_URL=${CP_DB}"
+    echo "PASTORAL_ENCRYPTION_KEY=${PASTORAL_ENCRYPTION_KEY}"
   } >> "${ENV_FILE}"
   echo "==> App env written to ${ENV_FILE}"
 fi

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   encryptValue,
   isEncryptedWith,
+  looksLikeCiphertext,
   parseKey,
   planBackfill,
 } from "../../scripts/backfill-pastoral-encryption.mjs";
@@ -45,6 +46,26 @@ describe("backfill-pastoral-encryption", () => {
 
     const afterFirstRun = rows.map((row) => (row.id === "a" ? { ...row, summary: plan[0].value } : row));
     expect(planBackfill(afterFirstRun, "summary", key)).toEqual([]);
+  });
+
+  it("keeps each row's original value so the update can be guarded against concurrent edits", () => {
+    const plan = planBackfill([{ id: "a", summary: "Plaintext summary" }], "summary", key);
+    expect(plan[0].original).toBe("Plaintext summary");
+  });
+
+  it("refuses the whole plan when a value looks encrypted under a different key", () => {
+    const otherKey = randomBytes(32);
+    const rows = [
+      { id: "a", summary: "Plaintext summary needing encryption" },
+      { id: "b", summary: encryptValue("encrypted elsewhere", otherKey) },
+    ];
+    expect(() => planBackfill(rows, "summary", key)).toThrow("wrong key");
+  });
+
+  it("tells ciphertext-shaped values apart from plaintext prose", () => {
+    expect(looksLikeCiphertext(encryptValue("note", key))).toBe(true);
+    expect(looksLikeCiphertext("Hospital visit follow-up with Elena")).toBe(false);
+    expect(looksLikeCiphertext("short")).toBe(false);
   });
 
   it("rejects a missing or wrong-length key", () => {

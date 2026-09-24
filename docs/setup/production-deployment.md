@@ -286,20 +286,30 @@ If a bad env var was deployed:
 
 ## 12. Pastoral Encryption Backfill (First-Time Setup)
 
-If you are deploying into an environment that already has `pastoral_notes` or `care_assignments` rows written before the Phase 2 security hardening (PR #111, 2026-06-07), those rows are stored as plaintext. After provisioning `PASTORAL_ENCRYPTION_KEY`, run the following backfill to encrypt them:
+If you are deploying into an environment that already has pastoral data written as plaintext, encrypt it after provisioning `PASTORAL_ENCRYPTION_KEY`. Plaintext exists wherever rows were written before the Phase 2 security hardening (PR #111, 2026-06-07), or while no key was set.
+
+The fields covered are `pastoral_notes.content`, `care_assignments.summary`, and `church_documents.body` for `elder_council_notes` documents.
+
+**Do this before serving traffic with the key set.** With a key set, `decryptPastoralField()` returns a legacy plaintext value as-is only when it is shorter than the minimum ciphertext length. Longer plaintext is treated as ciphertext and **throws**, which breaks the pages that show it.
 
 ```bash
+# 1. Dry run (the default): prints the target host and how many rows per field would be encrypted.
 TENANT_SUPABASE_URL=https://<ref>.supabase.co \
 TENANT_SUPABASE_SERVICE_ROLE_KEY=<service_role_jwt> \
 PASTORAL_ENCRYPTION_KEY=<your_base64_32_byte_key> \
 node scripts/backfill-pastoral-encryption.mjs
+
+# 2. Check the host and counts, then write:
+node scripts/backfill-pastoral-encryption.mjs --apply   # same env as above
 ```
 
-> **This script does not yet exist.** It must be written before deploying to a production environment with existing pastoral data. For a brand-new deployment with no prior data, this step can be skipped — all new writes will be encrypted automatically.
+The script:
+- **Is idempotent.** Values already encrypted with the key are skipped, so re-running is safe.
+- **Reads every row.** It pages through each table, so tables over 1,000 rows aren't truncated.
+- **Won't overwrite concurrent edits.** Each update is guarded on the value it read. A row edited in between is skipped and reported; re-run to pick it up.
+- **Aborts before writing anything if a value looks like ciphertext but won't decrypt with the key you passed.** That almost always means the wrong key. Encrypting that ciphertext a second time would need both keys to recover.
 
-Until the backfill runs, `decryptPastoralField()` returns the plaintext value as-is for legacy rows and emits a `console.warn`. This is safe but means those rows are not encrypted at rest. The warning disappears once all rows are backfilled.
-
----
+Keep the key safe. Losing it makes every encrypted pastoral field unrecoverable.
 
 ## Local Development — Required `.env.local` Configuration
 

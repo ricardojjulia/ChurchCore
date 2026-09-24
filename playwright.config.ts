@@ -44,7 +44,10 @@ export default defineConfig({
     // running across test runs (see docs/testing.md).
     command: useProductionServer ? "npm run start" : "npm run dev",
     url: baseURL,
-    reuseExistingServer: !useProductionServer,
+    // Never attach to a server this run didn't start: the env guard can only
+    // vouch for the environment it passes in, and an already-running `next
+    // dev` reads .env.local, which may point at a hosted project.
+    reuseExistingServer: false,
     timeout: 120_000,
     // Explicit for clarity — this is also Playwright's own default, but the
     // app's Supabase/cron/unsubscribe/webhook secrets (set by the CI job or
