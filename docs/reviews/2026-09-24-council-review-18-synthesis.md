@@ -98,3 +98,16 @@ This is a large branch: 56 files and ~6.5k lines, most of them tests and scripts
 - [agent-2-route-page](2026-09-24-council-review-18-agent-2-route-page.md)
 - [agent-3-ux-shell](2026-09-24-council-review-18-agent-3-ux-shell.md)
 - [agent-4-feature-competitive](2026-09-24-council-review-18-agent-4-feature-competitive.md)
+
+## §7 Execution & Documenter sign-off
+
+The human approved P1–P5. All five landed:
+
+- `19aea6a` — P1: the H1–H3 local-only-guard fixes; `backfill-pastoral-encryption.mjs` hardened (pagination, dry-run default, per-row value guard, decrypt-guard abort, elder council note coverage); local pastoral key moved to the gitignored `.e2e-pastoral-key.local`; `docs/setup/production-deployment.md` §12 corrected.
+- `a5e00f0` — P2: `test:surfaces` fails on export drift and on an action export that is neither tested nor waived; 62 exports recorded under `untestedExports` with reasons; `counts`/`generated_at` derived at run time; `envGated` removed.
+- `7125e3b` — P3–P5: sweep false greens closed (exact redirect landings, missing-record/invalid-token assertions, pinned `KNOWN_BUGS` symptoms, a cross-role `/app/[role]` case); CI `failOnFlakyTests`; control plane addressed as `localhost` (corrects the super-admin `/control` landing and confirms `/hq` excludes super-admin); process text updated across `AGENTS.md`, the 5 `.claude/agents` files, the Documenter draft-PR note, `improve-software.md`, `docs/testing.md`; API role tests for `/api/reports/custom` and `/api/control/*`.
+- `a741b76` — the intermittent React #418 `/app/member` hydration error (member only) tolerated narrowly, annotated, and recorded as a follow-up rather than hidden by a retry.
+
+**CI result (head `a741b76`, PR #150, draft):** all checks green — `verify`, CodeQL (actions + javascript-typescript), gitleaks, dependency-review, and `e2e` shards 1–4 (202 + 203 + 202 + 202 = **809 e2e tests, 0 flaky**, `failOnFlakyTests` on). Independently re-run locally by the Documenter: `npx vitest run` **1707/1707 passed** (144 files), `npm run test:surfaces` clean (117 pages / 15 routes / 30 actions, scanned = manifest), `npm run lint` (0 errors, 7 pre-existing unrelated warnings), `npx tsc --noEmit` clean.
+
+**Documenter sign-off:** given. `DEVELOPMENT_PLAN.md`, `CHANGELOG.md`, and `docs/testing.md` are updated to match the state above, including the corrected `/hq` cause, the `/control` super-admin landing, the widened F7 (secretary under-exposure and ministry-leader over-exposure), and the 62-item untested-exports list now made explicit by P2. No surface was added without a manifest entry and tests — `test:surfaces` (P2) is itself the enforcement of that rule, and it passes. Residual risk carried forward, not resolved here: F7 (`communication_logs` RLS, now High), webhook fail-open when a provider secret is unset (High in production, belongs with F4 before F2), `/api/reports/custom`'s `try`-swallowed redirect and RLS-bypassing `queryTenantLocalDb`, the untraced `/hq` profile-role drift, the missing `church_id` on `hq_*` tables, the 62 waived exports, and the intermittent `/app/member` hydration error. Story B (the journeys the sweep doesn't drive) is next, after the security follow-ups above.
