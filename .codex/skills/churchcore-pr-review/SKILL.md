@@ -30,6 +30,7 @@ Always check:
 - Control-plane and tenant boundaries remain intact.
 - `README.md`, `CHANGELOG.md`, and docs are updated for meaningful changes.
 - Verification status is reported.
+- **Test surfaces:** every new or changed page, API route, or server action has an accurate `tests/coverage-manifest.json` entry (allowed roles match the code's gates) and real tests behind it; `npm run test:surfaces` passes. A missing or guessed entry is an Important finding.
 
 ## Output
 

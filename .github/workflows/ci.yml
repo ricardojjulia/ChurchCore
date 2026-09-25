@@ -25,6 +25,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Test-surface manifest check
+        run: npm run test:surfaces
+
       - name: Verify
         run: npm run check
 
@@ -43,3 +46,103 @@ jobs:
       - name: Stop local Supabase
         if: always()
         run: npx supabase stop
+
+  e2e:
+    name: e2e (shard ${{ matrix.shard }}/4)
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      NEXT_PUBLIC_APP_URL: http://localhost:4200
+      NEXT_PUBLIC_DEMO_MODE: "true"
+      NEXT_PUBLIC_DEMO_VERSION: "ci"
+      # Dummy secrets only — no real provider credentials or sends in CI
+      # (Story A brief AC10/AC11). The webhook contract specs only assert
+      # rejection behavior, which requires *a* secret to be configured
+      # (see each adapter's verifyWebhookSignature), not a real one.
+      CRON_SECRET: ci-dummy-cron-secret
+      UNSUBSCRIBE_SECRET: ci-dummy-unsubscribe-secret
+      STRIPE_WEBHOOK_SECRET: whsec_ci_dummy_stripe
+      SENDGRID_WEBHOOK_VERIFICATION_KEY: ci-dummy-sendgrid-verification-key
+      TWILIO_AUTH_TOKEN: ci-dummy-twilio-auth-token
+      RESEND_WEBHOOK_SECRET: whsec_ci_dummy_resend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(node -e "console.log(require('@playwright/test/package.json').version)")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright OS dependencies (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Generate a throwaway pastoral encryption key
+        # Random per run: the CI database is ephemeral, so the key only has to
+        # match between the seed backfill and the server in this job.
+        run: echo "PASTORAL_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
+      - name: Set up e2e environment
+        # Starts and resets both local Supabase stacks (tenant + control
+        # plane), creates the demo users, registers the admin as a platform
+        # admin in the control plane, encrypts the seeded pastoral fields, and
+        # exports the app env onto $GITHUB_ENV. See supabase/scripts/setup-e2e.sh.
+        run: ./supabase/scripts/setup-e2e.sh --reset --env-file "$GITHUB_ENV"
+
+      - name: Build
+        run: npm run build
+
+      - name: Server-reference manifest check
+        run: npm run check:server-reference-manifest
+
+      - name: Run Playwright (shard ${{ matrix.shard }}/4)
+        run: npx playwright test --shard=${{ matrix.shard }}/4
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-shard-${{ matrix.shard }}
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload Playwright test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-shard-${{ matrix.shard }}
+          path: test-results/
+          retention-days: 14
+
+      - name: Stop local Supabase
+        if: always()
+        run: |
+          npx supabase stop || true
+          npx supabase stop --workdir node_modules/.cache/supabase-control-plane || true

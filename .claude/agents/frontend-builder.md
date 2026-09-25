@@ -27,3 +27,4 @@ Rules:
 - Keep admin workflows dense and operational; keep member mobile flows simple, polished, and touch-friendly.
 - Cover loading, empty, permission, validation, provider-error, and completion states where applicable.
 - Run the relevant tests, then `npm run lint` and `npm run build` before handoff when feasible.
+- New or changed pages, API routes, and server actions need an accurate `tests/coverage-manifest.json` entry (allowed roles read from the real gates) and real tests: a server-action export must be named in a test that imports or mocks its module. Run `npm run test:surfaces` with lint and build. See `docs/testing.md`.

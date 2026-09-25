@@ -1,5 +1,7 @@
 # Security Role-Access Matrix
 
+> **Machine-checked source of truth:** `tests/coverage-manifest.json` records the allowed roles for every page, and the CI page×role sweep (`tests/e2e/page-role-sweep.spec.ts`) enforces them on every PR. This document remains the human narrative for high-sensitivity surfaces; when the two disagree, the manifest and its sweep are what CI checks.
+
 Date: 2026-06-02
 Status: Active evidence index for competitive-readiness Finding 6.
 

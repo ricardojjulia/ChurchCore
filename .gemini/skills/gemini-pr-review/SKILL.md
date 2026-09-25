@@ -33,6 +33,7 @@ Prioritize findings in the following order:
 
 3. **Minor:**
    - Maintainability, code style, naming conventions, or folder structures.
+- **Test surfaces:** every new or changed page, API route, or server action has an accurate `tests/coverage-manifest.json` entry (allowed roles match the code's gates) and real tests behind it; `npm run test:surfaces` passes. A missing or guessed entry is an Important finding.
 
 ## Output Format
 Generate your report structure as follows:

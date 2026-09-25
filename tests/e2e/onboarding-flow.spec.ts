@@ -1,66 +1,25 @@
 import { expect, test } from "@playwright/test";
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
 
-const envFiles = [".env", ".env.local", ".demo-credentials.local"];
+import { getAppUrl, getMailpitUrl, getSupabaseUrl } from "./fixtures/env";
+import { roles, seedAppContextCookie, signInThroughUi } from "./fixtures/roles";
 
-for (const file of envFiles) {
-  const path = resolve(process.cwd(), file);
-  if (!existsSync(path)) continue;
-
-  const contents = readFileSync(path, "utf8");
-  for (const line of contents.split(/\r?\n/)) {
-    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)\s*$/);
-    if (!match) continue;
-
-    const [, key, rawValue] = match;
-    if (process.env[key]) continue;
-
-    process.env[key] = rawValue.replace(/^['"]|['"]$/g, "");
-  }
-}
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:4201";
-const mailpitUrl = process.env.CHURCHCORE_OPS_MAILPIT_URL ?? "http://127.0.0.1:4205";
+// Onboarding walks through three distinct identities in sequence (public
+// visitor -> church-admin approving the request -> the brand-new member the
+// request created), so unlike the other two migrated specs it can't just
+// load one identity's storageState — it signs in live at each step, same as
+// before, but now through the shared fixtures instead of a duplicated
+// inline copy.
 const adminEmail = process.env.CHURCHCORE_OPS_DEMO_ADMIN_EMAIL;
 const demoPassword = process.env.CHURCHCORE_OPS_DEV_PASSWORD;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const onboardingTestPassword = process.env.CHURCHCORE_OPS_E2E_ONBOARDING_PASSWORD ?? "OnboardingE2E!2026";
 
-async function signIn(page: import("@playwright/test").Page, email: string, password: string) {
-  await page.goto("/sign-in?redirectTo=%2Fapp");
-  await page.getByLabel("Email").fill(email);
-  await page.getByRole("textbox", { name: "Password" }).fill(password);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL("**/app/**");
-}
-
-async function setChurchContext(
-  page: import("@playwright/test").Page,
-  roleId: "church-admin" | "member",
-) {
-  await page.evaluate(
-    ({ appContext }) => {
-      document.cookie = `churchcore_ops_app_context=${encodeURIComponent(
-        JSON.stringify(appContext),
-      )}; path=/; SameSite=Lax`;
-    },
-    {
-      appContext: {
-        kind: "church",
-        churchId: "11111111-0000-0000-0000-000000000001",
-        roleId,
-        source: "impersonation",
-      },
-    },
-  );
-}
-
 async function waitForInviteMessage(
   request: import("@playwright/test").APIRequestContext,
   recipientEmail: string,
 ) {
+  const mailpitUrl = getMailpitUrl();
   const deadline = Date.now() + 30_000;
 
   while (Date.now() < deadline) {
@@ -89,6 +48,7 @@ async function findAuthUserIdByEmail(
   request: import("@playwright/test").APIRequestContext,
   email: string,
 ) {
+  const supabaseUrl = getSupabaseUrl();
   const response = await request.get(`${supabaseUrl}/auth/v1/admin/users?page=1&per_page=200`, {
     headers: {
       apikey: serviceRoleKey ?? "",
@@ -120,6 +80,7 @@ async function setInvitedUserPassword(
   userId: string,
   password: string,
 ) {
+  const supabaseUrl = getSupabaseUrl();
   const response = await request.put(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
     headers: {
       apikey: serviceRoleKey ?? "",
@@ -153,20 +114,29 @@ test.describe("Portal onboarding browser flow", () => {
     const fullName = `${firstName} ${lastName}`;
     const onboardingEmail = `onboarding.e2e.${timestamp}@example.com`;
 
+    // `.first()`: components/portal/portal-register-form.tsx renders each
+    // field once, but the page briefly (around hydration) shows a duplicate
+    // of the freshly-mounted form before React reconciles it away — a
+    // strict-mode locator can catch that transient window.
     await page.goto("/portal/register?church=grace-harbor");
-    await page.getByLabel("First name").fill(firstName);
-    await page.getByLabel("Last name").fill(lastName);
-    await page.getByLabel("Email").fill(onboardingEmail);
-    await page.getByLabel("Phone").fill("555-0199");
-    await page.getByRole("button", { name: "Submit request" }).click();
+    await page.getByLabel("First name").first().fill(firstName);
+    await page.getByLabel("Last name").first().fill(lastName);
+    await page.getByLabel("Email").first().fill(onboardingEmail);
+    await page.getByLabel("Phone").first().fill("555-0199");
+    await page.getByRole("button", { name: "Submit request" }).first().click();
 
     await expect(page.getByText("Request received")).toBeVisible();
     await expect(page.getByText("Your request was submitted")).toBeVisible();
 
     await page.context().clearCookies();
 
-    await signIn(page, adminEmail ?? "", demoPassword ?? "");
-    await setChurchContext(page, "church-admin");
+    const churchAdmin = roles["church-admin"];
+    await seedAppContextCookie(page.context(), getAppUrl(), churchAdmin.appContextSelection!);
+    await signInThroughUi(page, {
+      email: adminEmail ?? "",
+      password: demoPassword ?? "",
+      redirectTo: churchAdmin.homePath,
+    });
 
     await page.goto("/app/church-admin/accounts?status=pending");
     const requestEmail = page.getByText(onboardingEmail, { exact: false }).first();
@@ -189,9 +159,11 @@ test.describe("Portal onboarding browser flow", () => {
 
     await page.context().clearCookies();
 
-    await signIn(page, onboardingEmail, onboardingTestPassword);
-    await setChurchContext(page, "member");
-    await page.goto("/app/member");
+    await signInThroughUi(page, {
+      email: onboardingEmail,
+      password: onboardingTestPassword,
+      redirectTo: roles.member.homePath,
+    });
 
     await expect(page.getByText("Quick actions")).toBeVisible();
     await expect(page.getByRole("heading", { name: fullName })).toBeVisible();

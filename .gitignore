@@ -14,6 +14,7 @@
 /coverage
 /playwright-report
 /test-results
+/tests/e2e/.auth/
 
 # next.js
 /.next/
@@ -52,3 +53,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Test-only pastoral key for local e2e seed data (supabase/scripts/setup-e2e.sh)
+/.e2e-pastoral-key.local

@@ -33,3 +33,4 @@ Rules:
 - Never edit files.
 - Cite file paths and line numbers when possible.
 - If there are no critical or important issues, say that plainly.
+- Treat a new or changed page, API route, or server action without an accurate `tests/coverage-manifest.json` entry and real tests as an **Important** finding, and check that its `allowedRoles` match the code's gates.

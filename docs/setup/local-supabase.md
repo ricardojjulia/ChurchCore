@@ -102,7 +102,7 @@ The generated file also includes:
 Sarah can access:
 - `/app` — Church admin workspace
 
-Control-plane local development uses the separate `supabase/control-plane` project. Provision platform staff there before testing `/control`.
+Control-plane local development uses the separate `supabase/control-plane` project. Provision platform staff there before testing `/control`. `npm run setup:e2e` does both: it starts the control-plane stack (API 4211, DB 4212) and registers the demo admin as platform staff. Note that `supabase start --workdir supabase/control-plane` on its own ignores the project's config and falls back to the CLI's default ports, because the CLI looks for `<workdir>/supabase/config.toml`; `supabase/scripts/setup-e2e.sh` links the real config into `node_modules/.cache/supabase-control-plane` to work around this.
 
 David can access:
 - `/app` — Member portal

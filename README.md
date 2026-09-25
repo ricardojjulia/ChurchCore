@@ -536,6 +536,9 @@ Primary routes:
 - `npm run build` creates the production build.
 - `npm run start` serves the production build locally.
 - `npm run check` runs lint plus production build.
+- `npm run test` runs the Vitest unit suite.
+- `npm run test:surfaces` checks that every page, API route, and server action is registered in `tests/coverage-manifest.json` with real tests.
+- `npm run test:e2e:local` runs the full Playwright suite (every page × every role, every API route, key journeys) against local Supabase, exactly as CI does. See [docs/testing.md](docs/testing.md).
 
 ## Project Structure
 
@@ -648,4 +651,9 @@ Current tracked follow-up:
 
 ## CI
 
-The repository includes a GitHub Actions workflow that installs dependencies, lints, and builds on pushes and pull requests.
+`.github/workflows/ci.yml` runs on every PR and push to `main`:
+
+- **`verify`:** `test:surfaces`, lint, typecheck, build, unit tests, and the RLS audit against a freshly reset local Supabase.
+- **`e2e`** (4 shards): both local Supabase stacks with seed data and demo users, then the full Playwright suite.
+
+Both block merge. **Every change that adds or changes a page, API route, or server action ships its manifest entry and tests**; see [docs/testing.md](docs/testing.md).

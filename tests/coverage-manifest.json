@@ -1,0 +1,2415 @@
+{
+  "pages": {
+    "/": {
+      "path": "/",
+      "file": "app/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/adr/backend-platform": {
+      "path": "/adr/backend-platform",
+      "file": "app/adr/backend-platform/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app": {
+      "path": "/app",
+      "file": "app/app/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "secretary",
+        "pastor",
+        "ministry-leader",
+        "member"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "sweepMode": "redirect",
+      "note": "Every church role that passes requireChurchSession is redirected to its own homePath. super-admin (control context) is denied and sent to /control.",
+      "redirectsTo": "$homePath"
+    },
+    "/app/[role]": {
+      "path": "/app/[role]",
+      "file": "app/app/[role]/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "secretary",
+        "pastor",
+        "ministry-leader",
+        "member"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": {
+        "role": "$identity"
+      },
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/member-mobile-foundation.spec.ts",
+        "tests/e2e/onboarding-flow.spec.ts"
+      ],
+      "note": "Access depends on the :role segment matching the caller's own roleId, not merely on being one of the 5 church roles \u2014 the sweep must pair each identity with its own role value, not a single fixed dynamicParams value.",
+      "seedSource": "not a DB id \u2014 literal sentinel meaning 'substitute the signed-in identity's own roleId'. app/app/[role]/page.tsx renders only when portalRole.id === session.appContext.roleId; any other :role value (including another valid role id) redirects to session.homePath. super-admin is denied entirely (requireChurchSession)."
+    },
+    "/app/calendar": {
+      "path": "/app/calendar",
+      "file": "app/app/calendar/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "secretary",
+        "pastor",
+        "ministry-leader",
+        "member"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/member-mobile-foundation.spec.ts"
+      ]
+    },
+    "/app/church-admin/accounts": {
+      "path": "/app/church-admin/accounts",
+      "file": "app/app/church-admin/accounts/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/church-admin-readiness.spec.ts",
+        "tests/e2e/onboarding-flow.spec.ts"
+      ]
+    },
+    "/app/church-admin/attendance": {
+      "path": "/app/church-admin/attendance",
+      "file": "app/app/church-admin/attendance/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/attendance/import": {
+      "path": "/app/church-admin/attendance/import",
+      "file": "app/app/church-admin/attendance/import/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "Denied roles redirect to /app/church-admin/attendance, not session.homePath.",
+      "deniedRedirectsTo": "/app/church-admin/attendance"
+    },
+    "/app/church-admin/children": {
+      "path": "/app/church-admin/children",
+      "file": "app/app/church-admin/children/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "sweepMode": "redirect",
+      "redirectsTo": "/app/church-admin/children/dashboard",
+      "note": "This page.tsx has no session/role gate at all \u2014 it's an unconditional redirect() with no requireChurchSession call. Reachable signed out. The destination (dashboard) enforces church-admin-only access on its own, so no data is exposed, but flag: this differs from the rest of the app's convention of gating every page individually."
+    },
+    "/app/church-admin/children/checkin": {
+      "path": "/app/church-admin/children/checkin",
+      "file": "app/app/church-admin/children/checkin/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/member-mobile-foundation.spec.ts"
+      ]
+    },
+    "/app/church-admin/children/checkout": {
+      "path": "/app/church-admin/children/checkout",
+      "file": "app/app/church-admin/children/checkout/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/children/children": {
+      "path": "/app/church-admin/children/children",
+      "file": "app/app/church-admin/children/children/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/children/children/[id]": {
+      "path": "/app/church-admin/children/children/[id]",
+      "file": "app/app/church-admin/children/children/[id]/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": {
+        "id": "22222222-0000-0000-0000-000000000011"
+      },
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "seedSource": "profiles.id (maya@graceharbor.church) where church_id = Grace Harbor. lib/ccm-data.ts's getChildProfile() only requires a matching profiles row (church_id + id) and left-joins children_sensitive_data, so any Grace Harbor profile id renders the page \u2014 but supabase/seed.sql seeds zero children_sensitive_data rows, so no profile is actually flagged as a child. This id is an ordinary adult member profile used as a fixture of convenience; the page will render with null dob/allergies/etc. Not a realistic child-profile fixture."
+    },
+    "/app/church-admin/children/children/new": {
+      "path": "/app/church-admin/children/children/new",
+      "file": "app/app/church-admin/children/children/new/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/children/dashboard": {
+      "path": "/app/church-admin/children/dashboard",
+      "file": "app/app/church-admin/children/dashboard/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/church-admin-readiness.spec.ts"
+      ]
+    },
+    "/app/church-admin/children/emergency": {
+      "path": "/app/church-admin/children/emergency",
+      "file": "app/app/church-admin/children/emergency/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/children/incidents": {
+      "path": "/app/church-admin/children/incidents",
+      "file": "app/app/church-admin/children/incidents/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/children/incidents/new": {
+      "path": "/app/church-admin/children/incidents/new",
+      "file": "app/app/church-admin/children/incidents/new/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/children/rooms": {
+      "path": "/app/church-admin/children/rooms",
+      "file": "app/app/church-admin/children/rooms/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/children/roster/[serviceId]": {
+      "path": "/app/church-admin/children/roster/[serviceId]",
+      "file": "app/app/church-admin/children/roster/[serviceId]/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": {
+        "serviceId": "cccccccc-0000-0000-0000-000000000001"
+      },
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "seedSource": "ccm_services.id where church_id = Grace Harbor"
+    },
+    "/app/church-admin/children/services": {
+      "path": "/app/church-admin/children/services",
+      "file": "app/app/church-admin/children/services/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/member-mobile-foundation.spec.ts"
+      ]
+    },
+    "/app/church-admin/children/services/[id]": {
+      "path": "/app/church-admin/children/services/[id]",
+      "file": "app/app/church-admin/children/services/[id]/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": {
+        "id": "cccccccc-0000-0000-0000-000000000001"
+      },
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "seedSource": "ccm_services.id where church_id = Grace Harbor"
+    },
+    "/app/church-admin/children/services/new": {
+      "path": "/app/church-admin/children/services/new",
+      "file": "app/app/church-admin/children/services/new/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/children/settings": {
+      "path": "/app/church-admin/children/settings",
+      "file": "app/app/church-admin/children/settings/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/children/volunteers": {
+      "path": "/app/church-admin/children/volunteers",
+      "file": "app/app/church-admin/children/volunteers/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/events": {
+      "path": "/app/church-admin/events",
+      "file": "app/app/church-admin/events/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/church-admin-readiness.spec.ts"
+      ]
+    },
+    "/app/church-admin/events/[id]": {
+      "path": "/app/church-admin/events/[id]",
+      "file": "app/app/church-admin/events/[id]/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": {
+        "id": "77777777-0000-0000-0000-000000000001"
+      },
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "seedSource": "events.id (most recently created row) where church_id = Grace Harbor"
+    },
+    "/app/church-admin/events/import": {
+      "path": "/app/church-admin/events/import",
+      "file": "app/app/church-admin/events/import/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "Denied roles redirect to /app/church-admin/events, not session.homePath.",
+      "deniedRedirectsTo": "/app/church-admin/events"
+    },
+    "/app/church-admin/finance": {
+      "path": "/app/church-admin/finance",
+      "file": "app/app/church-admin/finance/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "sweepMode": "redirect",
+      "redirectsTo": "/app/church-admin/finance/dashboard",
+      "note": "No session/role gate on this page itself \u2014 unconditional redirect(); destination enforces church-admin-only."
+    },
+    "/app/church-admin/finance/accounts": {
+      "path": "/app/church-admin/finance/accounts",
+      "file": "app/app/church-admin/finance/accounts/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/finance/accounts/[id]": {
+      "path": "/app/church-admin/finance/accounts/[id]",
+      "file": "app/app/church-admin/finance/accounts/[id]/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": {
+        "id": "$sql:select id from public.finance_accounts where church_id = '11111111-0000-0000-0000-000000000001' order by name, id limit 1"
+      },
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "seedSource": "finance_accounts rows get random ids on every seed, so the sweep resolves one at run time via $sql."
+    },
+    "/app/church-admin/finance/budgets": {
+      "path": "/app/church-admin/finance/budgets",
+      "file": "app/app/church-admin/finance/budgets/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/finance/budgets/[id]": {
+      "path": "/app/church-admin/finance/budgets/[id]",
+      "file": "app/app/church-admin/finance/budgets/[id]/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "No seed rows for finance_budgets in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+    },
+    "/app/church-admin/finance/dashboard": {
+      "path": "/app/church-admin/finance/dashboard",
+      "file": "app/app/church-admin/finance/dashboard/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/finance/import": {
+      "path": "/app/church-admin/finance/import",
+      "file": "app/app/church-admin/finance/import/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/finance/journals": {
+      "path": "/app/church-admin/finance/journals",
+      "file": "app/app/church-admin/finance/journals/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/church-admin-readiness.spec.ts"
+      ]
+    },
+    "/app/church-admin/finance/journals/[id]": {
+      "path": "/app/church-admin/finance/journals/[id]",
+      "file": "app/app/church-admin/finance/journals/[id]/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "No seed rows for finance_journals, so the sweep uses a nonexistent id. A missing journal redirects to the journals list (page.tsx: redirect when !journal) rather than rendering not-found.",
+      "missingRecordRedirectsTo": "/app/church-admin/finance/journals"
+    },
+    "/app/church-admin/finance/journals/new": {
+      "path": "/app/church-admin/finance/journals/new",
+      "file": "app/app/church-admin/finance/journals/new/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/finance/reports": {
+      "path": "/app/church-admin/finance/reports",
+      "file": "app/app/church-admin/finance/reports/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/giving": {
+      "path": "/app/church-admin/giving",
+      "file": "app/app/church-admin/giving/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/church-admin-readiness.spec.ts"
+      ]
+    },
+    "/app/church-admin/giving/import": {
+      "path": "/app/church-admin/giving/import",
+      "file": "app/app/church-admin/giving/import/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "Denied roles redirect to /app/church-admin/giving, not session.homePath.",
+      "deniedRedirectsTo": "/app/church-admin/giving"
+    },
+    "/app/church-admin/groups": {
+      "path": "/app/church-admin/groups",
+      "file": "app/app/church-admin/groups/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/groups/[id]": {
+      "path": "/app/church-admin/groups/[id]",
+      "file": "app/app/church-admin/groups/[id]/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "No seed rows for groups in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+    },
+    "/app/church-admin/groups/import": {
+      "path": "/app/church-admin/groups/import",
+      "file": "app/app/church-admin/groups/import/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "Denied roles redirect to /app/church-admin/groups, not session.homePath.",
+      "deniedRedirectsTo": "/app/church-admin/groups"
+    },
+    "/app/church-admin/localization": {
+      "path": "/app/church-admin/localization",
+      "file": "app/app/church-admin/localization/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "Denied church roles (secretary/ministry-leader/member) get an inline 200 'Access Denied' message rendered on the page itself, NOT a redirect() to session.homePath like every other gated page in the app. The sweep must not assert a redirect for denied roles on this route \u2014 only that no locale/catalog data renders."
+    },
+    "/app/church-admin/ministry": {
+      "path": "/app/church-admin/ministry",
+      "file": "app/app/church-admin/ministry/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/ministry/[id]": {
+      "path": "/app/church-admin/ministry/[id]",
+      "file": "app/app/church-admin/ministry/[id]/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": {
+        "id": "44444444-0000-0000-0000-000000000001"
+      },
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "seedSource": "ministries.id where church_id = Grace Harbor"
+    },
+    "/app/church-admin/ministry/overview": {
+      "path": "/app/church-admin/ministry/overview",
+      "file": "app/app/church-admin/ministry/overview/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "sweepMode": "redirect",
+      "redirectsTo": "/app/church-admin/ministry",
+      "note": "No session/role gate on this page itself \u2014 unconditional redirect(); destination enforces church-admin/pastor."
+    },
+    "/app/church-admin/onboarding": {
+      "path": "/app/church-admin/onboarding",
+      "file": "app/app/church-admin/onboarding/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/operations": {
+      "path": "/app/church-admin/operations",
+      "file": "app/app/church-admin/operations/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "sweepMode": "redirect",
+      "redirectsTo": "/app/church-admin/operations/documents",
+      "note": "No session/role gate on this page itself \u2014 unconditional redirect(); destination enforces church-admin/pastor."
+    },
+    "/app/church-admin/operations/documents": {
+      "path": "/app/church-admin/operations/documents",
+      "file": "app/app/church-admin/operations/documents/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/operations/documents/[id]": {
+      "path": "/app/church-admin/operations/documents/[id]",
+      "file": "app/app/church-admin/operations/documents/[id]/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "No seed rows for church_documents in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+    },
+    "/app/church-admin/operations/documents/[id]/edit": {
+      "path": "/app/church-admin/operations/documents/[id]/edit",
+      "file": "app/app/church-admin/operations/documents/[id]/edit/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "No seed rows for church_documents in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+    },
+    "/app/church-admin/operations/documents/new": {
+      "path": "/app/church-admin/operations/documents/new",
+      "file": "app/app/church-admin/operations/documents/new/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/operations/onboarding": {
+      "path": "/app/church-admin/operations/onboarding",
+      "file": "app/app/church-admin/operations/onboarding/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/operations/onboarding/instances": {
+      "path": "/app/church-admin/operations/onboarding/instances",
+      "file": "app/app/church-admin/operations/onboarding/instances/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/operations/onboarding/instances/[id]": {
+      "path": "/app/church-admin/operations/onboarding/instances/[id]",
+      "file": "app/app/church-admin/operations/onboarding/instances/[id]/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "No seed rows for onboarding_instances in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+    },
+    "/app/church-admin/operations/onboarding/instances/new": {
+      "path": "/app/church-admin/operations/onboarding/instances/new",
+      "file": "app/app/church-admin/operations/onboarding/instances/new/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/operations/onboarding/templates/[id]": {
+      "path": "/app/church-admin/operations/onboarding/templates/[id]",
+      "file": "app/app/church-admin/operations/onboarding/templates/[id]/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "No seed rows for onboarding_templates in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+    },
+    "/app/church-admin/operations/onboarding/templates/[id]/edit": {
+      "path": "/app/church-admin/operations/onboarding/templates/[id]/edit",
+      "file": "app/app/church-admin/operations/onboarding/templates/[id]/edit/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "No seed rows for onboarding_templates in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+    },
+    "/app/church-admin/operations/onboarding/templates/new": {
+      "path": "/app/church-admin/operations/onboarding/templates/new",
+      "file": "app/app/church-admin/operations/onboarding/templates/new/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/people": {
+      "path": "/app/church-admin/people",
+      "file": "app/app/church-admin/people/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/church-admin-readiness.spec.ts"
+      ]
+    },
+    "/app/church-admin/people/import": {
+      "path": "/app/church-admin/people/import",
+      "file": "app/app/church-admin/people/import/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/readiness": {
+      "path": "/app/church-admin/readiness",
+      "file": "app/app/church-admin/readiness/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/member-mobile-foundation.spec.ts",
+        "tests/e2e/church-admin-readiness.spec.ts"
+      ]
+    },
+    "/app/church-admin/settings": {
+      "path": "/app/church-admin/settings",
+      "file": "app/app/church-admin/settings/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/church-admin-readiness.spec.ts"
+      ]
+    },
+    "/app/church-admin/visitors": {
+      "path": "/app/church-admin/visitors",
+      "file": "app/app/church-admin/visitors/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/volunteers": {
+      "path": "/app/church-admin/volunteers",
+      "file": "app/app/church-admin/volunteers/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor",
+        "ministry-leader"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/volunteers/role-types": {
+      "path": "/app/church-admin/volunteers/role-types",
+      "file": "app/app/church-admin/volunteers/role-types/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor",
+        "ministry-leader"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/church-admin/volunteers/schedules": {
+      "path": "/app/church-admin/volunteers/schedules",
+      "file": "app/app/church-admin/volunteers/schedules/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor",
+        "ministry-leader"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/church-admin-readiness.spec.ts"
+      ]
+    },
+    "/app/church-admin/volunteers/schedules/[id]": {
+      "path": "/app/church-admin/volunteers/schedules/[id]",
+      "file": "app/app/church-admin/volunteers/schedules/[id]/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor",
+        "ministry-leader"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "No seed rows for service_plans in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+    },
+    "/app/church-admin/workflows": {
+      "path": "/app/church-admin/workflows",
+      "file": "app/app/church-admin/workflows/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/church-admin-readiness.spec.ts"
+      ]
+    },
+    "/app/communications": {
+      "path": "/app/communications",
+      "file": "app/app/communications/page.tsx",
+      "allowedRoles": [
+        "pastor",
+        "church-admin",
+        "secretary"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/church-admin-readiness.spec.ts"
+      ],
+      "sweepMode": "redirect",
+      "redirectsTo": "/app/communications/history",
+      "note": "Allowed roles pass the gate and are then unconditionally redirect()ed to /app/communications/history \u2014 even for allowed roles this page never renders content itself. Known gap (see tests/e2e/church-admin-readiness.spec.ts): ?view=readiness is silently dropped."
+    },
+    "/app/communications/compose": {
+      "path": "/app/communications/compose",
+      "file": "app/app/communications/compose/page.tsx",
+      "allowedRoles": [
+        "pastor",
+        "church-admin",
+        "secretary"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/communications/compose/[templateId]": {
+      "path": "/app/communications/compose/[templateId]",
+      "file": "app/app/communications/compose/[templateId]/page.tsx",
+      "allowedRoles": [
+        "pastor",
+        "church-admin",
+        "secretary"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "No seed rows for communication_templates in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+    },
+    "/app/communications/history": {
+      "path": "/app/communications/history",
+      "file": "app/app/communications/history/page.tsx",
+      "allowedRoles": [
+        "pastor",
+        "church-admin",
+        "secretary"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/communications/history/[logId]": {
+      "path": "/app/communications/history/[logId]",
+      "file": "app/app/communications/history/[logId]/page.tsx",
+      "allowedRoles": [
+        "pastor",
+        "church-admin",
+        "secretary"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": {
+        "logId": "$sql:select id from public.communication_logs where church_id = '11111111-0000-0000-0000-000000000001' order by created_at, id limit 1"
+      },
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "seedSource": "communication_logs rows get random ids on every seed, so the sweep resolves one at run time via $sql."
+    },
+    "/app/communications/templates": {
+      "path": "/app/communications/templates",
+      "file": "app/app/communications/templates/page.tsx",
+      "allowedRoles": [
+        "pastor",
+        "church-admin",
+        "secretary"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/communications/templates/[id]/edit": {
+      "path": "/app/communications/templates/[id]/edit",
+      "file": "app/app/communications/templates/[id]/edit/page.tsx",
+      "allowedRoles": [
+        "pastor",
+        "church-admin",
+        "secretary"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "No seed rows for communication_templates in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+    },
+    "/app/communications/templates/new": {
+      "path": "/app/communications/templates/new",
+      "file": "app/app/communications/templates/new/page.tsx",
+      "allowedRoles": [
+        "pastor",
+        "church-admin",
+        "secretary"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/council/forge": {
+      "path": "/app/council/forge",
+      "file": "app/app/council/forge/page.tsx",
+      "allowedRoles": [
+        "pastor",
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/daily-desk": {
+      "path": "/app/daily-desk",
+      "file": "app/app/daily-desk/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "secretary",
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/elders/discernment": {
+      "path": "/app/elders/discernment",
+      "file": "app/app/elders/discernment/page.tsx",
+      "allowedRoles": [
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/elders/discernment/[sessionId]": {
+      "path": "/app/elders/discernment/[sessionId]",
+      "file": "app/app/elders/discernment/[sessionId]/page.tsx",
+      "allowedRoles": [
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "No seed rows for discernment_sessions in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+    },
+    "/app/giving": {
+      "path": "/app/giving",
+      "file": "app/app/giving/page.tsx",
+      "allowedRoles": [
+        "pastor",
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/member/data-rights": {
+      "path": "/app/member/data-rights",
+      "file": "app/app/member/data-rights/page.tsx",
+      "allowedRoles": [
+        "member"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/member-mobile-foundation.spec.ts"
+      ]
+    },
+    "/app/member/directory": {
+      "path": "/app/member/directory",
+      "file": "app/app/member/directory/page.tsx",
+      "allowedRoles": [
+        "member"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/member-mobile-foundation.spec.ts"
+      ]
+    },
+    "/app/member/family": {
+      "path": "/app/member/family",
+      "file": "app/app/member/family/page.tsx",
+      "allowedRoles": [
+        "member"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/member-mobile-foundation.spec.ts"
+      ]
+    },
+    "/app/member/giving": {
+      "path": "/app/member/giving",
+      "file": "app/app/member/giving/page.tsx",
+      "allowedRoles": [
+        "member"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/member-mobile-foundation.spec.ts"
+      ]
+    },
+    "/app/member/groups": {
+      "path": "/app/member/groups",
+      "file": "app/app/member/groups/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "secretary",
+        "pastor",
+        "ministry-leader",
+        "member"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/member-mobile-foundation.spec.ts"
+      ],
+      "note": "ACCESS-CONTROL INCONSISTENCY: unlike every sibling /app/member/* page, this page.tsx has no roleId check at all after requireChurchSession \u2014 any signed-in church role (not just member) can open it. getGroupsList(session, {activeOnly:true}) does look tenant-scoped (no obvious data leak beyond the group directory itself), but the missing role gate breaks the pattern every other member/* route follows and should be reviewed."
+    },
+    "/app/member/ministries": {
+      "path": "/app/member/ministries",
+      "file": "app/app/member/ministries/page.tsx",
+      "allowedRoles": [
+        "member"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/member-mobile-foundation.spec.ts"
+      ]
+    },
+    "/app/member/schedule": {
+      "path": "/app/member/schedule",
+      "file": "app/app/member/schedule/page.tsx",
+      "allowedRoles": [
+        "member"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/member-mobile-foundation.spec.ts"
+      ]
+    },
+    "/app/pastor/bible-study": {
+      "path": "/app/pastor/bible-study",
+      "file": "app/app/pastor/bible-study/page.tsx",
+      "allowedRoles": [
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/pastor/people": {
+      "path": "/app/pastor/people",
+      "file": "app/app/pastor/people/page.tsx",
+      "allowedRoles": [
+        "pastor"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/reports": {
+      "path": "/app/reports",
+      "file": "app/app/reports/page.tsx",
+      "allowedRoles": [
+        "pastor",
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/church-admin-readiness.spec.ts"
+      ]
+    },
+    "/app/reports/custom": {
+      "path": "/app/reports/custom",
+      "file": "app/app/reports/custom/page.tsx",
+      "allowedRoles": [
+        "pastor",
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/reports/events": {
+      "path": "/app/reports/events",
+      "file": "app/app/reports/events/page.tsx",
+      "allowedRoles": [
+        "pastor",
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/reports/giving": {
+      "path": "/app/reports/giving",
+      "file": "app/app/reports/giving/page.tsx",
+      "allowedRoles": [
+        "pastor",
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/app/reports/members": {
+      "path": "/app/reports/members",
+      "file": "app/app/reports/members/page.tsx",
+      "allowedRoles": [
+        "pastor",
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/calendar": {
+      "path": "/calendar",
+      "file": "app/calendar/page.tsx",
+      "allowedRoles": [
+        "super-admin",
+        "church-admin",
+        "secretary",
+        "pastor",
+        "ministry-leader",
+        "member"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "sweepMode": "redirect",
+      "note": "requireSession requires any signed-in identity (including super-admin); redirects church-context identities to /app/calendar and super-admin/control-context to /control. Signed-out -> /sign-in.",
+      "redirectsTo": "/app/calendar",
+      "redirectsToByRole": {
+        "super-admin": "/control"
+      }
+    },
+    "/control": {
+      "path": "/control",
+      "file": "app/control/page.tsx",
+      "allowedRoles": [
+        "super-admin"
+      ],
+      "public": false,
+      "controlPlane": true,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/control/[section]": {
+      "path": "/control/[section]",
+      "file": "app/control/[section]/page.tsx",
+      "allowedRoles": [
+        "super-admin"
+      ],
+      "public": false,
+      "controlPlane": true,
+      "dynamicParams": {
+        "section": "tenants"
+      },
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "seedSource": "not a DB id \u2014 static enum member from lib/control-plane.ts's controlPlaneSections (id list: overview|tenants|billing|support|demo-feedback). generateStaticParams excludes 'overview' (that id notFound()s here; overview lives at /control instead)."
+    },
+    "/control/demo-feedback": {
+      "path": "/control/demo-feedback",
+      "file": "app/control/demo-feedback/page.tsx",
+      "allowedRoles": [
+        "super-admin"
+      ],
+      "public": false,
+      "controlPlane": true,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/control/launch-checklist": {
+      "path": "/control/launch-checklist",
+      "file": "app/control/launch-checklist/page.tsx",
+      "allowedRoles": [
+        "super-admin"
+      ],
+      "public": false,
+      "controlPlane": true,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/controll": {
+      "path": "/controll",
+      "file": "app/controll/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "sweepMode": "redirect",
+      "redirectsTo": "/control",
+      "note": "Typo-alias page, no session gate of its own \u2014 unconditional redirect(); destination enforces control-plane-only."
+    },
+    "/give/[slug]": {
+      "path": "/give/[slug]",
+      "file": "app/give/[slug]/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": {
+        "slug": "grace-harbor"
+      },
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "Renders demo Grace Harbor giving data for any :slug when NEXT_PUBLIC_DEMO_MODE=true; 404s otherwise. No real Stripe/production public_giving_pages lookup is wired yet (see the TODO comment in the page source).",
+      "seedSource": "not a DB lookup \u2014 app/give/[slug]/page.tsx's getGivingPageData() stub accepts any slug string and returns static Grace Harbor demo data ONLY when NEXT_PUBLIC_DEMO_MODE=true; returns null (-> notFound(), a 404) otherwise. CI's e2e job sets NEXT_PUBLIC_DEMO_MODE=true (.github/workflows/ci.yml); local runs must set it too or this page 404s for every slug."
+    },
+    "/hq": {
+      "path": "/hq",
+      "file": "app/hq/page.tsx",
+      "allowedRoles": [
+        "church-admin",
+        "secretary",
+        "pastor",
+        "ministry-leader"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "Gated by app/hq/layout.tsx, not lib/auth: it reads the tenant Supabase session and the current_user_role() RPC (supabase/migrations/20260713000000_hq.sql: church_admin -> admin; pastor_elder/secretary/ministry_leader -> manager; member_volunteer -> member, or teacher with a lead_teacher CCM assignment). Only 'member' is redirected (to /app). super-admin signed in to the control plane has no tenant session here and ends up on /control. Known issues: current_user_role() reads profiles.role while the rest of the app uses church_memberships.role, and the hq_* tables have no church_id (Council Review 18 follow-up)."
+    },
+    "/plan": {
+      "path": "/plan",
+      "file": "app/plan/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/portal": {
+      "path": "/portal",
+      "file": "app/portal/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "note": "getSession() is optional (no requireSession) \u2014 renders for signed-out visitors. Signed-in identities in a CHURCH app context get redirected onward (member -> /app/member; every other church role -> session.homePath). super-admin in CONTROL context is NOT redirected (isChurchAppContext is false for control) and sees the portal page rendered normally, same as signed-out."
+    },
+    "/portal/children/checkin/[token]": {
+      "path": "/portal/children/checkin/[token]",
+      "file": "app/portal/children/checkin/[token]/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/member-mobile-foundation.spec.ts"
+      ],
+      "sweepMode": "invalid-token",
+      "note": "Token is an ephemeral per-session checkin_session_token on ccm_services, not seeded statically in supabase/seed.sql \u2014 cannot be deterministically fixtured. getPublicCcmSessionByToken() returns null for an unknown token and the page renders a graceful 'unavailable' state (verified: no throw). The sweep should assert that graceful state with a garbage token, not a happy path.",
+      "expectText": "Session link unavailable"
+    },
+    "/portal/children/checkout/[token]": {
+      "path": "/portal/children/checkout/[token]",
+      "file": "app/portal/children/checkout/[token]/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/member-mobile-foundation.spec.ts"
+      ],
+      "sweepMode": "invalid-token",
+      "note": "Same token mechanism and graceful-degradation behavior as /portal/children/checkin/[token].",
+      "expectText": "Session link unavailable"
+    },
+    "/portal/events/register": {
+      "path": "/portal/events/register",
+      "file": "app/portal/events/register/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
+    "/portal/register": {
+      "path": "/portal/register",
+      "file": "app/portal/register/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/onboarding-flow.spec.ts"
+      ]
+    },
+    "/portal/volunteer/confirm/[token]": {
+      "path": "/portal/volunteer/confirm/[token]",
+      "file": "app/portal/volunteer/confirm/[token]/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "sweepMode": "invalid-token",
+      "note": "Token is volunteer_shifts.confirmation_token, generated per-shift and not seeded statically. getPublicVolunteerShiftByToken() returns null for an unknown/expired token (verified: no throw) and the page renders 'Invalid or Expired Link'. The sweep should assert that state with a garbage token.",
+      "expectText": "Invalid or Expired Link"
+    },
+    "/portal/volunteer/schedule/[token]": {
+      "path": "/portal/volunteer/schedule/[token]",
+      "file": "app/portal/volunteer/schedule/[token]/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "sweepMode": "invalid-token",
+      "note": "Same confirmation_token mechanism as /portal/volunteer/confirm/[token]. getPublicVolunteerScheduleByToken() returns an empty array for an unknown token (verified: no throw) and the page renders 'No Upcoming Assignments' \u2014 that IS this route's graceful invalid-token state.",
+      "expectText": "No Upcoming Assignments"
+    },
+    "/sign-in": {
+      "path": "/sign-in",
+      "file": "app/sign-in/page.tsx",
+      "allowedRoles": [],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/onboarding-flow.spec.ts"
+      ],
+      "note": "If already signed in, redirects to ?redirectTo (sanitized) UNLESS ?force=1 and the session lacks control-plane access (used to let a church-only identity switch to a control-plane account without first signing out)."
+    },
+    "/workspace": {
+      "path": "/workspace",
+      "file": "app/workspace/page.tsx",
+      "allowedRoles": [
+        "super-admin",
+        "church-admin",
+        "secretary",
+        "pastor",
+        "ministry-leader",
+        "member"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "sweepMode": "redirect",
+      "note": "requireSession requires any signed-in identity, then redirect(session.homePath) \u2014 own homePath, not role-param-dependent.",
+      "redirectsTo": "$homePath"
+    },
+    "/workspace/[role]": {
+      "path": "/workspace/[role]",
+      "file": "app/workspace/[role]/page.tsx",
+      "allowedRoles": [
+        "super-admin",
+        "church-admin",
+        "secretary",
+        "pastor",
+        "ministry-leader",
+        "member"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": {
+        "role": "church-admin"
+      },
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ],
+      "sweepMode": "redirect",
+      "note": "Redirects to getRoleHomePath(:role) (here /app/church-admin) for any signed-in identity. That page admits church-admin and sends every other identity, super-admin included, on to its own homePath.",
+      "seedSource": "not a DB id \u2014 static enum member of lib/portal.ts's portalRoles (super-admin|church-admin|secretary|pastor|ministry-leader|member); an unrecognized value 404s (notFound()) before the session check even runs.",
+      "redirectsTo": "$homePath"
+    }
+  },
+  "routes": {
+    "/api/ai": {
+      "path": "/api/ai",
+      "file": "app/api/ai/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "session",
+      "tests": [
+        "tests/e2e/api-session-routes.spec.ts"
+      ]
+    },
+    "/api/control/db-health": {
+      "path": "/api/control/db-health",
+      "file": "app/api/control/db-health/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "control",
+      "tests": [
+        "tests/e2e/api-session-routes.spec.ts"
+      ]
+    },
+    "/api/control/demo-feedback/[id]": {
+      "path": "/api/control/demo-feedback/[id]",
+      "file": "app/api/control/demo-feedback/[id]/route.ts",
+      "methods": [
+        "PATCH"
+      ],
+      "auth": "control",
+      "tests": [
+        "tests/e2e/api-session-routes.spec.ts"
+      ]
+    },
+    "/api/cron/communications-retry": {
+      "path": "/api/cron/communications-retry",
+      "file": "app/api/cron/communications-retry/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "cron",
+      "tests": [
+        "tests/e2e/api-cron.spec.ts"
+      ]
+    },
+    "/api/cron/communications-scheduled": {
+      "path": "/api/cron/communications-scheduled",
+      "file": "app/api/cron/communications-scheduled/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "cron",
+      "tests": [
+        "tests/e2e/api-cron.spec.ts"
+      ]
+    },
+    "/api/cron/shepherd-ai": {
+      "path": "/api/cron/shepherd-ai",
+      "file": "app/api/cron/shepherd-ai/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "cron",
+      "tests": [
+        "tests/e2e/api-cron.spec.ts"
+      ]
+    },
+    "/api/demo/complete-payment": {
+      "path": "/api/demo/complete-payment",
+      "file": "app/api/demo/complete-payment/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "public",
+      "tests": [
+        "tests/e2e/api-demo.spec.ts"
+      ]
+    },
+    "/api/demo/feedback": {
+      "path": "/api/demo/feedback",
+      "file": "app/api/demo/feedback/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "public",
+      "tests": [
+        "tests/e2e/api-demo.spec.ts"
+      ]
+    },
+    "/api/push/subscribe": {
+      "path": "/api/push/subscribe",
+      "file": "app/api/push/subscribe/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "session",
+      "tests": [
+        "tests/e2e/api-session-routes.spec.ts"
+      ]
+    },
+    "/api/reports/custom": {
+      "path": "/api/reports/custom",
+      "file": "app/api/reports/custom/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "session",
+      "tests": [
+        "tests/e2e/api-session-routes.spec.ts"
+      ]
+    },
+    "/api/unsubscribe": {
+      "path": "/api/unsubscribe",
+      "file": "app/api/unsubscribe/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "hmac",
+      "tests": [
+        "tests/e2e/api-unsubscribe.spec.ts"
+      ]
+    },
+    "/api/webhooks/resend": {
+      "path": "/api/webhooks/resend",
+      "file": "app/api/webhooks/resend/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "webhook",
+      "tests": [
+        "tests/e2e/api-webhooks.spec.ts"
+      ]
+    },
+    "/api/webhooks/sendgrid": {
+      "path": "/api/webhooks/sendgrid",
+      "file": "app/api/webhooks/sendgrid/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "webhook",
+      "tests": [
+        "tests/e2e/api-webhooks.spec.ts"
+      ]
+    },
+    "/api/webhooks/stripe": {
+      "path": "/api/webhooks/stripe",
+      "file": "app/api/webhooks/stripe/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "webhook",
+      "tests": [
+        "tests/e2e/api-webhooks.spec.ts"
+      ]
+    },
+    "/api/webhooks/twilio": {
+      "path": "/api/webhooks/twilio",
+      "file": "app/api/webhooks/twilio/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "webhook",
+      "tests": [
+        "tests/e2e/api-webhooks.spec.ts"
+      ]
+    }
+  },
+  "actions": {
+    "app/app/actions.ts": {
+      "module": "app/app/actions.ts",
+      "exports": [
+        "acknowledgeBurnoutAlertAction",
+        "addChurchgoerAction",
+        "assignMembersToMinistryAction",
+        "calculateBurnoutAlertsAction",
+        "createCareAssignmentAction",
+        "createMinistryAction",
+        "createPastoralNoteAction",
+        "deactivateChurchAdminPersonAction",
+        "deleteMinistryAction",
+        "inviteUserAction",
+        "logKingdomImpactAction",
+        "mergeChurchAdminDuplicateAction",
+        "reassignChurchAdminPersonFamilyAction",
+        "removeMemberFromMinistryAction",
+        "reviewMemberChangeRequestAction",
+        "reviewVolunteerMatchAction",
+        "suggestVolunteersAction",
+        "updateCareAssignmentStatusAction",
+        "updateChurchAdminPeopleBulkAction",
+        "updateChurchAdminPersonAction",
+        "updateMemberProfileAction",
+        "updateMinistryAction",
+        "updateMinistryHealthScoreAction",
+        "updateMinistryVisionAction",
+        "upsertMemberFamilyAction"
+      ],
+      "tests": [
+        "app/app/actions.test.ts"
+      ],
+      "untestedExports": {
+        "addChurchgoerAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "assignMembersToMinistryAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "calculateBurnoutAlertsAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "createCareAssignmentAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "createMinistryAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "createPastoralNoteAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "deactivateChurchAdminPersonAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "deleteMinistryAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "inviteUserAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "logKingdomImpactAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "mergeChurchAdminDuplicateAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "reassignChurchAdminPersonFamilyAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "removeMemberFromMinistryAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "reviewVolunteerMatchAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "suggestVolunteersAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateCareAssignmentStatusAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateMinistryHealthScoreAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateMinistryVisionAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "upsertMemberFamilyAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
+    },
+    "app/app/ccm-actions.ts": {
+      "module": "app/app/ccm-actions.ts",
+      "exports": [
+        "addCustodyRestrictionAction",
+        "assignVolunteerAction",
+        "checkinChildAction",
+        "checkoutChildAction",
+        "closeServiceAction",
+        "fileIncidentAction",
+        "openServiceAction",
+        "silentPageAction",
+        "transferChildAction",
+        "updateCheckinSessionLifecycleAction",
+        "updateChildProfileAction",
+        "upsertAuthorizedPickupAction"
+      ],
+      "tests": [
+        "app/app/ccm-actions.test.ts"
+      ],
+      "untestedExports": {
+        "assignVolunteerAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "fileIncidentAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "silentPageAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "transferChildAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateChildProfileAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "upsertAuthorizedPickupAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
+    },
+    "app/app/church-admin-actions.ts": {
+      "module": "app/app/church-admin-actions.ts",
+      "exports": [
+        "addRosterAssignmentAction",
+        "approveAccountRequestAction",
+        "approveRegistrationAction",
+        "cancelRegistrationAction",
+        "checkInRegistrantAction",
+        "createEventAction",
+        "initiateRegistrationRefundAction",
+        "quickAddVisitorCheckInAction",
+        "quickCheckInEventMemberAction",
+        "registerForEventAction",
+        "rejectAccountRequestAction",
+        "removeRosterAssignmentAction",
+        "toggleRosterConfirmationAction",
+        "updateChurchSettingsAction",
+        "updateRegistrationPaymentFollowUpAction",
+        "upsertRegistrationFormFieldsAction",
+        "upsertRegistrationSettingsAction"
+      ],
+      "tests": [
+        "app/app/church-admin-actions.test.ts",
+        "app/app/church-admin-refund-actions.test.ts"
+      ],
+      "untestedExports": {
+        "cancelRegistrationAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "checkInRegistrantAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "quickAddVisitorCheckInAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "quickCheckInEventMemberAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "removeRosterAssignmentAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "toggleRosterConfirmationAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
+    },
+    "app/app/church-admin/attendance/import/actions.ts": {
+      "module": "app/app/church-admin/attendance/import/actions.ts",
+      "exports": [
+        "commitAttendanceImportBatchAction",
+        "runAttendanceImportDryRunAction"
+      ],
+      "tests": [
+        "app/app/church-admin/attendance/import/actions.test.ts"
+      ]
+    },
+    "app/app/church-admin/events/import/actions.ts": {
+      "module": "app/app/church-admin/events/import/actions.ts",
+      "exports": [
+        "commitEventsImportBatchAction",
+        "runEventsImportDryRunAction"
+      ],
+      "tests": [
+        "app/app/church-admin/events/import/actions.test.ts"
+      ]
+    },
+    "app/app/church-admin/giving/import/actions.ts": {
+      "module": "app/app/church-admin/giving/import/actions.ts",
+      "exports": [
+        "commitGivingImportBatchAction",
+        "runGivingImportDryRunAction"
+      ],
+      "tests": [
+        "app/app/church-admin/giving/import/actions.test.ts"
+      ]
+    },
+    "app/app/church-admin/groups/import/actions.ts": {
+      "module": "app/app/church-admin/groups/import/actions.ts",
+      "exports": [
+        "commitGroupsImportBatchAction",
+        "runGroupsImportDryRunAction"
+      ],
+      "tests": [
+        "app/app/church-admin/groups/import/actions.test.ts"
+      ]
+    },
+    "app/app/church-admin/localization/actions.ts": {
+      "module": "app/app/church-admin/localization/actions.ts",
+      "exports": [
+        "activateVersion",
+        "approveVersion",
+        "assignReviewer",
+        "createCatalogVersion",
+        "createLocale",
+        "evaluateCiPolicy",
+        "getLocalizationStatus",
+        "listLocales",
+        "requestReview",
+        "rollbackVersion",
+        "submitReview",
+        "translateVersion",
+        "validateVersion"
+      ],
+      "tests": [
+        "app/app/church-admin/localization/actions.test.ts"
+      ]
+    },
+    "app/app/church-admin/onboarding/actions.ts": {
+      "module": "app/app/church-admin/onboarding/actions.ts",
+      "exports": [
+        "hydrateSandboxDataAction"
+      ],
+      "tests": [
+        "app/app/church-admin/onboarding/actions.test.ts"
+      ]
+    },
+    "app/app/church-admin/operations/actions.ts": {
+      "module": "app/app/church-admin/operations/actions.ts",
+      "exports": [
+        "closeOnboardingInstanceAction",
+        "completeOnboardingStepAction",
+        "createChurchDocumentAction",
+        "createOnboardingTemplateAction",
+        "deleteChurchDocumentAction",
+        "deleteOnboardingTemplateAction",
+        "getChurchDocumentAction",
+        "getOnboardingInstanceAction",
+        "getOnboardingTemplateAction",
+        "listChurchDocumentsAction",
+        "listOnboardingInstancesAction",
+        "listOnboardingTemplatesAction",
+        "startOnboardingInstanceAction",
+        "updateChurchDocumentAction",
+        "updateOnboardingTemplateAction"
+      ],
+      "tests": [
+        "app/app/church-admin/operations/actions.test.ts"
+      ],
+      "untestedExports": {
+        "getOnboardingTemplateAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateOnboardingTemplateAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
+    },
+    "app/app/church-admin/people/import/actions.ts": {
+      "module": "app/app/church-admin/people/import/actions.ts",
+      "exports": [
+        "commitPeopleImportBatchAction",
+        "runPeopleImportDryRunAction"
+      ],
+      "tests": [
+        "app/app/church-admin/people/import/actions.test.ts"
+      ]
+    },
+    "app/app/communications-actions.ts": {
+      "module": "app/app/communications-actions.ts",
+      "exports": [
+        "broadcastMessageAction",
+        "cancelScheduledMessageAction",
+        "composeAndSendMessageAction",
+        "createTemplateAction",
+        "deleteTemplateAction",
+        "getCommunicationDeliveryEventsAction",
+        "getMessageAnalyticsAction",
+        "listCommunicationLogsAction",
+        "listTemplatesAction",
+        "previewRecipientsAction",
+        "retryAllEligibleAction",
+        "retryCommunicationAction",
+        "suppressContactAction",
+        "updateNotificationPreferencesAction",
+        "updateTemplateAction"
+      ],
+      "tests": [
+        "app/app/communications-actions.test.ts",
+        "app/app/communications-compose-actions.test.ts"
+      ],
+      "untestedExports": {
+        "getCommunicationDeliveryEventsAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
+    },
+    "app/app/daily-desk-actions.ts": {
+      "module": "app/app/daily-desk-actions.ts",
+      "exports": [
+        "createDailyWorkItemAction",
+        "updateDailyWorkItemStatusAction"
+      ],
+      "tests": [
+        "app/app/daily-desk-actions.test.ts"
+      ]
+    },
+    "app/app/donations-actions.ts": {
+      "module": "app/app/donations-actions.ts",
+      "exports": [
+        "cancelRecurringDonationAction",
+        "confirmDonationAction",
+        "initiateDonationAction"
+      ],
+      "tests": [
+        "app/app/donations-actions.test.ts"
+      ]
+    },
+    "app/app/elders-actions.ts": {
+      "module": "app/app/elders-actions.ts",
+      "exports": [
+        "addElderNoteAction",
+        "addPrayerRequestAction",
+        "createCouncilNoteAction",
+        "createDiscernmentSessionAction",
+        "generateBibleStudyAnswerAction",
+        "generateSermonOutlineAction",
+        "generateWisdomPromptAction",
+        "markPrayedAction",
+        "updateCouncilNoteAction",
+        "updateDiscernmentSessionStatusAction"
+      ],
+      "tests": [
+        "app/app/elders-actions.test.ts"
+      ],
+      "untestedExports": {
+        "addElderNoteAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "addPrayerRequestAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "createCouncilNoteAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "createDiscernmentSessionAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "generateWisdomPromptAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "markPrayedAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateCouncilNoteAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateDiscernmentSessionStatusAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
+    },
+    "app/app/finance-actions.ts": {
+      "module": "app/app/finance-actions.ts",
+      "exports": [
+        "createAccountAction",
+        "createBudgetAction",
+        "createJournalAction",
+        "deleteJournalDraftAction",
+        "importFinanceRowsAction",
+        "postJournalAction",
+        "updateAccountAction",
+        "upsertBudgetLinesAction",
+        "voidJournalAction"
+      ],
+      "tests": [
+        "app/app/finance-actions.test.ts"
+      ],
+      "untestedExports": {
+        "createBudgetAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "deleteJournalDraftAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateAccountAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "upsertBudgetLinesAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
+    },
+    "app/app/giving-actions.ts": {
+      "module": "app/app/giving-actions.ts",
+      "exports": [
+        "postDonationToGlAction",
+        "upsertFundMappingAction",
+        "upsertGivingPageAction"
+      ],
+      "tests": [
+        "app/app/giving-actions.test.ts"
+      ]
+    },
+    "app/app/groups-actions.ts": {
+      "module": "app/app/groups-actions.ts",
+      "exports": [
+        "addFirstTimeVisitorAction",
+        "addGroupMemberAction",
+        "advanceVisitorWorkflowAction",
+        "createGroupAction",
+        "joinGroupAction",
+        "logGroupMeetingAction",
+        "logServiceAttendanceAction",
+        "recordAttendanceAction",
+        "removeGroupMemberAction",
+        "updateGroupAction"
+      ],
+      "tests": [
+        "app/app/groups-actions.test.ts"
+      ],
+      "untestedExports": {
+        "addGroupMemberAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "advanceVisitorWorkflowAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "logGroupMeetingAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "logServiceAttendanceAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "removeGroupMemberAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateGroupAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
+    },
+    "app/app/member-actions.ts": {
+      "module": "app/app/member-actions.ts",
+      "exports": [
+        "memberMobileCheckInAction",
+        "memberRegisterForEventAction"
+      ],
+      "tests": [
+        "app/app/member-actions.test.ts"
+      ]
+    },
+    "app/app/shepherd-ai-actions.ts": {
+      "module": "app/app/shepherd-ai-actions.ts",
+      "exports": [
+        "assignWorkflowAction",
+        "completeWorkflowAction",
+        "deferWorkflowAction",
+        "dismissWorkflowAction",
+        "promoteSuggestionToWorkflowAction",
+        "recordWorkflowFeedbackAction",
+        "runShepherdAiEvaluationAction"
+      ],
+      "tests": [
+        "app/app/shepherd-ai-actions.test.ts"
+      ]
+    },
+    "app/app/volunteer-actions.ts": {
+      "module": "app/app/volunteer-actions.ts",
+      "exports": [
+        "addPlanPositionAction",
+        "addRunOfServiceItemAction",
+        "addSongToServicePlanAction",
+        "assignVolunteerAction",
+        "createRoleTypeAction",
+        "createServicePlanAction",
+        "createSongAndAddToServicePlanAction",
+        "deactivateRoleTypeAction",
+        "getPublicVolunteerScheduleByToken",
+        "getPublicVolunteerShiftByToken",
+        "logVolunteerHoursAction",
+        "removeAssignmentAction",
+        "removeServicePlanItemAction",
+        "reorderServicePlanItemsAction",
+        "respondToPublicShiftAction",
+        "respondToShiftAction",
+        "saveServicePlanTemplateAction",
+        "searchSongLibraryAction",
+        "sendVolunteerReminderAction",
+        "updateRoleTypeAction",
+        "updateServicePlanDetailsAction",
+        "updateServicePlanStatusAction"
+      ],
+      "tests": [
+        "app/app/volunteer-actions.test.ts",
+        "app/app/song-library-actions.test.ts",
+        "app/app/service-plan-role-type-actions.test.ts"
+      ],
+      "untestedExports": {
+        "logVolunteerHoursAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "removeAssignmentAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
+    },
+    "app/calendar/actions.ts": {
+      "module": "app/calendar/actions.ts",
+      "exports": [
+        "createCalendarEventAction",
+        "deleteCalendarEventAction",
+        "persistCalendarBoardStateAction",
+        "respondToCalendarEventRsvpAction",
+        "updateCalendarEventAction"
+      ],
+      "tests": [
+        "app/calendar/actions.test.ts"
+      ],
+      "untestedExports": {
+        "deleteCalendarEventAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "respondToCalendarEventRsvpAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "updateCalendarEventAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
+    },
+    "app/control/actions.ts": {
+      "module": "app/control/actions.ts",
+      "exports": [
+        "deleteTenantAction",
+        "eraseTenantDataAction",
+        "launchTenantViewAction",
+        "returnToControlPlaneAction",
+        "updateTenantAction"
+      ],
+      "tests": [
+        "app/control/actions.test.ts"
+      ],
+      "untestedExports": {
+        "launchTenantViewAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
+        "returnToControlPlaneAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
+    },
+    "app/language-actions.ts": {
+      "module": "app/language-actions.ts",
+      "exports": [
+        "setLocaleAction"
+      ],
+      "tests": [
+        "app/language-actions.test.ts"
+      ]
+    },
+    "app/portal/actions.ts": {
+      "module": "app/portal/actions.ts",
+      "exports": [
+        "submitPortalAccountRequestAction",
+        "submitPublicEventRegistrationAction"
+      ],
+      "tests": [
+        "app/portal/actions.test.ts"
+      ],
+      "untestedExports": {
+        "submitPortalAccountRequestAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
+    },
+    "app/portal/children/actions.ts": {
+      "module": "app/portal/children/actions.ts",
+      "exports": [
+        "submitPublicChildCheckinAction",
+        "submitPublicChildCheckoutAction"
+      ],
+      "tests": [
+        "app/portal/children/actions.test.ts"
+      ],
+      "untestedExports": {
+        "submitPublicChildCheckinAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
+    },
+    "app/sign-in/actions.ts": {
+      "module": "app/sign-in/actions.ts",
+      "exports": [
+        "signInAction",
+        "signOutAction"
+      ],
+      "tests": [
+        "app/sign-in/actions.test.ts"
+      ]
+    },
+    "app/workspace/actions.ts": {
+      "module": "app/workspace/actions.ts",
+      "exports": [
+        "persistChurchAdminWorkspaceStateAction"
+      ],
+      "tests": [
+        "app/workspace/actions.test.ts"
+      ]
+    },
+    "lib/actions/erasure.ts": {
+      "module": "lib/actions/erasure.ts",
+      "exports": [
+        "eraseProfileData"
+      ],
+      "tests": [
+        "lib/actions/erasure.test.ts"
+      ]
+    },
+    "lib/compliance/data-rights-actions.ts": {
+      "module": "lib/compliance/data-rights-actions.ts",
+      "exports": [
+        "cancelDeletionRequestAction",
+        "generateDataExportAction",
+        "requestAccountDeletionAction",
+        "requestDataExportAction"
+      ],
+      "tests": [
+        "lib/compliance/data-rights-actions.test.ts"
+      ],
+      "untestedExports": {
+        "generateDataExportAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
+      }
+    }
+  }
+}

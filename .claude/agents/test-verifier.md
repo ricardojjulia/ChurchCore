@@ -25,3 +25,4 @@ Rules:
 - Do not patch production code; report production gaps clearly.
 - Run the new or targeted tests and summarize pass/fail.
 - If a criterion cannot be tested cleanly, say why and identify the missing observable behavior.
+- When you add a test for a server-action export that is waived in `untestedExports`, remove that waiver (`npm run test:surfaces` fails on a stale waiver). New pages are covered by the page×role sweep once their manifest entry exists; add a journey spec for multi-step workflows.
