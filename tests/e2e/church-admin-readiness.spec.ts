@@ -79,9 +79,14 @@ test.describe("ChurchAdmin weekly readiness browser path", () => {
 
     for (const target of readinessTargets) {
       await page.goto(target.route);
+      // Let streaming finish: until it does, the previous route's content can
+      // still be mounted beside the new one (CI saw two target-state alerts).
+      await page.waitForLoadState("networkidle");
       expect(new URL(page.url()).pathname).not.toBe("/sign-in");
       await expect(page.getByText(target.text, { exact: false }).first()).toBeVisible();
       if ("hasTargetState" in target) {
+        // Exactly one once settled; a real duplicate still fails here.
+        await expect(page.locator("[data-testid^='readiness-target-state-']")).toHaveCount(1);
         await expect(page.locator("[data-testid^='readiness-target-state-']")).toBeVisible();
       }
       await expect(page.getByText("Application error", { exact: false })).toHaveCount(0);
