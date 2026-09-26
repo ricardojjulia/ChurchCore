@@ -120,6 +120,15 @@ begin
 
   -- Keep reruns deterministic by clearing generated demo rows before
   -- repopulating them. Stable records below still use explicit IDs/upserts.
+  -- Service planning / rotation planner demo (Story 3). Positions reference
+  -- role types (ON DELETE RESTRICT), so clear shifts, positions and plans first.
+  delete from public.volunteer_shifts where church_id = v_church_id;
+  delete from public.volunteer_blocked_dates where church_id = v_church_id;
+  delete from public.service_plan_items where church_id = v_church_id;
+  delete from public.service_plan_positions where church_id = v_church_id;
+  delete from public.service_plans where church_id = v_church_id;
+  delete from public.service_plan_role_types where church_id = v_church_id;
+  delete from public.volunteer_profiles where church_id = v_church_id;
   delete from public.ccm_incidents where church_id = v_church_id;
   delete from public.ccm_volunteer_assignments where church_id = v_church_id;
   delete from public.ccm_authorized_pickups where church_id = v_church_id;
@@ -975,4 +984,89 @@ begin
   end;
 
   raise notice 'Seed complete — Grace Harbor Church with 10 ministries, 23 profiles, operations data, track data for all 10 panel types + CCM demo service.';
+
+  -- ── Service planning: rotation planner demo (Service Planning Story 3) ──
+  -- A deterministic scenario with a known correct answer, used by the e2e
+  -- journey, the real-Postgres test, and the page×role sweep. For the upcoming
+  -- plan (about 10 days out, never on the 1st or 2nd of a month):
+  --   Worship Leader -> Aisha (skills, never served; James served 2 weeks ago)
+  --   Sound Tech     -> Grace (Marcus has 3 shifts in 30 days: burnout rule)
+  --   Greeter x2     -> Maya, then Samuel (Elena blocked that day; Carlos at
+  --                     his 1-per-month limit)
+  declare
+    v_plan_date date := current_date + 10;
+    v_wl_role   uuid := 'a1a1a1a1-0000-0000-0000-000000000001';
+    v_sound_role uuid := 'a1a1a1a1-0000-0000-0000-000000000002';
+    v_greet_role uuid := 'a1a1a1a1-0000-0000-0000-000000000003';
+    v_plan_id   uuid := 'b2b2b2b2-0000-0000-0000-000000000001';
+    v_past_plan uuid := 'b2b2b2b2-0000-0000-0000-000000000002';
+    v_past_wl   uuid := 'b3b3b3b3-0000-0000-0000-000000000011';
+    v_past_snd  uuid := 'b3b3b3b3-0000-0000-0000-000000000012';
+    v_past_grt  uuid := 'b3b3b3b3-0000-0000-0000-000000000013';
+  begin
+    if extract(day from v_plan_date) < 3 then
+      v_plan_date := v_plan_date + 3;
+    end if;
+
+    insert into public.service_plan_role_types (id, church_id, name, description, required_skills, created_by)
+    values
+      (v_wl_role, v_church_id, 'Worship Leader', 'Leads the band and congregational singing', array['vocals', 'leadership'], v_sarah_id),
+      (v_sound_role, v_church_id, 'Sound Tech', 'Runs front-of-house sound', array['audio'], v_sarah_id),
+      (v_greet_role, v_church_id, 'Greeter', 'Welcomes people at the doors', array['hospitality'], v_sarah_id);
+
+    insert into public.volunteer_profiles (church_id, user_id, skills, max_services_per_month)
+    values
+      (v_church_id, v_james_id,  array['vocals', 'leadership'], null),
+      (v_church_id, v_aisha_id,  array['vocals', 'leadership'], null),
+      (v_church_id, v_marcus_id, array['audio'], null),
+      (v_church_id, v_grace_id,  array['audio'], null),
+      (v_church_id, v_elena_id,  array['hospitality'], null),
+      (v_church_id, v_carlos_id, array['hospitality'], 1),
+      (v_church_id, v_maya_id,   array['hospitality'], null),
+      (v_church_id, v_samuel_id, array['hospitality', 'leadership'], null);
+
+    -- The upcoming plan and its open positions.
+    insert into public.service_plans (id, church_id, event_id, name, service_date, service_time, status, created_by)
+    values (v_plan_id, v_church_id, v_sunday_event_id, 'Sunday Worship', v_plan_date, '10:00', 'draft', v_sarah_id);
+    insert into public.service_plan_positions (id, plan_id, church_id, role_type_id, role_name, quantity_needed, sort_order)
+    values
+      ('b3b3b3b3-0000-0000-0000-000000000001', v_plan_id, v_church_id, v_wl_role, 'Worship Leader', 1, 1),
+      ('b3b3b3b3-0000-0000-0000-000000000002', v_plan_id, v_church_id, v_sound_role, 'Sound Tech', 1, 2),
+      ('b3b3b3b3-0000-0000-0000-000000000003', v_plan_id, v_church_id, v_greet_role, 'Greeter', 2, 3);
+
+    -- History: a past plan whose positions give "served this role" counts.
+    insert into public.service_plans (id, church_id, event_id, name, service_date, service_time, status, created_by)
+    values (v_past_plan, v_church_id, v_sunday_event_id, 'Sunday Worship (past)', v_plan_date - 14, '10:00', 'complete', v_sarah_id);
+    insert into public.service_plan_positions (id, plan_id, church_id, role_type_id, role_name, quantity_needed, sort_order)
+    values
+      (v_past_wl,  v_past_plan, v_church_id, v_wl_role, 'Worship Leader', 1, 1),
+      (v_past_snd, v_past_plan, v_church_id, v_sound_role, 'Sound Tech', 1, 2),
+      (v_past_grt, v_past_plan, v_church_id, v_greet_role, 'Greeter', 1, 3);
+
+    insert into public.volunteer_shifts (church_id, event_id, plan_id, position_id, assigned_user_id, title, starts_at, ends_at, status, confirmation_status)
+    values
+      -- James led worship 2 weeks before the plan date.
+      (v_church_id, v_sunday_event_id, v_past_plan, v_past_wl, v_james_id, 'Worship Leader',
+        (v_plan_date - 14) + time '10:00', (v_plan_date - 14) + time '11:30', 'assigned', 'confirmed'),
+      -- Marcus: 3 shifts in the 30 days before the plan date (burnout rule).
+      (v_church_id, v_sunday_event_id, v_past_plan, v_past_snd, v_marcus_id, 'Sound Tech',
+        (v_plan_date - 14) + time '10:00', (v_plan_date - 14) + time '11:30', 'assigned', 'confirmed'),
+      (v_church_id, v_sunday_event_id, null, null, v_marcus_id, 'Sound Tech',
+        (v_plan_date - 7) + time '10:00', (v_plan_date - 7) + time '11:30', 'assigned', 'confirmed'),
+      (v_church_id, v_sunday_event_id, null, null, v_marcus_id, 'Sound Tech',
+        (v_plan_date - 21) + time '10:00', (v_plan_date - 21) + time '11:30', 'assigned', 'confirmed'),
+      -- Grace ran sound 20 days before.
+      (v_church_id, v_sunday_event_id, null, null, v_grace_id, 'Sound Tech',
+        (v_plan_date - 20) + time '10:00', (v_plan_date - 20) + time '11:30', 'assigned', 'confirmed'),
+      -- Samuel greeted a week before.
+      (v_church_id, v_sunday_event_id, v_past_plan, v_past_grt, v_samuel_id, 'Greeter',
+        (v_plan_date - 7) + time '09:30', (v_plan_date - 7) + time '10:30', 'assigned', 'confirmed'),
+      -- Carlos already served once in the plan's month (his limit is 1).
+      (v_church_id, v_sunday_event_id, null, null, v_carlos_id, 'Greeter',
+        (date_trunc('month', v_plan_date)::date) + time '09:30', (date_trunc('month', v_plan_date)::date) + time '10:30', 'assigned', 'confirmed');
+
+    insert into public.volunteer_blocked_dates (church_id, profile_id, blocked_date, reason)
+    values (v_church_id, v_elena_id, v_plan_date, 'Travelling');
+  end;
+
 end $$;

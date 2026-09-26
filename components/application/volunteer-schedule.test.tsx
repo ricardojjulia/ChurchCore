@@ -22,6 +22,9 @@ const {
   removeServicePlanItemActionMock,
   addPlanPositionActionMock,
   assignVolunteerActionMock,
+  suggestVolunteersForPositionActionMock,
+  proposePlanAutoFillActionMock,
+  applyPlanAutoFillActionMock,
 } = vi.hoisted(() => ({
   searchSongLibraryActionMock: vi.fn(),
   addSongToServicePlanActionMock: vi.fn(),
@@ -30,6 +33,13 @@ const {
   removeServicePlanItemActionMock: vi.fn(),
   addPlanPositionActionMock: vi.fn(),
   assignVolunteerActionMock: vi.fn(),
+  // Neutral defaults: no suggestions, so the Suggested panel shows its empty
+  // state and existing assertions on the full pool list are unaffected.
+  suggestVolunteersForPositionActionMock: vi.fn(
+    async (): Promise<{ ok: boolean; volunteers: unknown[] }> => ({ ok: true, volunteers: [] }),
+  ),
+  proposePlanAutoFillActionMock: vi.fn(),
+  applyPlanAutoFillActionMock: vi.fn(),
 }));
 
 // Captures the onDragEnd handler DndContext is rendered with, so tests can
@@ -77,6 +87,9 @@ vi.mock("@/app/app/volunteer-actions", () => ({
   removeAssignmentAction: vi.fn(),
   removeServicePlanItemAction: removeServicePlanItemActionMock,
   searchSongLibraryAction: searchSongLibraryActionMock,
+  suggestVolunteersForPositionAction: suggestVolunteersForPositionActionMock,
+  proposePlanAutoFillAction: proposePlanAutoFillActionMock,
+  applyPlanAutoFillAction: applyPlanAutoFillActionMock,
   sendVolunteerReminderAction: vi.fn(),
   updateServicePlanDetailsAction: vi.fn(),
   updateServicePlanStatusAction: vi.fn(),
@@ -216,8 +229,13 @@ function basePoolEntry(overrides: Partial<VolunteerPoolEntry> = {}): VolunteerPo
     email: "jamie@example.com",
     phone: null,
     skills: [],
+    maxServicesPerMonth: null,
     isBlocked: false,
+    servingOnDate: false,
     recentShiftCount: 0,
+    monthShiftCount: 0,
+    lastServedAt: null,
+    roleServedCount: 0,
     totalHours: 0,
     ...overrides,
   };
@@ -755,6 +773,73 @@ describe("ServicePlanBuilder — Team Roster table", () => {
 });
 
 describe("ServicePlanBuilder — assign modal skill-based ranking", () => {
+  it("shows ranked suggestions with their reasons and assigns from them with a valid shift window", async () => {
+    const user = userEvent.setup();
+    const detail = baseDetail();
+    detail.plan.serviceTime = "10:00:00";
+    detail.positions = [basePosition({ id: "pos-1", roleName: "Worship Leader", quantityNeeded: 1 })];
+    suggestVolunteersForPositionActionMock.mockResolvedValueOnce({
+      ok: true,
+      volunteers: [
+        { profileId: "p-aisha", fullName: "Aisha Thompson", eligible: true, ineligibleReasons: [], matchedSkills: 2, requiredSkills: 2, recentShiftCount: 0, lastServedAt: null, roleServedCount: 0, reasons: ["2/2 skills", "Hasn't served yet"] },
+        { profileId: "p-elena", fullName: "Elena Martinez", eligible: false, ineligibleReasons: ["blocked"], matchedSkills: 0, requiredSkills: 2, recentShiftCount: 0, lastServedAt: null, roleServedCount: 0, reasons: ["Unavailable that day"] },
+      ],
+    });
+    assignVolunteerActionMock.mockResolvedValue({ ok: true });
+    renderBuilder(detail, { pool: [] });
+
+    await user.click(screen.getByRole("button", { name: "Assign" }));
+
+    const suggested = await screen.findByTestId("suggested-volunteers");
+    expect(within(suggested).getByText("Aisha Thompson")).toBeInTheDocument();
+    expect(within(suggested).getByText("Hasn't served yet")).toBeInTheDocument();
+    // Ineligible volunteers are never suggested.
+    expect(within(suggested).queryByText("Elena Martinez")).not.toBeInTheDocument();
+    expect(suggestVolunteersForPositionActionMock).toHaveBeenCalledWith({ planId: "plan-1", positionId: "pos-1" });
+
+    await user.click(within(suggested).getByRole("button", { name: "Assign" }));
+
+    expect(assignVolunteerActionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        profileId: "p-aisha",
+        startsAt: `${detail.plan.serviceDate}T10:00:00`,
+        endsAt: `${detail.plan.serviceDate}T12:00:00`,
+      }),
+    );
+  });
+
+  it("auto-fill proposes volunteers, lets the admin remove one, and applies only the rest", async () => {
+    const user = userEvent.setup();
+    const detail = baseDetail();
+    detail.unfilledCount = 2;
+    detail.positions = [basePosition({ id: "pos-1", roleName: "Greeter", quantityNeeded: 2 })];
+    proposePlanAutoFillActionMock.mockResolvedValueOnce({
+      ok: true,
+      proposal: [
+        { positionId: "pos-1", roleName: "Greeter", profileId: "p-maya", fullName: "Maya Martinez", reasons: ["Hasn't served yet"] },
+        { positionId: "pos-1", roleName: "Greeter", profileId: "p-sam", fullName: "Samuel Price", reasons: ["1 in last 30 days"] },
+      ],
+    });
+    applyPlanAutoFillActionMock.mockResolvedValueOnce({
+      ok: true,
+      results: [{ positionId: "pos-1", profileId: "p-maya", ok: true }],
+    });
+    renderBuilder(detail, { pool: [] });
+
+    await user.click(screen.getByRole("button", { name: "Auto-fill plan" }));
+    const proposal = await screen.findByTestId("auto-fill-proposal");
+    expect(within(proposal).getByText("Maya Martinez")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Remove Samuel Price from the proposal" }));
+    await user.click(screen.getByRole("button", { name: "Apply 1 assignments" }));
+
+    expect(applyPlanAutoFillActionMock).toHaveBeenCalledWith({
+      planId: "plan-1",
+      assignments: [{ positionId: "pos-1", profileId: "p-maya" }],
+    });
+    expect(await screen.findByText("Assigned")).toBeInTheDocument();
+  });
+
   it("sorts volunteers matching at least one required skill first, with a match-count badge", async () => {
     const user = userEvent.setup();
     const detail = baseDetail();

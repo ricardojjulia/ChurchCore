@@ -1002,11 +1002,14 @@
       ],
       "public": false,
       "controlPlane": false,
-      "dynamicParams": null,
+      "dynamicParams": {
+        "id": "b2b2b2b2-0000-0000-0000-000000000001"
+      },
       "tests": [
-        "tests/e2e/page-role-sweep.spec.ts"
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/service-plan-rotation.spec.ts"
       ],
-      "note": "No seed rows for service_plans in supabase/seed.sql (verified: 0 rows in the local DB) \u2014 dynamicParams left null. This is a data-fixture gap, not a role-check gap; the page's allowedRoles above were verified by reading its source and, where applicable, its sibling pages' shared gate."
+      "seedSource": "service_plans.id of the 'Sunday Worship' draft plan seeded for the rotation planner journey in supabase/seed.sql (Service Planning Story 3). tests/e2e/service-plan-rotation.spec.ts resets this plan's shifts before it runs."
     },
     "/app/church-admin/workflows": {
       "path": "/app/church-admin/workflows",
@@ -2268,6 +2271,7 @@
         "addPlanPositionAction",
         "addRunOfServiceItemAction",
         "addSongToServicePlanAction",
+        "applyPlanAutoFillAction",
         "assignVolunteerAction",
         "createRoleTypeAction",
         "createServicePlanAction",
@@ -2276,6 +2280,7 @@
         "getPublicVolunteerScheduleByToken",
         "getPublicVolunteerShiftByToken",
         "logVolunteerHoursAction",
+        "proposePlanAutoFillAction",
         "removeAssignmentAction",
         "removeServicePlanItemAction",
         "reorderServicePlanItemsAction",
@@ -2284,14 +2289,17 @@
         "saveServicePlanTemplateAction",
         "searchSongLibraryAction",
         "sendVolunteerReminderAction",
+        "suggestVolunteersForPositionAction",
         "updateRoleTypeAction",
         "updateServicePlanDetailsAction",
-        "updateServicePlanStatusAction"
+        "updateServicePlanStatusAction",
+        "updateVolunteerFrequencyAction"
       ],
       "tests": [
         "app/app/volunteer-actions.test.ts",
         "app/app/song-library-actions.test.ts",
-        "app/app/service-plan-role-type-actions.test.ts"
+        "app/app/service-plan-role-type-actions.test.ts",
+        "app/app/rotation-planner-actions.test.ts"
       ],
       "untestedExports": {
         "logVolunteerHoursAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",

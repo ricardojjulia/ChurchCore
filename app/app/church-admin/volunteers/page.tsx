@@ -1,9 +1,23 @@
 import { redirect } from "next/navigation";
 
 import { ApplicationShell } from "@/components/application/app-shell";
+import { VolunteerFrequencyInput } from "@/components/application/volunteer-frequency-input";
 import { requireChurchSession } from "@/lib/auth";
 import { getVolunteerDirectory } from "@/lib/volunteer-data";
-import { Badge, Group, Paper, Stack, Table, Text, Title } from "@mantine/core";
+import {
+  Badge,
+  Group,
+  Paper,
+  Stack,
+  Table,
+  TableTbody,
+  TableTd,
+  TableTh,
+  TableThead,
+  TableTr,
+  Text,
+  Title,
+} from "@mantine/core";
 import { ShieldCheck } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -53,34 +67,35 @@ export default async function VolunteerDirectoryPage() {
         ) : (
           <Paper withBorder radius="md">
             <Table highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Name</Table.Th>
-                  <Table.Th>Email</Table.Th>
-                  <Table.Th>Shifts (year)</Table.Th>
-                  <Table.Th>Hours (year)</Table.Th>
-                  <Table.Th>Last served</Table.Th>
-                  <Table.Th>Background check</Table.Th>
-                  <Table.Th>Skills</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
+              <TableThead>
+                <TableTr>
+                  <TableTh>Name</TableTh>
+                  <TableTh>Email</TableTh>
+                  <TableTh>Shifts (year)</TableTh>
+                  <TableTh>Hours (year)</TableTh>
+                  <TableTh>Last served</TableTh>
+                  <TableTh>Background check</TableTh>
+                  <TableTh>Skills</TableTh>
+                  <TableTh>Monthly limit</TableTh>
+                </TableTr>
+              </TableThead>
+              <TableTbody>
                 {volunteers.map((v) => {
                   const checkExpired = v.backgroundCheckDate
                     ? new Date(v.backgroundCheckDate) < ONE_YEAR_AGO
                     : true;
                   return (
-                    <Table.Tr key={v.profileId}>
-                      <Table.Td fw={500}>{v.fullName}</Table.Td>
-                      <Table.Td><Text size="sm" c="dimmed">{v.email ?? "—"}</Text></Table.Td>
-                      <Table.Td><Text size="sm">{v.shiftsThisYear}</Text></Table.Td>
-                      <Table.Td><Text size="sm">{v.totalHours.toFixed(1)} hrs</Text></Table.Td>
-                      <Table.Td>
+                    <TableTr key={v.profileId}>
+                      <TableTd fw={500}>{v.fullName}</TableTd>
+                      <TableTd><Text size="sm" c="dimmed">{v.email ?? "—"}</Text></TableTd>
+                      <TableTd><Text size="sm">{v.shiftsThisYear}</Text></TableTd>
+                      <TableTd><Text size="sm">{v.totalHours.toFixed(1)} hrs</Text></TableTd>
+                      <TableTd>
                         <Text size="sm" c="dimmed">
                           {v.lastServedDate ? new Date(v.lastServedDate).toLocaleDateString() : "—"}
                         </Text>
-                      </Table.Td>
-                      <Table.Td>
+                      </TableTd>
+                      <TableTd>
                         {v.backgroundCheckDate ? (
                           <Badge size="sm" color={checkExpired ? "red" : "green"} leftSection={<ShieldCheck size={11} />} variant="light">
                             {checkExpired ? "Expired" : new Date(v.backgroundCheckDate).toLocaleDateString()}
@@ -88,18 +103,25 @@ export default async function VolunteerDirectoryPage() {
                         ) : (
                           <Badge size="sm" color="orange" variant="light">Not on file</Badge>
                         )}
-                      </Table.Td>
-                      <Table.Td>
+                      </TableTd>
+                      <TableTd>
                         <Group gap={4}>
                           {v.skills.slice(0, 3).map((s) => (
                             <Badge key={s} size="xs" variant="outline">{s}</Badge>
                           ))}
                         </Group>
-                      </Table.Td>
-                    </Table.Tr>
+                      </TableTd>
+                      <TableTd>
+                        <VolunteerFrequencyInput
+                          profileId={v.profileId}
+                          fullName={v.fullName}
+                          initialValue={v.maxServicesPerMonth}
+                        />
+                      </TableTd>
+                    </TableTr>
                   );
                 })}
-              </Table.Tbody>
+              </TableTbody>
             </Table>
           </Paper>
         )}

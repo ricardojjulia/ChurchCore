@@ -36,6 +36,8 @@ import {
   getChurchSkillOptions,
   getRoleTypes,
   getServicePlanDetail,
+  getVolunteerDirectory,
+  getVolunteerPool,
 } from "@/lib/volunteer-data";
 
 // ── Supabase query-builder mock helper (same shape as the server-action
@@ -310,6 +312,121 @@ describe("volunteer-data loaders", () => {
       await getRoleTypes(sessionFor("church-2"), { activeOnly: true });
 
       expect(queryTenantLocalDbMock).toHaveBeenCalledWith(expect.any(String), ["church-2"]);
+    });
+  });
+  // ── Rotation planner loaders (Story 3): both are church-scoped RPCs ─────
+
+  describe("getVolunteerPool", () => {
+    it("calls get_volunteer_pool with the session's church and maps rows to camelCase", async () => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+      const rpc = vi.fn(async () => ({
+        data: [
+          {
+            profile_id: "p-1",
+            full_name: "Aisha Thompson",
+            email: "aisha@example.org",
+            phone: null,
+            skills: null,
+            max_services_per_month: 2,
+            is_blocked: false,
+            serving_on_date: true,
+            recent_shift_count: 1,
+            month_shift_count: 1,
+            last_served_at: "2026-09-22T10:00:00+00:00",
+            role_served_count: 3,
+            total_hours: "4.50",
+          },
+        ],
+        error: null,
+      }));
+      createTenantServerClientMock.mockImplementation(async () => ({ rpc }));
+
+      const pool = await getVolunteerPool(sessionFor("church-7"), "2026-10-06", "role-1");
+
+      expect(rpc).toHaveBeenCalledWith("get_volunteer_pool", {
+        p_church_id: "church-7",
+        p_service_date: "2026-10-06",
+        p_role_type_id: "role-1",
+      });
+      expect(pool).toEqual([
+        {
+          profileId: "p-1",
+          fullName: "Aisha Thompson",
+          email: "aisha@example.org",
+          phone: null,
+          skills: [],
+          maxServicesPerMonth: 2,
+          isBlocked: false,
+          servingOnDate: true,
+          recentShiftCount: 1,
+          monthShiftCount: 1,
+          lastServedAt: "2026-09-22T10:00:00+00:00",
+          roleServedCount: 3,
+          totalHours: 4.5,
+        },
+      ]);
+    });
+
+    it("throws on an RPC error rather than showing an empty picker", async () => {
+      createTenantServerClientMock.mockImplementation(async () => ({
+        rpc: vi.fn(async () => ({ data: null, error: { message: "permission denied" } })),
+      }));
+      await expect(getVolunteerPool(sessionFor("church-7"), "2026-10-06")).rejects.toThrow(
+        "Failed to load the volunteer pool: permission denied",
+      );
+    });
+  });
+
+  describe("getVolunteerDirectory", () => {
+    it("calls get_volunteer_directory for the current year and maps rows", async () => {
+      const rpc = vi.fn(async () => ({
+        data: [
+          {
+            profile_id: "p-1",
+            full_name: "Grace Adeyemi",
+            email: null,
+            phone: "555-0100",
+            skills: ["audio"],
+            max_services_per_month: null,
+            total_hours: 12,
+            shifts_this_year: 5,
+            last_served_date: "2026-09-16T10:00:00+00:00",
+            background_check_date: "2026-01-10",
+          },
+        ],
+        error: null,
+      }));
+      createTenantServerClientMock.mockImplementation(async () => ({ rpc }));
+
+      const directory = await getVolunteerDirectory(sessionFor("church-7"));
+
+      expect(rpc).toHaveBeenCalledWith("get_volunteer_directory", {
+        p_church_id: "church-7",
+        p_year: new Date().getFullYear(),
+      });
+      expect(directory).toEqual([
+        {
+          profileId: "p-1",
+          fullName: "Grace Adeyemi",
+          email: null,
+          phone: "555-0100",
+          skills: ["audio"],
+          maxServicesPerMonth: null,
+          totalHours: 12,
+          shiftsThisYear: 5,
+          lastServedDate: "2026-09-16T10:00:00+00:00",
+          backgroundCheckDate: "2026-01-10",
+        },
+      ]);
+    });
+
+    it("throws on an RPC error rather than showing an empty directory", async () => {
+      createTenantServerClientMock.mockImplementation(async () => ({
+        rpc: vi.fn(async () => ({ data: null, error: { message: "boom" } })),
+      }));
+      await expect(getVolunteerDirectory(sessionFor("church-7"))).rejects.toThrow(
+        "Failed to load the volunteer directory: boom",
+      );
     });
   });
 });

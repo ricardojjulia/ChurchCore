@@ -55,6 +55,7 @@ import {
   UserCheck,
   UserMinus,
   UserPlus,
+  Wand2,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -64,6 +65,11 @@ import {
   addRosterAssignmentAction,
   quickCheckInEventMemberAction,
 } from "@/app/app/church-admin-actions";
+import {
+  shiftWindowForPlan,
+  type ProposedAssignment,
+  type RankedVolunteer,
+} from "@/lib/rotation-planner";
 import type {
   ConfirmationStatus,
   ServicePlanDetail,
@@ -78,13 +84,17 @@ import {
   addPlanPositionAction,
   addRunOfServiceItemAction,
   addSongToServicePlanAction,
+  applyPlanAutoFillAction,
   assignVolunteerAction,
+  type AutoFillResult,
   createServicePlanAction,
   createSongAndAddToServicePlanAction,
   reorderServicePlanItemsAction,
   removeAssignmentAction,
+  proposePlanAutoFillAction,
   removeServicePlanItemAction,
   searchSongLibraryAction,
+  suggestVolunteersForPositionAction,
   sendVolunteerReminderAction,
   updateServicePlanDetailsAction,
   updateServicePlanStatusAction,
@@ -741,6 +751,13 @@ export function ServicePlanBuilder({
     requiredSkills: string[];
   } | null>(null);
   const [volunteerSearch, setVolunteerSearch] = useState("");
+  // Rotation planner: ranked suggestions for the open position, and the
+  // whole-plan auto-fill draft under review.
+  const [suggestionsFor, setSuggestionsFor] = useState<{ positionId: string; volunteers: RankedVolunteer[] } | null>(null);
+  const [autoFill, setAutoFill] = useState<{
+    proposal: ProposedAssignment[];
+    results: AutoFillResult[] | null;
+  } | null>(null);
   const [burnoutConfirmation, setBurnoutConfirmation] = useState<{
     profileId: string;
     fullName: string;
@@ -1252,15 +1269,45 @@ export function ServicePlanBuilder({
     });
   }
 
+  // Load ranked suggestions whenever the assign modal opens on a position.
+  // Keyed by position, so an earlier position's list is never shown for the
+  // current one while the new request is in flight.
+  const assignPositionId = assignTarget?.positionId ?? null;
+  const suggestions = suggestionsFor && suggestionsFor.positionId === assignPositionId ? suggestionsFor.volunteers : null;
+  useEffect(() => {
+    if (!assignPositionId) return;
+    let cancelled = false;
+    suggestVolunteersForPositionAction({ planId: detail.plan.id, positionId: assignPositionId }).then((res) => {
+      if (!cancelled) setSuggestionsFor({ positionId: assignPositionId, volunteers: res.ok ? res.volunteers : [] });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [assignPositionId, detail.plan.id]);
+
+  function handleProposeAutoFill() {
+    startTransition(async () => {
+      const res = await proposePlanAutoFillAction({ planId: detail.plan.id });
+      if (res.ok) setAutoFill({ proposal: res.proposal, results: null });
+      else setMsg({ type: "error", text: res.error });
+    });
+  }
+
+  function handleApplyAutoFill() {
+    if (!autoFill) return;
+    const assignments = autoFill.proposal
+      .filter((p): p is ProposedAssignment & { profileId: string } => p.profileId !== null)
+      .map(({ positionId, profileId }) => ({ positionId, profileId }));
+    startTransition(async () => {
+      const res = await applyPlanAutoFillAction({ planId: detail.plan.id, assignments });
+      if (res.ok) setAutoFill((current) => (current ? { ...current, results: res.results } : current));
+      else setMsg({ type: "error", text: res.error });
+    });
+  }
+
   function handleAssign(profileId: string, fullName: string) {
     if (!assignTarget) return;
-    const serviceDate = detail.plan.serviceDate;
-    const startsAt = detail.plan.serviceTime
-      ? `${serviceDate}T${detail.plan.serviceTime}`
-      : `${serviceDate}T09:00:00`;
-    const endsAt = detail.plan.serviceTime
-      ? `${serviceDate}T${detail.plan.serviceTime}`
-      : `${serviceDate}T12:00:00`;
+    const { startsAt, endsAt } = shiftWindowForPlan(detail.plan.serviceDate, detail.plan.serviceTime);
 
     startTransition(async () => {
       const res = await assignVolunteerAction({
@@ -1284,13 +1331,7 @@ export function ServicePlanBuilder({
   function handleConfirmBurnoutAssign() {
     if (!burnoutConfirmation || !assignTarget) return;
     const { profileId, fullName } = burnoutConfirmation;
-    const serviceDate = detail.plan.serviceDate;
-    const startsAt = detail.plan.serviceTime
-      ? `${serviceDate}T${detail.plan.serviceTime}`
-      : `${serviceDate}T09:00:00`;
-    const endsAt = detail.plan.serviceTime
-      ? `${serviceDate}T${detail.plan.serviceTime}`
-      : `${serviceDate}T12:00:00`;
+    const { startsAt, endsAt } = shiftWindowForPlan(detail.plan.serviceDate, detail.plan.serviceTime);
 
     startTransition(async () => {
       const res = await assignVolunteerAction({
@@ -2036,11 +2077,25 @@ export function ServicePlanBuilder({
         </Alert>
       ) : null}
 
+      {detail.positions.length > 0 && detail.unfilledCount > 0 ? (
+        <Group justify="flex-end">
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<Wand2 size={13} />}
+            onClick={handleProposeAutoFill}
+            loading={isPending && !autoFill}
+          >
+            Auto-fill plan
+          </Button>
+        </Group>
+      ) : null}
+
       {detail.positions.length === 0 ? (
         <Text size="sm" c="dimmed">No positions yet. Add positions to start scheduling volunteers.</Text>
       ) : (
         detail.positions.map((pos) => (
-          <Paper key={pos.id} withBorder radius="md" p="md">
+          <Paper key={pos.id} withBorder radius="md" p="md" data-testid={`plan-position-${pos.id}`}>
             <Group justify="space-between" mb="sm">
               <Group gap="sm">
                 <Text fw={600}>{pos.roleName}</Text>
@@ -2182,6 +2237,96 @@ export function ServicePlanBuilder({
         </Stack>
       </Modal>
 
+      {/* Auto-fill review modal */}
+      <Modal
+        opened={!!autoFill}
+        onClose={() => {
+          if (autoFill?.results) window.location.reload();
+          setAutoFill(null);
+        }}
+        title="Auto-fill plan"
+        size="lg" centered
+        transitionProps={{ duration: 0 }}
+      >
+        {autoFill ? (
+          <Stack gap="sm">
+            <Text size="sm" c="dimmed">
+              {autoFill.results
+                ? "Done. Assignments that couldn't be made are listed with the reason."
+                : "Review the proposed volunteers, remove any you don't want, then apply."}
+            </Text>
+            <Stack gap={6} data-testid="auto-fill-proposal">
+              {autoFill.proposal.map((p, index) => {
+                const result = autoFill.results?.find(
+                  (r) => r.positionId === p.positionId && r.profileId === p.profileId,
+                );
+                return (
+                  <Paper key={`${p.positionId}-${index}`} withBorder p="xs" radius="sm">
+                    <Group justify="space-between" wrap="nowrap">
+                      <Stack gap={2}>
+                        <Text size="sm">
+                          <Text span fw={600}>{p.roleName}:</Text>{" "}
+                          {p.fullName ?? <Text span c="dimmed">No available volunteer</Text>}
+                        </Text>
+                        {p.fullName && !autoFill.results ? (
+                          <Group gap={4}>
+                            {p.reasons.map((reason) => (
+                              <Badge key={reason} size="xs" variant="light" color="gray">{reason}</Badge>
+                            ))}
+                          </Group>
+                        ) : null}
+                        {result && !result.ok ? (
+                          <Text size="xs" c="red">{result.error}</Text>
+                        ) : null}
+                      </Stack>
+                      {result ? (
+                        <Badge color={result.ok ? "green" : "red"} variant="light">
+                          {result.ok ? "Assigned" : "Not assigned"}
+                        </Badge>
+                      ) : p.fullName ? (
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          color="gray"
+                          aria-label={`Remove ${p.fullName} from the proposal`}
+                          onClick={() =>
+                            setAutoFill((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    proposal: current.proposal.map((item, i) =>
+                                      i === index ? { ...item, profileId: null, fullName: null, reasons: [] } : item,
+                                    ),
+                                  }
+                                : current,
+                            )
+                          }
+                        >
+                          Remove
+                        </Button>
+                      ) : null}
+                    </Group>
+                  </Paper>
+                );
+              })}
+            </Stack>
+            <Group justify="flex-end">
+              {autoFill.results ? (
+                <Button onClick={() => window.location.reload()}>Done</Button>
+              ) : (
+                <Button
+                  onClick={handleApplyAutoFill}
+                  loading={isPending}
+                  disabled={autoFill.proposal.every((p) => p.profileId === null)}
+                >
+                  Apply {autoFill.proposal.filter((p) => p.profileId !== null).length} assignments
+                </Button>
+              )}
+            </Group>
+          </Stack>
+        ) : null}
+      </Modal>
+
       {/* Assign volunteer modal */}
       <Modal
         opened={!!assignTarget}
@@ -2191,6 +2336,38 @@ export function ServicePlanBuilder({
         transitionProps={{ duration: 0 }}
       >
         <Stack gap="sm">
+          {!volunteerSearch ? (
+            <Paper withBorder p="sm" radius="sm" bg="var(--mantine-color-default-hover)">
+              <Group gap="xs" mb={6}>
+                <Wand2 size={14} />
+                <Text size="sm" fw={600}>Suggested</Text>
+                <Text size="xs" c="dimmed">skills, then rest and recent load</Text>
+              </Group>
+              {suggestions === null ? (
+                <Text size="xs" c="dimmed">Finding the best fits…</Text>
+              ) : suggestions.filter((v) => v.eligible).length === 0 ? (
+                <Text size="xs" c="dimmed">No available volunteer for this date. Pick from the list below.</Text>
+              ) : (
+                <Stack gap={6} data-testid="suggested-volunteers">
+                  {suggestions.filter((v) => v.eligible).slice(0, 3).map((v) => (
+                    <Group key={v.profileId} justify="space-between" wrap="nowrap">
+                      <Stack gap={2}>
+                        <Text size="sm" fw={600}>{v.fullName}</Text>
+                        <Group gap={4}>
+                          {v.reasons.map((reason) => (
+                            <Badge key={reason} size="xs" variant="light" color="gray">{reason}</Badge>
+                          ))}
+                        </Group>
+                      </Stack>
+                      <Button size="xs" onClick={() => handleAssign(v.profileId, v.fullName)} loading={isPending}>
+                        Assign
+                      </Button>
+                    </Group>
+                  ))}
+                </Stack>
+              )}
+            </Paper>
+          ) : null}
           <TextInput
             placeholder="Search by name or email"
             value={volunteerSearch}

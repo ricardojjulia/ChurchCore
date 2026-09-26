@@ -479,61 +479,61 @@ export async function getChurchSkillOptions(session: ChurchAppSession): Promise<
 export async function getVolunteerPool(
   session: ChurchAppSession,
   serviceDate: string,
+  roleTypeId: string | null = null,
 ): Promise<VolunteerPoolEntry[]> {
   if (!hasTenantBackendEnv() || session.source !== "supabase") return [];
   const churchId = session.appContext.church.id;
 
-  if (shouldUseLocalTenantFallback()) {
-    const result = await queryTenantLocalDb<{
-      profile_id: string; full_name: string; email: string | null; phone: string | null;
-      skills: string[]; is_blocked: boolean; recent_shift_count: number; total_hours: number;
-    }>(
-      `select
-         p.id                                    as profile_id,
-         p.full_name,
-         p.email,
-         p.phone,
-         coalesce(vp.skills, '{}')               as skills,
-         exists (
-           select 1 from public.volunteer_blocked_dates vbd
-           where vbd.profile_id = p.id and vbd.blocked_date = $2::date
-         )                                       as is_blocked,
-         count(vs.id) filter (
-           where vs.starts_at >= now() - interval '30 days'
-         )::int                                  as recent_shift_count,
-         coalesce(sum(vhl.hours), 0)             as total_hours
-       from public.profiles p
-       join public.church_memberships cm on cm.user_id = p.id and cm.church_id = $1
-       left join public.volunteer_profiles vp on vp.user_id = p.id and vp.church_id = $1
-       left join public.volunteer_shifts vs on vs.assigned_user_id = p.id and vs.church_id = $1
-       left join public.volunteer_hours_log vhl on vhl.profile_id = p.id and vhl.church_id = $1
-       group by p.id, p.full_name, p.email, p.phone, vp.skills
-       order by p.full_name`,
-      [churchId, serviceDate],
-    );
-    return result.rows.map((r) => ({
-      profileId: r.profile_id, fullName: r.full_name, email: r.email, phone: r.phone,
-      skills: r.skills, isBlocked: r.is_blocked,
-      recentShiftCount: r.recent_shift_count, totalHours: Number(r.total_hours),
-    }));
+  // One church-scoped aggregate (supabase/migrations/20260926000000_service_plan_rotation_planner.sql).
+  // It runs as the caller, so RLS applies. It replaces two broken paths: the
+  // Supabase query selected a non-existent church_memberships.profile_id (the
+  // request errored and the picker showed nobody), and the local query joined
+  // church_memberships.user_id (an auth user id) to profiles.id.
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase.rpc("get_volunteer_pool", {
+    p_church_id: churchId,
+    p_service_date: serviceDate,
+    p_role_type_id: roleTypeId,
+  });
+  if (error) {
+    throw new Error(`Failed to load the volunteer pool: ${error.message}`);
   }
 
-  const supabase = await createTenantServerClient();
-  const { data: members } = await supabase
-    .from("church_memberships")
-    .select("profile_id, profiles(id, full_name, email, phone), volunteer_profiles(skills)")
-    .eq("church_id", churchId);
+  return ((data ?? []) as VolunteerPoolRow[]).map(toVolunteerPoolEntry);
+}
 
-  return (members ?? []).map((m) => {
-    const p = (m.profiles as unknown) as { id: string; full_name: string; email: string | null; phone: string | null } | null;
-    const vp = (m.volunteer_profiles as unknown) as { skills: string[] } | null;
-    return {
-      profileId: p?.id ?? m.profile_id, fullName: p?.full_name ?? "Unknown",
-      email: p?.email ?? null, phone: p?.phone ?? null,
-      skills: vp?.skills ?? [], isBlocked: false,
-      recentShiftCount: 0, totalHours: 0,
-    };
-  });
+type VolunteerPoolRow = {
+  profile_id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  skills: string[] | null;
+  max_services_per_month: number | null;
+  is_blocked: boolean;
+  serving_on_date: boolean;
+  recent_shift_count: number;
+  month_shift_count: number;
+  last_served_at: string | null;
+  role_served_count: number;
+  total_hours: number | string;
+};
+
+function toVolunteerPoolEntry(row: VolunteerPoolRow): VolunteerPoolEntry {
+  return {
+    profileId: row.profile_id,
+    fullName: row.full_name,
+    email: row.email,
+    phone: row.phone,
+    skills: row.skills ?? [],
+    maxServicesPerMonth: row.max_services_per_month,
+    isBlocked: row.is_blocked,
+    servingOnDate: row.serving_on_date,
+    recentShiftCount: row.recent_shift_count,
+    monthShiftCount: row.month_shift_count,
+    lastServedAt: row.last_served_at,
+    roleServedCount: row.role_served_count,
+    totalHours: Number(row.total_hours),
+  };
 }
 
 // ── Volunteer directory ──────────────────────────────────────
@@ -543,65 +543,46 @@ export async function getVolunteerDirectory(
 ): Promise<VolunteerDirectoryEntry[]> {
   if (!hasTenantBackendEnv() || session.source !== "supabase") return [];
   const churchId = session.appContext.church.id;
-  const year = new Date().getFullYear();
 
-  if (shouldUseLocalTenantFallback()) {
-    const result = await queryTenantLocalDb<{
-      profile_id: string; full_name: string; email: string | null; phone: string | null;
-      skills: string[]; total_hours: number; shifts_this_year: number;
-      last_served_date: string | null; background_check_date: string | null;
-    }>(
-      `select
-         p.id                                                as profile_id,
-         p.full_name,
-         p.email,
-         p.phone,
-         coalesce(vp.skills, '{}')                          as skills,
-         coalesce(sum(vhl.hours) filter (where extract(year from vhl.service_date) = $2), 0) as total_hours,
-         count(vs.id) filter (
-           where extract(year from vs.starts_at) = $2
-           and vs.confirmation_status = 'confirmed'
-         )::int                                             as shifts_this_year,
-         max(vs.starts_at)::text                            as last_served_date,
-         p.safety_clearance_date::text                      as background_check_date
-       from public.profiles p
-       join public.church_memberships cm on cm.user_id = p.id and cm.church_id = $1
-       left join public.volunteer_profiles vp on vp.user_id = p.id and vp.church_id = $1
-       left join public.volunteer_shifts vs on vs.assigned_user_id = p.id and vs.church_id = $1
-       left join public.volunteer_hours_log vhl on vhl.profile_id = p.id and vhl.church_id = $1
-       where (vp.id is not null or count(vs.id) over () > 0)
-       group by p.id, p.full_name, p.email, p.phone, vp.skills, p.safety_clearance_date
-       having count(vs.id) > 0 or vp.id is not null
-       order by p.full_name`,
-      [churchId, year],
-    );
-    return result.rows.map((r) => ({
-      profileId: r.profile_id, fullName: r.full_name, email: r.email, phone: r.phone,
-      skills: r.skills, totalHours: Number(r.total_hours), shiftsThisYear: r.shifts_this_year,
-      lastServedDate: r.last_served_date, backgroundCheckDate: r.background_check_date,
-    }));
+  // One church-scoped aggregate (get_volunteer_directory, same migration as
+  // get_volunteer_pool). It replaces a query that filtered on an un-embedded
+  // church_memberships relation: PostgREST rejected it and the directory
+  // rendered empty in production. The local path joined church_memberships
+  // on the wrong key.
+  const supabase = await createTenantServerClient();
+  const { data, error } = await supabase.rpc("get_volunteer_directory", {
+    p_church_id: churchId,
+    p_year: new Date().getFullYear(),
+  });
+  if (error) {
+    throw new Error(`Failed to load the volunteer directory: ${error.message}`);
   }
 
-  const supabase = await createTenantServerClient();
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, full_name, email, phone, safety_clearance_date, volunteer_profiles(skills), volunteer_shifts(id, starts_at, confirmation_status), volunteer_hours_log(hours, service_date)")
-    .eq("church_memberships.church_id", churchId);
-
-  return (data ?? []).map((p) => {
-    const shifts = (p.volunteer_shifts ?? []) as { starts_at: string; confirmation_status: string }[];
-    const hours = (p.volunteer_hours_log ?? []) as { hours: number; service_date: string }[];
-    const vp = (p.volunteer_profiles as unknown) as { skills: string[] } | null;
-    const yearShifts = shifts.filter((s) => s.starts_at.startsWith(String(year)) && s.confirmation_status === "confirmed");
-    const totalHours = hours.filter((h) => h.service_date.startsWith(String(year))).reduce((s, h) => s + Number(h.hours), 0);
-    const lastShift = shifts.sort((a, b) => b.starts_at.localeCompare(a.starts_at))[0];
-    return {
-      profileId: p.id, fullName: p.full_name, email: p.email ?? null, phone: p.phone ?? null,
-      skills: vp?.skills ?? [], totalHours, shiftsThisYear: yearShifts.length,
-      lastServedDate: lastShift?.starts_at ?? null,
-      backgroundCheckDate: p.safety_clearance_date ?? null,
-    };
-  });
+  return (
+    (data ?? []) as Array<{
+      profile_id: string;
+      full_name: string;
+      email: string | null;
+      phone: string | null;
+      skills: string[] | null;
+      max_services_per_month: number | null;
+      total_hours: number | string;
+      shifts_this_year: number;
+      last_served_date: string | null;
+      background_check_date: string | null;
+    }>
+  ).map((r) => ({
+    profileId: r.profile_id,
+    fullName: r.full_name,
+    email: r.email,
+    phone: r.phone,
+    skills: r.skills ?? [],
+    maxServicesPerMonth: r.max_services_per_month,
+    totalHours: Number(r.total_hours),
+    shiftsThisYear: r.shifts_this_year,
+    lastServedDate: r.last_served_date,
+    backgroundCheckDate: r.background_check_date,
+  }));
 }
 
 // ── Templates ────────────────────────────────────────────────
