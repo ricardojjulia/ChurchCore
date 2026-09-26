@@ -773,6 +773,17 @@ describe("ServicePlanBuilder — Team Roster table", () => {
   });
 });
 
+/**
+ * A Mantine button is disabled while its `loading` prop is set. The Apply
+ * button shares the page's pending state with the proposal request, so on a
+ * slow runner it can still be loading when it first appears; clicking it
+ * then does nothing.
+ */
+async function clickWhenEnabled(user: ReturnType<typeof userEvent.setup>, button: HTMLElement) {
+  await waitFor(() => expect(button).toBeEnabled());
+  await user.click(button);
+}
+
 describe("ServicePlanBuilder — rotation planner feedback (Council Review 19)", () => {
   it("a successful assign closes the modal and shows the volunteer on the position", async () => {
     const user = userEvent.setup();
@@ -858,7 +869,7 @@ describe("ServicePlanBuilder — rotation planner feedback (Council Review 19)",
     renderBuilder(detail, { pool: [] });
 
     await user.click(screen.getByRole("button", { name: "Auto-fill plan" }));
-    await user.click(await screen.findByRole("button", { name: "Apply 1 assignment" }));
+    await clickWhenEnabled(user, await screen.findByRole("button", { name: "Apply 1 assignment" }));
     await user.click(await screen.findByRole("button", { name: "Done" }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -880,7 +891,7 @@ describe("ServicePlanBuilder — rotation planner feedback (Council Review 19)",
     renderBuilder(detail, { pool: [] });
 
     await user.click(screen.getByRole("button", { name: "Auto-fill plan" }));
-    await user.click(await screen.findByRole("button", { name: "Apply 1 assignment" }));
+    await clickWhenEnabled(user, await screen.findByRole("button", { name: "Apply 1 assignment" }));
 
     const dialog = screen.getByRole("dialog");
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Service plan not found.");
@@ -946,7 +957,7 @@ describe("ServicePlanBuilder — assign modal skill-based ranking", () => {
     expect(within(proposal).getByText("Maya Martinez")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Remove Samuel Price from the proposal" }));
-    await user.click(screen.getByRole("button", { name: "Apply 1 assignment" }));
+    await clickWhenEnabled(user, screen.getByRole("button", { name: "Apply 1 assignment" }));
 
     expect(applyPlanAutoFillActionMock).toHaveBeenCalledWith({
       planId: "plan-1",
