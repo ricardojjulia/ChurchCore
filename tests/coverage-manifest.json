@@ -958,7 +958,9 @@
       "controlPlane": false,
       "dynamicParams": null,
       "tests": [
-        "tests/e2e/page-role-sweep.spec.ts"
+        "tests/e2e/page-role-sweep.spec.ts",
+        "app/app/church-admin/volunteers/page.test.tsx",
+        "components/application/volunteer-frequency-input.test.tsx"
       ]
     },
     "/app/church-admin/volunteers/role-types": {

@@ -66,6 +66,8 @@ import {
   quickCheckInEventMemberAction,
 } from "@/app/app/church-admin-actions";
 import {
+  INELIGIBLE_LABEL,
+  recentShiftsLabel,
   shiftWindowForPlan,
   type ProposedAssignment,
   type RankedVolunteer,
@@ -753,7 +755,15 @@ export function ServicePlanBuilder({
   const [volunteerSearch, setVolunteerSearch] = useState("");
   // Rotation planner: ranked suggestions for the open position, and the
   // whole-plan auto-fill draft under review.
-  const [suggestionsFor, setSuggestionsFor] = useState<{ positionId: string; volunteers: RankedVolunteer[] } | null>(null);
+  // `volunteers: null` with an `error` means the suggestions couldn't load.
+  const [suggestionsFor, setSuggestionsFor] = useState<{
+    positionId: string;
+    volunteers: RankedVolunteer[] | null;
+    error?: string;
+  } | null>(null);
+  // Errors raised while a modal is open are shown inside it; the page-level
+  // alert renders behind the modal.
+  const [modalError, setModalError] = useState<string | null>(null);
   const [autoFill, setAutoFill] = useState<{
     proposal: ProposedAssignment[];
     results: AutoFillResult[] | null;
@@ -798,6 +808,12 @@ export function ServicePlanBuilder({
           if (aMatches !== bMatches) return bMatches - aMatches;
           return a.fullName.localeCompare(b.fullName);
         });
+  // Serving on this date: from the pool (other plans) or already on this plan.
+  const servingOnPlanIds = new Set(
+    detail.positions.flatMap((p) =>
+      p.shifts.filter((sh) => sh.confirmationStatus !== "declined" && sh.assignedUserId).map((sh) => sh.assignedUserId!),
+    ),
+  );
   const rosterProfileIds = new Set(linkedEventOps?.rosterProfileIds ?? []);
   const attendanceProfileIds = new Set(linkedEventOps?.attendanceProfileIds ?? []);
 
@@ -1273,17 +1289,66 @@ export function ServicePlanBuilder({
   // Keyed by position, so an earlier position's list is never shown for the
   // current one while the new request is in flight.
   const assignPositionId = assignTarget?.positionId ?? null;
-  const suggestions = suggestionsFor && suggestionsFor.positionId === assignPositionId ? suggestionsFor.volunteers : null;
+  const currentSuggestions = suggestionsFor && suggestionsFor.positionId === assignPositionId ? suggestionsFor : null;
+  const suggestions = currentSuggestions?.volunteers ?? null;
+  const suggestionsError = currentSuggestions?.error ?? null;
+  // Refetched after each assignment, so a just-assigned volunteer drops out.
+  const filledForTarget = detail.positions.find((p) => p.id === assignPositionId)?.filled ?? 0;
   useEffect(() => {
     if (!assignPositionId) return;
     let cancelled = false;
-    suggestVolunteersForPositionAction({ planId: detail.plan.id, positionId: assignPositionId }).then((res) => {
-      if (!cancelled) setSuggestionsFor({ positionId: assignPositionId, volunteers: res.ok ? res.volunteers : [] });
-    });
+    suggestVolunteersForPositionAction({ planId: detail.plan.id, positionId: assignPositionId })
+      .then((res) => {
+        if (cancelled) return;
+        setSuggestionsFor(
+          res.ok
+            ? { positionId: assignPositionId, volunteers: res.volunteers }
+            : { positionId: assignPositionId, volunteers: null, error: res.error },
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSuggestionsFor({ positionId: assignPositionId, volunteers: null, error: "Couldn't load suggestions." });
+        }
+      });
     return () => {
       cancelled = true;
     };
-  }, [assignPositionId, detail.plan.id]);
+  }, [assignPositionId, detail.plan.id, filledForTarget]);
+
+  /** Adds a just-created pending shift to the page's copy of the plan. */
+  function addAssignedShift(positionId: string, profileId: string, fullName: string, roleName: string) {
+    const { startsAt, endsAt } = shiftWindowForPlan(detail.plan.serviceDate, detail.plan.serviceTime);
+    setDetail((d) => ({
+      ...d,
+      positions: d.positions.map((p) =>
+        p.id === positionId
+          ? {
+              ...p,
+              filled: p.filled + 1,
+              pending: p.pending + 1,
+              shifts: [...p.shifts, {
+                id: crypto.randomUUID(), churchId: d.plan.churchId,
+                eventId: d.plan.eventId, planId: d.plan.id, positionId: p.id,
+                assignedUserId: profileId, title: roleName,
+                startsAt, endsAt, status: "assigned", confirmationStatus: "pending",
+                declineReason: null, respondedAt: null, volunteerNotes: null,
+                reminderCount: 0, lastReminderAt: null,
+                volunteerName: fullName, volunteerEmail: null, volunteerPhone: null,
+              }],
+            }
+          : p,
+      ),
+      pendingCount: d.pendingCount + 1,
+      unfilledCount: Math.max(0, d.unfilledCount - 1),
+    }));
+  }
+
+  function closeAssignModal() {
+    setAssignTarget(null);
+    setVolunteerSearch("");
+    setModalError(null);
+  }
 
   function handleProposeAutoFill() {
     startTransition(async () => {
@@ -1298,10 +1363,23 @@ export function ServicePlanBuilder({
     const assignments = autoFill.proposal
       .filter((p): p is ProposedAssignment & { profileId: string } => p.profileId !== null)
       .map(({ positionId, profileId }) => ({ positionId, profileId }));
+    setModalError(null);
     startTransition(async () => {
-      const res = await applyPlanAutoFillAction({ planId: detail.plan.id, assignments });
-      if (res.ok) setAutoFill((current) => (current ? { ...current, results: res.results } : current));
-      else setMsg({ type: "error", text: res.error });
+      try {
+        const res = await applyPlanAutoFillAction({ planId: detail.plan.id, assignments });
+        if (!res.ok) {
+          setModalError(res.error);
+          return;
+        }
+        for (const result of res.results) {
+          if (!result.ok) continue;
+          const item = autoFill.proposal.find((p) => p.positionId === result.positionId && p.profileId === result.profileId);
+          if (item?.fullName) addAssignedShift(result.positionId, result.profileId, item.fullName, item.roleName);
+        }
+        setAutoFill((current) => (current ? { ...current, results: res.results } : current));
+      } catch {
+        setModalError("Couldn't apply the assignments. Please try again.");
+      }
     });
   }
 
@@ -1309,12 +1387,15 @@ export function ServicePlanBuilder({
     if (!assignTarget) return;
     const { startsAt, endsAt } = shiftWindowForPlan(detail.plan.serviceDate, detail.plan.serviceTime);
 
+    setModalError(null);
     startTransition(async () => {
       const res = await assignVolunteerAction({
         planId: detail.plan.id, positionId: assignTarget.positionId,
         profileId, roleName: assignTarget.roleName, startsAt, endsAt,
       });
       if (res.ok) {
+        addAssignedShift(assignTarget.positionId, profileId, fullName, assignTarget.roleName);
+        closeAssignModal();
         setMsg({ type: "success", text: `${fullName} assigned as ${assignTarget.roleName}.` });
       } else if (res.error?.startsWith("BURNOUT_WARNING:")) {
         setBurnoutConfirmation({
@@ -1323,7 +1404,7 @@ export function ServicePlanBuilder({
           reason: res.error.replace("BURNOUT_WARNING:", "").trim(),
         });
       } else {
-        setMsg({ type: "error", text: res.error ?? "Assignment failed." });
+        setModalError(res.error ?? "Assignment failed.");
       }
     });
   }
@@ -1340,34 +1421,13 @@ export function ServicePlanBuilder({
         bypassBurnout: true,
       });
       if (res.ok) {
-        setAssignTarget(null);
-        setVolunteerSearch("");
+        addAssignedShift(assignTarget.positionId, profileId, fullName, assignTarget.roleName);
+        closeAssignModal();
         setBurnoutConfirmation(null);
-        setDetail((d) => ({
-          ...d,
-          positions: d.positions.map((p) =>
-            p.id === assignTarget.positionId
-              ? {
-                  ...p,
-                  filled: p.filled + 1,
-                  pending: p.pending + 1,
-                  shifts: [...p.shifts, {
-                    id: crypto.randomUUID(), churchId: d.plan.churchId,
-                    eventId: d.plan.eventId, planId: d.plan.id, positionId: p.id,
-                    assignedUserId: profileId, title: assignTarget.roleName,
-                    startsAt, endsAt, status: "assigned", confirmationStatus: "pending",
-                    declineReason: null, respondedAt: null, volunteerNotes: null,
-                    reminderCount: 0, lastReminderAt: null,
-                    volunteerName: fullName, volunteerEmail: null, volunteerPhone: null,
-                  }],
-                }
-              : p,
-          ),
-          pendingCount: d.pendingCount + 1,
-        }));
         setMsg({ type: "success", text: `${fullName} assigned as ${assignTarget.roleName} (bypass audit logged).` });
       } else {
-        setMsg({ type: "error", text: res.error ?? "Assignment failed." });
+        setBurnoutConfirmation(null);
+        setModalError(res.error ?? "Assignment failed.");
       }
     });
   }
@@ -1401,6 +1461,13 @@ export function ServicePlanBuilder({
             ?.shifts.find((s) => s.id === shiftId)?.confirmationStatus === "confirmed"
             ? Math.max(0, d.confirmedCount - 1)
             : d.confirmedCount,
+          // Removing a non-declined assignment reopens a slot (and brings
+          // back the Auto-fill button).
+          unfilledCount: d.positions
+            .find((p) => p.id === positionId)
+            ?.shifts.find((s) => s.id === shiftId)?.confirmationStatus !== "declined"
+            ? d.unfilledCount + 1
+            : d.unfilledCount,
         }));
       } else {
         setMsg({ type: "error", text: res.error ?? "Failed to remove." });
@@ -2241,8 +2308,8 @@ export function ServicePlanBuilder({
       <Modal
         opened={!!autoFill}
         onClose={() => {
-          if (autoFill?.results) window.location.reload();
           setAutoFill(null);
+          setModalError(null);
         }}
         title="Auto-fill plan"
         size="lg" centered
@@ -2253,8 +2320,13 @@ export function ServicePlanBuilder({
             <Text size="sm" c="dimmed">
               {autoFill.results
                 ? "Done. Assignments that couldn't be made are listed with the reason."
-                : "Review the proposed volunteers, remove any you don't want, then apply."}
+                : autoFill.proposal.every((p) => p.profileId === null)
+                  ? "No available volunteers for the open positions on this date. Assign someone by hand from each position."
+                  : "Review the proposed volunteers, remove any you don't want, then apply."}
             </Text>
+            {modalError ? (
+              <Alert color="red" variant="light" role="alert">{modalError}</Alert>
+            ) : null}
             <Stack gap={6} data-testid="auto-fill-proposal">
               {autoFill.proposal.map((p, index) => {
                 const result = autoFill.results?.find(
@@ -2312,14 +2384,17 @@ export function ServicePlanBuilder({
             </Stack>
             <Group justify="flex-end">
               {autoFill.results ? (
-                <Button onClick={() => window.location.reload()}>Done</Button>
+                <Button onClick={() => setAutoFill(null)} data-autofocus>Done</Button>
               ) : (
                 <Button
                   onClick={handleApplyAutoFill}
                   loading={isPending}
                   disabled={autoFill.proposal.every((p) => p.profileId === null)}
                 >
-                  Apply {autoFill.proposal.filter((p) => p.profileId !== null).length} assignments
+                  {(() => {
+                    const count = autoFill.proposal.filter((p) => p.profileId !== null).length;
+                    return `Apply ${count} assignment${count === 1 ? "" : "s"}`;
+                  })()}
                 </Button>
               )}
             </Group>
@@ -2330,20 +2405,27 @@ export function ServicePlanBuilder({
       {/* Assign volunteer modal */}
       <Modal
         opened={!!assignTarget}
-        onClose={() => { setAssignTarget(null); setVolunteerSearch(""); }}
+        onClose={closeAssignModal}
         title={`Assign volunteer — ${assignTarget?.roleName}`}
         size="lg" centered
         transitionProps={{ duration: 0 }}
       >
         <Stack gap="sm">
+          {modalError ? (
+            <Alert color="red" variant="light" role="alert" withCloseButton onClose={() => setModalError(null)}>
+              {modalError}
+            </Alert>
+          ) : null}
           {!volunteerSearch ? (
             <Paper withBorder p="sm" radius="sm" bg="var(--mantine-color-default-hover)">
               <Group gap="xs" mb={6}>
                 <Wand2 size={14} />
                 <Text size="sm" fw={600}>Suggested</Text>
-                <Text size="xs" c="dimmed">skills, then rest and recent load</Text>
+                <Text size="xs" c="dimmed">has the skills, rested longest</Text>
               </Group>
-              {suggestions === null ? (
+              {suggestionsError ? (
+                <Text size="xs" c="red">{suggestionsError} Pick from the list below.</Text>
+              ) : suggestions === null ? (
                 <Text size="xs" c="dimmed">Finding the best fits…</Text>
               ) : suggestions.filter((v) => v.eligible).length === 0 ? (
                 <Text size="xs" c="dimmed">No available volunteer for this date. Pick from the list below.</Text>
@@ -2388,9 +2470,17 @@ export function ServicePlanBuilder({
                             {matchedSkillCount}/{assignTargetRequiredSkills.length} skills
                           </Badge>
                         )}
-                        {v.isBlocked && <Badge size="xs" color="red">Blocked date</Badge>}
+                        {v.isBlocked && <Badge size="xs" color="red">{INELIGIBLE_LABEL.blocked}</Badge>}
+                        {(v.servingOnDate || servingOnPlanIds.has(v.profileId)) && (
+                          <Badge size="xs" color="gray">{INELIGIBLE_LABEL.serving_on_date}</Badge>
+                        )}
+                        {v.maxServicesPerMonth != null && v.monthShiftCount >= v.maxServicesPerMonth && (
+                          <Badge size="xs" color="orange">
+                            {INELIGIBLE_LABEL.monthly_limit} ({v.monthShiftCount}/{v.maxServicesPerMonth})
+                          </Badge>
+                        )}
                         {v.recentShiftCount >= 3 && (
-                          <Badge size="xs" color="yellow">{v.recentShiftCount} shifts (30d)</Badge>
+                          <Badge size="xs" color="yellow">{recentShiftsLabel(v.recentShiftCount)}</Badge>
                         )}
                       </Group>
                       <Text size="xs" c="dimmed">{v.email ?? "No email"}</Text>
@@ -2403,7 +2493,8 @@ export function ServicePlanBuilder({
                       )}
                     </Stack>
                     <Button size="xs" onClick={() => handleAssign(v.profileId, v.fullName)}
-                      loading={isPending} disabled={v.isBlocked}>
+                      loading={isPending}
+                      disabled={v.isBlocked || v.servingOnDate || servingOnPlanIds.has(v.profileId)}>
                       Assign
                     </Button>
                   </Group>

@@ -129,6 +129,11 @@ export type VolunteerPoolEntry = {
   skills: string[];
   /** Admin-set cap on services per month; null = no cap. */
   maxServicesPerMonth: number | null;
+  /**
+   * Has a volunteer profile or has ever been scheduled. The planner only
+   * suggests known volunteers; anyone else can still be assigned by hand.
+   */
+  isVolunteer: boolean;
   /** Blocked (volunteer_blocked_dates) on the service date. */
   isBlocked: boolean;
   /** Already holds a non-declined shift on the service date. */

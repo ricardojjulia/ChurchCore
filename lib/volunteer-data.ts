@@ -509,6 +509,7 @@ type VolunteerPoolRow = {
   phone: string | null;
   skills: string[] | null;
   max_services_per_month: number | null;
+  is_volunteer: boolean;
   is_blocked: boolean;
   serving_on_date: boolean;
   recent_shift_count: number;
@@ -526,6 +527,7 @@ function toVolunteerPoolEntry(row: VolunteerPoolRow): VolunteerPoolEntry {
     phone: row.phone,
     skills: row.skills ?? [],
     maxServicesPerMonth: row.max_services_per_month,
+    isVolunteer: row.is_volunteer,
     isBlocked: row.is_blocked,
     servingOnDate: row.serving_on_date,
     recentShiftCount: row.recent_shift_count,

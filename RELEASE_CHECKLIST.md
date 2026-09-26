@@ -24,7 +24,7 @@ Required status checks (`verify` and the four `e2e` shards) are a GitHub branch-
 - [ ] `npm run smoke:preview` against the preview deployment — all smoke checks pass
 - [ ] `npm run lint:migrations` — zero migration linter errors
 - [ ] `npm run check:schema` — no phantom tables (`burnout_category_counts` and `discipleship_velocity` are known expected phantoms)
-- [ ] `npm run test:db` — real-Postgres integration tests pass against a local Supabase
+- [ ] `npm run test:db` — real-Postgres integration tests pass against a local Supabase (CI runs this too; re-run locally when you changed migrations after the last CI run)
 
 ## Security gates
 - [ ] gitleaks secret scan passes in CI

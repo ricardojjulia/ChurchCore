@@ -8,6 +8,7 @@ import { logAuditEvent } from "@/lib/actions/audit";
 import { checkVolunteerBurnout } from "@/lib/burnout-calculator";
 import { getChurchSkillOptions, getServicePlanDetail, getVolunteerPool } from "@/lib/volunteer-data";
 import {
+  INELIGIBLE_LABEL,
   proposePlanFill,
   rankVolunteersForPosition,
   shiftWindowForPlan,
@@ -1242,6 +1243,37 @@ export async function assignVolunteerAction(input: {
 
   linkedEventId = plan?.event_id ?? null;
 
+  // Integrity: RLS on insert only checks church_id, so verify the position is
+  // on this plan, the volunteer is in this church, and a slot is still open.
+  const { data: position } = await supabase
+    .from("service_plan_positions")
+    .select("id, quantity_needed")
+    .eq("id", input.positionId)
+    .eq("plan_id", input.planId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+  if (!position) return { ok: false, error: "Position not found on this plan." };
+
+  const { data: volunteer } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", input.profileId)
+    .eq("church_id", churchId)
+    .is("merged_into_profile_id", null)
+    .maybeSingle();
+  if (!volunteer) return { ok: false, error: "Volunteer not found in this church." };
+
+  const { count: filled, error: filledError } = await supabase
+    .from("volunteer_shifts")
+    .select("id", { count: "exact", head: true })
+    .eq("church_id", churchId)
+    .eq("position_id", input.positionId)
+    .neq("confirmation_status", "declined");
+  if (filledError) return { ok: false, error: filledError.message };
+  if ((filled ?? 0) >= position.quantity_needed) {
+    return { ok: false, error: "This position is already filled." };
+  }
+
   // Same-day conflict check. Matches get_volunteer_pool()'s serving_on_date
   // (any non-declined shift starting that day), so a suggestion the planner
   // marks eligible is never refused here and vice versa.
@@ -2090,7 +2122,18 @@ export async function applyPlanAutoFillAction(input: {
       continue;
     }
     if (!candidate.eligible) {
-      results.push({ positionId, profileId, ok: false, error: `Not eligible: ${candidate.ineligibleReasons.join(", ")}` });
+      results.push({
+        positionId,
+        profileId,
+        ok: false,
+        error: candidate.ineligibleReasons.map((reason) => INELIGIBLE_LABEL[reason]).join(", "),
+      });
+      continue;
+    }
+    // The same rule proposePlanFill applies: a skilled position needs at
+    // least one of its skills.
+    if (position.requiredSkills.length > 0 && candidate.matchedSkills === 0) {
+      results.push({ positionId, profileId, ok: false, error: "Has none of this position's skills" });
       continue;
     }
 

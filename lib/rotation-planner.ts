@@ -5,6 +5,8 @@
  * the server actions stay thin.
  *
  * Eligibility (a volunteer is shown but not suggested when any applies):
+ *  - not a known volunteer (no volunteer profile and never scheduled), so
+ *    auto-fill never drafts a church member who hasn't volunteered
  *  - blocked on the service date (volunteer_blocked_dates)
  *  - already serving on that date (no double-booking)
  *  - at their monthly limit (volunteer_profiles.max_services_per_month)
@@ -20,7 +22,7 @@ import type { VolunteerPoolEntry } from "@/lib/volunteer-types";
 
 export const BURNOUT_SHIFT_THRESHOLD = 3;
 
-export type IneligibleReason = "blocked" | "serving_on_date" | "monthly_limit" | "high_load";
+export type IneligibleReason = "not_volunteer" | "blocked" | "serving_on_date" | "monthly_limit" | "high_load";
 
 export type RankedVolunteer = {
   profileId: string;
@@ -45,6 +47,7 @@ export function countMatchedSkills(volunteerSkills: string[], requiredSkills: st
 
 function ineligibleReasonsFor(entry: VolunteerPoolEntry): IneligibleReason[] {
   const reasons: IneligibleReason[] = [];
+  if (!entry.isVolunteer) reasons.push("not_volunteer");
   if (entry.isBlocked) reasons.push("blocked");
   if (entry.servingOnDate) reasons.push("serving_on_date");
   if (entry.maxServicesPerMonth != null && entry.monthShiftCount >= entry.maxServicesPerMonth) {
@@ -54,19 +57,25 @@ function ineligibleReasonsFor(entry: VolunteerPoolEntry): IneligibleReason[] {
   return reasons;
 }
 
-const INELIGIBLE_LABEL: Record<IneligibleReason, string> = {
+export const INELIGIBLE_LABEL: Record<IneligibleReason, string> = {
+  not_volunteer: "Not a volunteer yet",
   blocked: "Unavailable that day",
   serving_on_date: "Already serving that day",
   monthly_limit: "At monthly limit",
-  high_load: "High load (3+ in 30 days)",
+  high_load: `${BURNOUT_SHIFT_THRESHOLD}+ shifts in 30 days`,
 };
+
+/** "N shift(s) in 30 days" — the one wording for recent load across the UI. */
+export function recentShiftsLabel(count: number): string {
+  return `${count} shift${count === 1 ? "" : "s"} in 30 days`;
+}
 
 function lastServedLabel(lastServedAt: string | null, serviceDate: string): string {
   if (!lastServedAt) return "Hasn't served yet";
   const days = Math.max(0, Math.round((Date.parse(serviceDate) - Date.parse(lastServedAt)) / MS_PER_DAY));
-  if (days < 7) return `Served ${days} day${days === 1 ? "" : "s"} before`;
+  if (days < 7) return `Served ${days} day${days === 1 ? "" : "s"} before this service`;
   const weeks = Math.round(days / 7);
-  return `Last served ${weeks} week${weeks === 1 ? "" : "s"} before`;
+  return `Last served ${weeks} week${weeks === 1 ? "" : "s"} before this service`;
 }
 
 export function rankVolunteersForPosition(
@@ -80,7 +89,7 @@ export function rankVolunteersForPosition(
     const reasons: string[] = [];
     if (requiredSkills.length > 0) reasons.push(`${matchedSkills}/${requiredSkills.length} skills`);
     reasons.push(lastServedLabel(entry.lastServedAt, serviceDate));
-    reasons.push(`${entry.recentShiftCount} in last 30 days`);
+    reasons.push(recentShiftsLabel(entry.recentShiftCount));
     if (entry.roleServedCount > 0) {
       reasons.push(`Served this role ${entry.roleServedCount}×`);
     }

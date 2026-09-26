@@ -28,7 +28,7 @@ const {
   }
   function builder(table: string) {
     const chain: Record<string, unknown> = {};
-    for (const method of ["select", "eq", "neq", "gte", "lt", "limit", "insert", "upsert", "update"]) {
+    for (const method of ["select", "eq", "neq", "is", "gte", "lt", "limit", "insert", "upsert", "update"]) {
       chain[method] = (...args: unknown[]) => {
         calls.push({ table, method, args });
         return chain;
@@ -87,6 +87,7 @@ function volunteer(overrides: Partial<VolunteerPoolEntry> & { profileId: string;
     phone: null,
     skills: [],
     maxServicesPerMonth: null,
+    isVolunteer: true,
     isBlocked: false,
     servingOnDate: false,
     recentShiftCount: 0,
@@ -105,8 +106,19 @@ function planDetail(positions: Array<{ id: string; roleTypeId: string | null; ro
   };
 }
 
-function queue(table: string, ...results: Array<{ data?: unknown; error?: unknown }>) {
+function queue(table: string, ...results: Array<{ data?: unknown; error?: unknown; count?: number }>) {
   tableResults.set(table, [...(tableResults.get(table) ?? []), ...results]);
+}
+
+/**
+ * Queues the reads one successful assignVolunteerAction makes, in order:
+ * plan → position → profile → filled count → same-day conflicts → insert.
+ */
+function queueAssignable({ quantityNeeded = 1, filled = 0 } = {}) {
+  queue("service_plans", { data: { event_id: "event-1" }, error: null });
+  queue("service_plan_positions", { data: { id: "pos", quantity_needed: quantityNeeded }, error: null });
+  queue("profiles", { data: { id: "p" }, error: null });
+  queue("volunteer_shifts", { count: filled, error: null }, { data: [], error: null }, { error: null });
 }
 
 describe("rotation planner actions", () => {
@@ -211,8 +223,7 @@ describe("rotation planner actions", () => {
     it("assigns eligible volunteers with the plan's shift window and reports per-item results", async () => {
       getServicePlanDetailMock.mockResolvedValue(greeterPlan());
       getVolunteerPoolMock.mockResolvedValue([volunteer({ profileId: "p-maya", fullName: "Maya" })]);
-      queue("service_plans", { data: { event_id: "event-1" }, error: null });
-      queue("volunteer_shifts", { data: [], error: null }, { error: null });
+      queueAssignable();
 
       const result = await applyPlanAutoFillAction({
         planId: "plan-1",
@@ -240,8 +251,7 @@ describe("rotation planner actions", () => {
         volunteer({ profileId: "p-maya", fullName: "Maya" }),
         volunteer({ profileId: "p-sam", fullName: "Samuel" }),
       ]);
-      queue("service_plans", { data: { event_id: "event-1" }, error: null });
-      queue("volunteer_shifts", { data: [], error: null }, { error: null });
+      queueAssignable();
 
       const result = await applyPlanAutoFillAction({
         planId: "plan-1",
@@ -258,13 +268,28 @@ describe("rotation planner actions", () => {
       if (!result.ok) return;
       expect(result.results.map((r) => [r.profileId, r.ok, r.error])).toEqual([
         ["p-maya", false, "Position not found on this plan."],
-        ["p-now-blocked", false, "Not eligible: blocked"],
+        ["p-now-blocked", false, "Unavailable that day"],
         ["p-other-church", false, "Volunteer is not in this church."],
         ["p-maya", true, undefined],
         // The greeter position needed one; Maya filled it.
         ["p-sam", false, "Position is already filled."],
       ]);
       expect(calls.filter((c) => c.method === "insert")).toHaveLength(1);
+    });
+
+    it("refuses a volunteer with none of a skilled position's skills", async () => {
+      getServicePlanDetailMock.mockResolvedValue(
+        planDetail([{ id: "pos-s", roleTypeId: "role-s", roleName: "Sound", requiredSkills: ["audio"], quantityNeeded: 1, filled: 0 }]),
+      );
+      getVolunteerPoolMock.mockResolvedValue([volunteer({ profileId: "p-maya", fullName: "Maya", skills: ["hospitality"] })]);
+
+      const result = await applyPlanAutoFillAction({ planId: "plan-1", assignments: [{ positionId: "pos-s", profileId: "p-maya" }] });
+
+      expect(result).toEqual({
+        ok: true,
+        results: [{ positionId: "pos-s", profileId: "p-maya", ok: false, error: "Has none of this position's skills" }],
+      });
+      expect(calls.some((c) => c.method === "insert")).toBe(false);
     });
 
     it("returns an error for an unknown plan", async () => {
@@ -288,7 +313,9 @@ describe("rotation planner actions", () => {
 
     it("refuses a same-day double booking, checking non-declined shifts that start that day", async () => {
       queue("service_plans", { data: { event_id: "event-1" }, error: null });
-      queue("volunteer_shifts", { data: [{ id: "existing-shift" }], error: null });
+      queue("service_plan_positions", { data: { id: "pos-g", quantity_needed: 1 }, error: null });
+      queue("profiles", { data: { id: "p-maya" }, error: null });
+      queue("volunteer_shifts", { count: 0, error: null }, { data: [{ id: "existing-shift" }], error: null });
 
       expect(await assignVolunteerAction(input)).toEqual({
         ok: false,
@@ -308,11 +335,46 @@ describe("rotation planner actions", () => {
     });
 
     it("assigns when the volunteer is free that day", async () => {
-      queue("service_plans", { data: { event_id: "event-1" }, error: null });
-      queue("volunteer_shifts", { data: [], error: null }, { error: null });
+      queueAssignable();
 
       expect(await assignVolunteerAction(input)).toEqual({ ok: true });
       expect(calls.some((c) => c.table === "volunteer_shifts" && c.method === "insert")).toBe(true);
+      // The position lookup is scoped to the plan and the church.
+      expect(calls).toEqual(
+        expect.arrayContaining([
+          { table: "service_plan_positions", method: "eq", args: ["plan_id", "plan-1"] },
+          { table: "service_plan_positions", method: "eq", args: ["church_id", "church-1"] },
+          { table: "profiles", method: "eq", args: ["church_id", "church-1"] },
+          { table: "profiles", method: "is", args: ["merged_into_profile_id", null] },
+        ]),
+      );
+    });
+
+    it("refuses a position that isn't on the plan (or is another church's)", async () => {
+      queue("service_plans", { data: { event_id: "event-1" }, error: null });
+      queue("service_plan_positions", { data: null, error: null });
+
+      expect(await assignVolunteerAction(input)).toEqual({ ok: false, error: "Position not found on this plan." });
+      expect(calls.some((c) => c.method === "insert")).toBe(false);
+    });
+
+    it("refuses a volunteer from another church", async () => {
+      queue("service_plans", { data: { event_id: "event-1" }, error: null });
+      queue("service_plan_positions", { data: { id: "pos-g", quantity_needed: 1 }, error: null });
+      queue("profiles", { data: null, error: null });
+
+      expect(await assignVolunteerAction(input)).toEqual({ ok: false, error: "Volunteer not found in this church." });
+      expect(calls.some((c) => c.method === "insert")).toBe(false);
+    });
+
+    it("refuses a position whose slots are all filled", async () => {
+      queue("service_plans", { data: { event_id: "event-1" }, error: null });
+      queue("service_plan_positions", { data: { id: "pos-g", quantity_needed: 2 }, error: null });
+      queue("profiles", { data: { id: "p-maya" }, error: null });
+      queue("volunteer_shifts", { count: 2, error: null });
+
+      expect(await assignVolunteerAction(input)).toEqual({ ok: false, error: "This position is already filled." });
+      expect(calls.some((c) => c.method === "insert")).toBe(false);
     });
   });
 

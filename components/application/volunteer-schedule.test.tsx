@@ -230,6 +230,7 @@ function basePoolEntry(overrides: Partial<VolunteerPoolEntry> = {}): VolunteerPo
     phone: null,
     skills: [],
     maxServicesPerMonth: null,
+    isVolunteer: true,
     isBlocked: false,
     servingOnDate: false,
     recentShiftCount: 0,
@@ -772,6 +773,120 @@ describe("ServicePlanBuilder — Team Roster table", () => {
   });
 });
 
+describe("ServicePlanBuilder — rotation planner feedback (Council Review 19)", () => {
+  it("a successful assign closes the modal and shows the volunteer on the position", async () => {
+    const user = userEvent.setup();
+    const detail = baseDetail();
+    detail.positions = [basePosition({ id: "pos-1", roleName: "Greeter", quantityNeeded: 2 })];
+    assignVolunteerActionMock.mockResolvedValue({ ok: true });
+    renderBuilder(detail, { pool: [basePoolEntry({ profileId: "p-1", fullName: "Alice Helper" })] });
+
+    await user.click(screen.getByRole("button", { name: "Assign" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Assign" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByText("Alice Helper assigned as Greeter.")).toBeInTheDocument();
+    expect(screen.getByText("1 / 2 filled")).toBeInTheDocument();
+  });
+
+  it("an assign error is shown inside the modal, not behind it", async () => {
+    const user = userEvent.setup();
+    const detail = baseDetail();
+    detail.positions = [basePosition({ id: "pos-1", roleName: "Greeter", quantityNeeded: 1 })];
+    assignVolunteerActionMock.mockResolvedValue({ ok: false, error: "This volunteer is already assigned on this service date." });
+    renderBuilder(detail, { pool: [basePoolEntry({ profileId: "p-1", fullName: "Alice Helper" })] });
+
+    await user.click(screen.getByRole("button", { name: "Assign" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Assign" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "This volunteer is already assigned on this service date.",
+    );
+  });
+
+  it("shows an error, not 'no available volunteer', when suggestions fail to load", async () => {
+    const user = userEvent.setup();
+    const detail = baseDetail();
+    detail.positions = [basePosition({ id: "pos-1", roleName: "Greeter" })];
+    suggestVolunteersForPositionActionMock.mockRejectedValueOnce(new Error("network"));
+    renderBuilder(detail, { pool: [] });
+
+    await user.click(screen.getByRole("button", { name: "Assign" }));
+
+    expect(await screen.findByText(/Couldn't load suggestions\./)).toBeInTheDocument();
+    expect(screen.queryByText(/No available volunteer for this date/)).not.toBeInTheDocument();
+  });
+
+  it("the full list explains why someone isn't suggested, and won't double-book", async () => {
+    const user = userEvent.setup();
+    const detail = baseDetail();
+    detail.positions = [basePosition({ id: "pos-1", roleName: "Greeter" })];
+    renderBuilder(detail, {
+      pool: [
+        basePoolEntry({ profileId: "p-cap", fullName: "Capped Carl", maxServicesPerMonth: 1, monthShiftCount: 1 }),
+        basePoolEntry({ profileId: "p-busy", fullName: "Busy Bea", servingOnDate: true }),
+      ],
+    });
+
+    await user.click(screen.getByRole("button", { name: "Assign" }));
+    const dialog = await screen.findByRole("dialog");
+
+    const capped = within(dialog).getByText("Capped Carl").closest(".mantine-Paper-root") as HTMLElement;
+    expect(within(capped).getByText("At monthly limit (1/1)")).toBeInTheDocument();
+    expect(within(capped).getByRole("button", { name: "Assign" })).toBeEnabled();
+
+    const busy = within(dialog).getByText("Busy Bea").closest(".mantine-Paper-root") as HTMLElement;
+    expect(within(busy).getByText("Already serving that day")).toBeInTheDocument();
+    expect(within(busy).getByRole("button", { name: "Assign" })).toBeDisabled();
+  });
+
+  it("applied auto-fill results appear on the plan without a page reload", async () => {
+    const user = userEvent.setup();
+    const detail = baseDetail();
+    detail.unfilledCount = 1;
+    detail.positions = [basePosition({ id: "pos-1", roleName: "Greeter", quantityNeeded: 1 })];
+    proposePlanAutoFillActionMock.mockResolvedValueOnce({
+      ok: true,
+      proposal: [{ positionId: "pos-1", roleName: "Greeter", profileId: "p-maya", fullName: "Maya Martinez", reasons: [] }],
+    });
+    applyPlanAutoFillActionMock.mockResolvedValueOnce({
+      ok: true,
+      results: [{ positionId: "pos-1", profileId: "p-maya", ok: true }],
+    });
+    renderBuilder(detail, { pool: [] });
+
+    await user.click(screen.getByRole("button", { name: "Auto-fill plan" }));
+    await user.click(await screen.findByRole("button", { name: "Apply 1 assignment" }));
+    await user.click(await screen.findByRole("button", { name: "Done" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByText("1 / 1 filled")).toBeInTheDocument();
+    // Nothing is left to fill, so the button is gone.
+    expect(screen.queryByRole("button", { name: "Auto-fill plan" })).not.toBeInTheDocument();
+  });
+
+  it("an apply error is shown inside the auto-fill modal", async () => {
+    const user = userEvent.setup();
+    const detail = baseDetail();
+    detail.unfilledCount = 1;
+    detail.positions = [basePosition({ id: "pos-1", roleName: "Greeter", quantityNeeded: 1 })];
+    proposePlanAutoFillActionMock.mockResolvedValueOnce({
+      ok: true,
+      proposal: [{ positionId: "pos-1", roleName: "Greeter", profileId: "p-maya", fullName: "Maya Martinez", reasons: [] }],
+    });
+    applyPlanAutoFillActionMock.mockResolvedValueOnce({ ok: false, error: "Service plan not found." });
+    renderBuilder(detail, { pool: [] });
+
+    await user.click(screen.getByRole("button", { name: "Auto-fill plan" }));
+    await user.click(await screen.findByRole("button", { name: "Apply 1 assignment" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Service plan not found.");
+  });
+});
+
 describe("ServicePlanBuilder — assign modal skill-based ranking", () => {
   it("shows ranked suggestions with their reasons and assigns from them with a valid shift window", async () => {
     const user = userEvent.setup();
@@ -817,7 +932,7 @@ describe("ServicePlanBuilder — assign modal skill-based ranking", () => {
       ok: true,
       proposal: [
         { positionId: "pos-1", roleName: "Greeter", profileId: "p-maya", fullName: "Maya Martinez", reasons: ["Hasn't served yet"] },
-        { positionId: "pos-1", roleName: "Greeter", profileId: "p-sam", fullName: "Samuel Price", reasons: ["1 in last 30 days"] },
+        { positionId: "pos-1", roleName: "Greeter", profileId: "p-sam", fullName: "Samuel Price", reasons: ["1 shift in 30 days"] },
       ],
     });
     applyPlanAutoFillActionMock.mockResolvedValueOnce({
@@ -831,7 +946,7 @@ describe("ServicePlanBuilder — assign modal skill-based ranking", () => {
     expect(within(proposal).getByText("Maya Martinez")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Remove Samuel Price from the proposal" }));
-    await user.click(screen.getByRole("button", { name: "Apply 1 assignments" }));
+    await user.click(screen.getByRole("button", { name: "Apply 1 assignment" }));
 
     expect(applyPlanAutoFillActionMock).toHaveBeenCalledWith({
       planId: "plan-1",

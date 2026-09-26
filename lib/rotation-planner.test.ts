@@ -18,6 +18,7 @@ function volunteer(overrides: Partial<VolunteerPoolEntry> & { fullName: string }
     phone: null,
     skills: [],
     maxServicesPerMonth: null,
+    isVolunteer: true,
     isBlocked: false,
     servingOnDate: false,
     recentShiftCount: 0,
@@ -58,6 +59,27 @@ describe("rankVolunteersForPosition", () => {
     expect(byName["Blocked Ben"].reasons).toContain("Unavailable that day");
   });
 
+  it("never suggests someone who isn't a known volunteer, even for a role with no required skills", () => {
+    const ranked = rankVolunteersForPosition(
+      [volunteer({ fullName: "Member Only", isVolunteer: false }), volunteer({ fullName: "Real Volunteer", recentShiftCount: 2 })],
+      [],
+      SERVICE_DATE,
+    );
+    expect(ranked.map((r) => [r.fullName, r.eligible])).toEqual([
+      ["Real Volunteer", true],
+      ["Member Only", false],
+    ]);
+    expect(ranked[1].ineligibleReasons).toEqual(["not_volunteer"]);
+    expect(ranked[1].reasons).toContain("Not a volunteer yet");
+
+    const proposal = proposePlanFill(
+      [{ positionId: "u1", roleTypeId: null, roleName: "Usher", requiredSkills: [] }, { positionId: "u2", roleTypeId: null, roleName: "Usher", requiredSkills: [] }],
+      () => [volunteer({ fullName: "Member Only", isVolunteer: false }), volunteer({ fullName: "Real Volunteer" })],
+      SERVICE_DATE,
+    );
+    expect(proposal.map((p) => p.fullName)).toEqual(["Real Volunteer", null]);
+  });
+
   it("a monthly limit below the month's count is not reached", () => {
     const [entry] = rankVolunteersForPosition(
       [volunteer({ fullName: "Two Max", maxServicesPerMonth: 2, monthShiftCount: 1 })],
@@ -89,8 +111,8 @@ describe("rankVolunteersForPosition", () => {
     );
     expect(entry.reasons).toEqual([
       "1/2 skills",
-      "Last served 2 weeks before",
-      "1 in last 30 days",
+      "Last served 2 weeks before this service",
+      "1 shift in 30 days",
       "Served this role 2×",
     ]);
   });

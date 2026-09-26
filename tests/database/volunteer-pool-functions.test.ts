@@ -6,8 +6,11 @@ import { Pool, type PoolClient } from "pg";
 // get_volunteer_pool() and get_volunteer_directory(). The mocked tests in
 // lib/volunteer-data.test.ts only check the RPC call and row mapping; this
 // file checks the counting windows, declined-shift exclusion, merged-profile
-// exclusion and church scoping against the real query. Each test runs in a
-// rolled-back transaction.
+// exclusion and church scoping against the real query, and — running as the
+// `authenticated` role with JWT claims, so RLS actually applies — that
+// church admins and ministry leaders get the same complete data while
+// another church's admin gets nothing. Each test runs in a rolled-back
+// transaction.
 
 const connectionString =
   process.env.TENANT_DB_URL ??
@@ -26,6 +29,10 @@ const PLAN = "00000000-0000-0000-0000-00000000c002";
 const POSITION = "00000000-0000-0000-0000-00000000c003";
 const EVENT_A = "00000000-0000-0000-0000-00000000c004";
 const EVENT_B = "00000000-0000-0000-0000-00000000c005";
+// Auth users for the RLS tests.
+const ADMIN_A_USER = "00000000-0000-0000-0000-00000000d001";
+const LEADER_A_USER = "00000000-0000-0000-0000-00000000d002";
+const ADMIN_B_USER = "00000000-0000-0000-0000-00000000d003";
 
 // The service date under test. 2026-03-15 is in the past, so every shift
 // below also counts for the directory's "last served" (starts_at <= now()).
@@ -88,6 +95,30 @@ async function seed(client: PoolClient) {
   await shift(EVE, "2026-03-15 10:00+00", "declined");
   // Dan (another church) is serving that day; must never leak into church A.
   await shift(DAN_OTHER_CHURCH, "2026-03-15 10:00+00", "confirmed", null, CHURCH_B, EVENT_B);
+
+  await client.query(
+    `insert into auth.users (id, email) values
+       ($1, 'pool-admin-a@example.test'), ($2, 'pool-leader-a@example.test'), ($3, 'pool-admin-b@example.test')`,
+    [ADMIN_A_USER, LEADER_A_USER, ADMIN_B_USER],
+  );
+  await client.query(
+    `insert into public.church_memberships (church_id, user_id, role) values
+       ($1, $3, 'church_admin'), ($1, $4, 'ministry_leader'), ($2, $5, 'church_admin')`,
+    [CHURCH_A, CHURCH_B, ADMIN_A_USER, LEADER_A_USER, ADMIN_B_USER],
+  );
+}
+
+/** Runs `sql` as an authenticated user, so RLS applies, then returns to the superuser role. */
+async function asUser(client: PoolClient, userId: string, sql: string, values: unknown[]) {
+  await client.query(`set local role authenticated`);
+  await client.query(`select set_config('request.jwt.claims', $1, true)`, [
+    JSON.stringify({ sub: userId, role: "authenticated" }),
+  ]);
+  try {
+    return await client.query(sql, values);
+  } finally {
+    await client.query(`reset role`);
+  }
 }
 
 describe("rotation planner SQL functions", () => {
@@ -128,8 +159,13 @@ describe("rotation planner SQL functions", () => {
   describe("get_volunteer_pool", () => {
     it("returns every non-merged profile in the church, and nobody from another church", async () => {
       await inRolledBackTransaction(async (client) => {
-        const res = await client.query(`select full_name from public.get_volunteer_pool($1, $2)`, [CHURCH_A, SERVICE_DATE]);
-        expect(res.rows.map((r) => r.full_name)).toEqual(["Ann", "Ben", "Eve", "Fay"]);
+        const res = await client.query(`select profile_id, full_name from public.get_volunteer_pool($1, $2)`, [CHURCH_A, SERVICE_DATE]);
+        const ids = res.rows.map((r) => r.profile_id);
+        // (The RLS tests' auth users also get church A profiles, via the
+        // on_auth_user_created trigger, so assert membership, not the exact list.)
+        expect(ids).toEqual(expect.arrayContaining([ANN, BEN, EVE, FAY]));
+        expect(ids).not.toContain(CAT_MERGED);
+        expect(ids).not.toContain(DAN_OTHER_CHURCH);
       });
     });
 
@@ -164,8 +200,12 @@ describe("rotation planner SQL functions", () => {
         expect(new Date(byName.Ben.last_served_at).toISOString()).toBe("2026-02-01T10:00:00.000Z");
         expect(Number(byName.Ben.total_hours)).toBe(3.5);
 
-        // A declined shift on the date doesn't make Eve "serving" or add load.
-        expect(byName.Eve).toMatchObject({ serving_on_date: false, recent_shift_count: 0, last_served_at: null });
+        // A declined shift on the date doesn't make Eve "serving" or add load,
+        // but being scheduled at all makes her a known volunteer.
+        expect(byName.Eve).toMatchObject({ serving_on_date: false, recent_shift_count: 0, last_served_at: null, is_volunteer: true });
+        // Ann has a volunteer profile; Ben has only shifts.
+        expect(byName.Ann.is_volunteer).toBe(true);
+        expect(byName.Ben.is_volunteer).toBe(true);
       });
     });
 
@@ -177,6 +217,52 @@ describe("rotation planner SQL functions", () => {
         );
         expect(res.rows[0].role_served_count).toBe(0);
       });
+    });
+  });
+
+  it("is_volunteer is false for someone with no volunteer profile and no shifts", async () => {
+    await inRolledBackTransaction(async (client) => {
+      const res = await client.query(
+        `select is_volunteer from public.get_volunteer_pool($1, $2) where full_name = 'Fay'`,
+        [CHURCH_A, SERVICE_DATE],
+      );
+      expect(res.rows[0].is_volunteer).toBe(false);
+    });
+  });
+
+  describe("under RLS (as the authenticated role)", () => {
+    const POOL_SQL = `select full_name, recent_shift_count, month_shift_count, is_blocked, serving_on_date, total_hours
+                      from public.get_volunteer_pool($1, $2, $3) order by full_name`;
+
+    it("a church admin and a ministry leader get the same complete pool", async () => {
+      await inRolledBackTransaction(async (client) => {
+        const asSuperuser = await client.query(POOL_SQL, [CHURCH_A, SERVICE_DATE, ROLE]);
+        const asAdmin = await asUser(client, ADMIN_A_USER, POOL_SQL, [CHURCH_A, SERVICE_DATE, ROLE]);
+        const asLeader = await asUser(client, LEADER_A_USER, POOL_SQL, [CHURCH_A, SERVICE_DATE, ROLE]);
+
+        expect(asAdmin.rows).toEqual(asSuperuser.rows);
+        expect(asLeader.rows).toEqual(asSuperuser.rows);
+        // Sanity: the counts are real, not all zero.
+        expect(asAdmin.rows.find((r) => r.full_name === "Ben")).toMatchObject({ is_blocked: true, serving_on_date: true });
+      });
+    });
+
+    it("another church's admin gets nothing from either function", async () => {
+      await inRolledBackTransaction(async (client) => {
+        const pool = await asUser(client, ADMIN_B_USER, POOL_SQL, [CHURCH_A, SERVICE_DATE, ROLE]);
+        const directory = await asUser(client, ADMIN_B_USER, `select * from public.get_volunteer_directory($1, 2026)`, [CHURCH_A]);
+        expect(pool.rows).toEqual([]);
+        expect(directory.rows).toEqual([]);
+      });
+    });
+
+    it("anon cannot execute either function", async () => {
+      const res = await pool.query(
+        `select has_function_privilege('anon', 'public.get_volunteer_pool(uuid, date, uuid)', 'execute') as pool,
+                has_function_privilege('anon', 'public.get_volunteer_directory(uuid, integer)', 'execute') as directory,
+                has_function_privilege('authenticated', 'public.get_volunteer_pool(uuid, date, uuid)', 'execute') as pool_auth`,
+      );
+      expect(res.rows[0]).toEqual({ pool: false, directory: false, pool_auth: true });
     });
   });
 

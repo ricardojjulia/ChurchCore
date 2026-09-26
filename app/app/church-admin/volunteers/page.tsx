@@ -10,6 +10,7 @@ import {
   Paper,
   Stack,
   Table,
+  TableScrollContainer,
   TableTbody,
   TableTd,
   TableTh,
@@ -66,6 +67,8 @@ export default async function VolunteerDirectoryPage() {
           <Text c="dimmed" size="sm">No volunteer history yet. Assign volunteers to service plans to build this list.</Text>
         ) : (
           <Paper withBorder radius="md">
+            {/* 8 columns: scroll sideways on phones rather than overflow the page. */}
+            <TableScrollContainer minWidth={900}>
             <Table highlightOnHover>
               <TableThead>
                 <TableTr>
@@ -123,6 +126,7 @@ export default async function VolunteerDirectoryPage() {
                 })}
               </TableTbody>
             </Table>
+            </TableScrollContainer>
           </Paper>
         )}
       </Stack>

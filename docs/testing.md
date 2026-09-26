@@ -1,14 +1,15 @@
 # Testing
 
-ChurchCore ships three layers of tests. CI runs all of them on every PR. They block merge once a repo admin marks them as required status checks (see [CI](#ci)).
+ChurchCore ships four layers of tests. CI runs all of them on every PR. They block merge once a repo admin marks them as required status checks (see [CI](#ci)).
 
 | Layer | Command | What it covers |
 |---|---|---|
 | Unit | `npm run test` | Vitest: actions, data loaders, components, scripts |
 | Surface coverage | `npm run test:surfaces` | Every page, API route, and server action is registered in `tests/coverage-manifest.json` with real tests behind it |
+| Database | `npm run test:db` | Vitest against real local Postgres (`tests/database/`): SQL functions, constraints, migration logic. Each test runs in a rolled-back transaction |
 | End to end | `npm run test:e2e:local` | Playwright against a production build and local Supabase: every page × every role, every API route, and the key journeys |
 
-Real-Postgres integration tests (`npm run test:db`) and migration checks stay manual release gates; see `RELEASE_CHECKLIST.md`.
+CI runs `npm run test:db` in the `verify` job, after migrating a fresh local Supabase (added with Service Planning Story 3; before that it was a manual release gate). A change that adds a SQL function, trigger or non-trivial constraint ships a `tests/database/` test for it. Migration checks (`npm run lint:migrations`) stay a manual release gate; see `RELEASE_CHECKLIST.md`.
 
 ## The rule: every change ships its test surfaces
 
