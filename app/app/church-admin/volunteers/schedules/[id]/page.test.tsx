@@ -1,8 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ServicePlanDetail } from "@/lib/volunteer-types";
-
 const {
   notFoundMock,
   redirectMock,
@@ -34,7 +32,7 @@ const {
       {children}
     </div>
   )),
-  builderMock: vi.fn((_props: { detail: ServicePlanDetail }) => <div>Service Plan Builder</div>),
+  builderMock: vi.fn(() => <div>Service Plan Builder</div>),
 }));
 
 vi.mock("next/navigation", () => ({

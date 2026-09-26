@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   BellRing,
@@ -766,6 +766,7 @@ export function EventsListWorkspace({
   events: ChurchAdminEventsListEntry[];
   source: "preview" | "live";
 }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const view = searchParams.get("view");
   const [showCreate, setShowCreate] = useState(false);
@@ -830,7 +831,7 @@ export function EventsListWorkspace({
       if (res.ok) {
         setShowCreate(false);
         setForm({ title: "", description: "", category: "general", location: "", startsAt: "", endsAt: "" });
-        if (res.id) window.location.href = `/app/church-admin/events/${res.id}`;
+        if (res.id) router.push(`/app/church-admin/events/${res.id}`);
       } else {
         setErr(res.error ?? "Failed to create event.");
       }
