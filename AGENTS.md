@@ -15,16 +15,19 @@
   - `council` to run the Council review and Documenter close-out (`.claude/skills/council/`, subagent `.claude/agents/documenter.md`).
   - `feature-factory` for non-trivial feature planning and orchestration.
   - `build-with-tests` for implementation work.
+  - `test-council` to summon the AI Council of Testers (v5.0) for autonomous multi-persona E2E testing.
 - For Codex sessions, use repo-local skills in `.codex/skills/` as the Codex-compatible software-factory workflow:
   - `churchcore-council` to run the Council review and Documenter close-out.
   - `churchcore-feature-factory` for non-trivial feature planning and orchestration.
   - `churchcore-build-with-tests` for implementation work.
   - `churchcore-pr-review` for review before merge or PR handoff.
+  - `churchcore-test-council` to summon the AI Council of Testers (v5.0).
 - For Gemini (Antigravity) sessions, use repo-local skills in `.gemini/skills/` as the Gemini-compatible software-factory workflow:
   - `gemini-council` to run the Council review and Documenter close-out.
   - `gemini-feature-factory` for non-trivial feature planning and orchestration.
   - `gemini-build-with-tests` for implementation work.
   - `gemini-pr-review` for review before merge or PR handoff.
+  - `gemini-test-council` to summon the AI Council of Testers (v5.0).
 - Treat `.claude/` as Claude Code-specific factory configuration, `.codex/` as Codex-compatible factory configuration, and `.gemini/` as Gemini-specific factory configuration. Keep all surfaces aligned when changing the workflow — the Council and Documenter mandate applies identically across all three.
 
 

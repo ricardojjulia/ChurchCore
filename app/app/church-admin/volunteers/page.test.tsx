@@ -10,6 +10,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // page itself, including the positive pastor/ministry-leader cases the
 // sibling page tests were missing.
 
+// jsdom does not implement ResizeObserver; Mantine's TableScrollContainer requires it.
+vi.stubGlobal(
+  "ResizeObserver",
+  class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+);
+
 const {
   redirectMock,
   requireChurchSessionMock,
@@ -42,6 +52,10 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/volunteer-data", () => ({
   getVolunteerDirectory: getVolunteerDirectoryMock,
+}));
+
+vi.mock("@/app/app/volunteer-actions", () => ({
+  updateVolunteerFrequencyAction: vi.fn(),
 }));
 
 vi.mock("@/components/application/app-shell", () => ({
@@ -106,5 +120,29 @@ describe("volunteer directory page", () => {
     expect(redirectMock).not.toHaveBeenCalled();
     expect(screen.getByText("Volunteers")).toBeInTheDocument();
     expect(getVolunteerDirectoryMock).toHaveBeenCalled();
+  });
+
+  it("renders a volunteer row with a monthly-limit input", async () => {
+    requireChurchSessionMock.mockResolvedValueOnce(sessionFor("church-admin"));
+    getVolunteerDirectoryMock.mockResolvedValueOnce([
+      {
+        profileId: "p-1",
+        fullName: "Grace Adeyemi",
+        email: "grace@example.org",
+        phone: null,
+        skills: ["audio"],
+        maxServicesPerMonth: 2,
+        totalHours: 4,
+        shiftsThisYear: 3,
+        lastServedDate: null,
+        backgroundCheckDate: null,
+      },
+    ]);
+
+    const page = await VolunteerDirectoryPage();
+    render(<MantineProvider>{page}</MantineProvider>);
+
+    expect(screen.getByRole("columnheader", { name: "Monthly limit" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Monthly limit for Grace Adeyemi" })).toHaveValue("2");
   });
 });

@@ -127,8 +127,25 @@ export type VolunteerPoolEntry = {
   email: string | null;
   phone: string | null;
   skills: string[];
+  /** Admin-set cap on services per month; null = no cap. */
+  maxServicesPerMonth: number | null;
+  /**
+   * Has a volunteer profile or has ever been scheduled. The planner only
+   * suggests known volunteers; anyone else can still be assigned by hand.
+   */
+  isVolunteer: boolean;
+  /** Blocked (volunteer_blocked_dates) on the service date. */
   isBlocked: boolean;
+  /** Already holds a non-declined shift on the service date. */
+  servingOnDate: boolean;
+  /** Non-declined shifts in the 30 days up to the service date. */
   recentShiftCount: number;
+  /** Non-declined shifts in the service date's calendar month. */
+  monthShiftCount: number;
+  /** Start of the most recent non-declined shift before the service date. */
+  lastServedAt: string | null;
+  /** Non-declined shifts in positions of the requested role type. */
+  roleServedCount: number;
   totalHours: number;
 };
 
@@ -138,6 +155,8 @@ export type VolunteerDirectoryEntry = {
   email: string | null;
   phone: string | null;
   skills: string[];
+  /** Admin-set cap on services per month; null = no cap. */
+  maxServicesPerMonth: number | null;
   totalHours: number;
   shiftsThisYear: number;
   lastServedDate: string | null;

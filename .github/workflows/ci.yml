@@ -43,6 +43,9 @@ jobs:
       - name: RLS audit
         run: npm run audit:rls
 
+      - name: Database tests (real Postgres)
+        run: npm run test:db
+
       - name: Stop local Supabase
         if: always()
         run: npx supabase stop

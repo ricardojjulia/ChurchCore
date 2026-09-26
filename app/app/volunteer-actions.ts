@@ -6,7 +6,16 @@ import { revalidatePath } from "next/cache";
 import { requireChurchSession, type ChurchAppSession } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/actions/audit";
 import { checkVolunteerBurnout } from "@/lib/burnout-calculator";
-import { getChurchSkillOptions } from "@/lib/volunteer-data";
+import { getChurchSkillOptions, getServicePlanDetail, getVolunteerPool } from "@/lib/volunteer-data";
+import {
+  INELIGIBLE_LABEL,
+  proposePlanFill,
+  rankVolunteersForPosition,
+  shiftWindowForPlan,
+  type OpenSlot,
+  type ProposedAssignment,
+  type RankedVolunteer,
+} from "@/lib/rotation-planner";
 import {
   createTenantServerClient,
   createTenantAdminClient,
@@ -1234,6 +1243,56 @@ export async function assignVolunteerAction(input: {
 
   linkedEventId = plan?.event_id ?? null;
 
+  // Integrity: RLS on insert only checks church_id, so verify the position is
+  // on this plan, the volunteer is in this church, and a slot is still open.
+  const { data: position } = await supabase
+    .from("service_plan_positions")
+    .select("id, quantity_needed")
+    .eq("id", input.positionId)
+    .eq("plan_id", input.planId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+  if (!position) return { ok: false, error: "Position not found on this plan." };
+
+  const { data: volunteer } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", input.profileId)
+    .eq("church_id", churchId)
+    .is("merged_into_profile_id", null)
+    .maybeSingle();
+  if (!volunteer) return { ok: false, error: "Volunteer not found in this church." };
+
+  const { count: filled, error: filledError } = await supabase
+    .from("volunteer_shifts")
+    .select("id", { count: "exact", head: true })
+    .eq("church_id", churchId)
+    .eq("position_id", input.positionId)
+    .neq("confirmation_status", "declined");
+  if (filledError) return { ok: false, error: filledError.message };
+  if ((filled ?? 0) >= position.quantity_needed) {
+    return { ok: false, error: "This position is already filled." };
+  }
+
+  // Same-day conflict check. Matches get_volunteer_pool()'s serving_on_date
+  // (any non-declined shift starting that day), so a suggestion the planner
+  // marks eligible is never refused here and vice versa.
+  const nextDay = new Date(`${datePrefix}T00:00:00Z`);
+  nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+  const { data: conflicts, error: conflictError } = await supabase
+    .from("volunteer_shifts")
+    .select("id")
+    .eq("church_id", churchId)
+    .eq("assigned_user_id", input.profileId)
+    .neq("confirmation_status", "declined")
+    .gte("starts_at", `${datePrefix}T00:00:00`)
+    .lt("starts_at", `${nextDay.toISOString().slice(0, 10)}T00:00:00`)
+    .limit(1);
+  if (conflictError) return { ok: false, error: conflictError.message };
+  if (conflicts && conflicts.length > 0) {
+    return { ok: false, error: "This volunteer is already assigned on this service date." };
+  }
+
   const { error } = await supabase.from("volunteer_shifts").insert({
     church_id: churchId,
     event_id: linkedEventId,
@@ -1973,5 +2032,156 @@ export async function respondToPublicShiftAction(
   }
 
   revalidatePath("/app/member/schedule");
+  return { ok: true };
+}
+
+// ── Rotation planner (Service Planning Story 3) ──────────────────────────────
+//
+// Supabase-only new code. Suggestions and proposals are read-only; applying
+// them goes through assignVolunteerAction so its burnout and same-day
+// conflict checks still run for every assignment.
+
+export async function suggestVolunteersForPositionAction(input: {
+  planId: string;
+  positionId: string;
+}): Promise<{ ok: true; volunteers: RankedVolunteer[] } | { ok: false; error: string }> {
+  const session = await requireServicePlanWriteAccess();
+  const detail = await getServicePlanDetail(session, input.planId);
+  if (!detail) return { ok: false, error: "Service plan not found." };
+  const position = detail.positions.find((p) => p.id === input.positionId);
+  if (!position) return { ok: false, error: "Position not found on this plan." };
+
+  const pool = await getVolunteerPool(session, detail.plan.serviceDate, position.roleTypeId);
+  return {
+    ok: true,
+    volunteers: rankVolunteersForPosition(pool, position.requiredSkills, detail.plan.serviceDate),
+  };
+}
+
+export async function proposePlanAutoFillAction(input: {
+  planId: string;
+}): Promise<{ ok: true; proposal: ProposedAssignment[] } | { ok: false; error: string }> {
+  const session = await requireServicePlanWriteAccess();
+  const detail = await getServicePlanDetail(session, input.planId);
+  if (!detail) return { ok: false, error: "Service plan not found." };
+
+  const slots: OpenSlot[] = detail.positions.flatMap((position) =>
+    Array.from({ length: Math.max(0, position.quantityNeeded - position.filled) }, () => ({
+      positionId: position.id,
+      roleTypeId: position.roleTypeId,
+      roleName: position.roleName,
+      requiredSkills: position.requiredSkills,
+    })),
+  );
+  if (slots.length === 0) return { ok: true, proposal: [] };
+
+  const pools = new Map<string | null, Awaited<ReturnType<typeof getVolunteerPool>>>();
+  for (const roleTypeId of new Set(slots.map((slot) => slot.roleTypeId))) {
+    pools.set(roleTypeId, await getVolunteerPool(session, detail.plan.serviceDate, roleTypeId));
+  }
+
+  return {
+    ok: true,
+    proposal: proposePlanFill(slots, (roleTypeId) => pools.get(roleTypeId) ?? [], detail.plan.serviceDate),
+  };
+}
+
+export type AutoFillResult = { positionId: string; profileId: string; ok: boolean; error?: string };
+
+export async function applyPlanAutoFillAction(input: {
+  planId: string;
+  assignments: Array<{ positionId: string; profileId: string }>;
+}): Promise<{ ok: true; results: AutoFillResult[] } | { ok: false; error: string }> {
+  const session = await requireServicePlanWriteAccess();
+  const detail = await getServicePlanDetail(session, input.planId);
+  if (!detail) return { ok: false, error: "Service plan not found." };
+
+  const { startsAt, endsAt } = shiftWindowForPlan(detail.plan.serviceDate, detail.plan.serviceTime);
+  const results: AutoFillResult[] = [];
+  const openByPosition = new Map(detail.positions.map((p) => [p.id, Math.max(0, p.quantityNeeded - p.filled)]));
+
+  for (const { positionId, profileId } of input.assignments) {
+    const position = detail.positions.find((p) => p.id === positionId);
+    if (!position) {
+      results.push({ positionId, profileId, ok: false, error: "Position not found on this plan." });
+      continue;
+    }
+    const open = openByPosition.get(positionId) ?? 0;
+    if (open === 0) {
+      results.push({ positionId, profileId, ok: false, error: "Position is already filled." });
+      continue;
+    }
+
+    // Re-check eligibility against fresh data: the proposal may be stale.
+    const pool = await getVolunteerPool(session, detail.plan.serviceDate, position.roleTypeId);
+    const candidate = rankVolunteersForPosition(pool, position.requiredSkills, detail.plan.serviceDate).find(
+      (v) => v.profileId === profileId,
+    );
+    if (!candidate) {
+      results.push({ positionId, profileId, ok: false, error: "Volunteer is not in this church." });
+      continue;
+    }
+    if (!candidate.eligible) {
+      results.push({
+        positionId,
+        profileId,
+        ok: false,
+        error: candidate.ineligibleReasons.map((reason) => INELIGIBLE_LABEL[reason]).join(", "),
+      });
+      continue;
+    }
+    // The same rule proposePlanFill applies: a skilled position needs at
+    // least one of its skills.
+    if (position.requiredSkills.length > 0 && candidate.matchedSkills === 0) {
+      results.push({ positionId, profileId, ok: false, error: "Has none of this position's skills" });
+      continue;
+    }
+
+    const res = await assignVolunteerAction({
+      planId: input.planId,
+      positionId,
+      profileId,
+      roleName: position.roleName,
+      startsAt,
+      endsAt,
+    });
+    results.push({ positionId, profileId, ok: res.ok, ...(res.error ? { error: res.error } : {}) });
+    if (res.ok) openByPosition.set(positionId, open - 1);
+  }
+
+  revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
+  return { ok: true, results };
+}
+
+export async function updateVolunteerFrequencyAction(input: {
+  profileId: string;
+  maxServicesPerMonth: number | null;
+}): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireServicePlanWriteAccess();
+  const churchId = session.appContext.church.id;
+  const max = input.maxServicesPerMonth;
+  if (max !== null && (!Number.isInteger(max) || max < 1 || max > 31)) {
+    return { ok: false, error: "Monthly limit must be a whole number from 1 to 31, or empty for no limit." };
+  }
+
+  const supabase = await createTenantServerClient();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", input.profileId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+  if (!profile) return { ok: false, error: "Volunteer not found." };
+
+  const { error } = await supabase
+    .from("volunteer_profiles")
+    .upsert(
+      { church_id: churchId, user_id: input.profileId, max_services_per_month: max },
+      { onConflict: "church_id,user_id" },
+    );
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(SCHEDULES_PATH);
+  revalidatePath("/app/church-admin/volunteers");
   return { ok: true };
 }
