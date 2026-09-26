@@ -15,7 +15,7 @@ ChurchCore is part of a broader product family:
 
 ## Product Position & Competitive Analysis
 
-> **ChurchCore is Phase D-READY** — all technical and competitive gates are closed. The product is a credible alternative for 100–1,000 attendance churches evaluating Planning Center, Breeze, or Pushpay/CCB. The only remaining milestone before full Phase D GO is an uncoached external evaluator session.
+> **MVP status: 69/100 (Council Review 18).** MVP is defined as closing five ranked competitive gaps against Planning Center, Breeze and Tithe.ly: service planning depth (~75% closed), phone-first mobile, recurring giving and statements, migration reconciliation, and provider breadth. See `DEVELOPMENT_PLAN.md` and `docs/plans/2026-09-25-mvp-competitive-status-report.md`.
 
 Key facts at a glance:
 

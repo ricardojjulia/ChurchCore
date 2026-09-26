@@ -1,5 +1,8 @@
 # ChurchCore — MVP & Competitive Analysis
 
+> **Superseded (2026-09-26).** This document describes the retired Phase A–D gate framework. The current MVP definition, ranked competitive gaps and working order are in `DEVELOPMENT_PLAN.md` (Current Status → MVP definition) and `docs/plans/2026-09-25-mvp-competitive-status-report.md`. Kept for history.
+
+
 **Version:** 1.0
 **Date:** 2026-06-12
 **Status:** Active — update with each major release or significant competitive change
