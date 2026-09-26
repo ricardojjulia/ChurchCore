@@ -58,7 +58,7 @@ import {
   Wand2,
 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { ReadinessTargetState } from "@/components/application/readiness-target-state";
 import {
@@ -279,6 +279,7 @@ export function ServicePlansWorkspace({
   templates: ServicePlanTemplate[];
   source: "preview" | "live";
 }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const view = searchParams.get("view");
   const [plans] = useState(initialPlans);
@@ -348,7 +349,7 @@ export function ServicePlansWorkspace({
         templateId: form.templateId || undefined,
       });
       if (res.ok && res.id) {
-        window.location.href = `/app/church-admin/volunteers/schedules/${res.id}`;
+        router.push(`/app/church-admin/volunteers/schedules/${res.id}`);
       } else {
         setMsg(res.error ?? "Failed to create plan.");
       }

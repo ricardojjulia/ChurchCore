@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ActionIcon,
   Badge,
@@ -83,6 +84,7 @@ export function GroupsWorkspace({
   session: ChurchAppSession;
   data: GroupsListData;
 }) {
+  const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +111,7 @@ export function GroupsWorkspace({
       if (res.ok) {
         setShowCreate(false);
         setForm({ category: "general", isOpen: true });
-        if (res.id) window.location.href = `/app/church-admin/groups/${res.id}`;
+        if (res.id) router.push(`/app/church-admin/groups/${res.id}`);
       } else {
         setError(res.error ?? "Failed to create group.");
       }

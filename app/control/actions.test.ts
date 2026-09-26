@@ -36,7 +36,7 @@ const {
   );
   const tenantDelete = vi.fn(() => ({ eq: tenantEq }));
   const tenantInsert = vi.fn(() => Promise.resolve({ error: null }));
-  const tenantFrom = vi.fn((_table: string) => ({ delete: tenantDelete, insert: tenantInsert }));
+  const tenantFrom = vi.fn(() => ({ delete: tenantDelete, insert: tenantInsert }));
   const createTenantAdminClient = vi.fn(() => ({ from: tenantFrom }));
 
   return {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   Badge, Button, Group, Modal, NumberInput, Paper, Select, Stack, Table, Text, TextInput, Title
 } from "@mantine/core";
@@ -35,6 +36,7 @@ export function FinanceBudgetWorkspace({
   varianceRows: BudgetVarianceRow[];
   accounts: FinanceAccount[];
 }) {
+  const router = useRouter();
   const { t } = useI18n();
   const [opened, { open, close }] = useDisclosure(false);
   const [isPending, startTransition] = useTransition();
@@ -62,7 +64,7 @@ export function FinanceBudgetWorkspace({
         notifications.show({ color: "green", message: t("financeBudget", "budgetCreated") });
         setBudgetName("");
         close();
-        window.location.href = `/app/church-admin/finance/budgets/${id}`;
+        router.push(`/app/church-admin/finance/budgets/${id}`);
       } catch (err) {
         notifications.show({ color: "red", message: String(err) });
       }
