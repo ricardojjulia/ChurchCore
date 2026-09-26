@@ -87,7 +87,7 @@ Your `.env.local` may point at hosted projects. The suite cannot reach them, for
   - Known app bugs are listed in `KNOWN_BUGS` with their **exact current symptom** (landing page or text). A blanket `test.fail()` would stay green on any failure; a pinned symptom fails as soon as the bug changes, so the entry gets removed when it's fixed.
   - `/app/[role]` is also checked cross-role: each church identity visiting another role's workspace is sent home.
 - **`tests/e2e/api-*.spec.ts`:** contract tests for all 15 API routes. They check rejection paths (missing or wrong cron secret, missing or bad webhook signatures, bad unsubscribe tokens, signed-out session routes) and safe happy paths (a valid cron run, a valid unsubscribe writing one suppression row, idempotent re-calls).
-- **Journeys:** `church-admin-readiness`, `member-mobile-foundation` (390×844 viewport), and `onboarding-flow` (uses Mailpit on 4205).
+- **Journeys:** `church-admin-readiness`, `member-mobile-foundation` (390×844 viewport), `onboarding-flow` (uses Mailpit on 4205), and `service-plan-rotation` (the rotation planner: suggestions, auto-fill review and apply, monthly limits).
 - **`npm run check:server-reference-manifest`:** after `next build`, fails if `queueCommunicationAction`, `logAuditEvent`, or `pruneAuditLogsAction` is exposed as a callable server action (ADR 0022).
 
 ## Adding a new page, API route, or server action
