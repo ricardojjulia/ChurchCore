@@ -18,7 +18,12 @@ Mandate: per `AGENTS.md` and `improve-software.md` §0, the council runs before 
 5. Execute via `gemini-build-with-tests`, tracking tasks in `task.md`; write phases run sequentially.
 6. Verify: `npm run test`, `npm run lint`, `npm run build` must all pass — record results in `walkthrough.md`. Any failure is a stop condition.
 7. **Documenter close-out** (Agent 5, write role, docs/changelog/plan/ADRs/memory only — never application code):
-   - Correct `DEVELOPMENT_PLAN.md` status/roadmap/exit-criteria to match what shipped.
+   - Update the §0 MVP roadmap tracker in `DEVELOPMENT_PLAN.md`:
+     - set shipped rows to `Done (#PR)`;
+     - add new open items as rows, or list them in §0.5 with a reason;
+     - update the progress line;
+     - on a milestone date, record the cut-line check.
+   - Then add the round's history bullet.
    - Add a `CHANGELOG.md [Unreleased]` entry in the repo's existing style.
    - Update `README.md` and affected `/docs` pages.
    - Finalize any ADR left in draft form from step 3.

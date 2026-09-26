@@ -17,7 +17,7 @@ Mandate: per `AGENTS.md` and `improve-software.md` §0, the council runs before 
 4. Ask the human to approve the synthesis and prompt sequence before implementation.
 5. Execute approved prompts via `feature-factory` / `build-with-tests`, sequentially for write phases.
 6. Verify: `npm run test`, `npm run lint`, `npm run build` must all be clean. A red result is a stop condition — do not proceed to step 7.
-7. Invoke the `documenter` subagent (`.claude/agents/documenter.md`) to update `DEVELOPMENT_PLAN.md`, `CHANGELOG.md`, README/docs, finalize ADRs, confirm `docs/reviews/` output is committed, and update memory.
+7. Invoke the `documenter` subagent (`.claude/agents/documenter.md`) to update `DEVELOPMENT_PLAN.md` (the §0 roadmap tracker rows and progress line first, then the history), `CHANGELOG.md`, README/docs, finalize ADRs, confirm `docs/reviews/` output is committed, and update memory.
 8. Only after Documenter sign-off: ask the human before opening the PR. The PR description must reference the council synthesis and confirm Documenter sign-off.
 
 ## Rules

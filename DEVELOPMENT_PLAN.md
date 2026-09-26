@@ -1,13 +1,14 @@
 # ChurchCore Development Plan
 
-**Living Document** - Last Updated: September 23, 2026
-**Version**: 2.1
+**Living Document** - Last Updated: September 26, 2026
+**Version**: 2.2
 **Purpose**: This is the single source of truth for all ChurchCore development. Every GitHub Issue, PR, sprint, and code review must reference this document. Update only via PR.
 
 Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual.md) summarizes the strategy, roadmap, boundary model, and Sprint 1 flow as diagrams. This document remains the source of truth.
 
 ## Table of Contents
 
+- [0. MVP Roadmap to October 30, 2026 (tracker)](#0-mvp-roadmap-to-october-30-2026-tracker) — **start here: all open work and its status**
 - [1. Project Vision & Scope](#1-project-vision--scope)
 - [2. User Roles & Portals](#2-user-roles--portals)
 - [3. Core Features](#3-core-features)
@@ -15,11 +16,187 @@ Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual
 - [5. Events, Calendar & Volunteer Management](#5-events-calendar--volunteer-management)
 - [6. Technology Stack](#6-technology-stack)
 - [7. Security, Privacy & Compliance](#7-security-privacy--compliance)
-- [8. Sprint Roadmap](#8-sprint-roadmap)
+- [8. Sprint Roadmap](#8-sprint-roadmap) (historical)
 - [9. Detailed Sprint 1 - Foundation & Member Portal](#9-detailed-sprint-1---foundation--member-portal)
 - [10. SDLC & Development Processes](#10-sdlc--development-processes)
 - [11. GitHub Discipline & Code Quality](#11-github-discipline--code-quality)
 - [12. How to Use This Plan](#12-how-to-use-this-plan)
+- [Current Status and History](#current-status-and-history)
+
+## 0. MVP Roadmap to October 30, 2026 (tracker)
+
+**This section is the single place for what's left before MVP, and it is the tracker.** Everything open is either a row in the tracker below or listed under "Deferred to after MVP". Nothing lives only in a Council write-up, the history further down, or chat. The owner set it on 2026-09-26.
+
+### 0.1 Target and rules
+
+- **MVP finish date: Friday, October 30, 2026.**
+- **MVP means:**
+  - all five competitive gaps meet their definition of done (in §0.3);
+  - the production-safety track (the `S` rows) is complete;
+  - the release checklist (§0.6) passes.
+- **The five competitive gaps**, ranked against Planning Center Online, Breeze ChMS and Tithe.ly (Council Review 9, re-verified in code 2026-09-25):
+  1. Service planning depth: setlists, song library, volunteer-role matching and rotation.
+  2. A phone-first member experience and a check-in kiosk.
+  3. Recurring giving and donor statements.
+  4. Migration from incumbents, with reconciliation.
+  5. Provider breadth: Resend, and accounting export.
+- **Retired gates.** The former Phase A–D gates are retired as MVP criteria. So is their blocker ("a church onboards uncoached" plus "a real-export migration dry-run"). Migration is validated against the incumbents' published export formats, not a partner church's data.
+- **Current MVP readiness: 70/100** (Council Review 19, 2026-09-26). R1 re-baselines it at MVP.
+- **Beta testers are welcome and never gate progress.**
+  - Their feedback becomes a tracker row (ID `B-n`) and is ranked like any other work.
+  - It is never a precondition for starting or finishing anything.
+  - Real-church usage is not an MVP criterion (decision 2026-09-26).
+- **The quality bar doesn't move for the date.**
+  - Every change ships its tests (`AGENTS.md`, `docs/testing.md`).
+  - CI stays blocking.
+  - The Council runs before every non-trivial merge.
+  - Scope is cut to meet the date; quality never is.
+- **Work order:** top to bottom within each week. The safety rows in a week land before that week's feature rows. S2 (webhooks fail closed, with F4) lands before G5.1 (Resend, F2), as the comms follow-ups require.
+- **Estimates** are in factory days: one story through build, tests, Council review and merge. They are calibrated on Service Planning Stories 1–3, which took about 1–2 days each, Council included.
+  - Must rows: 25 rows, 29.5 factory days, about 5.9 a week.
+  - Stretch rows: 4 rows, 4.5 factory days.
+  - Available: 25 working days (September 28 – October 30).
+  - **The Must work is about 20% over nominal capacity.** The plan relies on two things: the calibrated pace (smaller rows often finish in under their estimate) and the cut line (§0.4). This is the plan's main risk, and it's checked at every milestone.
+
+**Progress (update on every merge):** 0 of 25 Must rows done · 0 of 4 Stretch rows done · next milestone **M1, Friday October 2** · last updated 2026-09-26.
+
+### 0.2 Milestones
+
+| Milestone | Date | Exit criteria |
+|---|---|---|
+| **M0** | Mon Sep 28 | CI checks marked required on `main` (O1). Roadmap merged. |
+| **M1** | Fri Oct 2 | **Gap 1 (service planning) closed.** |
+| **M2** | Fri Oct 9 | **Production-safety track complete except `/hq`** (S1–S4, S6). Members can create, change and cancel recurring gifts (G3.1). |
+| **M3** | Fri Oct 16 | **Gap 3 (recurring giving and statements) closed.** `/hq` tenancy fixed (S5), so the safety track is complete. Resend live (G5.1). Giving, finance and comms untested exports at zero (T1a). |
+| **M4** | Fri Oct 23 | **Gaps 2 (phone-first and kiosk) and 4 (migration) closed.** |
+| **M5** | Fri Oct 30 | **Gap 5 closed.** Whole-app Council re-baseline passes. Release checklist passes. **MVP released.** |
+
+### 0.3 Tracker
+
+Status values: `Not started`, `In progress`, `Done (#PR)`, `Deferred (reason)`. Priority `Must` rows are MVP. `Stretch` rows fall under the cut line (§0.4).
+
+#### Owner actions
+
+| ID | Item | Due | Definition of done | Status |
+|---|---|---|---|---|
+| O1 | Mark CI checks required | Sep 28 | In GitHub branch protection for `main`, `verify` and `e2e (shard 1/4)`–`e2e (shard 4/4)` are required status checks. Checked 2026-09-26: none are required yet, so CI failures don't block merges. | Not started |
+
+#### Week 1 (Sep 28 – Oct 2), milestone M1: close gap 1 (6 must days)
+
+| ID | Priority | Item | Est. | Definition of done | Status |
+|---|---|---|---|---|---|
+| G1.4 | Must | Blockout dates (FS3-1) | 1.5 | A volunteer adds and removes unavailable dates from `/app/member/schedule`. An admin adds and removes them from the volunteer directory. The planner's "Unavailable that day" and the assign modal honor them. Unit, action, DB and journey tests. | Not started |
+| G1.5 | Must | Assignment notifications (FS3-2) | 1.5 | Assigning a volunteer, whether by hand or by auto-fill, sends an email (or SMS, if that's their preference) with the accept/decline link, through the existing communications pipeline, with consent and suppression respected. A decline shows the admin the top replacement suggestions. Tests, including the journey: assign → volunteer declines → admin sees replacements. | Not started |
+| G1.6 | Must | Church-timezone days (FS3-4) | 0.5 | Same-day conflicts, blockout dates, 30-day load and month counts use `churches.timezone`, not UTC. Test: an evening service in UTC−4 is on the right day. | Not started |
+| G1.7 | Must | Rehearsal scheduling (Story 4) | 1.5 | A plan can have one or more rehearsals (date, time, location, which positions attend). Assigned volunteers see them on their schedule and in the calendar. Assignment notifications include them. Journey test. | Not started |
+| G1.8 | Must | A service plan requires its event (Story 5) | 1 | A migration backfills an event for every plan without one, then makes `service_plans.event_id` NOT NULL. Creating a plan creates or links its event. `volunteer_shifts.event_id` is always set. DB and journey tests. | Not started |
+| G1.9 | Stretch | Transactional assign (FS3-3) | 0.5 | An `assign_volunteer_shift` RPC does the conflict, capacity and insert in one transaction. Two concurrent applies can't double-book a volunteer or over-fill a position (DB test). | Not started |
+
+**Gap 1 definition of done:** G1.4–G1.8 are done, and the service-planning journeys pass in CI: build a plan, add songs, assign by hand, auto-fill, notify, accept or decline, rehearsal.
+
+#### Week 2 (Oct 5 – Oct 9), milestone M2: safety track and recurring gifts (5.5 must days)
+
+| ID | Priority | Item | Est. | Definition of done | Status |
+|---|---|---|---|---|---|
+| S1 | Must | Communication-log access alignment (F7) | 1 | `communication_logs` RLS matches the page gates: a secretary can read what their pages show, and a ministry leader can no longer read logs the app denies them. A pure church-admin e2e fixture, so the sweep no longer passes through the platform-admin RLS bypass. DB tests for each role. | Not started |
+| S2 | Must | Webhooks fail closed (with F4) | 1 | All four delivery and payment webhooks (Stripe, SendGrid, Twilio, Resend) reject requests when their signing secret is unset, in every environment. Stripe enforces a replay window. The F4 webhook log lookup is verified: suppressions from bounces and STOPs are actually written. Route tests for each. | Not started |
+| S3 | Must | `/api/reports/custom` | 0.5 | `requireChurchSession` sits outside the `try`, so a signed-out user is redirected, not shown an error. The `queryTenantLocalDb` read is replaced with an RLS-respecting client. Tests. | Not started |
+| S4 | Must | Crons and demo routes fail closed (F8) | 0.5 | Cron routes reject requests without a valid `CRON_SECRET` outside local development. Demo-only routes return 403 when demo mode is off. Tests. | Not started |
+| S6 | Must | Server-side broadcast recipients (F6) | 0.5 | `broadcastMessageAction` resolves recipients from ids on the server and ignores client-supplied contact details. Tests. | Not started |
+| G3.1 | Must | Recurring gift creation | 2 | A member creates a recurring gift (amount, fund, weekly/biweekly/monthly, start date) as a Stripe subscription. They can change the amount, fund or frequency, pause, and cancel from `/app/member/giving`. An admin sees and manages recurring gifts. `lib/stripe/*` gets tests. Journey test. | Not started |
+
+#### Week 3 (Oct 12 – Oct 16), milestone M3: close gap 3 (6.5 must days)
+
+| ID | Priority | Item | Est. | Definition of done | Status |
+|---|---|---|---|---|---|
+| S5 | Must | `/hq` role source and tenancy | 1 | `/hq` authorizes from membership roles, like the rest of the app. The `hq_*` tables gain `church_id` with RLS. The profile-role drift found at Council Review 18 is traced and fixed. Tests. | Not started |
+| G3.2 | Must | Installments from Stripe webhooks | 1.5 | `invoice.paid`, `invoice.payment_failed` and `customer.subscription.updated` record each installment as a donation, send its receipt, and post it to the ledger through the existing finance posting. A failed payment notifies the donor. Webhook and finance tests. | Not started |
+| G3.3 | Must | Year-end giving statements | 2 | An admin generates per-donor statements for a date range (default: last calendar year): a PDF with the church header, gifts and the tax-deductibility wording. Batch email to donors, with consent respected. Members download their own from `/app/member/giving`. Tests and a journey. | Not started |
+| G5.1 | Must | Resend live and provider error codes (F2) | 1 | Resend is the email provider per ADR 0006, with SendGrid as the fallback. Both providers' HTTP statuses and errors map to the retry cron's transient codes. Adapter and cron tests. | Not started |
+| T1a | Must | Untested exports: giving, finance, comms | 1 | Zero `untestedExports` waivers in the giving, finance and communications action modules. | Not started |
+| G3.4 | Stretch | Pledges and campaigns | 1.5 | An admin creates a campaign (goal, dates, fund). A member pledges. Progress comes from actual gifts, and members see their own pledge progress. Tests. | Not started |
+
+**Gap 3 definition of done:** G3.1–G3.3 are done. Giving journeys pass in CI: one-time gift, recurring create, change and cancel, installment recorded and receipted, statement generated. Pledges (G3.4) are a stretch; if they're cut, they are recorded as deferred, not silently dropped.
+
+#### Week 4 (Oct 19 – Oct 23), milestone M4: close gaps 2 and 4 (5.5 must days)
+
+| ID | Priority | Item | Est. | Definition of done | Status |
+|---|---|---|---|---|---|
+| G2.1 | Must | Phone-first member flows | 1.5 | At 390×844, member home, schedule, giving and family meet all of these: 44px touch targets, no horizontal scroll, a single-column layout, primary actions within thumb reach. Includes the service-plan `SimpleGrid cols={3}` breakpoint, the missing calendar heading, the member-home timezone date glitch, and `RoleTypeManager` aria-labels. Mobile e2e checks at 390×844 assert all of the above. | Not started |
+| G2.2 | Must | Kiosk self check-in | 1.5 | A kiosk mode for children's check-in: large targets, family lookup by phone number or a check-in code, QR code entry, and an attended mode that locks navigation and times out to the start screen. Journey test at tablet size. | Not started |
+| G2.3 | Stretch | Offline member schedule | 1 | The service worker caches the member's schedule, with an "offline, last updated …" banner. Tested offline in e2e. | Not started |
+| G4.1 | Must | Published-format fixtures in CI | 1 | Fixtures that match Planning Center's and Breeze's published export formats for people, giving, attendance, groups and events. Each import adapter is tested against them in CI. | Not started |
+| G4.2 | Must | Post-import reconciliation | 1.5 | After every import, a report compares counts and giving totals per entity against the source file, lists mismatched and skipped rows with reasons, and can be downloaded. Tests and a journey: import fixture → reconciliation shows zero mismatches. | Not started |
+| G4.3 | Stretch | Guided migration flow | 1.5 | One ordered flow (people → groups → events → attendance → giving) with progress and resume, reusing the existing importers. Journey test. | Not started |
+
+**Gap 2 definition of done:** G2.1 and G2.2 are done, and the mobile and kiosk journeys pass in CI.
+**Gap 4 definition of done:** G4.1 and G4.2 are done, and the migration journey passes in CI.
+
+#### Week 5 (Oct 26 – Oct 30), milestone M5: close gap 5 and release (6 must days)
+
+| ID | Priority | Item | Est. | Definition of done | Status |
+|---|---|---|---|---|---|
+| G5.2 | Must | Accounting export | 1.5 | General-ledger export for a date range: QuickBooks-importable (IIF) and Xero-importable (CSV), with account mapping from the chart of accounts. Round-trip tests against the formats. | Not started |
+| T1b | Must | Untested exports: child safety, pastoral | 1 | Zero `untestedExports` waivers in the children's ministry and pastoral/elders action modules. | Not started |
+| T2 | Must | Journeys for the remaining core workflows | 1.5 | End-to-end journeys in CI for child check-in and check-out (with authorized pickup), pastoral care notes, and people and households. | Not started |
+| R1 | Must | Whole-app Council re-baseline | 1.5 | A full four-agent Council review, not diff-scoped. Every competitive gap is judged closed against its definition of done. No open Critical or High finding. Module percentages are re-scored (the last whole-app audit was Review 12). Findings are fixed or recorded as `B-`/deferred rows. | Not started |
+| R2 | Must | MVP release | 0.5 | Every item in the release checklist (§0.6) passes. A version bump, CHANGELOG release section and git tag. README and this plan state "MVP released 2026-10-30" with the re-baselined score. | Not started |
+
+**Gap 5 definition of done:** G5.1 and G5.2 are done.
+
+#### Beta feedback
+
+| ID | Priority | Item | Est. | Definition of done | Status |
+|---|---|---|---|---|---|
+| — | — | *(none yet)* | | | |
+
+### 0.4 Cut line
+
+On each milestone date, compare the Must rows due by then against their status.
+- **More than two factory days behind:** Stretch rows move to "Deferred to after MVP", in this order:
+  1. G3.4 pledges
+  2. G4.3 guided migration flow
+  3. G2.3 offline schedule
+  4. G1.9 transactional assign
+- **Still behind after that:** the owner decides whether to move the date or cut a Must row. That decision is recorded here with its date.
+- **Must rows are never silently dropped.**
+
+### 0.5 Deferred to after MVP
+
+Each item was triaged on 2026-09-26 from the Council reviews and the plan history. Each is deliberately out of MVP scope.
+
+| Item | Source | Why it's after MVP |
+|---|---|---|
+| Multi-week auto-scheduling, household "schedule with", volunteer-set preferred frequency (FS3-6) | Review 19 | Competitive long tail. The planner is complete without them. |
+| Share the burnout rule between `lib/burnout-calculator.ts` and the planner (FS3-5) | Review 19 | Duplicated constant. Behavior is already consistent, with the pool check the stricter one. |
+| DLQ visibility: Sentry reporting, a failure count in the cron response, a DLQ view (F3) | Reviews 16–17 | Operational visibility. Failures are already recorded in `communication_dlq`. |
+| Native-speaker review of the `es`/`es-PR` catalogs, and i18n coverage for unwired modules | Localization review, 2026-09-18 | Not one of the five competitive gaps. New MVP screens in already-localized modules still ship their strings. |
+| A centralized skill catalog and governance table | Review 15 | Free-text skills work for matching. |
+| Nested route-segment `error.tsx` / `loading.tsx` below `app/app`, `app/portal` and `app/control` | Reviews 12–13 | The root boundaries and skeletons already exist. |
+| CI build-once artifact; hosted-preview super-admin verification | Review 18 | CI speed and preview tooling, not product behavior. |
+| Workflow integrations (Zapier-style) and native mobile apps | Competitive gap 5 and gap 2 scope | Explicitly post-MVP in the gap definitions. |
+| Untested exports outside giving, finance, comms, child safety and pastoral | Review 18 (62 waivers) | The waiver list can only shrink (`test:surfaces`). MVP clears the risk-heavy modules (T1a, T1b), and the rest burns down after. |
+
+Closed on 2026-09-26 by a code check, so no row is needed:
+- the `/app/member` 404 risk (Review 11): it is served by `/app/[role]`;
+- `audit_log` missing `church_id` and `actor_role` (Review 10): both columns exist.
+
+### 0.6 MVP release checklist (R2)
+
+- [ ] Every Must row in §0.3 is `Done`, and every Stretch row is `Done` or `Deferred` with its reason.
+- [ ] Each gap's definition of done is met, confirmed by the R1 whole-app Council, with no open Critical or High finding.
+- [ ] CI is green on `main`: `verify` (lint, typecheck, unit, `test:surfaces`, RLS audit, `test:db`) and all e2e shards, **as required checks** (O1).
+- [ ] `npm run build` passes, `npm run lint:migrations` passes, and every migration applies cleanly to a fresh database.
+- [ ] Safety track S1–S6 is done, and `RELEASE_CHECKLIST.md` passes.
+- [ ] Every commit on `main` shows as verified.
+- [ ] CHANGELOG release section, version bump and tag. README and this plan updated with the release and the re-baselined MVP score.
+
+### 0.7 How this is tracked
+
+- **On every merge:** the Documenter (Council step 7, in `.claude`, `.codex` and `.gemini`) sets the row's status to `Done (#PR)` and updates the progress line in §0.1. A PR for a tracked item names its ID in the title, e.g. `feat: blockout dates (G1.4)`.
+- **On every milestone date:** compare against §0.2 and apply the cut line (§0.4). Record the result as a dated line under the milestone table.
+- **New work:** beta feedback, Council findings and discovered bugs become rows (`B-n` for beta feedback, or the next ID in their gap or track). Anything not made a row goes into §0.5 with a reason. No open item lives only in chat or in a review document.
+- **The history below (§ Current Status and History)** records what shipped and why. It is not where open work is tracked.
 
 ## 1. Project Vision & Scope
 
@@ -115,6 +292,8 @@ Implementation starts in later sprints.
 - Non-production environments must use anonymized or safe development data. Regular penetration testing remains required before launch.
 
 ## 8. Sprint Roadmap
+
+> **Historical.** This was the original sprint plan. Most of its scope shipped under different names through the Council process. Open work and dates are in [§0](#0-mvp-roadmap-to-october-30-2026-tracker).
 
 | Sprint | Focus | Goal | Estimated Duration |
 | --- | --- | --- | --- |
@@ -277,41 +456,17 @@ The control-plane / tenant split is fully live:
 - The shared-project fallback has been removed from `lib/supabase/config.ts`.
 - Migration `20260425010000_drop_control_plane_tables_from_tenant.sql` has been applied to the tenant project to drop the vestigial registry tables.
 
-## Current Status (2026-09-17)
+## Current Status and History
 
-This plan's sprint table above (§8) describes the original roadmap shape, not current delivery — actual work has run far past a linear Sprint 1→7 sequence via the Council Review protocol (`improve-software.md`, `docs/reviews/`). Treat the sprint table as historical framing, and this section as the accurate snapshot:
+This section is the history of what shipped and why, round by round through the Council Review protocol (`improve-software.md`, `docs/reviews/`). **Open work and status live in [§0](#0-mvp-roadmap-to-october-30-2026-tracker), not here.** Keep the two in sync: every Council round adds a history bullet here and updates §0's tracker rows.
 
-### MVP Readiness & Competitive Gaps (living snapshot)
-
-Update this table on every Council round — it is the scannable summary; the bulleted narrative below is the detailed history. Do not let this drift out of sync with the narrative the way it did before the Documenter role existed (see `improve-software.md` §0).
+### MVP readiness history
 
 **MVP readiness: 70/100** (Council Review 19, 2026-09-26): up from 69/100 at Review 18, up from 65/100, where it sat through Reviews 9–13. Service planning Stories 1–2, the blocking E2E test net, and now Story 3 (rotation planner) moved it.
 
-#### MVP definition (decision 2026-09-26)
+**The MVP definition, the five competitive gaps with their definitions of done, the working order and the production-safety track moved to [§0](#0-mvp-roadmap-to-october-30-2026-tracker) on 2026-09-26.** §0 is the one place for open work, tracked row by row against the October 30, 2026 finish date. The bullets below are the history of what shipped.
 
-**MVP is complete when all five ranked competitive gaps below meet their definition of done.** The product owner decided on 2026-09-26 that:
-
-- **Real-church usage and testing-church feedback no longer gate MVP or the roadmap.** Testing churches stay welcome. Their feedback is optional input, triaged like any other issue, and never a precondition for starting or finishing work.
-- The former Phase A–D gates, whose Phase D blocker was "a church onboards uncoached" plus "a real-export migration dry-run", are retired as MVP criteria. Migration is validated against the incumbents' published export formats rather than a partner church's data.
-- The engineering quality bar is unchanged. Every change ships its tests (`AGENTS.md`, `docs/testing.md`), CI stays blocking, and the Council runs before every non-trivial merge. Workflow journey tests (formerly "testing Story B") are no longer a separate milestone: each gap ships the end-to-end journey tests for its own features as part of its definition of done.
-
-#### Five ranked competitive gaps
-
-Compared against Planning Center Online, Breeze ChMS and Tithe.ly. The ranking comes from Council Review 9 Agent 4 and has held through Review 18. Status was re-verified in code on 2026-09-25; see `docs/plans/2026-09-25-mvp-competitive-status-report.md`. Gap 1's row was updated again 2026-09-26 per Council Review 19 (Story 3 shipped, not yet merged to `main`).
-
-| # | Gap | Status (2026-09-26) | Definition of done | Estimate |
-|---|---|---|---|---|
-| 1 | **Service planning depth**: setlists, song library, volunteer-role matching | **~85% closed.** Story 1 (song library and setlist builder, PR #146) and Story 2 (role taxonomy, team roster, skill-ranked assignment, PR #147) are merged. Story 3 (rotation planner — ranked suggestions, whole-plan auto-fill, monthly limits; Council Review 19, `feat/service-planning-rotation-planner`) is shipped, on this branch, not yet merged to `main`. Volunteer Scheduling module now scored at 84% (Agent 4). | **Next: blockout-date entry** (FS3-1 — volunteer self-service plus admin entry), recommended before Story 4 since without it the planner's "unavailable that day" signal only ever fires on seed data. Then **Story 4:** rehearsal scheduling. **Story 5:** a service plan requires its event. Journey tests for Story 3 (`tests/e2e/service-plan-rotation.spec.ts`) and its DB layer (`tests/database/volunteer-pool-functions.test.ts`) already ship with this branch. | 1–2 weeks remaining |
-| 2 | **Phone-first member experience and check-in kiosk** | **Partial.** An offline service worker, a children's check-in kiosk component, and member routes checked at 390×844 in CI all exist. Council judgment: functional, not phone-first. | Phone-first member home, schedule, giving and check-in flows (touch targets, layout, no horizontal scroll). A kiosk-grade self check-in (large targets, code or QR entry, attended mode). An offline member schedule. The accessibility gaps the sweep found (calendar heading). Mobile journey tests. | 2–3 weeks |
-| 3 | **Recurring giving and donor statements** | **Not usable.** Recurring gifts can be stored and cancelled, but nothing creates one (one-time Stripe payments only). Per-gift email receipts exist. No year-end statements, no pledges. | Members can create, change and cancel recurring gifts (Stripe subscriptions), and each installment is recorded from Stripe webhooks. Year-end giving statements (per donor, emailed and downloadable). Pledge/campaign tracking with progress. Finance posting for recurring installments. Journey tests. | 4–5 weeks |
-| 4 | **Migration and import from incumbents** | **Partial.** Planning Center and Breeze column mappings with dry-run previews exist for people, attendance, giving, events and groups. Finance import reads CSV, Excel, QuickBooks IIF and OFX/QFX. | Post-import reconciliation: counts and totals per entity vs. the source file, with a mismatch report. A guided end-to-end migration flow. Fixtures matching Planning Center and Breeze published export formats, tested in CI. Journey tests. | 2–3 weeks |
-| 5 | **Provider integration breadth** | Stripe, SendGrid, Twilio and Claude are wired. **Resend, the primary per ADR 0006, is not wired for sending.** No accounting export. | Resend selected per ADR 0006, with provider error codes mapped to retryable codes (F2, landing with or after F4: webhook hardening). Accounting export of the general ledger in QuickBooks- and Xero-compatible formats. Workflow integrations are post-MVP. | 3–4 weeks for MVP scope |
-
-**Working order:** gap 1 (blockout-date entry, FS3-1, next; then Stories 4–5), then gap 3 (recurring giving, the largest competitive hole), then gap 2, then gap 4, then gap 5.
-
-**Production-safety track** (small, runs alongside the gap work; these are defects, not features): communication-log access alignment (F7: secretary under-exposed, ministry-leader over-exposed); webhooks failing open when a provider secret is unset (with F4); the `/api/reports/custom` redirect and its RLS bypass; `/hq` role source and tenancy. Each of these must land before the product handles real church data in production.
-
-**Legacy doc note:** `docs/plans/mvp-competitive-go-no-go-checklist.md` and `docs/mvp-competitive-analysis.md` predate Council Review 9 and describe the retired Phase A–D gate framework. The 2026-09-26 MVP definition above supersedes them, and both now carry a superseded notice.
+**Legacy doc note:** `docs/plans/mvp-competitive-go-no-go-checklist.md` and `docs/mvp-competitive-analysis.md` predate Council Review 9 and describe the retired Phase A–D gate framework. The 2026-09-26 MVP definition in §0 supersedes them, and both now carry a superseded notice.
 
 - **Shipped and merged to `main`**: control-plane/tenant split (ADR 0002), localization governance framework (CC-L10N-001/002), Church Operations module, Communications send lifecycle, first AI Ministry Tools integration (CC-AI-001, Claude-powered sermon planning + Bible study Q&A), calendar overhaul, demo feedback hardening.
 - **Landed via Council Review 9** (this pass): ~3 months of previously-unmerged work — Project HQ governance dashboard, security/audit hardening (Council Reviews 2–7: consent-log immutability, pastoral-note encryption, audit logging, session timeout, CSV import limits, DB health checks), volunteer sessional confirmation system, sandbox onboarding wizard, hardened CSV import mapping, volunteer burnout/vitality analytics, custom report builder, and platform-admin tenant CRUD + data erasure (hardened per ADR 0021 as part of this round).
@@ -389,4 +544,4 @@ Compared against Planning Center Online, Breeze ChMS and Tithe.ly. The ranking c
   - **Follow-ups, not resolved on this branch** (owner-approved priority: FS3-1 first, before Story 4): **FS3-1 (High, adoption)** blockout-date entry — volunteer self-service from the member schedule page, plus admin entry in the directory; without it, "unavailable that day" only fires on seed data. **FS3-2 (Medium)** notify volunteers on assignment (auto-fill included), with an accept/decline link and a replacement suggestion after a decline. **FS3-3 (Medium)** a transactional `assign_volunteer_shift` RPC to close a narrow two-admins-applying-at-once race (a double-clicked Apply is already prevented). **FS3-4 (Medium)** church-timezone day bucketing — shifts, blocked dates and conflicts are UTC days today. **FS3-5 (Low)** share the 3-shifts-in-30-days rule between `lib/burnout-calculator.ts` and the planner, and align their windows. **FS3-6 (Low, competitive)** multi-week auto-scheduling, household "schedule with", and volunteer-set preferred frequency.
   - Full agent reports: [agent-1-database-api](docs/reviews/2026-09-26-council-review-19-agent-1-database-api.md), [agent-2-route-page](docs/reviews/2026-09-26-council-review-19-agent-2-route-page.md), [agent-3-ux-shell](docs/reviews/2026-09-26-council-review-19-agent-3-ux-shell.md), [agent-4-feature-competitive](docs/reviews/2026-09-26-council-review-19-agent-4-feature-competitive.md).
 
-**Next** (per the 2026-09-26 MVP definition above): service planning gap 1, **blockout-date entry (FS3-1)** — recommended by Council Review 19 as the next story, before Story 4, since without it the planner's "unavailable that day" signal only ever fires on seed data. `feat/service-planning-rotation-planner` (Story 3, Council Review 19) is built and verified but not yet merged to `main`; merge it (and stacked PR #151) first. Then **Story 4** (rehearsal scheduling) and **Story 5** (`event_id` required), then recurring giving (gap 3), mobile (gap 2), migration (gap 4) and providers (gap 5). The production-safety track (F7, webhook fail-open with F4, `/api/reports/custom`, `/hq`) runs alongside. Testing churches no longer gate any of this, and each gap ships its own journey tests. Residual, non-blocking backlog carried forward: nested route-segment `error.tsx` below `app/app`/`app/portal`/`app/control` and the still-unverified nested-`loading.tsx` gap in deeper member subroutes (both unchanged since Review 12/13); a pre-existing `SimpleGrid cols={3}` mobile-breakpoint issue, still present at `volunteer-schedule.tsx:1674` (surfaced by Council Review 14, reconfirmed by Council Review 15, not touched by the Story 3 branch either); `lib/stripe/*` remains untested (pre-existing, surfaced again by Council Review 14; `lib/volunteer-data.ts` gained tests on the Story 3 branch); missing contextual `aria-label`s on `RoleTypeManager`'s Edit/Deactivate buttons and no centralized skill catalog/governance table (both surfaced by Council Review 15); FS3-2…FS3-6 above (Council Review 19). Do not restart Sprint 2–7 framing from scratch — most of that scope has already shipped under different names via the Council process.
+**Next:** see [§0](#0-mvp-roadmap-to-october-30-2026-tracker). As of 2026-09-26 that is milestone M1: blockout dates (G1.4) first, then the rest of gap 1. Everything in the former residual backlog here was triaged into §0.3 (a tracker row) or §0.5 (deferred, with a reason). Do not restart Sprint 2–7 framing from scratch: most of that scope already shipped under different names through the Council process.

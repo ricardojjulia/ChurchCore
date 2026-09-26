@@ -15,7 +15,7 @@ ChurchCore is part of a broader product family:
 
 ## Product Position & Competitive Analysis
 
-> **MVP status: 70/100 (Council Review 19).** MVP is defined as closing five ranked competitive gaps against Planning Center, Breeze and Tithe.ly: service planning depth (~85% closed), phone-first mobile, recurring giving and statements, migration reconciliation, and provider breadth. See `DEVELOPMENT_PLAN.md` and `docs/plans/2026-09-25-mvp-competitive-status-report.md`.
+> **MVP status: 70/100 (Council Review 19). MVP target: October 30, 2026.** MVP is defined as closing five ranked competitive gaps against Planning Center, Breeze and Tithe.ly: service planning depth (~85% closed), phone-first mobile, recurring giving and statements, migration reconciliation, and provider breadth, plus a production-safety track. All open work, milestones and status are tracked in one place: [`DEVELOPMENT_PLAN.md` §0](DEVELOPMENT_PLAN.md#0-mvp-roadmap-to-october-30-2026-tracker).
 
 Key facts at a glance:
 
