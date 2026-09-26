@@ -1,5 +1,7 @@
 # ChurchCore — MVP & Competitive Status Report
 
+> **Superseded for planning, 2026-09-26:** open work, milestones and status now live in one tracker, [`DEVELOPMENT_PLAN.md` §0](../../DEVELOPMENT_PLAN.md#0-mvp-roadmap-to-october-30-2026-tracker), with an MVP finish date of October 30, 2026. This report remains the 2026-09-25 snapshot.
+
 > **Update 2026-09-26:** the product owner removed real-church usage and testing-church feedback as gates. MVP is now defined as closing the five competitive gaps in §4; the Phase A–D verdicts in §3 and the "recruit a pilot church" step in §7 are superseded. See `DEVELOPMENT_PLAN.md` for the updated definition and working order.
 
 **As of:** 2026-09-25 (`main` at `73680da`)
