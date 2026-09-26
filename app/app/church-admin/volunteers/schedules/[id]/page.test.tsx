@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ServicePlanDetail } from "@/lib/volunteer-types";
 
 const {
   notFoundMock,
@@ -32,7 +33,8 @@ const {
       {children}
     </div>
   )),
-  builderMock: vi.fn(() => <div>Service Plan Builder</div>),
+  // Typed via the generic so tests can read the props it was called with.
+  builderMock: vi.fn<(props: { detail: ServicePlanDetail }) => React.JSX.Element>(() => <div>Service Plan Builder</div>),
 }));
 
 vi.mock("next/navigation", () => ({

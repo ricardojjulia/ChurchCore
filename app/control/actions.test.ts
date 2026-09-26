@@ -36,7 +36,10 @@ const {
   );
   const tenantDelete = vi.fn(() => ({ eq: tenantEq }));
   const tenantInsert = vi.fn(() => Promise.resolve({ error: null }));
-  const tenantFrom = vi.fn(() => ({ delete: tenantDelete, insert: tenantInsert }));
+  // Typed via the generic: tests route by table name without an unused parameter.
+  const tenantFrom = vi.fn<(table: string) => { delete: typeof tenantDelete; insert: typeof tenantInsert }>(
+    () => ({ delete: tenantDelete, insert: tenantInsert }),
+  );
   const createTenantAdminClient = vi.fn(() => ({ from: tenantFrom }));
 
   return {
