@@ -65,7 +65,7 @@ export async function hydrateSandboxDataAction(): Promise<{ ok: boolean; error?:
 
     // 4. Insert mock events
     const e1 = await queryTenantLocalDb<{ id: string }>(
-      `insert into public.events (church_id, title, description, start, "end", category, visibility, rsvp_enabled)
+      `insert into public.events (church_id, title, description, starts_at, ends_at, category, visibility, rsvp_enabled)
        values ($1, 'Sunday Morning Worship', 'Weekly congregational worship service.',
                timezone('utc', now() + interval '2 days'), timezone('utc', now() + interval '2 days' + interval '2 hours'),
                'worship', 'members', true)
@@ -73,7 +73,7 @@ export async function hydrateSandboxDataAction(): Promise<{ ok: boolean; error?:
       [churchId],
     );
     await queryTenantLocalDb(
-      `insert into public.events (church_id, title, description, start, "end", category, visibility, rsvp_enabled)
+      `insert into public.events (church_id, title, description, starts_at, ends_at, category, visibility, rsvp_enabled)
        values ($1, 'Midweek Fellowship & Prayer', 'Small group sharing and prayers.',
                timezone('utc', now() + interval '5 days'), timezone('utc', now() + interval '5 days' + interval '1.5 hours'),
                'prayer', 'members', true)`,

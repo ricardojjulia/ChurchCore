@@ -97,6 +97,12 @@ export function MemberScheduleView({ shifts: initialShifts }: { shifts: MemberSc
                   })}
                 </Text>
               </Stack>
+              {shift.confirmationStatus === "confirmed" && (
+                <Button size="xs" color="red" variant="subtle" leftSection={<X size={13} />}
+                  onClick={() => setDeclineTarget(shift)} disabled={isPending}>
+                  {tr("cantMakeIt")}
+                </Button>
+              )}
               {shift.confirmationStatus === "pending" && (
                 <Group gap="xs">
                   <Button size="xs" color="green" leftSection={<Check size={13} />}

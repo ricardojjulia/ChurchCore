@@ -5,12 +5,22 @@ import { MemberBottomNav } from "@/components/application/member-bottom-nav";
 import { requireChurchSession } from "@/lib/auth";
 import { getMemberSchedule } from "@/lib/volunteer-data";
 import { MemberScheduleView } from "@/components/application/member-schedule";
+import { BlockoutDatesPanel } from "@/components/application/blockout-dates-panel";
+import { listMyBlockoutDatesAction } from "@/app/app/volunteer-actions";
+import { Stack } from "@mantine/core";
 
 export default async function MemberSchedulePage() {
   const session = await requireChurchSession("/app/member/schedule");
   if (session.appContext.roleId !== "member") redirect(session.homePath);
 
-  const shifts = await getMemberSchedule(session);
+  const [shifts, blockoutDates] = await Promise.all([
+    getMemberSchedule(session),
+    // A failed read shows an error in the panel instead of failing the page.
+    listMyBlockoutDatesAction().catch((error: unknown) => {
+      console.error("Failed to load unavailable dates:", error);
+      return null;
+    }),
+  ]);
 
   return (
     <ApplicationShell
@@ -29,7 +39,14 @@ export default async function MemberSchedulePage() {
       ]}
       bottomNav={<MemberBottomNav />}
     >
-      <MemberScheduleView shifts={shifts} />
+      <Stack gap="lg">
+        <MemberScheduleView shifts={shifts} />
+        <BlockoutDatesPanel
+          target={{ kind: "self" }}
+          initialDates={blockoutDates ?? []}
+          initialError={blockoutDates ? null : "load_failed"}
+        />
+      </Stack>
     </ApplicationShell>
   );
 }

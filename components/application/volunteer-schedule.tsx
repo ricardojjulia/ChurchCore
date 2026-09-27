@@ -2191,6 +2191,12 @@ export function ServicePlanBuilder({
                     <Group gap="sm">
                       <Text size="sm" fw={500}>{shift.volunteerName ?? "Unknown"}</Text>
                       {shift.volunteerEmail && <Text size="xs" c="dimmed">{shift.volunteerEmail}</Text>}
+                      {shift.volunteerUnavailable && shift.confirmationStatus !== "declined" ? (
+                        <Group gap={4} wrap="nowrap">
+                          <Badge size="xs" color="red" variant="light">Unavailable</Badge>
+                          <Text size="xs" c="red.8">Marked this date off. Find a replacement.</Text>
+                        </Group>
+                      ) : null}
                     </Group>
                     <Group gap="xs">
                       <Badge size="xs" color={CONFIRM_COLOR[shift.confirmationStatus]} variant="dot">

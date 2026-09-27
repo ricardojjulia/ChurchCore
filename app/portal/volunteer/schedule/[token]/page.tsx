@@ -1,39 +1,10 @@
 import type { Metadata } from "next";
-import { Paper, Stack, Text, Title, Badge, Card, Group } from "@mantine/core";
+import { Paper, Stack, Text, Title, Badge, Button, Card, Group } from "@mantine/core";
 import { Calendar, MapPin, CheckCircle, XCircle, HelpCircle } from "lucide-react";
-import Link from "next/link";
 
-import { getPublicVolunteerScheduleByToken } from "@/app/app/volunteer-actions";
-
-interface ScheduleShift {
-  id: string;
-  title: string;
-  confirmation_status: string;
-  starts_at: string;
-  ends_at: string;
-  events: {
-    title: string;
-    description: string | null;
-    start: string;
-    end: string;
-    category: string;
-  } | {
-    title: string;
-    description: string | null;
-    start: string;
-    end: string;
-    category: string;
-  }[] | null;
-  service_plans: {
-    name: string;
-    service_date: string;
-    service_time: string | null;
-  } | {
-    name: string;
-    service_date: string;
-    service_time: string | null;
-  }[] | null;
-}
+import { getPublicVolunteerScheduleByToken, listBlockoutDatesByTokenAction } from "@/app/app/volunteer-actions";
+import { BlockoutDatesPanel } from "@/components/application/blockout-dates-panel";
+import { describePublicShift, type PublicShift } from "@/lib/volunteer-portal";
 
 export const metadata: Metadata = {
   title: "Volunteer Schedule | ChurchCore",
@@ -46,7 +17,10 @@ export default async function VolunteerSchedulePage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const shifts = await getPublicVolunteerScheduleByToken(token);
+  const [shifts, blockoutDates] = await Promise.all([
+    getPublicVolunteerScheduleByToken(token),
+    listBlockoutDatesByTokenAction(token),
+  ]);
 
   const statusIcons: Record<string, React.ReactNode> = {
     confirmed: <CheckCircle className="text-green-500" size={20} />,
@@ -83,39 +57,17 @@ export default async function VolunteerSchedulePage({
             </Paper>
           ) : (
             <Stack gap="md">
-              {shifts.map((shift: ScheduleShift) => {
-                const rawEvent = Array.isArray(shift.events) ? shift.events[0] : shift.events;
-                const rawPlan = Array.isArray(shift.service_plans) ? shift.service_plans[0] : shift.service_plans;
-
-                const eventTitle = rawEvent?.title || rawPlan?.name || "Church Service";
-                const dateStr = rawPlan?.service_date
-                  ? new Date(rawPlan.service_date + "T00:00:00").toLocaleDateString("en-US", {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric",
-                    })
-                  : rawEvent?.start
-                  ? new Date(rawEvent.start).toLocaleDateString("en-US", {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric",
-                    })
-                  : "TBD";
-
-                const timeString = rawEvent
-                  ? `${new Date(rawEvent.start).toLocaleTimeString("en-US", {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })} - ${new Date(rawEvent.end).toLocaleTimeString("en-US", {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}`
-                  : rawPlan?.service_time
-                  ? new Date(`2000-01-01T${rawPlan.service_time}`).toLocaleTimeString("en-US", {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })
-                  : "TBD";
+              {(shifts as PublicShift[]).map((shift) => {
+                const { place: eventTitle, dateLabel: dateStr, timeLabel: timeString } = describePublicShift(shift);
+                // Respond only with this shift's own, unexpired token: only reminders create
+                // tokens today, and falling back to the page's token opened the wrong shift.
+                const respondToken =
+                  shift.confirmation_status !== "declined" &&
+                  shift.confirmation_token &&
+                  shift.confirmation_token_expires_at &&
+                  new Date(shift.confirmation_token_expires_at) > new Date()
+                    ? shift.confirmation_token
+                    : null;
 
                 return (
                   <Card key={shift.id} withBorder radius="md" padding="md" shadow="sm">
@@ -147,19 +99,37 @@ export default async function VolunteerSchedulePage({
 
                       <Group gap="sm">
                         {statusIcons[shift.confirmation_status]}
-                        {shift.confirmation_status === "pending" && (
-                          <Link href={`/portal/volunteer/confirm/${token}`} passHref>
-                            <Badge color="blue" variant="filled" style={{ cursor: "pointer" }}>
-                              Respond
-                            </Badge>
-                          </Link>
-                        )}
+                        {respondToken ? (
+                          // component="a", not Link: this is a server component, and a
+                          // function can't be passed to Mantine's client Button.
+                          <Button
+                            component="a"
+                            href={`/portal/volunteer/confirm/${respondToken}`}
+                            size="sm"
+                            variant={shift.confirmation_status === "pending" ? "filled" : "light"}
+                          >
+                            {shift.confirmation_status === "pending" ? "Respond" : "Can't make it?"}
+                          </Button>
+                        ) : shift.confirmation_status !== "declined" ? (
+                          <Text size="xs" c="dimmed" maw={140}>
+                            To change this, contact your team leader.
+                          </Text>
+                        ) : null}
                       </Group>
                     </Group>
                   </Card>
                 );
               })}
             </Stack>
+          )}
+
+          {/* Only for a valid, unexpired link (null otherwise). */}
+          {blockoutDates ? (
+            <BlockoutDatesPanel target={{ kind: "token", token }} initialDates={blockoutDates} />
+          ) : (
+            <Text size="sm" c="dimmed" ta="center">
+              This link has expired or isn&apos;t valid. Ask your team leader to send you a new one.
+            </Text>
           )}
         </Stack>
       </div>

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { ApplicationShell } from "@/components/application/app-shell";
+import { VolunteerBlockoutButton } from "@/components/application/volunteer-blockout-button";
 import { VolunteerFrequencyInput } from "@/components/application/volunteer-frequency-input";
 import { requireChurchSession } from "@/lib/auth";
 import { getVolunteerDirectory } from "@/lib/volunteer-data";
@@ -67,8 +68,8 @@ export default async function VolunteerDirectoryPage() {
           <Text c="dimmed" size="sm">No volunteer history yet. Assign volunteers to service plans to build this list.</Text>
         ) : (
           <Paper withBorder radius="md">
-            {/* 8 columns: scroll sideways on phones rather than overflow the page. */}
-            <TableScrollContainer minWidth={900}>
+            {/* 9 columns: scroll sideways on phones rather than overflow the page. */}
+            <TableScrollContainer minWidth={1000}>
             <Table highlightOnHover>
               <TableThead>
                 <TableTr>
@@ -80,6 +81,7 @@ export default async function VolunteerDirectoryPage() {
                   <TableTh>Background check</TableTh>
                   <TableTh>Skills</TableTh>
                   <TableTh>Monthly limit</TableTh>
+                  <TableTh>Unavailable</TableTh>
                 </TableTr>
               </TableThead>
               <TableTbody>
@@ -120,6 +122,9 @@ export default async function VolunteerDirectoryPage() {
                           fullName={v.fullName}
                           initialValue={v.maxServicesPerMonth}
                         />
+                      </TableTd>
+                      <TableTd>
+                        <VolunteerBlockoutButton profileId={v.profileId} fullName={v.fullName} />
                       </TableTd>
                     </TableTr>
                   );

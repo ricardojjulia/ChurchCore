@@ -6,40 +6,13 @@ import { Check, X, Calendar, Clock, MapPin, User, ChevronRight } from "lucide-re
 import Link from "next/link";
 
 import { respondToPublicShiftAction } from "@/app/app/volunteer-actions";
-
-type ShiftType = {
-  id: string;
-  title: string;
-  confirmation_status: string;
-  events?: {
-    title: string;
-    description: string | null;
-    start: string;
-    end: string;
-    category: string;
-  } | {
-    title: string;
-    description: string | null;
-    start: string;
-    end: string;
-    category: string;
-  }[] | null;
-  service_plans?: {
-    name: string;
-    service_date: string;
-    service_time: string | null;
-  } | {
-    name: string;
-    service_date: string;
-    service_time: string | null;
-  }[] | null;
-};
+import { describePublicShift, type PublicShift } from "@/lib/volunteer-portal";
 
 export function VolunteerConfirmClient({
   shift,
   token,
 }: {
-  shift: ShiftType;
+  shift: PublicShift;
   token: string;
 }) {
   const [isPending, startTransition] = useTransition();
@@ -48,40 +21,7 @@ export function VolunteerConfirmClient({
   const [declineReason, setDeclineReason] = useState("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const rawEvent = Array.isArray(shift.events) ? shift.events[0] : shift.events;
-  const rawPlan = Array.isArray(shift.service_plans) ? shift.service_plans[0] : shift.service_plans;
-
-  const eventTitle = rawEvent?.title || rawPlan?.name || "Church Service";
-  const serviceDate = rawPlan?.service_date
-    ? new Date(rawPlan.service_date + "T00:00:00").toLocaleDateString("en-US", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      })
-    : rawEvent?.start
-    ? new Date(rawEvent.start).toLocaleDateString("en-US", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      })
-    : "";
-
-  const timeString = rawEvent
-    ? `${new Date(rawEvent.start).toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-      })} - ${new Date(rawEvent.end).toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-      })}`
-    : rawPlan?.service_time
-    ? new Date(`2000-01-01T${rawPlan.service_time}`).toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : "TBD";
+  const { place: eventTitle, description, dateLabel: serviceDate, timeLabel: timeString } = describePublicShift(shift, "long");
 
   function handleResponse(response: "confirmed" | "declined") {
     if (response === "declined" && !declineMode) {
@@ -158,11 +98,11 @@ export function VolunteerConfirmClient({
         </Stack>
       </Paper>
 
-      {rawEvent?.description && (
+      {description && (
         <div>
           <Text fw={600} size="sm">Description</Text>
           <Text size="sm" c="dimmed" mt={4}>
-            {rawEvent.description}
+            {description}
           </Text>
         </div>
       )}

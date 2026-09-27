@@ -186,6 +186,37 @@ describe("volunteer-data loaders", () => {
         requiredSkills: ["audio"],
       });
     });
+
+    it("flags an assigned volunteer who has since blocked the plan's date (G1.4)", async () => {
+      const shiftRow = (id: string, profileId: string, status: string) => ({
+        id, church_id: "church-1", event_id: null, plan_id: "plan-1", position_id: "pos-1",
+        assigned_user_id: profileId, title: "Greeter", starts_at: "2026-05-03T09:00:00+00:00",
+        ends_at: "2026-05-03T11:00:00+00:00", status: "assigned", confirmation_status: status,
+        profiles: { full_name: profileId, email: null, phone: null },
+      });
+      const builders = mockSupabasePath({
+        service_plans: [{ data: planRow, error: null }],
+        service_plan_positions: [{
+          data: [{ id: "pos-1", plan_id: "plan-1", church_id: "church-1", role_type_id: "rt-1", quantity_needed: 2,
+            ministry_id: null, sort_order: 0, service_plan_role_types: { name: "Greeter", required_skills: [] } }],
+          error: null,
+        }],
+        volunteer_shifts: [{ data: [shiftRow("s-1", "p-away", "pending"), shiftRow("s-2", "p-here", "confirmed")], error: null }],
+        volunteer_shift_reminders: [{ data: [], error: null }],
+        volunteer_blocked_dates: [{ data: [{ profile_id: "p-away" }], error: null }],
+        service_plan_items: [{ data: [], error: null }],
+      });
+
+      const result = await getServicePlanDetail(sessionFor("church-1"), "plan-1");
+
+      const shifts = result?.positions[0].shifts ?? [];
+      expect(shifts.map((sh) => [sh.assignedUserId, sh.volunteerUnavailable])).toEqual([
+        ["p-away", true],
+        ["p-here", false],
+      ]);
+      expect(builders.volunteer_blocked_dates.eq).toHaveBeenCalledWith("blocked_date", "2026-05-03");
+      expect(builders.volunteer_blocked_dates.in).toHaveBeenCalledWith("profile_id", ["p-away", "p-here"]);
+    });
   });
 
   // ── getChurchSkillOptions ─────────────────────────────────────
