@@ -1,25 +1,33 @@
 "use client";
 
-import { ActionIcon, Alert, Badge, Button, Group, Paper, Stack, Text, TextInput, Title } from "@mantine/core";
+import { ActionIcon, Button, Group, Paper, Stack, Text, TextInput, Title } from "@mantine/core";
 import { CalendarX, Trash2 } from "lucide-react";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import {
   addBlockoutDatesByTokenAction,
   addMyBlockoutDatesAction,
   addVolunteerBlockoutDatesAction,
   listVolunteerBlockoutDatesAction,
-  removeBlockoutDateByTokenAction,
-  removeMyBlockoutDateAction,
-  removeVolunteerBlockoutDateAction,
+  removeBlockoutDatesByTokenAction,
+  removeMyBlockoutDatesAction,
+  removeVolunteerBlockoutDatesAction,
   type BlockoutChangeResult,
+  type ScheduledShiftDay,
 } from "@/app/app/volunteer-actions";
-import type { BlockoutDate } from "@/lib/blockout-dates";
+import { useI18n } from "@/components/i18n-provider";
+import {
+  groupBlockoutRanges,
+  type BlockoutDate,
+  type BlockoutErrorCode,
+  type BlockoutRange,
+} from "@/lib/blockout-dates";
 
 /**
  * Who the dates belong to, and so which actions apply:
  *  - "self": the signed-in person (member schedule page);
- *  - "token": a volunteer using their emailed schedule link;
+ *  - "token": a volunteer using their volunteer link (the schedule page
+ *    linked from the emailed confirm link);
  *  - "admin": a service-plan admin managing a volunteer (directory).
  */
 export type BlockoutTarget =
@@ -27,45 +35,72 @@ export type BlockoutTarget =
   | { kind: "token"; token: string }
   | { kind: "admin"; profileId: string; fullName: string };
 
-function formatDay(day: string) {
-  return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
+const ERROR_KEYS: Record<BlockoutErrorCode | "load_failed", string> = {
+  invalid_date: "errInvalidDate",
+  end_before_start: "errEndBeforeStart",
+  past: "errPast",
+  too_far: "errTooFar",
+  range_too_long: "errRangeTooLong",
+  link_expired: "errLinkExpired",
+  not_found: "errNotFound",
+  save_failed: "errSave",
+  load_failed: "errLoad",
+};
 
-function add(target: BlockoutTarget, input: { from: string; to: string | null; reason: string | null }) {
+type Range = { from: string; to: string | null };
+
+function add(target: BlockoutTarget, input: Range & { reason: string | null }) {
   if (target.kind === "self") return addMyBlockoutDatesAction(input);
   if (target.kind === "token") return addBlockoutDatesByTokenAction({ token: target.token, ...input });
   return addVolunteerBlockoutDatesAction({ profileId: target.profileId, ...input });
 }
 
-function remove(target: BlockoutTarget, date: string) {
-  if (target.kind === "self") return removeMyBlockoutDateAction({ date });
-  if (target.kind === "token") return removeBlockoutDateByTokenAction({ token: target.token, date });
-  return removeVolunteerBlockoutDateAction({ profileId: target.profileId, date });
+function remove(target: BlockoutTarget, range: Range) {
+  if (target.kind === "self") return removeMyBlockoutDatesAction(range);
+  if (target.kind === "token") return removeBlockoutDatesByTokenAction({ token: target.token, ...range });
+  return removeVolunteerBlockoutDatesAction({ profileId: target.profileId, ...range });
 }
 
 export function BlockoutDatesPanel({
   target,
   initialDates,
+  initialError = null,
   withTitle = true,
 }: {
   target: BlockoutTarget;
   /** Null means "load them" (the admin view opens without them). */
   initialDates: BlockoutDate[] | null;
+  /** Set when the page couldn't load the dates, so the panel says so instead of the page failing. */
+  initialError?: "load_failed" | null;
   withTitle?: boolean;
 }) {
+  const { locale, t } = useI18n();
+  const tr = (key: string, values?: Record<string, string | number>) => t("blockoutDates", key, values);
+  const intlLocale = locale === "en" ? "en-US" : locale === "es-PR" ? "es-PR" : "es-US";
+  const formatDay = (day: string) =>
+    new Date(`${day}T00:00:00Z`).toLocaleDateString(intlLocale, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  const describeRange = (range: BlockoutRange) =>
+    range.days === 1 ? formatDay(range.from) : `${formatDay(range.from)} – ${formatDay(range.to)}`;
+
   const [dates, setDates] = useState<BlockoutDate[] | null>(initialDates);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [reason, setReason] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [scheduledOn, setScheduledOn] = useState<string[]>([]);
-  const [isPending, startTransition] = useTransition();
+  const [errorCode, setErrorCode] = useState<BlockoutErrorCode | "load_failed" | null>(initialError);
+  const [status, setStatus] = useState<{ saved: boolean; scheduledOn: ScheduledShiftDay[] }>({
+    saved: false,
+    scheduledOn: [],
+  });
+  const [isAdding, startAdding] = useTransition();
+  const [removingFrom, setRemovingFrom] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const fromRef = useRef<HTMLInputElement>(null);
 
   const adminProfileId = target.kind === "admin" ? target.profileId : null;
   useEffect(() => {
@@ -75,10 +110,10 @@ export function BlockoutDatesPanel({
       .then((res) => {
         if (cancelled) return;
         if (res.ok) setDates(res.dates);
-        else setError(res.error);
+        else setErrorCode(res.code);
       })
       .catch(() => {
-        if (!cancelled) setError("Couldn't load unavailable dates.");
+        if (!cancelled) setErrorCode("load_failed");
       });
     return () => {
       cancelled = true;
@@ -87,134 +122,181 @@ export function BlockoutDatesPanel({
 
   function apply(result: BlockoutChangeResult) {
     if (!result.ok) {
-      setError(result.error);
+      setErrorCode(result.code);
+      setStatus({ saved: false, scheduledOn: [] });
       return false;
     }
-    setError(null);
+    setErrorCode(null);
     setDates(result.dates);
-    setScheduledOn(result.scheduledOn);
+    setStatus({ saved: true, scheduledOn: result.scheduledOn });
     return true;
   }
 
   function handleAdd() {
-    startTransition(async () => {
+    startAdding(async () => {
       try {
         if (apply(await add(target, { from, to: to || null, reason: reason || null }))) {
           setFrom("");
           setTo("");
           setReason("");
+          fromRef.current?.focus();
         }
       } catch {
-        setError("Couldn't save. Please try again.");
+        setErrorCode("save_failed");
       }
     });
   }
 
-  function handleRemove(day: string) {
-    startTransition(async () => {
-      try {
-        apply(await remove(target, day));
-      } catch {
-        setError("Couldn't remove that date. Please try again.");
-      }
-    });
+  async function handleRemove(range: BlockoutRange) {
+    setRemovingFrom(range.from);
+    try {
+      // The removed row disappears, so move focus to the list rather than the page body.
+      if (apply(await remove(target, { from: range.from, to: range.to }))) listRef.current?.focus();
+    } catch {
+      setErrorCode("save_failed");
+    } finally {
+      setRemovingFrom(null);
+    }
   }
+
+  const ranges = dates ? groupBlockoutRanges(dates) : null;
+  const previewDays =
+    from && to && to >= from ? Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1 : 1;
+  const preview = from
+    ? previewDays > 1
+      ? tr("previewRange", { from: formatDay(from), to: formatDay(to), count: previewDays })
+      : tr("previewOne", { date: formatDay(from) })
+    : null;
 
   const who = target.kind === "admin" ? target.fullName : null;
+  const scheduled = status.scheduledOn;
+  const shiftList = scheduled.map((shift) => `${formatDay(shift.date)} (${shift.title})`).join(", ");
+  const which = tr(scheduled.length === 1 ? "thatShift" : "thoseShifts");
   const scheduledHint =
     target.kind === "admin"
-      ? `${who} is already scheduled on ${scheduledOn.map(formatDay).join(", ")}. Find a replacement on those plans.`
-      : `You're already scheduled on ${scheduledOn.map(formatDay).join(", ")}. Please also decline ${
-          scheduledOn.length === 1 ? "that shift" : "those shifts"
-        } so your team can find someone else.`;
+      ? tr("scheduledAdmin", { name: who ?? "", shifts: shiftList })
+      : tr(target.kind === "token" ? "scheduledToken" : "scheduledSelf", { shifts: shiftList, which });
 
   return (
     <Paper withBorder radius="md" p="md" data-testid="blockout-dates">
       <Stack gap="sm">
         {withTitle ? (
           <Group gap="xs">
-            <CalendarX size={18} />
+            <CalendarX size={18} aria-hidden />
             <Title order={3} size="h5">
-              {who ? `Unavailable dates — ${who}` : "Dates I can't serve"}
+              {who ? tr("adminTitle", { name: who }) : tr("title")}
             </Title>
           </Group>
         ) : null}
         <Text size="sm" c="dimmed">
-          {who
-            ? "Days this volunteer can't serve. They won't be suggested or auto-filled on these days."
-            : "Let your team know the days you're away. You won't be scheduled on them."}
+          {who ? tr("adminIntro") : tr("intro")}
         </Text>
 
-        {error ? (
-          <Alert color="red" variant="light" role="alert">
-            {error}
-          </Alert>
-        ) : null}
-        {scheduledOn.length > 0 ? (
-          <Alert color="yellow" variant="light" role="status">
-            {scheduledHint}
-          </Alert>
-        ) : null}
+        {/* Always rendered, so screen readers announce changes reliably. */}
+        <div role="alert" aria-live="assertive">
+          {errorCode ? (
+            <Text size="sm" c="red">
+              {tr(ERROR_KEYS[errorCode])}
+            </Text>
+          ) : null}
+        </div>
+        <div role="status" aria-live="polite">
+          {scheduled.length > 0 ? (
+            <Text size="sm" c="orange.8" fw={500}>
+              {scheduledHint}
+            </Text>
+          ) : status.saved ? (
+            <Text size="sm" c="teal.8">
+              {tr("saved")}
+            </Text>
+          ) : null}
+        </div>
 
         <Group align="flex-end" gap="xs" wrap="wrap">
-          <TextInput type="date" label="From" value={from} onChange={(e) => setFrom(e.currentTarget.value)} required w={160} />
+          <TextInput
+            ref={fromRef}
+            type="date"
+            label={tr("firstDay")}
+            value={from}
+            onChange={(e) => setFrom(e.currentTarget.value)}
+            required
+            w={{ base: "100%", sm: 170 }}
+          />
           <TextInput
             type="date"
-            label="To (optional)"
+            label={tr("lastDay")}
             value={to}
             min={from || undefined}
             onChange={(e) => setTo(e.currentTarget.value)}
-            w={160}
+            w={{ base: "100%", sm: 230 }}
           />
           <TextInput
-            label="Reason (optional)"
-            placeholder="e.g. Family trip"
+            label={tr("reason")}
+            placeholder={tr("reasonPlaceholder")}
             value={reason}
             maxLength={200}
             onChange={(e) => setReason(e.currentTarget.value)}
-            style={{ flex: 1, minWidth: 160 }}
+            w={{ base: "100%", sm: "auto" }}
+            style={{ flex: 1, minWidth: 180 }}
           />
-          <Button onClick={handleAdd} disabled={!from} loading={isPending}>
-            Add
+          <Button onClick={handleAdd} disabled={!from} loading={isAdding} h={44} w={{ base: "100%", sm: "auto" }}>
+            {tr("add")}
           </Button>
         </Group>
+        {preview ? (
+          <Text size="xs" c="dimmed" data-testid="blockout-preview">
+            {preview}
+          </Text>
+        ) : null}
 
-        {dates === null ? (
-          <Text size="sm" c="dimmed">
-            Loading…
-          </Text>
-        ) : dates.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            No upcoming unavailable dates.
-          </Text>
-        ) : (
-          <Stack gap={4}>
-            {dates.map((entry) => (
-              <Group key={entry.date} justify="space-between" wrap="nowrap">
-                <Group gap="xs" wrap="nowrap">
-                  <Badge variant="light" color="gray">
-                    {formatDay(entry.date)}
-                  </Badge>
-                  {entry.reason ? (
-                    <Text size="sm" c="dimmed" lineClamp={1}>
-                      {entry.reason}
-                    </Text>
-                  ) : null}
-                </Group>
-                <ActionIcon
-                  variant="subtle"
-                  color="red"
-                  size="lg"
-                  aria-label={`Remove ${formatDay(entry.date)}`}
-                  onClick={() => handleRemove(entry.date)}
-                  disabled={isPending}
-                >
-                  <Trash2 size={16} />
-                </ActionIcon>
-              </Group>
-            ))}
-          </Stack>
-        )}
+        <div ref={listRef} tabIndex={-1} style={{ outline: "none" }}>
+          {ranges === null ? (
+            <Text size="sm" c="dimmed">
+              {tr("loading")}
+            </Text>
+          ) : ranges.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              {tr("empty")}
+            </Text>
+          ) : (
+            <Stack gap={4}>
+              {ranges.map((range) => {
+                const label = describeRange(range);
+                return (
+                  <Group key={range.from} justify="space-between" wrap="nowrap">
+                    <Stack gap={0} style={{ minWidth: 0 }}>
+                      <Text size="sm" fw={500}>
+                        {label}
+                        {range.days > 1 ? (
+                          <Text span size="xs" c="dimmed">
+                            {" "}
+                            · {tr("days", { count: range.days })}
+                          </Text>
+                        ) : null}
+                      </Text>
+                      {range.reason ? (
+                        <Text size="xs" c="dimmed" lineClamp={1}>
+                          {range.reason}
+                        </Text>
+                      ) : null}
+                    </Stack>
+                    <ActionIcon
+                      variant="subtle"
+                      color="red"
+                      size="xl"
+                      aria-label={tr("remove", { dates: label })}
+                      onClick={() => handleRemove(range)}
+                      loading={removingFrom === range.from}
+                      disabled={removingFrom !== null && removingFrom !== range.from}
+                    >
+                      <Trash2 size={18} />
+                    </ActionIcon>
+                  </Group>
+                );
+              })}
+            </Stack>
+          )}
+        </div>
       </Stack>
     </Paper>
   );

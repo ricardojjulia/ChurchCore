@@ -60,6 +60,20 @@ async function createLinkShift(profileId: string, title: string) {
   return token;
 }
 
+/** A pending shift with no token: only reminders create tokens today (G1.5 changes that). */
+async function createShiftWithoutToken(profileId: string, title: string) {
+  await queryTenantDb(
+    `insert into public.volunteer_shifts
+       (church_id, event_id, assigned_user_id, title, starts_at, ends_at, status, confirmation_status, volunteer_notes)
+     select sp.church_id, sp.event_id, $2, $3,
+            (sp.service_date + 61)::timestamp + interval '9 hours',
+            (sp.service_date + 61)::timestamp + interval '11 hours',
+            'assigned', 'pending', $4
+     from public.service_plans sp where sp.id = $1`,
+    [PLAN_ID, profileId, title, E2E_REASON],
+  );
+}
+
 async function cleanUp() {
   await queryTenantDb(`delete from public.volunteer_shifts where plan_id = $1 or volunteer_notes = $2`, [PLAN_ID, E2E_REASON]);
   await queryTenantDb(`delete from public.volunteer_blocked_dates where reason = $1`, [E2E_REASON]);
@@ -143,7 +157,9 @@ test.describe("Service plan rotation planner", () => {
   });
 
   test("a volunteer marks the service date unavailable from their schedule link, and auto-fill skips them", async ({ page }) => {
-    const token = await createLinkShift(await profileIdByEmail("maya@graceharbor.church"), "E2E Greeter");
+    const maya = await profileIdByEmail("maya@graceharbor.church");
+    const token = await createLinkShift(maya, "E2E Greeter");
+    await createShiftWithoutToken(maya, "E2E Usher Untokened");
     const planDate = (
       await queryTenantDb<{ d: string }>(`select service_date::text as d from public.service_plans where id = $1`, [PLAN_ID])
     ).rows[0].d;
@@ -151,10 +167,16 @@ test.describe("Service plan rotation planner", () => {
     // The schedule link lists the volunteer's shifts (it errored on every load before G1.4).
     await page.goto(`/portal/volunteer/schedule/${token}`);
     await page.waitForLoadState("networkidle");
-    await expect(page.getByRole("main").getByText("E2E Greeter")).toBeVisible();
+    const main = page.getByRole("main");
+    await expect(main.getByText("E2E Greeter")).toBeVisible();
+    // Only the shift with its own token can be answered from here; the other
+    // one must not borrow this page's token (it opened the wrong shift).
+    await expect(main.getByText("E2E Usher Untokened")).toBeVisible();
+    await expect(main.getByRole("link", { name: "Respond" })).toHaveCount(1);
+    await expect(main.getByText("To change this, contact your team leader.")).toBeVisible();
 
     const panel = page.getByTestId("blockout-dates");
-    await panel.getByLabel(/^From/).fill(planDate);
+    await panel.getByLabel(/^First day/).fill(planDate);
     await panel.getByLabel("Reason (optional)").fill(E2E_REASON);
     await panel.getByRole("button", { name: "Add" }).click();
     await expect(panel.getByRole("button", { name: /^Remove / })).toHaveCount(1);

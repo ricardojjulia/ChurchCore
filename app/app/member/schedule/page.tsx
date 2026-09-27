@@ -13,7 +13,14 @@ export default async function MemberSchedulePage() {
   const session = await requireChurchSession("/app/member/schedule");
   if (session.appContext.roleId !== "member") redirect(session.homePath);
 
-  const [shifts, blockoutDates] = await Promise.all([getMemberSchedule(session), listMyBlockoutDatesAction()]);
+  const [shifts, blockoutDates] = await Promise.all([
+    getMemberSchedule(session),
+    // A failed read shows an error in the panel instead of failing the page.
+    listMyBlockoutDatesAction().catch((error: unknown) => {
+      console.error("Failed to load unavailable dates:", error);
+      return null;
+    }),
+  ]);
 
   return (
     <ApplicationShell
@@ -34,7 +41,11 @@ export default async function MemberSchedulePage() {
     >
       <Stack gap="lg">
         <MemberScheduleView shifts={shifts} />
-        <BlockoutDatesPanel target={{ kind: "self" }} initialDates={blockoutDates} />
+        <BlockoutDatesPanel
+          target={{ kind: "self" }}
+          initialDates={blockoutDates ?? []}
+          initialError={blockoutDates ? null : "load_failed"}
+        />
       </Stack>
     </ApplicationShell>
   );

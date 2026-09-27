@@ -54,11 +54,11 @@ Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual
 - **Work order:** top to bottom within each week. The safety rows in a week land before that week's feature rows. S2 (webhooks fail closed, with F4) lands before G5.1 (Resend, F2), as the comms follow-ups require.
 - **Estimates** are in factory days: one story through build, tests, Council review and merge. They are calibrated on Service Planning Stories 1–3, which took about 1–2 days each, Council included.
   - Must rows: 25 rows, 29.5 factory days, about 5.9 a week.
-  - Stretch rows: 4 rows, 4.5 factory days.
+  - Stretch rows: 5 rows, 5.5 factory days.
   - Available: 25 working days (September 28 – October 30).
   - **The Must work is about 20% over nominal capacity.** The plan relies on two things: the calibrated pace (smaller rows often finish in under their estimate) and the cut line (§0.4). This is the plan's main risk, and it's checked at every milestone.
 
-**Progress (update on every merge):** 0 of 25 Must rows done · 0 of 4 Stretch rows done · next milestone **M1, Friday October 2** · last updated 2026-09-26.
+**Progress (update on every merge):** 0 of 25 Must rows done · 0 of 5 Stretch rows done · next milestone **M1, Friday October 2** · last updated 2026-09-26.
 
 ### 0.2 Milestones
 
@@ -86,11 +86,12 @@ Status values: `Not started`, `In progress`, `Done (#PR)`, `Deferred (reason)`. 
 | ID | Priority | Item | Est. | Definition of done | Status |
 |---|---|---|---|---|---|
 | G1.4 | Must | Blockout dates (FS3-1) | 1.5 | A volunteer adds and removes unavailable dates from `/app/member/schedule`. An admin adds and removes them from the volunteer directory. The planner's "Unavailable that day" and the assign modal honor them. Unit, action, DB and journey tests. | In progress (`feat/blockout-dates-g1-4`) |
-| G1.5 | Must | Assignment notifications (FS3-2) | 1.5 | Assigning a volunteer, whether by hand or by auto-fill, sends an email (or SMS, if that's their preference) with the accept/decline link, through the existing communications pipeline, with consent and suppression respected. A decline shows the admin the top replacement suggestions. Tests, including the journey: assign → volunteer declines → admin sees replacements. | Not started |
+| G1.5 | Must | Assignment notifications (FS3-2) | 1.5 | Assigning a volunteer, whether by hand or by auto-fill, sends an email (or SMS, if that's their preference) with the accept/decline link, through the existing communications pipeline, with consent and suppression respected. A decline shows the admin the top replacement suggestions. **Every assignment (manual and auto-fill) creates the shift's own confirmation token, valid until the shift date plus 7 days** (today only a manual reminder creates one, with a fixed 14-day expiry; Council Review 20). The roster shows the reason when an assigned volunteer has blocked the date. Tests, including the journey: assign → volunteer declines → admin sees replacements. | Not started |
 | G1.6 | Must | Church-timezone days (FS3-4) | 0.5 | Same-day conflicts, blockout dates, 30-day load and month counts use `churches.timezone`, not UTC. Test: an evening service in UTC−4 is on the right day. | Not started |
 | G1.7 | Must | Rehearsal scheduling (Story 4) | 1.5 | A plan can have one or more rehearsals (date, time, location, which positions attend). Assigned volunteers see them on their schedule and in the calendar. Assignment notifications include them. Journey test. | Not started |
 | G1.8 | Must | A service plan requires its event (Story 5) | 1 | A migration backfills an event for every plan without one, then makes `service_plans.event_id` NOT NULL. Creating a plan creates or links its event. `volunteer_shifts.event_id` is always set. DB and journey tests. | Not started |
 | G1.9 | Stretch | Transactional assign (FS3-3) | 0.5 | An `assign_volunteer_shift` RPC does the conflict, capacity and insert in one transaction. Two concurrent applies can't double-book a volunteer or over-fill a position (DB test). | Not started |
+| G1.10 | Stretch | Recurring blockouts | 1 | A volunteer or admin adds a repeating unavailability, e.g. every other Sunday or every first Sunday of the month, until an end date. It expands into day rows, within the existing 90-day and one-year limits. The top remaining parity gap with Planning Center blockouts (Council Review 20). Tests. | Not started |
 
 **Gap 1 definition of done:** G1.4–G1.8 are done, and the service-planning journeys pass in CI: build a plan, add songs, assign by hand, auto-fill, notify, accept or decline, rehearsal.
 
@@ -100,7 +101,7 @@ Status values: `Not started`, `In progress`, `Done (#PR)`, `Deferred (reason)`. 
 |---|---|---|---|---|---|
 | S1 | Must | Communication-log access alignment (F7) | 1 | `communication_logs` RLS matches the page gates: a secretary can read what their pages show, and a ministry leader can no longer read logs the app denies them. A pure church-admin e2e fixture, so the sweep no longer passes through the platform-admin RLS bypass. DB tests for each role. | Not started |
 | S2 | Must | Webhooks fail closed (with F4) | 1 | All four delivery and payment webhooks (Stripe, SendGrid, Twilio, Resend) reject requests when their signing secret is unset, in every environment. Stripe enforces a replay window. The F4 webhook log lookup is verified: suppressions from bounces and STOPs are actually written. Route tests for each. | Not started |
-| S3 | Must | `/api/reports/custom` | 0.5 | `requireChurchSession` sits outside the `try`, so a signed-out user is redirected, not shown an error. The `queryTenantLocalDb` read is replaced with an RLS-respecting client. Tests. | Not started |
+| S3 | Must | `/api/reports/custom` | 0.5 | `requireChurchSession` sits outside the `try`, so a signed-out user is redirected, not shown an error. The `queryTenantLocalDb` read is replaced with an RLS-respecting client, which also removes the events export's non-existent `start`/`"end"` columns (Council Review 20). Tests. | Not started |
 | S4 | Must | Crons and demo routes fail closed (F8) | 0.5 | Cron routes reject requests without a valid `CRON_SECRET` outside local development. Demo-only routes return 403 when demo mode is off. Tests. | Not started |
 | S6 | Must | Server-side broadcast recipients (F6) | 0.5 | `broadcastMessageAction` resolves recipients from ids on the server and ignores client-supplied contact details. Tests. | Not started |
 | G3.1 | Must | Recurring gift creation | 2 | A member creates a recurring gift (amount, fund, weekly/biweekly/monthly, start date) as a Stripe subscription. They can change the amount, fund or frequency, pause, and cancel from `/app/member/giving`. An admin sees and manages recurring gifts. `lib/stripe/*` gets tests. Journey test. | Not started |
@@ -157,7 +158,8 @@ On each milestone date, compare the Must rows due by then against their status.
   1. G3.4 pledges
   2. G4.3 guided migration flow
   3. G2.3 offline schedule
-  4. G1.9 transactional assign
+  4. G1.10 recurring blockouts
+  5. G1.9 transactional assign
 - **Still behind after that:** the owner decides whether to move the date or cut a Must row. That decision is recorded here with its date.
 - **Must rows are never silently dropped.**
 
@@ -176,6 +178,10 @@ Each item was triaged on 2026-09-26 from the Council reviews and the plan histor
 | CI build-once artifact; hosted-preview super-admin verification | Review 18 | CI speed and preview tooling, not product behavior. |
 | Workflow integrations (Zapier-style) and native mobile apps | Competitive gap 5 and gap 2 scope | Explicitly post-MVP in the gap definitions. |
 | Untested exports outside giving, finance, comms, child safety and pastoral | Review 18 (62 waivers) | The waiver list can only shrink (`test:surfaces`). MVP clears the risk-heavy modules (T1a, T1b), and the rest burns down after. |
+| A team blockout calendar (every volunteer's unavailable days at a glance) | Review 20 | Admins see each volunteer's dates in the directory, and the planner already honors them. |
+| Household blockouts (one entry for a whole family) | Review 20 | Needs household links in scheduling, which don't exist yet. |
+| A self-service schedule page for staff roles (admin, pastor, leader, secretary) | Review 20 | `/app/member/schedule` is member-only. Staff can manage their own dates in the directory, except a secretary, who rarely volunteers. |
+| Moving blocked dates when two profiles are merged | Review 20 | Merges are rare, and blockouts are future-only and quick to re-enter. |
 
 Closed on 2026-09-26 by a code check, so no row is needed:
 - the `/app/member` 404 risk (Review 11): it is served by `/app/[role]`;

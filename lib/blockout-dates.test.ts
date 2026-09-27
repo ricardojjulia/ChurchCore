@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_BLOCKOUT_RANGE_DAYS,
   expandBlockoutRange,
+  groupBlockoutRanges,
   todayUtc,
-  validateBlockoutDay,
+  validateBlockoutRemoval,
 } from "@/lib/blockout-dates";
 
 const NOW = new Date("2026-10-01T15:00:00Z");
@@ -25,7 +26,11 @@ describe("expandBlockoutRange", () => {
 
   it("allows today but not the past", () => {
     expect(expandBlockoutRange({ from: todayUtc(NOW) }, NOW)).toMatchObject({ ok: true });
-    expect(expandBlockoutRange({ from: "2026-09-30" }, NOW)).toEqual({ ok: false, error: "You can't mark a date in the past." });
+    expect(expandBlockoutRange({ from: "2026-09-30" }, NOW)).toEqual({
+      ok: false,
+      code: "past",
+      error: "You can't mark a date in the past.",
+    });
   });
 
   it("rejects bad input: invalid or impossible dates, reversed ranges", () => {
@@ -33,6 +38,7 @@ describe("expandBlockoutRange", () => {
     expect(expandBlockoutRange({ from: "2026-02-30" }, NOW)).toMatchObject({ ok: false });
     expect(expandBlockoutRange({ from: "2026-10-05", to: "2026-10-04" }, NOW)).toEqual({
       ok: false,
+      code: "end_before_start",
       error: "The end date is before the start date.",
     });
   });
@@ -47,11 +53,38 @@ describe("expandBlockoutRange", () => {
   });
 });
 
-describe("validateBlockoutDay", () => {
-  it("accepts today and later, rejects the past and bad input", () => {
-    expect(validateBlockoutDay("2026-10-01", NOW)).toBeNull();
-    expect(validateBlockoutDay("2026-12-25", NOW)).toBeNull();
-    expect(validateBlockoutDay("2026-09-30", NOW)).toBe("Past dates can't be changed.");
-    expect(validateBlockoutDay("nope", NOW)).toBe("Choose a valid date.");
+describe("validateBlockoutRemoval", () => {
+  it("accepts a day or range starting today or later, and rejects the past and bad input", () => {
+    expect(validateBlockoutRemoval({ from: "2026-10-01" }, NOW)).toEqual({ ok: true, from: "2026-10-01", to: "2026-10-01" });
+    expect(validateBlockoutRemoval({ from: "2026-10-03", to: "2026-10-24" }, NOW)).toEqual({
+      ok: true,
+      from: "2026-10-03",
+      to: "2026-10-24",
+    });
+    expect(validateBlockoutRemoval({ from: "2026-09-30" }, NOW)).toMatchObject({ ok: false, code: "past" });
+    expect(validateBlockoutRemoval({ from: "nope" }, NOW)).toMatchObject({ ok: false, code: "invalid_date" });
+    expect(validateBlockoutRemoval({ from: "2026-10-05", to: "2026-10-04" }, NOW)).toMatchObject({ ok: false });
+  });
+});
+
+describe("groupBlockoutRanges", () => {
+  it("groups consecutive days that share a reason, and splits on a gap or a different reason", () => {
+    expect(
+      groupBlockoutRanges([
+        { date: "2026-10-05", reason: "Trip" },
+        { date: "2026-10-03", reason: "Trip" },
+        { date: "2026-10-04", reason: "Trip" },
+        { date: "2026-10-06", reason: "Work" },
+        { date: "2026-10-09", reason: "Work" },
+        { date: "2026-10-31", reason: null },
+        { date: "2026-11-01", reason: null },
+      ]),
+    ).toEqual([
+      { from: "2026-10-03", to: "2026-10-05", days: 3, reason: "Trip" },
+      { from: "2026-10-06", to: "2026-10-06", days: 1, reason: "Work" },
+      { from: "2026-10-09", to: "2026-10-09", days: 1, reason: "Work" },
+      { from: "2026-10-31", to: "2026-11-01", days: 2, reason: null },
+    ]);
+    expect(groupBlockoutRanges([])).toEqual([]);
   });
 });

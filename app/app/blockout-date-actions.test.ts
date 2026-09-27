@@ -21,7 +21,7 @@ const {
   }
   function builder(client: string, table: string) {
     const chain: Record<string, unknown> = {};
-    for (const method of ["select", "eq", "neq", "is", "in", "gte", "lt", "order", "limit", "insert", "upsert", "update", "delete"]) {
+    for (const method of ["select", "eq", "neq", "is", "in", "gte", "lt", "lte", "order", "limit", "insert", "upsert", "update", "delete"]) {
       chain[method] = (...args: unknown[]) => {
         calls.push({ client, table, method, args });
         return chain;
@@ -64,9 +64,9 @@ import {
   listBlockoutDatesByTokenAction,
   listMyBlockoutDatesAction,
   listVolunteerBlockoutDatesAction,
-  removeBlockoutDateByTokenAction,
-  removeMyBlockoutDateAction,
-  removeVolunteerBlockoutDateAction,
+  removeBlockoutDatesByTokenAction,
+  removeMyBlockoutDatesAction,
+  removeVolunteerBlockoutDatesAction,
 } from "@/app/app/volunteer-actions";
 
 const TODAY = "2026-10-01";
@@ -103,23 +103,24 @@ describe("blockout date actions", () => {
       expect(result).toEqual({ ok: true, dates: [{ date: FUTURE, reason: "Trip" }], scheduledOn: [] });
       expect(upserts()).toHaveLength(1);
       expect(upserts()[0]).toMatchObject({ client: "server" });
+      // Re-adding a day updates its reason (no ignoreDuplicates).
       expect(upserts()[0].args).toEqual([
         [
           { church_id: "church-1", profile_id: "me", blocked_date: "2026-10-11", reason: "Trip" },
           { church_id: "church-1", profile_id: "me", blocked_date: "2026-10-12", reason: "Trip" },
         ],
-        { onConflict: "profile_id,blocked_date", ignoreDuplicates: true },
+        { onConflict: "profile_id,blocked_date" },
       ]);
       expect(revalidatePathMock).toHaveBeenCalledWith("/app/member/schedule");
     });
 
-    it("tells the volunteer when they're already scheduled on a day they block", async () => {
+    it("names the shifts the volunteer already holds on the days they block", async () => {
       queue("volunteer_blocked_dates", { error: null }, { data: [], error: null });
-      queue("volunteer_shifts", { data: [{ starts_at: "2026-10-11T10:00:00+00:00" }], error: null });
+      queue("volunteer_shifts", { data: [{ starts_at: "2026-10-11T10:00:00+00:00", title: "Greeter" }], error: null });
 
       const result = await addMyBlockoutDatesAction({ from: FUTURE, to: "2026-10-13" });
 
-      expect(result).toMatchObject({ ok: true, scheduledOn: ["2026-10-11"] });
+      expect(result).toMatchObject({ ok: true, scheduledOn: [{ date: "2026-10-11", title: "Greeter" }] });
       expect(calls).toEqual(
         expect.arrayContaining([
           { client: "server", table: "volunteer_shifts", method: "neq", args: ["confirmation_status", "declined"] },
@@ -131,23 +132,25 @@ describe("blockout date actions", () => {
     it("rejects invalid ranges without writing", async () => {
       expect(await addMyBlockoutDatesAction({ from: "2026-09-01" })).toEqual({
         ok: false,
+        code: "past",
         error: "You can't mark a date in the past.",
       });
       expect(upserts()).toHaveLength(0);
     });
 
-    it("removes one of the signed-in person's own days, and refuses past days", async () => {
+    it("removes one of the signed-in person's own days or a whole range, and refuses past days", async () => {
       queue("volunteer_blocked_dates", { error: null }, { data: [], error: null });
-      expect(await removeMyBlockoutDateAction({ date: FUTURE })).toEqual({ ok: true, dates: [], scheduledOn: [] });
+      expect(await removeMyBlockoutDatesAction({ from: FUTURE, to: "2026-10-20" })).toEqual({ ok: true, dates: [], scheduledOn: [] });
       expect(calls).toEqual(
         expect.arrayContaining([
           { client: "server", table: "volunteer_blocked_dates", method: "eq", args: ["profile_id", "me"] },
-          { client: "server", table: "volunteer_blocked_dates", method: "eq", args: ["blocked_date", FUTURE] },
+          { client: "server", table: "volunteer_blocked_dates", method: "gte", args: ["blocked_date", FUTURE] },
+          { client: "server", table: "volunteer_blocked_dates", method: "lte", args: ["blocked_date", "2026-10-20"] },
         ]),
       );
 
       calls.length = 0;
-      expect(await removeMyBlockoutDateAction({ date: "2026-09-01" })).toMatchObject({ ok: false });
+      expect(await removeMyBlockoutDatesAction({ from: "2026-09-01" })).toMatchObject({ ok: false });
       expect(deletes()).toHaveLength(0);
     });
 
@@ -158,6 +161,18 @@ describe("blockout date actions", () => {
         expect.arrayContaining([{ client: "server", table: "volunteer_blocked_dates", method: "gte", args: ["blocked_date", TODAY] }]),
       );
     });
+  });
+
+  it("maps a database error to a friendly message and logs the real one", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    queue("volunteer_blocked_dates", { error: { message: "new row violates row-level security policy" } });
+    expect(await addMyBlockoutDatesAction({ from: FUTURE })).toEqual({
+      ok: false,
+      code: "save_failed",
+      error: "Couldn't save. Please try again.",
+    });
+    expect(errorSpy).toHaveBeenCalledWith("Failed to save unavailable dates:", "new row violates row-level security policy");
+    errorSpy.mockRestore();
   });
 
   describe("emailed schedule link (token)", () => {
@@ -182,16 +197,24 @@ describe("blockout date actions", () => {
       });
     });
 
+    it("still works with a declined shift's unexpired token (same volunteer)", async () => {
+      queue("volunteer_shifts", { data: { ...validShift, confirmation_status: "declined" }, error: null }, { data: [], error: null });
+      queue("volunteer_blocked_dates", { error: null }, { data: [], error: null });
+      expect(await addBlockoutDatesByTokenAction({ token: "tok", from: FUTURE })).toMatchObject({ ok: true });
+    });
+
     it("refuses an expired or unknown link without writing", async () => {
       queue("volunteer_shifts", { data: { ...validShift, confirmation_token_expires_at: "2026-09-30T00:00:00Z" }, error: null });
       expect(await addBlockoutDatesByTokenAction({ token: "old", from: FUTURE })).toEqual({
         ok: false,
+        code: "link_expired",
         error: "This link is invalid or has expired.",
       });
 
       queue("volunteer_shifts", { data: null, error: null });
-      expect(await removeBlockoutDateByTokenAction({ token: "nope", date: FUTURE })).toEqual({
+      expect(await removeBlockoutDatesByTokenAction({ token: "nope", from: FUTURE })).toEqual({
         ok: false,
+        code: "link_expired",
         error: "This link is invalid or has expired.",
       });
 
@@ -205,7 +228,7 @@ describe("blockout date actions", () => {
     it("removes and lists the token volunteer's days", async () => {
       queue("volunteer_shifts", { data: validShift, error: null });
       queue("volunteer_blocked_dates", { error: null }, { data: [], error: null });
-      expect(await removeBlockoutDateByTokenAction({ token: "tok", date: FUTURE })).toMatchObject({ ok: true });
+      expect(await removeBlockoutDatesByTokenAction({ token: "tok", from: FUTURE })).toMatchObject({ ok: true });
       expect(deletes()[0]).toMatchObject({ client: "admin" });
       expect(calls).toEqual(
         expect.arrayContaining([{ client: "admin", table: "volunteer_blocked_dates", method: "eq", args: ["profile_id", "vol-9"] }]),
@@ -227,7 +250,7 @@ describe("blockout date actions", () => {
         requireChurchSessionMock.mockResolvedValue(sessionFor(roleId));
         await expect(listVolunteerBlockoutDatesAction({ profileId: "p-1" })).rejects.toThrow("Unauthorized");
         await expect(addVolunteerBlockoutDatesAction({ profileId: "p-1", from: FUTURE })).rejects.toThrow("Unauthorized");
-        await expect(removeVolunteerBlockoutDateAction({ profileId: "p-1", date: FUTURE })).rejects.toThrow("Unauthorized");
+        await expect(removeVolunteerBlockoutDatesAction({ profileId: "p-1", from: FUTURE })).rejects.toThrow("Unauthorized");
       }
     });
 
@@ -235,6 +258,7 @@ describe("blockout date actions", () => {
       queue("profiles", { data: null, error: null });
       expect(await addVolunteerBlockoutDatesAction({ profileId: "other", from: FUTURE })).toEqual({
         ok: false,
+        code: "not_found",
         error: "Volunteer not found.",
       });
       expect(upserts()).toHaveLength(0);
@@ -244,12 +268,12 @@ describe("blockout date actions", () => {
     it("adds, lists and removes for a volunteer in the church", async () => {
       queue("profiles", { data: { id: "p-1" }, error: null }, { data: { id: "p-1" }, error: null }, { data: { id: "p-1" }, error: null });
       queue("volunteer_blocked_dates", { error: null }, { data: [{ blocked_date: FUTURE, reason: null }], error: null });
-      queue("volunteer_shifts", { data: [{ starts_at: `${FUTURE}T10:00:00+00:00` }], error: null });
+      queue("volunteer_shifts", { data: [{ starts_at: `${FUTURE}T10:00:00+00:00`, title: "Sound Tech" }], error: null });
 
       expect(await addVolunteerBlockoutDatesAction({ profileId: "p-1", from: FUTURE })).toEqual({
         ok: true,
         dates: [{ date: FUTURE, reason: null }],
-        scheduledOn: [FUTURE],
+        scheduledOn: [{ date: FUTURE, title: "Sound Tech" }],
       });
 
       queue("volunteer_blocked_dates", { data: [{ blocked_date: FUTURE, reason: null }], error: null });
@@ -259,7 +283,7 @@ describe("blockout date actions", () => {
       });
 
       queue("volunteer_blocked_dates", { error: null }, { data: [], error: null });
-      expect(await removeVolunteerBlockoutDateAction({ profileId: "p-1", date: FUTURE })).toMatchObject({ ok: true, dates: [] });
+      expect(await removeVolunteerBlockoutDatesAction({ profileId: "p-1", from: FUTURE })).toMatchObject({ ok: true, dates: [] });
       expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/volunteers");
     });
   });

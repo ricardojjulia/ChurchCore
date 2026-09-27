@@ -29,6 +29,7 @@ export type PublicShift = {
   title: string;
   confirmation_status: string;
   confirmation_token?: string | null;
+  confirmation_token_expires_at?: string | null;
   starts_at: string;
   ends_at: string;
   events?: OneOrMany<PublicShiftEvent>;

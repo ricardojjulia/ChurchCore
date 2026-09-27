@@ -6,7 +6,7 @@ import { Pool, type PoolClient } from "pg";
 // actually apply:
 //  - vbd_own: a volunteer reads and writes only their own days, and only for
 //    the church their profile belongs to
-//    (supabase/migrations/20260927000000_volunteer_blocked_dates_own_policy.sql);
+//    (supabase/migrations/20260927000000_volunteer_blocked_dates_policies.sql);
 //  - vbd_manage: a service-plan admin manages any volunteer in their church,
 //    and nothing in another church.
 // Each test runs in a rolled-back transaction.
@@ -23,6 +23,8 @@ const ADMIN_A_USER = "00000000-0000-0000-0000-00000000e003";
 const ADMIN_B_USER = "00000000-0000-0000-0000-00000000e004";
 // A volunteer without a login, managed only by admins.
 const NO_LOGIN_PROFILE = "00000000-0000-0000-0000-00000000e005";
+// A church B volunteer without a login.
+const B_PROFILE = "00000000-0000-0000-0000-00000000e006";
 
 describe("volunteer_blocked_dates RLS", () => {
   let pool: Pool;
@@ -61,10 +63,10 @@ describe("volunteer_blocked_dates RLS", () => {
       );
       // Make sure both volunteers' profiles are church A's, whatever the sync did.
       await client.query(`update public.profiles set church_id = $1 where user_id in ($2, $3)`, [CHURCH_A, VOL_USER, OTHER_VOL_USER]);
-      await client.query(`insert into public.profiles (id, church_id, full_name) values ($1, $2, 'No Login')`, [
-        NO_LOGIN_PROFILE,
-        CHURCH_A,
-      ]);
+      await client.query(
+        `insert into public.profiles (id, church_id, full_name) values ($1, $2, 'No Login'), ($3, $4, 'B Volunteer')`,
+        [NO_LOGIN_PROFILE, CHURCH_A, B_PROFILE, CHURCH_B],
+      );
       const profiles = await client.query<{ id: string; user_id: string }>(
         `select id, user_id from public.profiles where user_id in ($1, $2)`,
         [VOL_USER, OTHER_VOL_USER],
@@ -138,6 +140,25 @@ describe("volunteer_blocked_dates RLS", () => {
       expect((await asUser(client, ADMIN_B_USER, INSERT, [CHURCH_A, NO_LOGIN_PROFILE, "2026-11-03"])).error).toMatch(
         /row-level security/,
       );
+    });
+  });
+
+  it("an admin can't plant a day on another church's volunteer, even tagged with their own church (Council Review 20)", async () => {
+    await inRolledBackTransaction(async (client) => {
+      // Church A's admin, church A's id, church B's volunteer: refused.
+      expect((await asUser(client, ADMIN_A_USER, INSERT, [CHURCH_A, B_PROFILE, "2026-12-25"])).error).toMatch(
+        /row-level security/,
+      );
+      // So church B's admin can still record that volunteer's day.
+      expect((await asUser(client, ADMIN_B_USER, INSERT, [CHURCH_B, B_PROFILE, "2026-12-25"])).error).toBeNull();
+    });
+  });
+
+  it("an admin doesn't see a mis-tagged row for a volunteer outside their church", async () => {
+    await inRolledBackTransaction(async (client) => {
+      // A row that could only exist from before this policy: church A's id, church B's volunteer.
+      await client.query(INSERT, [CHURCH_A, B_PROFILE, "2026-12-26"]);
+      expect((await asUser(client, ADMIN_A_USER, COUNT, [B_PROFILE])).rows[0].n).toBe(0);
     });
   });
 });
