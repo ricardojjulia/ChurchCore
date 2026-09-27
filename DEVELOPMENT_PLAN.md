@@ -85,7 +85,7 @@ Status values: `Not started`, `In progress`, `Done (#PR)`, `Deferred (reason)`. 
 
 | ID | Priority | Item | Est. | Definition of done | Status |
 |---|---|---|---|---|---|
-| G1.4 | Must | Blockout dates (FS3-1) | 1.5 | A volunteer adds and removes unavailable dates from `/app/member/schedule`. An admin adds and removes them from the volunteer directory. The planner's "Unavailable that day" and the assign modal honor them. Unit, action, DB and journey tests. | Not started |
+| G1.4 | Must | Blockout dates (FS3-1) | 1.5 | A volunteer adds and removes unavailable dates from `/app/member/schedule`. An admin adds and removes them from the volunteer directory. The planner's "Unavailable that day" and the assign modal honor them. Unit, action, DB and journey tests. | In progress (`feat/blockout-dates-g1-4`) |
 | G1.5 | Must | Assignment notifications (FS3-2) | 1.5 | Assigning a volunteer, whether by hand or by auto-fill, sends an email (or SMS, if that's their preference) with the accept/decline link, through the existing communications pipeline, with consent and suppression respected. A decline shows the admin the top replacement suggestions. Tests, including the journey: assign → volunteer declines → admin sees replacements. | Not started |
 | G1.6 | Must | Church-timezone days (FS3-4) | 0.5 | Same-day conflicts, blockout dates, 30-day load and month counts use `churches.timezone`, not UTC. Test: an evening service in UTC−4 is on the right day. | Not started |
 | G1.7 | Must | Rehearsal scheduling (Story 4) | 1.5 | A plan can have one or more rehearsals (date, time, location, which positions attend). Assigned volunteers see them on their schedule and in the calendar. Assignment notifications include them. Journey test. | Not started |

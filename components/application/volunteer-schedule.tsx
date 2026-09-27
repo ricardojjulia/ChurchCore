@@ -20,6 +20,7 @@ import {
   Textarea,
   TextInput,
   Title,
+  Tooltip,
 } from "@mantine/core";
 import {
   DndContext,
@@ -2191,6 +2192,11 @@ export function ServicePlanBuilder({
                     <Group gap="sm">
                       <Text size="sm" fw={500}>{shift.volunteerName ?? "Unknown"}</Text>
                       {shift.volunteerEmail && <Text size="xs" c="dimmed">{shift.volunteerEmail}</Text>}
+                      {shift.volunteerUnavailable && shift.confirmationStatus !== "declined" ? (
+                        <Tooltip label="This volunteer has since marked this date unavailable. Find a replacement.">
+                          <Badge size="xs" color="red" variant="light">Unavailable</Badge>
+                        </Tooltip>
+                      ) : null}
                     </Group>
                     <Group gap="xs">
                       <Badge size="xs" color={CONFIRM_COLOR[shift.confirmationStatus]} variant="dot">

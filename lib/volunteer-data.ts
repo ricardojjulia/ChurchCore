@@ -303,6 +303,21 @@ export async function getServicePlanDetail(
     }
   }
 
+  // Assigned volunteers who have since blocked the plan's date (G1.4).
+  const assignedIds = Array.from(
+    new Set((shifts ?? []).map((shift) => shift.assigned_user_id).filter((id): id is string => Boolean(id))),
+  );
+  const unavailableIds = new Set<string>();
+  if (assignedIds.length > 0) {
+    const { data: blocked } = await supabase
+      .from("volunteer_blocked_dates")
+      .select("profile_id")
+      .eq("church_id", churchId)
+      .eq("blocked_date", plan.service_date)
+      .in("profile_id", assignedIds);
+    for (const row of blocked ?? []) unavailableIds.add(row.profile_id);
+  }
+
   const mappedShifts = (shifts ?? []).map((s) => {
     const p = s.profiles as { full_name: string; email: string; phone: string } | null;
     const reminder = reminderByShiftId.get(s.id);
@@ -316,6 +331,7 @@ export async function getServicePlanDetail(
       reminderCount: reminder?.reminder_count ?? 0,
       lastReminderAt: reminder?.last_reminder_at ?? null,
       volunteerName: p?.full_name ?? null, volunteerEmail: p?.email ?? null, volunteerPhone: p?.phone ?? null,
+      volunteerUnavailable: s.assigned_user_id ? unavailableIds.has(s.assigned_user_id) : false,
     };
   });
 

@@ -100,6 +100,8 @@ export type VolunteerShift = {
   volunteerName: string | null;
   volunteerEmail: string | null;
   volunteerPhone: string | null;
+  /** The volunteer has since marked the plan's date unavailable (G1.4). */
+  volunteerUnavailable?: boolean;
 };
 
 export type ServicePlanDetail = {

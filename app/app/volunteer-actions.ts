@@ -6,6 +6,12 @@ import { revalidatePath } from "next/cache";
 import { requireChurchSession, type ChurchAppSession } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/actions/audit";
 import { checkVolunteerBurnout } from "@/lib/burnout-calculator";
+import {
+  expandBlockoutRange,
+  todayUtc,
+  validateBlockoutDay,
+  type BlockoutDate,
+} from "@/lib/blockout-dates";
 import { getChurchSkillOptions, getServicePlanDetail, getVolunteerPool } from "@/lib/volunteer-data";
 import {
   INELIGIBLE_LABEL,
@@ -1901,6 +1907,8 @@ export async function getPublicVolunteerShiftByToken(token: string) {
       confirmation_status,
       confirmation_token_expires_at,
       decline_reason,
+      starts_at,
+      ends_at,
       church_id,
       assigned_user_id,
       event_id,
@@ -1908,8 +1916,8 @@ export async function getPublicVolunteerShiftByToken(token: string) {
       events (
         title,
         description,
-        start,
-        "end",
+        starts_at,
+        ends_at,
         category
       ),
       service_plans (
@@ -1949,6 +1957,7 @@ export async function getPublicVolunteerScheduleByToken(token: string) {
       id,
       title,
       confirmation_status,
+      confirmation_token,
       confirmation_token_expires_at,
       decline_reason,
       starts_at,
@@ -1956,8 +1965,8 @@ export async function getPublicVolunteerScheduleByToken(token: string) {
       events (
         title,
         description,
-        start,
-        "end",
+        starts_at,
+        ends_at,
         category
       ),
       service_plans (
@@ -2184,4 +2193,206 @@ export async function updateVolunteerFrequencyAction(input: {
   revalidatePath(SCHEDULES_PATH);
   revalidatePath("/app/church-admin/volunteers");
   return { ok: true };
+}
+
+// ── Blockout dates (G1.4) ─────────────────────────────────────────────────
+//
+// The days a volunteer can't serve, one volunteer_blocked_dates row per day.
+// Three ways in, same rules (lib/blockout-dates.ts):
+//  - a signed-in person manages their own (server client; RLS vbd_own);
+//  - a volunteer without a login uses their emailed schedule link (a valid,
+//    unexpired shift token proves who they are; admin client scoped to that
+//    token's volunteer and church, like respondToPublicShiftAction);
+//  - a service-plan admin manages anyone in their church (RLS vbd_manage).
+// Every change returns the updated upcoming list, plus any days the person is
+// already scheduled, so the UI can tell them to decline those shifts too.
+
+type TenantClient = Awaited<ReturnType<typeof createTenantServerClient>> | ReturnType<typeof createTenantAdminClient>;
+
+export type BlockoutChangeResult =
+  | { ok: true; dates: BlockoutDate[]; scheduledOn: string[] }
+  | { ok: false; error: string };
+
+async function listUpcomingBlockouts(client: TenantClient, churchId: string, profileId: string): Promise<BlockoutDate[]> {
+  const { data, error } = await client
+    .from("volunteer_blocked_dates")
+    .select("blocked_date, reason")
+    .eq("church_id", churchId)
+    .eq("profile_id", profileId)
+    .gte("blocked_date", todayUtc())
+    .order("blocked_date");
+  if (error) throw new Error(`Failed to load unavailable dates: ${error.message}`);
+  return ((data ?? []) as Array<{ blocked_date: string; reason: string | null }>).map((row) => ({
+    date: row.blocked_date,
+    reason: row.reason,
+  }));
+}
+
+/** The given days on which the volunteer holds a non-declined shift. */
+async function scheduledOnDays(client: TenantClient, churchId: string, profileId: string, days: string[]): Promise<string[]> {
+  if (days.length === 0) return [];
+  const sorted = [...days].sort();
+  const end = new Date(`${sorted[sorted.length - 1]}T00:00:00Z`);
+  end.setUTCDate(end.getUTCDate() + 1);
+  const { data } = await client
+    .from("volunteer_shifts")
+    .select("starts_at")
+    .eq("church_id", churchId)
+    .eq("assigned_user_id", profileId)
+    .neq("confirmation_status", "declined")
+    .gte("starts_at", `${sorted[0]}T00:00:00`)
+    .lt("starts_at", `${end.toISOString().slice(0, 10)}T00:00:00`);
+  const wanted = new Set(days);
+  const hits = ((data ?? []) as Array<{ starts_at: string }>)
+    .map((row) => new Date(row.starts_at).toISOString().slice(0, 10))
+    .filter((day) => wanted.has(day));
+  return Array.from(new Set(hits)).sort();
+}
+
+async function addBlockouts(
+  client: TenantClient,
+  churchId: string,
+  profileId: string,
+  input: { from: string; to?: string | null; reason?: string | null },
+): Promise<BlockoutChangeResult> {
+  const range = expandBlockoutRange(input);
+  if (!range.ok) return range;
+  const { error } = await client.from("volunteer_blocked_dates").upsert(
+    range.dates.map((day) => ({ church_id: churchId, profile_id: profileId, blocked_date: day, reason: range.reason })),
+    { onConflict: "profile_id,blocked_date", ignoreDuplicates: true },
+  );
+  if (error) return { ok: false, error: error.message };
+  return {
+    ok: true,
+    dates: await listUpcomingBlockouts(client, churchId, profileId),
+    scheduledOn: await scheduledOnDays(client, churchId, profileId, range.dates),
+  };
+}
+
+async function removeBlockout(client: TenantClient, churchId: string, profileId: string, day: string): Promise<BlockoutChangeResult> {
+  const invalid = validateBlockoutDay(day);
+  if (invalid) return { ok: false, error: invalid };
+  const { error } = await client
+    .from("volunteer_blocked_dates")
+    .delete()
+    .eq("church_id", churchId)
+    .eq("profile_id", profileId)
+    .eq("blocked_date", day);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, dates: await listUpcomingBlockouts(client, churchId, profileId), scheduledOn: [] };
+}
+
+function revalidateBlockoutViews() {
+  revalidatePath("/app/member/schedule");
+  revalidatePath("/app/church-admin/volunteers");
+  revalidatePath(SCHEDULES_PATH, "layout");
+}
+
+const MEMBER_SCHEDULE_PATH = "/app/member/schedule";
+
+export async function listMyBlockoutDatesAction(): Promise<BlockoutDate[]> {
+  const session = await requireChurchSession(MEMBER_SCHEDULE_PATH);
+  const supabase = await createTenantServerClient();
+  return listUpcomingBlockouts(supabase, session.appContext.church.id, session.profile.id);
+}
+
+export async function addMyBlockoutDatesAction(input: {
+  from: string;
+  to?: string | null;
+  reason?: string | null;
+}): Promise<BlockoutChangeResult> {
+  const session = await requireChurchSession(MEMBER_SCHEDULE_PATH);
+  const supabase = await createTenantServerClient();
+  const result = await addBlockouts(supabase, session.appContext.church.id, session.profile.id, input);
+  if (result.ok) revalidateBlockoutViews();
+  return result;
+}
+
+export async function removeMyBlockoutDateAction(input: { date: string }): Promise<BlockoutChangeResult> {
+  const session = await requireChurchSession(MEMBER_SCHEDULE_PATH);
+  const supabase = await createTenantServerClient();
+  const result = await removeBlockout(supabase, session.appContext.church.id, session.profile.id, input.date);
+  if (result.ok) revalidateBlockoutViews();
+  return result;
+}
+
+/** The volunteer and church a valid, unexpired shift token belongs to. */
+async function volunteerForToken(token: string): Promise<{ churchId: string; profileId: string } | null> {
+  const shift = await getPublicVolunteerShiftByToken(token);
+  if (!shift?.assigned_user_id) return null;
+  return { churchId: shift.church_id, profileId: shift.assigned_user_id };
+}
+
+export async function listBlockoutDatesByTokenAction(token: string): Promise<BlockoutDate[] | null> {
+  const who = await volunteerForToken(token);
+  if (!who) return null;
+  return listUpcomingBlockouts(createTenantAdminClient(), who.churchId, who.profileId);
+}
+
+export async function addBlockoutDatesByTokenAction(input: {
+  token: string;
+  from: string;
+  to?: string | null;
+  reason?: string | null;
+}): Promise<BlockoutChangeResult> {
+  const who = await volunteerForToken(input.token);
+  if (!who) return { ok: false, error: "This link is invalid or has expired." };
+  const result = await addBlockouts(createTenantAdminClient(), who.churchId, who.profileId, input);
+  if (result.ok) revalidateBlockoutViews();
+  return result;
+}
+
+export async function removeBlockoutDateByTokenAction(input: { token: string; date: string }): Promise<BlockoutChangeResult> {
+  const who = await volunteerForToken(input.token);
+  if (!who) return { ok: false, error: "This link is invalid or has expired." };
+  const result = await removeBlockout(createTenantAdminClient(), who.churchId, who.profileId, input.date);
+  if (result.ok) revalidateBlockoutViews();
+  return result;
+}
+
+/** A service-plan admin acting on a volunteer; checks the volunteer is in the admin's church. */
+async function adminBlockoutContext(profileId: string) {
+  const session = await requireServicePlanWriteAccess();
+  const churchId = session.appContext.church.id;
+  const supabase = await createTenantServerClient();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", profileId)
+    .eq("church_id", churchId)
+    .is("merged_into_profile_id", null)
+    .maybeSingle();
+  return profile ? { supabase, churchId } : null;
+}
+
+export async function listVolunteerBlockoutDatesAction(input: {
+  profileId: string;
+}): Promise<{ ok: true; dates: BlockoutDate[] } | { ok: false; error: string }> {
+  const ctx = await adminBlockoutContext(input.profileId);
+  if (!ctx) return { ok: false, error: "Volunteer not found." };
+  return { ok: true, dates: await listUpcomingBlockouts(ctx.supabase, ctx.churchId, input.profileId) };
+}
+
+export async function addVolunteerBlockoutDatesAction(input: {
+  profileId: string;
+  from: string;
+  to?: string | null;
+  reason?: string | null;
+}): Promise<BlockoutChangeResult> {
+  const ctx = await adminBlockoutContext(input.profileId);
+  if (!ctx) return { ok: false, error: "Volunteer not found." };
+  const result = await addBlockouts(ctx.supabase, ctx.churchId, input.profileId, input);
+  if (result.ok) revalidateBlockoutViews();
+  return result;
+}
+
+export async function removeVolunteerBlockoutDateAction(input: {
+  profileId: string;
+  date: string;
+}): Promise<BlockoutChangeResult> {
+  const ctx = await adminBlockoutContext(input.profileId);
+  if (!ctx) return { ok: false, error: "Volunteer not found." };
+  const result = await removeBlockout(ctx.supabase, ctx.churchId, input.profileId, input.date);
+  if (result.ok) revalidateBlockoutViews();
+  return result;
 }
