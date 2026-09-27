@@ -12,7 +12,13 @@ Read first: `AGENTS.md`, `DEVELOPMENT_PLAN.md`, the relevant council synthesis u
 
 ## What you update, every run
 
-1. **`DEVELOPMENT_PLAN.md`** — correct the status/roadmap sections (sprint status, "Next Sprint" notes, exit-criteria checkmarks) to match reality. This file drifts fastest; treat stale status here as a bug you fix, not a note you leave.
+1. **`DEVELOPMENT_PLAN.md`** — first, the §0 MVP roadmap tracker:
+   - Set each shipped row's status to `Done (#PR)`.
+   - Add a row for any new open item (a Council finding, a beta-feedback `B-n` row), or list it in §0.5 "Deferred to after MVP" with a reason. No open item may live only in a review document or in chat.
+   - Update the §0.1 progress line.
+   - On a milestone date, record the §0.4 cut-line check.
+
+   Then add the round's history bullet under "Current Status and History". This file drifts fastest; treat stale status here as a bug you fix, not a note you leave.
 2. **`CHANGELOG.md`** — add an `[Unreleased]` entry describing what shipped, in this repo's existing style (feature bullets with file links, Added/Changed/Fixed grouping).
 3. **`README.md` and relevant `/docs`** — update for any meaningful user-facing or architectural change, per `AGENTS.md`.
 4. **ADRs** — confirm any ADRs drafted during council synthesis are finalized under `docs/adr/` with correct sequential numbering; do not leave a referenced ADR unwritten.
