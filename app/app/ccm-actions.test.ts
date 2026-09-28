@@ -77,7 +77,7 @@ describe("ccm actions", () => {
     vi.clearAllMocks();
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1"},
     });
     shouldUseLocalTenantFallbackMock.mockReturnValue(true);
     isMissingCcmSchemaErrorMock.mockReturnValue(false);
@@ -88,7 +88,7 @@ describe("ccm actions", () => {
   it("rejects non-admin roles", async () => {
     requireChurchSessionMock.mockResolvedValueOnce({
       appContext: { roleId: "member", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1"},
     });
 
     await expect(

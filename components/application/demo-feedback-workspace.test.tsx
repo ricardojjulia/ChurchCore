@@ -74,8 +74,7 @@ const makeRow = (overrides: Partial<DemoFeedbackRow> = {}): DemoFeedbackRow => (
 
 const mockSession = {
   source: "preview",
-  profile: {
-    id: "sarah-platform",
+  churchProfileId: "sarah-platform", profile: { id: "sarah-platform",
     name: "Sarah Bennett",
     email: "sarah@churchcoreops.app",
     title: "Platform SuperAdmin",

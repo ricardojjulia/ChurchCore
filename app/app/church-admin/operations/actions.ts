@@ -60,7 +60,7 @@ export async function createChurchDocumentAction(input: {
       docType === "elder_council_notes" ? encryptPastoralField(body) : body;
 
     const churchId = session.appContext.church.id;
-    const actorProfileId = session.profile.id;
+    const actorProfileId = session.churchProfileId;
 
     const supabase = await createTenantServerClient();
     const { data, error } = await supabase
@@ -139,7 +139,7 @@ export async function updateChurchDocumentAction(input: {
       .update({
         title: title.trim(),
         body: storedBody,
-        updated_by: session.profile.id,
+        updated_by: session.churchProfileId,
       })
       .eq("id", id)
       .eq("church_id", churchId);
@@ -351,7 +351,7 @@ export async function createOnboardingTemplateAction(input: {
     }
 
     const churchId = session.appContext.church.id;
-    const actorProfileId = session.profile.id;
+    const actorProfileId = session.churchProfileId;
 
     const supabase = await createTenantServerClient();
     const { data: template, error: templateError } = await supabase
@@ -700,7 +700,7 @@ export async function startOnboardingInstanceAction(input: {
         church_id: churchId,
         template_id: input.templateId,
         profile_id: input.profileId,
-        started_by: session.profile.id,
+        started_by: session.churchProfileId,
         status: "open",
       })
       .select("id")
@@ -778,7 +778,7 @@ export async function completeOnboardingStepAction(input: {
       .update({
         is_complete: true,
         completed_at: new Date().toISOString(),
-        completed_by: session.profile.id,
+        completed_by: session.churchProfileId,
       })
       .eq("id", input.instanceStepId)
       .eq("church_id", churchId);

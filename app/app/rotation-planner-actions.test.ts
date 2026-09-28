@@ -78,7 +78,7 @@ import {
 import type { VolunteerPoolEntry } from "@/lib/volunteer-types";
 
 function sessionFor(roleId: string) {
-  return { appContext: { roleId, church: { id: "church-1" } }, profile: { id: "admin-1" } };
+  return { appContext: { roleId, church: { id: "church-1" } }, churchProfileId: "admin-1", profile: { id: "admin-1"} };
 }
 
 function volunteer(overrides: Partial<VolunteerPoolEntry> & { profileId: string; fullName: string }): VolunteerPoolEntry {

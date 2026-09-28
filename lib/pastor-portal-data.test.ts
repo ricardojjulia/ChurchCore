@@ -33,6 +33,7 @@ import type { ChurchAppSession } from "@/lib/auth";
 describe("getPastorPortalData read auditing", () => {
   const mockSession: ChurchAppSession = {
     userId: "user-1",
+    churchProfileId: "profile-1",
     profile: {
       id: "profile-1",
       name: "Pastor Bob",

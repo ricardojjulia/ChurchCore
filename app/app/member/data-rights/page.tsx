@@ -50,9 +50,9 @@ export default async function MemberDataRightsPage() {
     redirect(session.homePath);
   }
 
-  const { exportRequestedAt, deleteRequestedAt } = await fetchDataRightsStatus(
-    session.profile.id,
-  );
+  const { exportRequestedAt, deleteRequestedAt } = session.churchProfileId
+    ? await fetchDataRightsStatus(session.churchProfileId)
+    : { exportRequestedAt: null, deleteRequestedAt: null };
 
   const navItems = [
     {

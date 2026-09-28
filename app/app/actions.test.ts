@@ -73,7 +73,7 @@ describe("app actions", () => {
     vi.clearAllMocks();
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "admin-1" },
+      churchProfileId: "admin-1", profile: { id: "admin-1"},
       source: "supabase",
       userId: "user-1",
     });
@@ -426,7 +426,7 @@ describe("app actions", () => {
     const mockSession = {
       source: "supabase",
       userId: "pastor-1",
-      profile: { id: "profile-pastor-1" },
+      churchProfileId: "profile-pastor-1", profile: { id: "profile-pastor-1"},
       appContext: {
         church: { id: "church-1" },
         roleId: "pastor",

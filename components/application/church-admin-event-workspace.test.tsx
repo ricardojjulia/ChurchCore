@@ -53,7 +53,7 @@ describe("EventRegistrationsPanel payment follow-up", () => {
   });
 
   const session = {
-    profile: { id: "profile-1", fullName: "Casey Admin" },
+    churchProfileId: "profile-1", profile: { id: "profile-1", fullName: "Casey Admin" },
     appContext: { church: { id: "church-1", name: "Grace Harbor" } },
   };
 

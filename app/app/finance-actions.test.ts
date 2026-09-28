@@ -50,14 +50,14 @@ describe("finance actions", () => {
     shouldUseLocalTenantFallbackMock.mockReturnValue(true);
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1"},
     });
   });
 
   it("rejects non-admin users for chart of accounts changes", async () => {
     requireChurchSessionMock.mockResolvedValueOnce({
       appContext: { roleId: "member", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1"},
     });
 
     await expect(
@@ -318,7 +318,7 @@ describe("finance actions", () => {
   describe("voidJournalAction", () => {
     const baseSession = {
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "profile-actor-1" },
+      churchProfileId: "profile-actor-1", profile: { id: "profile-actor-1"},
       source: "supabase",
     };
 

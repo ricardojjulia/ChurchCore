@@ -57,7 +57,7 @@ import { queueCommunicationAction } from "@/lib/notifications/queue-communicatio
 function makeSession(churchId = "church-1", profileId: string | null = "profile-1") {
   return {
     appContext: { church: { id: churchId } },
-    profile: { id: profileId },
+    churchProfileId: profileId, profile: { id: profileId},
   } as never;
 }
 

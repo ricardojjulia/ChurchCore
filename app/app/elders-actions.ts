@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
+import { requireChurchProfileId } from "@/lib/church-profile-id";
 import {
   callMinistryAI,
 } from "@/lib/ai-ministry/client";
@@ -660,7 +661,7 @@ export async function generateSermonOutlineAction(
       prompt,
       AI_FEATURES.SERMON_PLANNING,
       session.appContext.church.id,
-      session.profile.id,
+      requireChurchProfileId(session),
     );
     outline = outline + `\n\n---\n*Disclaimer: ${ELDER_AI_DISCLAIMER}*`;
     return { ok: true, outline };
@@ -706,7 +707,7 @@ export async function generateBibleStudyAnswerAction(
       prompt,
       AI_FEATURES.BIBLE_STUDY,
       session.appContext.church.id,
-      session.profile.id,
+      requireChurchProfileId(session),
     );
     const sections = parseBibleStudyResponse(raw);
     return { ok: true, sections };

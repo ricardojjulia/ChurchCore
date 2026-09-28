@@ -100,8 +100,21 @@ type StoredAppContextSelection =
 
 export type AuthSession = {
   source: "preview" | "supabase";
+  /**
+   * Display profile. NOTE: `profile.id` is the auth (login) user id, not a
+   * church profiles.id — use `churchProfileId` for anything that references
+   * public.profiles (S7, 2026-09-28).
+   */
   profile: DemoProfile;
+  /** The auth (login) user id: for columns that reference auth.users. */
   userId: string;
+  /**
+   * The signed-in person's public.profiles.id in the church currently in
+   * context, or null when they have no profile there (e.g. a platform admin
+   * viewing a tenant). Use this for every column that references
+   * public.profiles(id).
+   */
+  churchProfileId: string | null;
   appContext: AppContext;
   homePath: string;
   canAccessControl: boolean;
@@ -806,6 +819,7 @@ function buildSession({
   source,
   profile,
   userId,
+  churchProfileId,
   appContext,
   memberships,
   tenantViews,
@@ -814,6 +828,7 @@ function buildSession({
   source: AuthSession["source"];
   profile: DemoProfile;
   userId: string;
+  churchProfileId: string | null;
   appContext: AppContext;
   memberships: ChurchMembership[];
   tenantViews: TenantViewTarget[];
@@ -823,6 +838,7 @@ function buildSession({
     source,
     profile,
     userId,
+    churchProfileId,
     appContext,
     homePath: appContext.homePath,
     canAccessControl,
@@ -855,6 +871,8 @@ function buildPreviewSession(profile: DemoProfile, storedSelection: StoredAppCon
     source: "preview",
     profile,
     userId: profile.id,
+    // Preview (demo) sessions have no database rows; keep their demo id.
+    churchProfileId: profile.id,
     appContext,
     memberships,
     tenantViews,
@@ -1089,6 +1107,11 @@ export async function getSession(
       source: "supabase",
       profile,
       userId: user.id,
+      // The profile row belongs to one church; it's only "theirs" in that church.
+      churchProfileId:
+        appContext.kind === "church" && hydratedProfile?.churchId === appContext.church.id
+          ? hydratedProfile.id
+          : null,
       appContext,
       memberships,
       tenantViews,

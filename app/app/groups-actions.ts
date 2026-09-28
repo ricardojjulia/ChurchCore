@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
+import { requireChurchProfileId } from "@/lib/church-profile-id";
 import {
   createTenantServerClient,
   queryTenantLocalDb,
@@ -214,7 +215,7 @@ export async function joinGroupAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await requireMemberSession();
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = requireChurchProfileId(session);
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -251,7 +252,7 @@ export async function logGroupMeetingAction(
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
   const session = await requireAdminSession();
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
 
   if (shouldUseLocalTenantFallback()) {
     const result = await queryTenantLocalDb<{ id: string }>(
@@ -327,7 +328,7 @@ export async function logServiceAttendanceAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await requireAdminSession();
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(

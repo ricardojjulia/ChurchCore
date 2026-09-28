@@ -22,7 +22,7 @@ import { eraseProfileData } from "@/lib/actions/erasure";
 
 function makeChurchAdminSession(overrides: { profileId?: string; churchId?: string } = {}) {
   return {
-    profile: { id: overrides.profileId ?? "actor-profile-id" },
+    churchProfileId: overrides.profileId ?? "actor-profile-id", profile: { id: overrides.profileId ?? "actor-profile-id"},
     userId: "actor-user-id",
     appContext: {
       kind: "church",
@@ -35,7 +35,7 @@ function makeChurchAdminSession(overrides: { profileId?: string; churchId?: stri
 
 function makeNonAdminSession() {
   return {
-    profile: { id: "actor-profile-id" },
+    churchProfileId: "actor-profile-id", profile: { id: "actor-profile-id"},
     userId: "actor-user-id",
     appContext: {
       kind: "church",

@@ -110,7 +110,7 @@ function mockAdminClient(options: {
   return { updates, upsertMock };
 }
 
-const session = { appContext: { church: { id: "church-1" } }, profile: { id: null } } as never;
+const session = { appContext: { church: { id: "church-1" } }, churchProfileId: null, profile: { id: null} } as never;
 
 // ── Selection (local DB path) ──────────────────────────────────────────────────
 //

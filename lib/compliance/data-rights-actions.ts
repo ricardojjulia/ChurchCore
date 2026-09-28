@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
+import { requireChurchProfileId } from "@/lib/church-profile-id";
 import {
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
@@ -23,7 +24,7 @@ import {
 
 export async function requestDataExportAction(): Promise<void> {
   const session = await requireChurchSession("/app/member");
-  const profileId = session.profile.id;
+  const profileId = requireChurchProfileId(session);
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -48,7 +49,7 @@ export async function requestDataExportAction(): Promise<void> {
 
 export async function requestAccountDeletionAction(): Promise<void> {
   const session = await requireChurchSession("/app/member");
-  const profileId = session.profile.id;
+  const profileId = requireChurchProfileId(session);
 
   // Disallow deletion for pastor/admin accounts via self-service
   const role = session.appContext.roleId;
@@ -81,7 +82,7 @@ export async function requestAccountDeletionAction(): Promise<void> {
 
 export async function cancelDeletionRequestAction(): Promise<void> {
   const session = await requireChurchSession("/app/member");
-  const profileId = session.profile.id;
+  const profileId = requireChurchProfileId(session);
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -123,7 +124,7 @@ export interface DataExportPayload {
 export async function generateDataExportAction(): Promise<DataExportPayload> {
   const session = await requireChurchSession("/app/member");
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = requireChurchProfileId(session);
 
   if (shouldUseLocalTenantFallback()) {
     const [profile, memberships, donations, consents, prefs] = await Promise.all([

@@ -303,7 +303,7 @@ export async function createServicePlanAction(
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
   const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
 
   if (!input.name.trim() || !input.serviceDate) {
     return { ok: false, error: "Name and service date are required." };
@@ -836,7 +836,7 @@ export async function createRoleTypeAction(
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
   const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
 
   const name = input.name?.trim() ?? "";
   if (!name) {
@@ -1365,7 +1365,8 @@ export async function respondToShiftAction(
   reason?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await requireChurchSession("/app/member/schedule");
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
+  if (!profileId) return { ok: false, error: "Your account has no profile in this church." };
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {
@@ -1382,8 +1383,13 @@ export async function respondToShiftAction(
     return { ok: true };
   }
 
-  const supabase = await createTenantServerClient();
-  const { error } = await supabase.from("volunteer_shifts")
+  // Members have no UPDATE policy on volunteer_shifts (only managers do), so
+  // through the RLS-bound client this matched no rows and silently "succeeded"
+  // (S7). The session is authenticated above and the church profile id is
+  // resolved server-side; the admin client is scoped to that person's own
+  // shift in this church and changes only the response columns (ADR 0022).
+  const supabase = createTenantAdminClient();
+  const { data: updated, error } = await supabase.from("volunteer_shifts")
     .update({
       confirmation_status: response,
       decline_reason: reason ?? null,
@@ -1392,9 +1398,11 @@ export async function respondToShiftAction(
     })
     .eq("id", shiftId)
     .eq("assigned_user_id", profileId)
-    .eq("church_id", churchId);
+    .eq("church_id", churchId)
+    .select("id");
 
   if (error) return { ok: false, error: error.message };
+  if (!updated || updated.length === 0) return { ok: false, error: "That shift isn't assigned to you." };
   revalidatePath("/app/member/schedule");
   return { ok: true };
 }
@@ -1409,7 +1417,7 @@ export async function sendVolunteerReminderAction(input: {
 }): Promise<{ ok: boolean; sentAt?: string; error?: string }> {
   const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
-  const sentBy = session.profile.id;
+  const sentBy = session.churchProfileId;
   const channel = input.channel ?? "manual";
 
   if (shouldUseLocalTenantFallback()) {
@@ -1556,7 +1564,7 @@ export async function logVolunteerHoursAction(input: {
 }): Promise<{ ok: boolean; error?: string }> {
   const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
-  const loggedBy = session.profile.id;
+  const loggedBy = session.churchProfileId;
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -1750,7 +1758,7 @@ export async function createSongAndAddToServicePlanAction(
 ): Promise<{ ok: boolean; songLibraryId?: string; itemId?: string; error?: string }> {
   const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
 
   const title = input.title?.trim() ?? "";
   if (!title) {
@@ -2319,7 +2327,8 @@ const MEMBER_SCHEDULE_PATH = "/app/member/schedule";
 export async function listMyBlockoutDatesAction(): Promise<BlockoutDate[]> {
   const session = await requireChurchSession(MEMBER_SCHEDULE_PATH);
   const supabase = await createTenantServerClient();
-  return listUpcomingBlockouts(supabase, session.appContext.church.id, session.profile.id);
+  if (!session.churchProfileId) return [];
+  return listUpcomingBlockouts(supabase, session.appContext.church.id, session.churchProfileId);
 }
 
 export async function addMyBlockoutDatesAction(input: {
@@ -2329,7 +2338,8 @@ export async function addMyBlockoutDatesAction(input: {
 }): Promise<BlockoutChangeResult> {
   const session = await requireChurchSession(MEMBER_SCHEDULE_PATH);
   const supabase = await createTenantServerClient();
-  const result = await addBlockouts(supabase, session.appContext.church.id, session.profile.id, input);
+  if (!session.churchProfileId) return VOLUNTEER_NOT_FOUND;
+  const result = await addBlockouts(supabase, session.appContext.church.id, session.churchProfileId, input);
   if (result.ok) revalidateBlockoutViews();
   return result;
 }
@@ -2337,7 +2347,8 @@ export async function addMyBlockoutDatesAction(input: {
 export async function removeMyBlockoutDatesAction(input: { from: string; to?: string | null }): Promise<BlockoutChangeResult> {
   const session = await requireChurchSession(MEMBER_SCHEDULE_PATH);
   const supabase = await createTenantServerClient();
-  const result = await removeBlockouts(supabase, session.appContext.church.id, session.profile.id, input);
+  if (!session.churchProfileId) return VOLUNTEER_NOT_FOUND;
+  const result = await removeBlockouts(supabase, session.appContext.church.id, session.churchProfileId, input);
   if (result.ok) revalidateBlockoutViews();
   return result;
 }

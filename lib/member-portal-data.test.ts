@@ -42,8 +42,7 @@ import { getMemberPortalData } from "@/lib/member-portal-data";
 const session = {
   userId: "user-1",
   source: "supabase",
-  profile: {
-    id: "profile-1",
+  churchProfileId: "profile-1", profile: { id: "profile-1",
     name: "Ada Lovelace",
     email: "ada@example.com",
     title: "Member",

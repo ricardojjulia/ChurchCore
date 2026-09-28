@@ -80,7 +80,7 @@ function buildSession(overrides: Partial<AuthSession> = {}): AuthSession {
     userId: "user-1",
     homePath: "/app/church-admin",
     appContext: { roleId: "church-admin", church: { id: "church-1", name: "Grace Harbor" } },
-    profile: { id: "profile-1", fullName: "Admin User", isPastoral: false },
+    churchProfileId: "profile-1", profile: { id: "profile-1", fullName: "Admin User", isPastoral: false },
     source: "supabase",
     ...overrides,
   } as unknown as AuthSession;

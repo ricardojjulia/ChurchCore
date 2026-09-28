@@ -53,12 +53,12 @@ Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual
   - Scope is cut to meet the date; quality never is.
 - **Work order:** top to bottom within each week. The safety rows in a week land before that week's feature rows. S2 (webhooks fail closed, with F4) lands before G5.1 (Resend, F2), as the comms follow-ups require.
 - **Estimates** are in factory days: one story through build, tests, Council review and merge. They are calibrated on Service Planning Stories 1–3, which took about 1–2 days each, Council included.
-  - Must rows: 26 rows, 32 factory days, about 6.4 a week (the two Testing Council runs added 2.5 on 2026-09-27).
+  - Must rows: 27 rows, 33.5 factory days, about 6.7 a week (the two Testing Council runs added 2.5 on 2026-09-27; S7 added 1.5 on 2026-09-28).
   - Stretch rows: 5 rows, 5.5 factory days.
   - Available: 25 working days (September 28 – October 30).
-  - **The Must work is about 28% over nominal capacity.** The plan relies on two things: the calibrated pace (smaller rows often finish in under their estimate) and the cut line (§0.4). This is the plan's main risk, and it's checked at every milestone.
+  - **The Must work is about 34% over nominal capacity.** The plan relies on two things: the calibrated pace (smaller rows often finish in under their estimate) and the cut line (§0.4). This is the plan's main risk, and it's checked at every milestone.
 
-**Progress (update on every merge):** 1 of 26 Must rows done (G1.4) · 0 of 5 Stretch rows done · next milestone **M1, Friday October 2** · last updated 2026-09-27.
+**Progress (update on every merge):** 1 of 27 Must rows done (G1.4) · 0 of 5 Stretch rows done · next milestone **M1, Friday October 2** · last updated 2026-09-28.
 
 ### 0.2 Milestones
 
@@ -81,10 +81,11 @@ Status values: `Not started`, `In progress`, `Done (#PR)`, `Deferred (reason)`. 
 |---|---|---|---|---|
 | O1 | Mark CI checks required | Sep 28 | In GitHub branch protection for `main`, `verify` and `e2e (shard 1/4)`–`e2e (shard 4/4)` are required status checks. Checked 2026-09-26: none are required yet, so CI failures don't block merges. | Not started |
 
-#### Week 1 (Sep 28 – Oct 2), milestone M1: close gap 1 (6 must days)
+#### Week 1 (Sep 28 – Oct 2), milestone M1: close gap 1 (7.5 must days)
 
 | ID | Priority | Item | Est. | Definition of done | Status |
 |---|---|---|---|---|---|
+| S7 | Must | The signed-in person's church profile id | 1.5 | `session.profile.id` is the auth (login) user id, never a church `profiles.id`, yet 51 places used it as one. So members' own schedules were empty, in-app confirm and decline and signed-in blockout dates failed, and communication-log writes violated `sent_by`'s foreign key and were lost. The session gains `churchProfileId`, each usage is classified by the column it feeds, "act as myself" paths handle a missing profile, and member shift responses no longer silently match zero rows (members have no UPDATE policy). Unit tests and member e2e journeys. Found 2026-09-28 by G1.5's journey. | In progress (`fix/session-church-profile-id`) |
 | G1.4 | Must | Blockout dates (FS3-1) | 1.5 | A volunteer adds and removes unavailable dates from `/app/member/schedule`. An admin adds and removes them from the volunteer directory. The planner's "Unavailable that day" and the assign modal honor them. Unit, action, DB and journey tests. | Done (#156) |
 | G1.5 | Must | Assignment notifications (FS3-2) | 1.5 | Assigning a volunteer, whether by hand or by auto-fill, sends an email (or SMS, if that's their preference) with the accept/decline link, through the existing communications pipeline, with consent and suppression respected. A decline shows the admin the top replacement suggestions. **Every assignment (manual and auto-fill) creates the shift's own confirmation token, valid until the shift date plus 7 days** (today only a manual reminder creates one, with a fixed 14-day expiry; Council Review 20). The roster shows the reason when an assigned volunteer has blocked the date. Tests, including the journey: assign → volunteer declines → admin sees replacements. | Not started |
 | G1.6 | Must | Church-timezone days (FS3-4) | 0.5 | Same-day conflicts, blockout dates, 30-day load and month counts use `churches.timezone`, not UTC. Test: an evening service in UTC−4 is on the right day. | Not started |

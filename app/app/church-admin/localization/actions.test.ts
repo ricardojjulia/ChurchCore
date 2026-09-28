@@ -60,6 +60,7 @@ import type { ChurchAppSession } from "@/lib/auth";
 function makeSession(roleId: string, churchId = "church-1"): ChurchAppSession {
   return {
     userId: `user-${roleId}`,
+    churchProfileId: "church-profile-1",
     source: "supabase",
     appContext: {
       kind: "church",

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
+import { requireChurchProfileId } from "@/lib/church-profile-id";
 import { MinistryWorkflowService } from "@/lib/ministry-workflows/service";
 import { evaluateMemberEngagementSignalsJob } from "@/lib/shepherd-ai/scheduled-jobs";
 
@@ -45,7 +46,7 @@ export async function promoteSuggestionToWorkflowAction(input: {
   const workflowId = await workflowService.createWorkflow({
     tenantId,
     suggestionId: input.suggestionId,
-    ownerUserId: session.profile.id,
+    ownerUserId: requireChurchProfileId(session),
     assignedToUserId: input.assignedToUserId ?? null,
     dueAt: input.dueAt ?? null,
   });
@@ -138,7 +139,7 @@ export async function recordWorkflowFeedbackAction(input: {
 
   await workflowService.recordWorkflowFeedback({
     workflowId: input.workflowId,
-    userId: session.profile.id,
+    userId: requireChurchProfileId(session),
     feedbackType: input.feedbackType,
     notes: input.notes?.trim() || null,
   });

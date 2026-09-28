@@ -39,8 +39,7 @@ const mockSession = {
   canAccessControl: false,
   memberships: [],
   tenantViews: [],
-  profile: {
-    id: "profile-1",
+  churchProfileId: "profile-1", profile: { id: "profile-1",
     name: "John Doe",
     email: "john@example.com",
     title: "Member",

@@ -556,6 +556,7 @@ export default function ProjectHQPage() {
   const portalRole = mapSupabaseRole(profile?.role || null);
   const customSession: AuthSession = {
     userId: user.id,
+    churchProfileId: profile?.id ?? null,
     source: "supabase",
     profile: {
       id: user.id,

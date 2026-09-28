@@ -109,7 +109,7 @@ describe("church-admin actions", () => {
     vi.clearAllMocks();
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1"},
       source: "supabase",
       userId: "user-1",
     });
@@ -125,7 +125,7 @@ describe("church-admin actions", () => {
   it("rejects create event for unauthorized roles", async () => {
     requireChurchSessionMock.mockResolvedValueOnce({
       appContext: { roleId: "member", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1"},
       source: "supabase",
       userId: "user-1",
     });
@@ -532,7 +532,7 @@ describe("church-admin actions", () => {
   it("rejects church settings updates outside church-admin", async () => {
     requireChurchSessionMock.mockResolvedValueOnce({
       appContext: { roleId: "pastor", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1"},
       source: "supabase",
       userId: "user-1",
     });

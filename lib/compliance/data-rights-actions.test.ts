@@ -57,7 +57,7 @@ describe("data rights pending-review actions", () => {
     vi.clearAllMocks();
     shouldUseLocalTenantFallbackMock.mockReturnValue(true);
     requireChurchSessionMock.mockResolvedValue({
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1"},
       appContext: { roleId: "member", church: { id: "church-1" } },
     });
   });
@@ -84,7 +84,7 @@ describe("data rights pending-review actions", () => {
 
   it("rejects self-service deletion for staff roles", async () => {
     requireChurchSessionMock.mockResolvedValueOnce({
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1"},
       appContext: { roleId: "pastor", church: { id: "church-1" } },
     });
 

@@ -51,7 +51,7 @@ describe("runGivingImportDryRunAction", () => {
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
       source: "supabase",
       userId: "user-1",
-      profile: { id: "profile-admin" },
+      churchProfileId: "profile-admin", profile: { id: "profile-admin"},
     });
     hasTenantBackendEnvMock.mockReturnValue(true);
     resolveActiveChurchProfileIdMock.mockResolvedValue("profile-admin");
@@ -80,7 +80,7 @@ describe("runGivingImportDryRunAction", () => {
       appContext: { roleId: "pastor", church: { id: "church-1" } },
       source: "supabase",
       userId: "user-1",
-      profile: { id: "profile-pastor" },
+      churchProfileId: "profile-pastor", profile: { id: "profile-pastor"},
     });
 
     await expect(
@@ -111,7 +111,7 @@ describe("runGivingImportDryRunAction", () => {
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
       source: "preview",
       userId: "user-1",
-      profile: { id: "profile-admin" },
+      churchProfileId: "profile-admin", profile: { id: "profile-admin"},
     });
 
     await expect(
@@ -182,7 +182,7 @@ describe("commitGivingImportBatchAction", () => {
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
       source: "supabase",
       userId: "user-1",
-      profile: { id: "profile-admin" },
+      churchProfileId: "profile-admin", profile: { id: "profile-admin"},
     });
     hasTenantBackendEnvMock.mockReturnValue(true);
     resolveActiveChurchProfileIdMock.mockResolvedValue("profile-admin");
@@ -218,7 +218,7 @@ describe("commitGivingImportBatchAction", () => {
       appContext: { roleId: "ministry_leader", church: { id: "church-1" } },
       source: "supabase",
       userId: "user-1",
-      profile: { id: "profile-ml" },
+      churchProfileId: "profile-ml", profile: { id: "profile-ml"},
     });
 
     await expect(
@@ -243,7 +243,7 @@ describe("commitGivingImportBatchAction", () => {
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
       source: "preview",
       userId: "user-1",
-      profile: { id: "profile-admin" },
+      churchProfileId: "profile-admin", profile: { id: "profile-admin"},
     });
 
     await expect(

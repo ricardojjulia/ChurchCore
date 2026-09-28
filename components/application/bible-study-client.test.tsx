@@ -71,8 +71,7 @@ function pastorSession(): ChurchAppSession {
       source: "membership",
       homePath: "/app/pastor",
     },
-    profile: {
-      id: "p1",
+    churchProfileId: "p1", profile: { id: "p1",
       name: "Pastor Tom",
       email: "tom@grace.church",
       title: "Lead Pastor",

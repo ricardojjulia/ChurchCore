@@ -77,7 +77,7 @@ export async function postDonationToGlAction(
 ): Promise<{ ok: boolean; journalId?: string; error?: string }> {
   const session = await requireAdminSession();
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
 
   // Fetch the donation + fund mapping in one pass
   if (shouldUseLocalTenantFallback()) {

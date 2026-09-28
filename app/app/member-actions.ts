@@ -183,7 +183,8 @@ export async function memberMobileCheckInAction(
   }
 
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
+  if (!profileId) return { ok: false, error: "Your account has no profile in this church." };
   const targetProfileId = input.targetProfileId?.trim() || profileId;
 
   async function assertHouseholdAccess(
@@ -472,7 +473,8 @@ export async function memberRegisterForEventAction(
   }
 
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
+  if (!profileId) return { ok: false, error: "Your account has no profile in this church." };
   const targetProfileId = input.targetProfileId?.trim() || profileId;
 
   if (shouldUseLocalTenantFallback()) {
