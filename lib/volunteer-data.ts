@@ -307,15 +307,15 @@ export async function getServicePlanDetail(
   const assignedIds = Array.from(
     new Set((shifts ?? []).map((shift) => shift.assigned_user_id).filter((id): id is string => Boolean(id))),
   );
-  const unavailableIds = new Set<string>();
+  const unavailableReasons = new Map<string, string | null>();
   if (assignedIds.length > 0) {
     const { data: blocked } = await supabase
       .from("volunteer_blocked_dates")
-      .select("profile_id")
+      .select("profile_id, reason")
       .eq("church_id", churchId)
       .eq("blocked_date", plan.service_date)
       .in("profile_id", assignedIds);
-    for (const row of blocked ?? []) unavailableIds.add(row.profile_id);
+    for (const row of blocked ?? []) unavailableReasons.set(row.profile_id, row.reason ?? null);
   }
 
   const mappedShifts = (shifts ?? []).map((s) => {
@@ -331,7 +331,8 @@ export async function getServicePlanDetail(
       reminderCount: reminder?.reminder_count ?? 0,
       lastReminderAt: reminder?.last_reminder_at ?? null,
       volunteerName: p?.full_name ?? null, volunteerEmail: p?.email ?? null, volunteerPhone: p?.phone ?? null,
-      volunteerUnavailable: s.assigned_user_id ? unavailableIds.has(s.assigned_user_id) : false,
+      volunteerUnavailable: s.assigned_user_id ? unavailableReasons.has(s.assigned_user_id) : false,
+      volunteerUnavailableReason: s.assigned_user_id ? (unavailableReasons.get(s.assigned_user_id) ?? null) : null,
     };
   });
 

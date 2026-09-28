@@ -14,6 +14,7 @@ const {
   getServicePlanDetailMock,
   getVolunteerPoolMock,
   checkVolunteerBurnoutMock,
+  sendWithSuppressionMock,
   tableResults,
   calls,
 } = vi.hoisted(() => {
@@ -47,6 +48,7 @@ const {
     getServicePlanDetailMock: vi.fn(),
     getVolunteerPoolMock: vi.fn(),
     checkVolunteerBurnoutMock: vi.fn(async () => ({ isBurnedOut: false })),
+    sendWithSuppressionMock: vi.fn(async () => ({ sent: true, skipped: false })),
     tableResults,
     calls,
   };
@@ -62,6 +64,7 @@ vi.mock("@/lib/supabase/tenant", () => ({
 }));
 vi.mock("@/lib/actions/audit", () => ({ logAuditEvent: vi.fn() }));
 vi.mock("@/lib/burnout-calculator", () => ({ checkVolunteerBurnout: checkVolunteerBurnoutMock }));
+vi.mock("@/lib/communications/send-with-suppression", () => ({ sendWithSuppression: sendWithSuppressionMock }));
 vi.mock("@/lib/volunteer-data", () => ({
   getChurchSkillOptions: vi.fn(async () => []),
   getServicePlanDetail: getServicePlanDetailMock,
@@ -112,13 +115,33 @@ function queue(table: string, ...results: Array<{ data?: unknown; error?: unknow
 
 /**
  * Queues the reads one successful assignVolunteerAction makes, in order:
- * plan → position → profile → filled count → same-day conflicts → insert.
+ * plan → position → profile → filled count → same-day conflicts → insert,
+ * then the G1.5 notification's shift read and confirm-link update.
  */
 function queueAssignable({ quantityNeeded = 1, filled = 0 } = {}) {
   queue("service_plans", { data: { event_id: "event-1" }, error: null });
   queue("service_plan_positions", { data: { id: "pos", quantity_needed: quantityNeeded }, error: null });
   queue("profiles", { data: { id: "p" }, error: null });
-  queue("volunteer_shifts", { count: filled, error: null }, { data: [], error: null }, { error: null });
+  queue(
+    "volunteer_shifts",
+    { count: filled, error: null },
+    { data: [], error: null },
+    { data: { id: "new-shift" }, error: null },
+    {
+      data: {
+        id: "new-shift",
+        title: "Greeter",
+        starts_at: "2026-10-06T10:00:00+00:00",
+        assigned_user_id: "p-maya",
+        confirmation_token: null,
+        confirmation_token_expires_at: null,
+        service_plans: { name: "Sunday Worship", service_date: "2026-10-06", service_time: "10:00:00" },
+        profiles: { full_name: "Maya", email: "maya@example.org", phone: null, preferred_contact_method: null, contact_allowed: true },
+      },
+      error: null,
+    },
+    { error: null },
+  );
 }
 
 describe("rotation planner actions", () => {
@@ -230,7 +253,10 @@ describe("rotation planner actions", () => {
         assignments: [{ positionId: "pos-g", profileId: "p-maya" }],
       });
 
-      expect(result).toEqual({ ok: true, results: [{ positionId: "pos-g", profileId: "p-maya", ok: true }] });
+      expect(result).toEqual({
+        ok: true,
+        results: [{ positionId: "pos-g", profileId: "p-maya", ok: true, notification: { status: "sent", channel: "email" } }],
+      });
       const insert = calls.find((c) => c.table === "volunteer_shifts" && c.method === "insert");
       expect(insert?.args[0]).toMatchObject({
         church_id: "church-1",
@@ -337,7 +363,7 @@ describe("rotation planner actions", () => {
     it("assigns when the volunteer is free that day", async () => {
       queueAssignable();
 
-      expect(await assignVolunteerAction(input)).toEqual({ ok: true });
+      expect(await assignVolunteerAction(input)).toEqual({ ok: true, notification: { status: "sent", channel: "email" } });
       expect(calls.some((c) => c.table === "volunteer_shifts" && c.method === "insert")).toBe(true);
       // The position lookup is scoped to the plan and the church.
       expect(calls).toEqual(

@@ -102,6 +102,8 @@ export type VolunteerShift = {
   volunteerPhone: string | null;
   /** The volunteer has since marked the plan's date unavailable (G1.4). */
   volunteerUnavailable?: boolean;
+  /** The reason they gave, when they blocked the date (G1.5). */
+  volunteerUnavailableReason?: string | null;
 };
 
 export type ServicePlanDetail = {
