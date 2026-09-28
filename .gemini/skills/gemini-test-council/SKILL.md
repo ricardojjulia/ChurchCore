@@ -1,58 +1,16 @@
 ---
 name: gemini-test-council
-description: Summon the AI Council of Testers (v5.0) — Persona-based E2E journey testing (Pastor, Secretary, Volunteer, Visitor), multi-tenant RLS auditing, Realtime sync checks, Core Web Vitals, and patch-ready defect triage.
+description: Runs the ChurchCore Testing Council (v6, the Omni-Council protocol) — multi-persona behavior testing of the running app against local Supabase, with 20 mapped personas, on-the-fly personas, a SharedCouncilMemory ledger, spatial/functional/stress/RLS lenses, remediation proposals and the Master Governance Audit report. Required at milestones M3 and M5.
 ---
 
-# 🏛️ ChurchCore AI Council of Testers (v5.0)
+# ChurchCore Testing Council (v6)
 
-Summon this skill to autonomously execute multi-persona E2E tests, audit security invariants, verify Supabase Realtime synchronization, and produce patch-ready defect reports for ChurchCore.
+Follow `docs/prompts/ai-council-of-testers-v6.md`. It is the source of truth, and its Part 0 ground rules override everything else. The run steps match the Claude entrypoint, `.claude/skills/test-council/SKILL.md`:
 
-## 👥 The 4 Test Personas
+1. **Set up.** Read `AGENTS.md` and `DEVELOPMENT_PLAN.md` §0, then the protocol. Bring up the local e2e environment (`scripts/e2e-local.sh`). The local-only guard must pass, and **`.env.local` is never read.**
+2. **Scope the run.** Re-count the surfaces in `tests/coverage-manifest.json`, choose `MAXIMALIST_EXHAUSTIVE` or `TARGETED`, create `test-results/testing-council/<run-id>/` with `ledger.jsonl`, and create the second-church fixture.
+3. **Run.** Cover all four lenses and all core pathways across every surface in scope. Write only under the run folder. Record local-DB fixture rows in the ledger. **A cross-tenant leak halts the run as Critical.**
+4. **Synthesize.** Check every claim against its evidence, then write `docs/reviews/YYYY-MM-DD-testing-council-<n>.md` in the Part 4 structure. Add a `DEVELOPMENT_PLAN.md` §0.3 row, or a §0.5 entry, for every defect. Tear down the fixtures.
+5. **Remediate.** Ask the human before building any patch. Patches go through `gemini-feature-factory`, the council, and a PR. Never auto-merge.
 
-1. **Pastor (`church_admin` / `lead_pastor`)**
-   - Viewport: Desktop (1440x900)
-   - Scope: Sermon planning, giving/tithe rollups, confidential pastoral counseling records.
-   - SLA & Invariant: LCP < 1.8s; Table aggregates match KPI cards 100%; Cross-tenant RLS isolation strictly verified.
-
-2. **Secretary (`church_staff` / `volunteer_coord`)**
-   - Viewport: Desktop (1440x900)
-   - Scope: Bulk scheduling, room conflict resolution, roster check-in updates, member CSV export.
-   - SLA & Invariant: INP < 200ms; Rapid concurrent inputs must not double-submit; Negative financial boundary (`/giving/reports` -> 403 Forbidden).
-
-3. **Volunteer (`volunteer_leader` / `ministry_lead`)**
-   - Viewport: Tablet (768x1024)
-   - Scope: Service cue sheets, volunteer check-in, small group rosters.
-   - SLA & Invariant: Real-time schedule sync via Supabase Realtime; Negative admin boundary (no billing/staff/pastoral notes access).
-
-4. **New Visitor (`anonymous_visitor` / `new_member`)**
-   - Viewport: Mobile (375x812, 3G Throttled)
-   - Scope: Connection cards, event/retreat registration, family profile & child check-in.
-   - SLA & Invariant: CLS < 0.05; Minimum tap targets >= 48px; Negative app boundary (`/app/*` -> redirects to `/login`).
-
----
-
-## 🔄 Execution Workflow
-
-1. **Fixture Setup:**
-   - Spin up/target an isolated test tenant (`tenant_test_[uuid]`).
-   - Use dynamic relative dates (`getNextSunday()`, `now() + 7 days`).
-
-2. **Integration Mocking:**
-   - Route Stripe payments through Test Mode tokens (`pm_card_visa`).
-   - Sink transactional email/SMS (Resend/Twilio) to in-memory buffers.
-
-3. **Autonomous Journey Execution:**
-   - Execute test turns using the 4-tier self-healing hierarchy:
-     1. Semantic Locators (`role`, `aria-label`, `data-testid`)
-     2. A11y Tree + Relative Spatial Anchor
-     3. Visual Normalized Bounding Box (`[ymin, xmin, ymax, xmax]`)
-     4. Self-Healing Selector update
-
-4. **Security & Concurrency Invariant Auditing:**
-   - Verify multi-tenant RLS isolation (0 rows leaked across tenants).
-   - Test optimistic locking on concurrent bookings (1 succeeds with 200, 1 receives 409 Conflict).
-   - Verify Supabase Realtime broadcast across concurrent sessions.
-
-5. **Council Report Generation:**
-   - Check alignment with `tests/coverage-manifest.json`.
-   - Output structured report with patch-ready diffs to `docs/reviews/council-test-YYYYMMDD-HHMM.md`.
+Required at milestones M3 (2026-10-16) and M5 (2026-10-30, part of R1).

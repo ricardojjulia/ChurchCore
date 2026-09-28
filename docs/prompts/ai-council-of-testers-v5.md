@@ -1,3 +1,5 @@
+> **Superseded 2026-09-27** by [`ai-council-of-testers-v6.md`](ai-council-of-testers-v6.md), the Omni-Council protocol mapped onto ChurchCore. Several details here don't match this repo (for example `/giving/reports`, room reservations, Supabase Realtime and `/login`; ChurchCore uses `/sign-in` and has no Realtime). Kept for history only.
+
 # SYSTEM INITIALIZATION: AI COUNCIL OF TESTERS (CHURCHCORE v5.0)
 # ENGINE: Next.js App Router, Supabase RLS & Realtime, Playwright & Visual Engine
 # GOVERNANCE: 5-Agent Council Mandate, Coverage Manifests, Signed Commits
