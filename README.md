@@ -470,7 +470,8 @@ For Communications Hub (Phase 6), also supply:
 
 - `SENDGRID_API_KEY` and `SENDGRID_FROM_EMAIL` — outbound email via SendGrid
 - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM_NUMBER` — outbound SMS via Twilio
-- When these vars are absent the notification actions log to the console and return a stub result so local dev is unaffected.
+- `RESEND_API_KEY` and `RESEND_FROM_EMAIL` — outbound email via Resend (ADR 0006's designated primary provider; not yet wired into the send path — `DEVELOPMENT_PLAN.md` row G5.1)
+- When these vars are absent, the adapters return a stub "sent" result **outside production** (or with `NEXT_PUBLIC_DEMO_MODE=true`), so local dev and demos are unaffected — a production deploy without them returns `provider_not_configured` instead of reporting a message as delivered that never was (Council Reviews 22 and 23; `lib/stub-mode.ts`). Volunteer assignment notifications (`DEVELOPMENT_PLAN.md` row G1.5) and the giving flow (row S8) both depend on this rule. Outbound links (e.g. a volunteer's confirm link) use `NEXT_PUBLIC_APP_URL`; in production without it, the send is skipped rather than mailing a dead `localhost` link.
 
 Architectural note:
 
