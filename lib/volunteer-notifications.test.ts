@@ -19,6 +19,11 @@ describe("tokenExpiryFor", () => {
   it("is never less than 7 days from now (a reminder for a shift that has already passed)", () => {
     expect(tokenExpiryFor("2026-09-25", NOW).toISOString()).toBe("2026-10-08T15:00:00.000Z");
   });
+
+  it("ends at local midnight in the church's time zone (G1.6)", () => {
+    // The end of Nov 22 in New York (EST) is 05:00 UTC on Nov 23.
+    expect(tokenExpiryFor("2026-11-15", NOW, "America/New_York").toISOString()).toBe("2026-11-23T05:00:00.000Z");
+  });
 });
 
 describe("chooseChannel", () => {

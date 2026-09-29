@@ -7,6 +7,8 @@
  * Messages are English-only for now (the volunteer's language isn't stored).
  */
 
+import { startOfDayInTimeZone } from "@/lib/church-time";
+
 /** A shift's confirm link stays valid this long after the service date. */
 export const TOKEN_DAYS_AFTER_SERVICE = 7;
 /** ...and never less than this from now (a same-day or late assignment). */
@@ -14,9 +16,15 @@ export const MIN_TOKEN_DAYS_FROM_NOW = 7;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-/** When a shift's confirm link expires: the service date + 7 days, and at least 7 days from now. */
-export function tokenExpiryFor(serviceDate: string, now: Date = new Date()): Date {
-  const afterService = Date.parse(`${serviceDate}T00:00:00Z`) + (TOKEN_DAYS_AFTER_SERVICE + 1) * MS_PER_DAY;
+/**
+ * When a shift's confirm link expires: the end of the service date + 7 days in
+ * the church's time zone (G1.6), and at least 7 days from now.
+ */
+export function tokenExpiryFor(serviceDate: string, now: Date = new Date(), timeZone?: string | null): Date {
+  const expiryDay = new Date(Date.parse(`${serviceDate}T00:00:00Z`) + (TOKEN_DAYS_AFTER_SERVICE + 1) * MS_PER_DAY)
+    .toISOString()
+    .slice(0, 10);
+  const afterService = startOfDayInTimeZone(expiryDay, timeZone).getTime();
   const minimum = now.getTime() + MIN_TOKEN_DAYS_FROM_NOW * MS_PER_DAY;
   return new Date(Math.max(Number.isNaN(afterService) ? 0 : afterService, minimum));
 }
