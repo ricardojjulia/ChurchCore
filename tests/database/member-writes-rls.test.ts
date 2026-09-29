@@ -129,6 +129,36 @@ describe("member writes under RLS (S8)", () => {
     });
   });
 
+  describe("member writes missed by S8 (Council Review 22)", () => {
+    it("a member's direct update of their own pending change request matches nothing, so the app does it server-side", async () => {
+      await inRolledBackTransaction(async (client, me) => {
+        await client.query(
+          `insert into public.member_change_requests (church_id, target_profile_id, requested_by_profile_id, change_type, status, proposed_changes)
+           values ($1, $2, $2, 'family', 'pending', '{"familyName":"Old"}')`,
+          [CHURCH_A, me],
+        );
+        const res = await asMember(
+          client,
+          `update public.member_change_requests set proposed_changes = '{"familyName":"New"}' where target_profile_id = $1`,
+          [me],
+        );
+        expect(res.error).toBeNull();
+        expect(res.rowCount).toBe(0);
+      });
+    });
+
+    it("a member saves their notification preferences more than once (upsert on church and profile)", async () => {
+      await inRolledBackTransaction(async (client, me) => {
+        const UPSERT = `insert into public.notification_preferences (church_id, profile_id, email_opt_in) values ($1, $2, $3)
+                        on conflict (church_id, profile_id) do update set email_opt_in = excluded.email_opt_in`;
+        expect((await asMember(client, UPSERT, [CHURCH_A, me, true])).error).toBeNull();
+        const second = await asMember(client, UPSERT, [CHURCH_A, me, false]);
+        expect(second.error).toBeNull();
+        expect(second.rowCount).toBe(1);
+      });
+    });
+  });
+
   describe("event RSVPs", () => {
     const RSVP = `insert into public.event_rsvps (event_id, user_id, status) values ($1, $2, 'yes')`;
 

@@ -7,10 +7,11 @@ import {
   cancelStripeSubscription,
   createOrGetStripeCustomer,
   createPaymentIntent,
+  onlineGivingNotice,
   retrievePaymentIntentStatus,
 } from "@/lib/stripe/donations";
+import { postDonationToGl, sendDonationReceipt } from "@/lib/stripe/donation-completion";
 import { createTenantAdminClient } from "@/lib/supabase/tenant";
-import { sendEmail } from "@/lib/notifications/send-email";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -53,6 +54,8 @@ export type InitiateDonationResult =
  *
  * Writes a pending donations row, then creates the Stripe PaymentIntent for
  * it. If Stripe fails, the row is marked failed; nothing is left half-made.
+ * Only runs in stub mode until the card form ships (G3.0): otherwise no row
+ * or PaymentIntent is created, so nothing is left pending forever.
  *
  * All giving is 100% voluntary — no minimum, no platform fee.
  */
@@ -66,6 +69,8 @@ export async function initiateDonationAction(
   if (!Number.isInteger(input.amountCents) || input.amountCents <= 0 || input.amountCents > MAX_DONATION_CENTS) {
     return { ok: false, error: "Enter a gift amount between $0.01 and $100,000." };
   }
+  const givingOff = onlineGivingNotice();
+  if (givingOff) return { ok: false, error: givingOff };
 
   const anonymous = input.isAnonymous ?? false;
   const supabase = createTenantAdminClient();
@@ -141,7 +146,13 @@ export async function confirmDonationAction(
   const session = await requireChurchSession("/app/member");
   const churchId = session.appContext.church.id;
 
-  const status = await retrievePaymentIntentStatus(paymentIntentId);
+  let status: string;
+  try {
+    status = await retrievePaymentIntentStatus(paymentIntentId);
+  } catch (error) {
+    console.error("Failed to check the payment with Stripe:", error);
+    return { ok: false, error: "Couldn't check your payment. Please try again." };
+  }
   if (status !== "succeeded") {
     return { ok: false, error: "Your payment hasn't completed yet." };
   }
@@ -162,20 +173,25 @@ export async function confirmDonationAction(
     amount_cents: number;
     fund_designation: string | null;
   }> | null)?.[0];
-  if (row?.donor_email) {
-    await sendReceiptEmail(
-      row.donor_email,
-      row.donor_name,
-      row.amount_cents,
-      row.fund_designation,
-      session.appContext.church.name,
-      donationId,
-    );
-    await supabase
-      .from("donations")
-      .update({ receipt_sent_at: new Date().toISOString() })
-      .eq("id", donationId)
-      .eq("church_id", churchId);
+  if (row) {
+    // This call won the pending → succeeded update, so it posts the gift to
+    // the ledger and sends the receipt; the webhook won't (Council Review 22).
+    await postDonationToGl(supabase, donationId, churchId, row.amount_cents, row.fund_designation);
+    if (row.donor_email) {
+      await sendDonationReceipt({
+        to: row.donor_email,
+        donorName: row.donor_name,
+        amountCents: row.amount_cents,
+        fundDesignation: row.fund_designation,
+        donationId,
+        churchName: session.appContext.church.name,
+      });
+      await supabase
+        .from("donations")
+        .update({ receipt_sent_at: new Date().toISOString() })
+        .eq("id", donationId)
+        .eq("church_id", churchId);
+    }
   }
   revalidatePath("/app/member/giving");
   return { ok: true };
@@ -220,47 +236,4 @@ export async function cancelRecurringDonationAction(
   }
   revalidatePath("/app/member/giving");
   return { ok: true };
-}
-
-// ── Private helpers ───────────────────────────────────────────
-
-async function sendReceiptEmail(
-  to: string,
-  name: string | null,
-  amountCents: number,
-  fund: string | null,
-  churchName: string,
-  donationId: string,
-): Promise<void> {
-  const dollars = (amountCents / 100).toFixed(2);
-  const fundLabel = fund ?? "General Fund";
-  const greeting = name ? `Dear ${name},` : "Dear Friend,";
-
-  await sendEmail({
-    to,
-    subject: `Thank you for your gift to ${churchName}`,
-    text: [
-      greeting,
-      "",
-      `Thank you for your generous and voluntary gift of $${dollars} to the ${fundLabel} at ${churchName}.`,
-      "",
-      "Your giving makes a difference in our community. We are grateful for your generosity.",
-      "",
-      `Donation reference: ${donationId}`,
-      "",
-      "This receipt is for your records. Please retain it for tax purposes.",
-      "",
-      `With gratitude,`,
-      churchName,
-    ].join("\n"),
-    html: `
-      <p>${greeting}</p>
-      <p>Thank you for your generous and voluntary gift of <strong>$${dollars}</strong> to the <strong>${fundLabel}</strong> at ${churchName}.</p>
-      <p>Your giving makes a difference in our community. We are grateful for your generosity.</p>
-      <p style="color:#666;font-size:12px;">Donation reference: ${donationId}</p>
-      <p style="color:#666;font-size:12px;">This receipt is for your records. Please retain it for tax purposes.</p>
-      <p>With gratitude,<br/>${churchName}</p>
-    `,
-    idempotencyKey: donationId,
-  });
 }

@@ -12,7 +12,9 @@ const {
   createOrGetStripeCustomerMock,
   cancelStripeSubscriptionMock,
   retrievePaymentIntentStatusMock,
-  sendEmailMock,
+  onlineGivingNoticeMock,
+  postDonationToGlMock,
+  sendDonationReceiptMock,
   tableResults,
   calls,
 } = vi.hoisted(() => {
@@ -25,7 +27,9 @@ const {
     createOrGetStripeCustomerMock: vi.fn(),
     cancelStripeSubscriptionMock: vi.fn(),
     retrievePaymentIntentStatusMock: vi.fn(),
-    sendEmailMock: vi.fn(),
+    onlineGivingNoticeMock: vi.fn(),
+    postDonationToGlMock: vi.fn(),
+    sendDonationReceiptMock: vi.fn(),
     tableResults,
     calls,
   };
@@ -38,6 +42,11 @@ vi.mock("@/lib/stripe/donations", () => ({
   createOrGetStripeCustomer: createOrGetStripeCustomerMock,
   cancelStripeSubscription: cancelStripeSubscriptionMock,
   retrievePaymentIntentStatus: retrievePaymentIntentStatusMock,
+  onlineGivingNotice: onlineGivingNoticeMock,
+}));
+vi.mock("@/lib/stripe/donation-completion", () => ({
+  postDonationToGl: postDonationToGlMock,
+  sendDonationReceipt: sendDonationReceiptMock,
 }));
 vi.mock("@/lib/supabase/tenant", () => {
   function next(table: string) {
@@ -59,7 +68,6 @@ vi.mock("@/lib/supabase/tenant", () => {
   }
   return { createTenantAdminClient: vi.fn(() => ({ from: (table: string) => builder(table) })) };
 });
-vi.mock("@/lib/notifications/send-email", () => ({ sendEmail: sendEmailMock }));
 
 import {
   cancelRecurringDonationAction,
@@ -89,7 +97,9 @@ describe("donations actions", () => {
     createPaymentIntentMock.mockResolvedValue({ clientSecret: "pi_secret", paymentIntentId: "pi_123", isStub: false });
     createOrGetStripeCustomerMock.mockResolvedValue("cus_1");
     retrievePaymentIntentStatusMock.mockResolvedValue("succeeded");
-    sendEmailMock.mockResolvedValue({ ok: true });
+    onlineGivingNoticeMock.mockReturnValue(null);
+    postDonationToGlMock.mockResolvedValue(undefined);
+    sendDonationReceiptMock.mockResolvedValue(undefined);
   });
 
   describe("initiateDonationAction", () => {
@@ -155,6 +165,16 @@ describe("donations actions", () => {
       errorSpy.mockRestore();
     });
 
+    it("writes nothing and calls no Stripe API when online giving is off (production without keys, or no card form yet)", async () => {
+      const notice = "Online card giving isn't available yet. Please give in person or contact the church office.";
+      onlineGivingNoticeMock.mockReturnValue(notice);
+
+      expect(await initiateDonationAction({ amountCents: 1000 })).toEqual({ ok: false, error: notice });
+      expect(methodCalls("insert")).toHaveLength(0);
+      expect(createPaymentIntentMock).not.toHaveBeenCalled();
+      expect(createOrGetStripeCustomerMock).not.toHaveBeenCalled();
+    });
+
     it("rejects invalid amounts and people with no profile in this church", async () => {
       for (const amountCents of [0, -5, 12.5, 10_000_001]) {
         expect(await initiateDonationAction({ amountCents })).toMatchObject({ ok: false });
@@ -169,7 +189,7 @@ describe("donations actions", () => {
   });
 
   describe("confirmDonationAction", () => {
-    it("marks the gift succeeded only when Stripe says so, only from pending, and sends the receipt", async () => {
+    it("marks the gift succeeded only when Stripe says so, only from pending, then posts it to the GL and sends the receipt", async () => {
       queue(
         "donations",
         { data: [{ donor_email: "maya@example.org", donor_name: "Maya", amount_cents: 2500, fund_designation: "General" }], error: null },
@@ -186,7 +206,21 @@ describe("donations actions", () => {
           { table: "donations", method: "eq", args: ["church_id", "church-1"] },
         ]),
       );
-      expect(sendEmailMock).toHaveBeenCalledTimes(1);
+      expect(postDonationToGlMock).toHaveBeenCalledWith(expect.anything(), "don-1", "church-1", 2500, "General");
+      expect(sendDonationReceiptMock).toHaveBeenCalledWith(
+        expect.objectContaining({ to: "maya@example.org", donationId: "don-1", churchName: "Grace Harbor" }),
+      );
+    });
+
+    it("returns an error, not a throw, when Stripe can't be reached", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      retrievePaymentIntentStatusMock.mockRejectedValueOnce(new Error("network"));
+      expect(await confirmDonationAction("don-1", "pi_123")).toEqual({
+        ok: false,
+        error: "Couldn't check your payment. Please try again.",
+      });
+      expect(methodCalls("update")).toHaveLength(0);
+      errorSpy.mockRestore();
     });
 
     it("refuses when Stripe hasn't confirmed the payment", async () => {
@@ -201,7 +235,9 @@ describe("donations actions", () => {
     it("does nothing more when the webhook already confirmed it", async () => {
       queue("donations", { data: [], error: null });
       expect(await confirmDonationAction("don-1", "pi_123")).toEqual({ ok: true });
-      expect(sendEmailMock).not.toHaveBeenCalled();
+      // The webhook won the update, so it posted and receipted; this call must not.
+      expect(postDonationToGlMock).not.toHaveBeenCalled();
+      expect(sendDonationReceiptMock).not.toHaveBeenCalled();
     });
   });
 

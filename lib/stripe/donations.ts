@@ -15,6 +15,44 @@
 
 import { stripeRequest, hasStripeConfig } from "./client";
 
+/**
+ * Whether a member can give online right now (Council Review 22).
+ *
+ * - `"stub"`: no Stripe keys, outside production or in demo mode. Gifts are
+ *   recorded as succeeded without charging anyone — for local development
+ *   and the demo only.
+ * - `"unconfigured"`: no Stripe keys in production. Online giving is off;
+ *   nothing may be recorded as paid.
+ * - `"unavailable"`: Stripe is configured, but the card form (G3.0, Stripe
+ *   Elements) isn't built, so a PaymentIntent could never be paid. No row or
+ *   PaymentIntent is created. G3.0 adds a `"live"` mode here.
+ */
+export type OnlineGivingMode = "stub" | "unconfigured" | "unavailable";
+
+/** Stubbed payments are allowed only outside production, or in demo mode. */
+export function stubPaymentsAllowed(): boolean {
+  return process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+}
+
+export function onlineGivingMode(): OnlineGivingMode {
+  if (hasStripeConfig()) return "unavailable";
+  return stubPaymentsAllowed() ? "stub" : "unconfigured";
+}
+
+/**
+ * Why a member can't give online right now, or null when they can. Shown up
+ * front on the giving page and returned by `initiateDonationAction`.
+ */
+export function onlineGivingNotice(mode: OnlineGivingMode = onlineGivingMode()): string | null {
+  if (mode === "unconfigured") {
+    return "Online giving isn't set up for this church yet. Please give in person or contact the church office.";
+  }
+  if (mode === "unavailable") {
+    return "Online card giving isn't available yet. Please give in person or contact the church office.";
+  }
+  return null;
+}
+
 export interface CreatePaymentIntentInput {
   amountCents: number;
   currency?: string;
@@ -41,6 +79,7 @@ export async function createPaymentIntent(
   input: CreatePaymentIntentInput,
 ): Promise<CreatePaymentIntentResult> {
   if (!hasStripeConfig()) {
+    if (!stubPaymentsAllowed()) throw new Error("Stripe is not configured.");
     return {
       clientSecret: "pi_stub_secret_test",
       paymentIntentId: "pi_stub",
@@ -82,7 +121,10 @@ export interface CreateOrGetStripeCustomerInput {
 export async function createOrGetStripeCustomer(
   input: CreateOrGetStripeCustomerInput,
 ): Promise<string> {
-  if (!hasStripeConfig()) return "cus_stub";
+  if (!hasStripeConfig()) {
+    if (!stubPaymentsAllowed()) throw new Error("Stripe is not configured.");
+    return "cus_stub";
+  }
 
   // Search by email first to avoid duplicates
   const search = await stripeRequest<{
@@ -120,10 +162,11 @@ export async function cancelStripeSubscription(
 /**
  * A PaymentIntent's status as Stripe reports it, so a donation is only marked
  * succeeded when Stripe says so, never on the browser's word (S8). Without
- * STRIPE_SECRET_KEY (local stub) every payment counts as succeeded.
+ * STRIPE_SECRET_KEY every payment counts as succeeded only where stubs are
+ * allowed (never in production outside demo mode).
  */
 export async function retrievePaymentIntentStatus(paymentIntentId: string): Promise<string> {
-  if (!hasStripeConfig()) return "succeeded";
+  if (!hasStripeConfig()) return stubPaymentsAllowed() ? "succeeded" : "unconfigured";
   const pi = await stripeRequest<{ status: string }>("GET", `/payment_intents/${encodeURIComponent(paymentIntentId)}`);
   return pi.status;
 }

@@ -8,7 +8,7 @@ import {
 } from "@/lib/supabase/tenant";
 import { getStripeWebhookSecret } from "@/lib/stripe/client";
 import { reverseGlEntryForRefund } from "@/lib/stripe/event-registrations";
-import { sendEmail } from "@/lib/notifications/send-email";
+import { postDonationToGl, sendDonationReceipt } from "@/lib/stripe/donation-completion";
 
 // ── Signature verification ────────────────────────────────────
 
@@ -121,13 +121,13 @@ async function handlePaymentIntentSucceeded(pi: {
     // Send receipt
     const recipientEmail = donation.donor_email ?? pi.receipt_email;
     if (recipientEmail) {
-      await sendReceiptEmail(
-        recipientEmail,
-        donation.donor_name,
-        donation.amount_cents,
-        donation.fund_designation,
-        donation.id,
-      );
+      await sendDonationReceipt({
+        to: recipientEmail,
+        donorName: donation.donor_name,
+        amountCents: donation.amount_cents,
+        fundDesignation: donation.fund_designation,
+        donationId: donation.id,
+      });
       await queryTenantLocalDb(
         `update public.donations set receipt_sent_at = now() where id = $1`,
         [donation.id],
@@ -178,8 +178,7 @@ async function handlePaymentIntentSucceeded(pi: {
 
   if (!donation) return;
 
-  // Auto-post to GL via Supabase path (mirrors local autoPostToGl)
-  await autoPostToGlSupabase(
+  await postDonationToGl(
     supabase,
     donation.id as string,
     churchId,
@@ -197,13 +196,13 @@ async function handlePaymentIntentSucceeded(pi: {
 
   const recipientEmail = d.donor_email ?? pi.receipt_email;
   if (recipientEmail) {
-    await sendReceiptEmail(
-      recipientEmail,
-      d.donor_name,
-      d.amount_cents,
-      d.fund_designation,
-      d.id,
-    );
+    await sendDonationReceipt({
+      to: recipientEmail,
+      donorName: d.donor_name,
+      amountCents: d.amount_cents,
+      fundDesignation: d.fund_designation,
+      donationId: d.id,
+    });
     await supabase
       .from("donations")
       .update({ receipt_sent_at: new Date().toISOString() })
@@ -487,95 +486,9 @@ async function handleSubscriptionDeleted(sub: {
 }
 
 // ── GL auto-post ──────────────────────────────────────────────
-// Dead code — Supabase-only architecture (2026-07-10). Use autoPostToGlSupabase.
+// Dead code — Supabase-only architecture (2026-07-10). Use postDonationToGl.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function autoPostToGl(..._args: unknown[]) { return; }
-
-// ── GL auto-post (Supabase path) ──────────────────────────────
-
-async function autoPostToGlSupabase(
-  supabase: ReturnType<typeof createTenantAdminClient>,
-  donationId: string,
-  churchId: string,
-  amountCents: number,
-  fundDesignation: string | null,
-) {
-  try {
-    // Idempotency: skip if already posted
-    const { data: existing } = await supabase
-      .from("donation_gl_posts")
-      .select("id")
-      .eq("donation_id", donationId)
-      .maybeSingle();
-    if (existing) return;
-
-    // Fund → GL account mapping
-    const { data: mapping } = await supabase
-      .from("giving_fund_accounts")
-      .select("asset_account_id, income_account_id")
-      .eq("church_id", churchId)
-      .eq("fund_designation", fundDesignation ?? "General")
-      .eq("is_active", true)
-      .maybeSingle();
-    if (!mapping) return; // No mapping configured — skip silently
-
-    const { asset_account_id, income_account_id } = mapping as {
-      asset_account_id: string;
-      income_account_id: string;
-    };
-
-    // Create journal
-    const { data: journal } = await supabase
-      .from("finance_journals")
-      .insert({
-        church_id: churchId,
-        journal_date: new Date().toISOString().slice(0, 10),
-        description: `Online giving — ${fundDesignation ?? "General Fund"}`,
-        journal_type: "giving",
-        status: "posted",
-        reference: donationId,
-      })
-      .select("id")
-      .single();
-    if (!journal) return;
-
-    const journalId = (journal as { id: string }).id;
-    const lineMemo = `Donation ${donationId.slice(-8)}`;
-
-    // Balanced journal lines: debit asset, credit income
-    // Columns: journal_id, church_id, account_id, side ('debit'|'credit'), amount_cents, memo, sort_order
-    await supabase.from("finance_journal_lines").insert([
-      {
-        journal_id: journalId,
-        church_id: churchId,
-        account_id: asset_account_id,
-        side: "debit",
-        amount_cents: amountCents,
-        memo: lineMemo,
-        sort_order: 0,
-      },
-      {
-        journal_id: journalId,
-        church_id: churchId,
-        account_id: income_account_id,
-        side: "credit",
-        amount_cents: amountCents,
-        memo: lineMemo,
-        sort_order: 1,
-      },
-    ]);
-
-    // Audit record
-    await supabase.from("donation_gl_posts").insert({
-      church_id: churchId,
-      donation_id: donationId,
-      journal_id: journalId,
-      status: "posted",
-    });
-  } catch (err) {
-    console.error("[stripe-webhook] autoPostToGlSupabase failed (non-blocking):", err);
-  }
-}
 
 async function reverseGlEntryForRefundSupabase(
   supabase: ReturnType<typeof createTenantAdminClient>,
@@ -618,37 +531,6 @@ async function reverseGlEntryForRefundSupabase(
   } catch (err) {
     console.error("[stripe-webhook] reverseGlEntryForRefundSupabase failed (non-blocking):", err);
   }
-}
-
-// ── Receipt email ─────────────────────────────────────────────
-
-async function sendReceiptEmail(
-  to: string,
-  donorName: string | null,
-  amountCents: number,
-  fundDesignation: string | null,
-  donationId: string,
-) {
-  const amount = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(amountCents / 100);
-
-  const fund = fundDesignation ?? "General Fund";
-  const name = donorName ? `${donorName}, thank` : "Thank";
-
-  await sendEmail({
-    to,
-    subject: `Your gift of ${amount} — receipt`,
-    text: `${name} you for your gift of ${amount} to ${fund}. Donation ID: ${donationId}`,
-    html: `
-      <p>${name} you for your generous gift of <strong>${amount}</strong> to the <strong>${fund}</strong>.</p>
-      <p>Donation reference: <code>${donationId.slice(-8).toUpperCase()}</code></p>
-      <p style="color:#666;font-size:12px">This is your official giving receipt. Please retain for tax purposes.</p>
-    `,
-    idempotencyKey: donationId,
-  });
 }
 
 // ── Route handler ─────────────────────────────────────────────

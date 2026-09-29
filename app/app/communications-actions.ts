@@ -565,6 +565,9 @@ export async function updateNotificationPreferencesAction(
       throw new Error(existingError.message);
     }
 
+    // Without onConflict the upsert matched on the primary key (id, never
+    // sent), so every save after the first hit the (church_id, profile_id)
+    // unique key and threw (Council Review 22).
     const { error } = await supabase.from("notification_preferences").upsert({
       church_id: churchId,
       profile_id: input.profileId,
@@ -573,7 +576,7 @@ export async function updateNotificationPreferencesAction(
       push_opt_in: input.pushOptIn,
       in_app_opt_in: input.inAppOptIn,
       updated_at: new Date().toISOString(),
-    });
+    }, { onConflict: "church_id,profile_id" });
 
     if (error) {
       throw new Error(error.message);
