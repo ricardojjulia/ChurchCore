@@ -11,6 +11,7 @@ const {
   revalidatePathMock,
   requireChurchSessionMock,
   createTenantServerClientMock,
+  createTenantAdminClientMock,
   getServicePlanDetailMock,
   getVolunteerPoolMock,
   checkVolunteerBurnoutMock,
@@ -45,6 +46,7 @@ const {
     revalidatePathMock: vi.fn(),
     requireChurchSessionMock: vi.fn(),
     createTenantServerClientMock: vi.fn(async () => ({ from: (table: string) => builder(table) })),
+    createTenantAdminClientMock: vi.fn(() => ({ from: (table: string) => builder(table) })),
     getServicePlanDetailMock: vi.fn(),
     getVolunteerPoolMock: vi.fn(),
     checkVolunteerBurnoutMock: vi.fn(async () => ({ isBurnedOut: false })),
@@ -58,7 +60,9 @@ vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/auth", () => ({ requireChurchSession: requireChurchSessionMock }));
 vi.mock("@/lib/supabase/tenant", () => ({
   createTenantServerClient: createTenantServerClientMock,
-  createTenantAdminClient: vi.fn(),
+  // G1.5's notification reads and writes the confirm token through the admin
+  // client (Council Review 23); it shares the same queued results.
+  createTenantAdminClient: createTenantAdminClientMock,
   queryTenantLocalDb: vi.fn(),
   shouldUseLocalTenantFallback: vi.fn(() => false),
 }));
@@ -140,7 +144,7 @@ function queueAssignable({ quantityNeeded = 1, filled = 0 } = {}) {
       },
       error: null,
     },
-    { error: null },
+    { data: [{ id: "new-shift" }], error: null },
   );
 }
 
@@ -185,6 +189,24 @@ describe("rotation planner actions", () => {
         ["Aisha", true],
         ["Blocked Ben", false],
       ]);
+    });
+
+    it("doesn't suggest someone who declined a shift on this plan (Council Review 23)", async () => {
+      const detail = planDetail([{ id: "pos-1", roleTypeId: "role-g", roleName: "Greeter", requiredSkills: [], quantityNeeded: 1, filled: 0 }]);
+      (detail.positions[0] as { shifts?: unknown[] }).shifts = [{ assignedUserId: "p-dan", confirmationStatus: "declined" }];
+      getServicePlanDetailMock.mockResolvedValue(detail);
+      getVolunteerPoolMock.mockResolvedValue([
+        volunteer({ profileId: "p-dan", fullName: "Declined Dan" }),
+        volunteer({ profileId: "p-aisha", fullName: "Aisha" }),
+      ]);
+
+      const result = await suggestVolunteersForPositionAction({ planId: "plan-1", positionId: "pos-1" });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const dan = result.volunteers.find((v) => v.profileId === "p-dan");
+      expect(dan).toMatchObject({ eligible: false, ineligibleReasons: ["declined_this_service"] });
+      expect(dan?.reasons).toContain("Declined this service");
     });
 
     it("returns an error for an unknown plan or a position that isn't on the plan", async () => {

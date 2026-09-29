@@ -27,7 +27,7 @@ export default async function VolunteerConfirmPage({
             <Stack align="center" gap="md" py="xl">
               <Title order={3} c="red">Invalid or Expired Link</Title>
               <Text c="dimmed" ta="center">
-                This volunteer confirmation link is invalid or has expired. Sessional confirmation links expire after 14 days. Please contact your ministry leader.
+                This volunteer confirmation link is invalid or has expired. Links stop working a week after the service. Please contact your ministry leader.
               </Text>
             </Stack>
           )}

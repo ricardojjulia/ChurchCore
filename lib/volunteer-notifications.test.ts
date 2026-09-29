@@ -4,6 +4,7 @@ import {
   buildShiftMessage,
   chooseChannel,
   describeNotification,
+  SMS_NOTE_MAX,
   tokenExpiryFor,
 } from "@/lib/volunteer-notifications";
 
@@ -53,19 +54,23 @@ describe("buildShiftMessage", () => {
     serviceDate: "2026-10-11",
     serviceTime: "10:00:00",
     confirmUrl: "https://app.example/portal/volunteer/confirm/tok",
+    churchName: "Grace Harbor",
+    channel: "email" as const,
   };
 
-  it("writes a plain assignment message with the role, plan, date, time and link", () => {
+  it("writes a plain assignment message with the church, role, plan, date, time and link", () => {
     const message = buildShiftMessage({ ...input, kind: "assigned" });
-    expect(message.subject).toBe("Please confirm: Greeter on Sunday, October 11");
+    expect(message.subject).toBe("Grace Harbor: please confirm Greeter on Sunday, October 11");
     expect(message.body).toContain("Hi Maya,");
-    expect(message.body).toContain("serve as Greeter for Sunday Worship on Sunday, October 11 at 10:00 AM");
+    expect(message.body).toContain(
+      "Grace Harbor has scheduled you to serve as Greeter for Sunday Worship on Sunday, October 11 at 10:00 AM",
+    );
     expect(message.body).toContain(input.confirmUrl);
   });
 
   it("writes a reminder, and copes with no name or service time", () => {
     const message = buildShiftMessage({ ...input, kind: "reminder", volunteerName: null, serviceTime: null });
-    expect(message.subject).toBe("Reminder: please confirm Greeter on Sunday, October 11");
+    expect(message.subject).toBe("Grace Harbor: reminder to confirm Greeter on Sunday, October 11");
     expect(message.body).toMatch(/^Hi,/);
     expect(message.body).toContain("on Sunday, October 11, and we haven't heard back yet.");
     expect(message.body).not.toContain("A note from your team");
@@ -75,12 +80,25 @@ describe("buildShiftMessage", () => {
     const message = buildShiftMessage({ ...input, kind: "reminder", note: "  Please arrive 20 minutes early.  " });
     expect(message.body).toContain("A note from your team: Please arrive 20 minutes early.");
   });
+
+  it("keeps a text message short: church first, a capped note, and the link (Council Review 23)", () => {
+    const longNote = "x".repeat(300);
+    const message = buildShiftMessage({ ...input, kind: "assigned", channel: "sms", note: longNote });
+    expect(message.body).toMatch(/^Grace Harbor: you're scheduled as Greeter, Sunday, October 11 at 10:00 AM\./);
+    expect(message.body).toContain(`Note: ${"x".repeat(SMS_NOTE_MAX - 1)}…`);
+    expect(message.body).toContain(input.confirmUrl);
+    // Two SMS segments (2 × 153 characters) with room for a long link.
+    expect(message.body.length).toBeLessThanOrEqual(306);
+  });
 });
 
 describe("describeNotification", () => {
   it("summarises the outcome for the admin", () => {
     expect(describeNotification({ status: "sent", channel: "email" })).toBe("Email sent.");
     expect(describeNotification({ status: "sent", channel: "sms" })).toBe("Text sent.");
+    expect(describeNotification({ status: "sent", channel: "email", fallback: "they haven't opted in to texts" })).toBe(
+      "Emailed instead (they haven't opted in to texts).",
+    );
     expect(describeNotification({ status: "skipped", reason: "no email or phone on file." })).toBe(
       "Not notified: no email or phone on file.",
     );

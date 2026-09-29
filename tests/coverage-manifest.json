@@ -994,8 +994,7 @@
       "dynamicParams": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
-        "tests/e2e/church-admin-readiness.spec.ts",
-        "components/application/volunteer-schedule.test.tsx"
+        "tests/e2e/church-admin-readiness.spec.ts"
       ]
     },
     "/app/church-admin/volunteers/schedules/[id]": {

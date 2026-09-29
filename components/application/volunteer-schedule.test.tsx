@@ -25,6 +25,7 @@ const {
   suggestVolunteersForPositionActionMock,
   proposePlanAutoFillActionMock,
   applyPlanAutoFillActionMock,
+  removeAssignmentActionMock,
 } = vi.hoisted(() => ({
   searchSongLibraryActionMock: vi.fn(),
   addSongToServicePlanActionMock: vi.fn(),
@@ -40,6 +41,7 @@ const {
   ),
   proposePlanAutoFillActionMock: vi.fn(),
   applyPlanAutoFillActionMock: vi.fn(),
+  removeAssignmentActionMock: vi.fn(),
 }));
 
 // Captures the onDragEnd handler DndContext is rendered with, so tests can
@@ -84,7 +86,7 @@ vi.mock("@/app/app/volunteer-actions", () => ({
   createServicePlanAction: vi.fn(),
   createSongAndAddToServicePlanAction: createSongAndAddToServicePlanActionMock,
   reorderServicePlanItemsAction: reorderServicePlanItemsActionMock,
-  removeAssignmentAction: vi.fn(),
+  removeAssignmentAction: removeAssignmentActionMock,
   removeServicePlanItemAction: removeServicePlanItemActionMock,
   searchSongLibraryAction: searchSongLibraryActionMock,
   suggestVolunteersForPositionAction: suggestVolunteersForPositionActionMock,
@@ -971,7 +973,9 @@ describe("ServicePlanBuilder — assignment notifications (G1.5)", () => {
     expect(suggestVolunteersForPositionActionMock).toHaveBeenCalledWith({ planId: detail.plan.id, positionId: "pos-1" });
   });
 
-  it("shows the reason when an assigned volunteer has blocked the date", () => {
+  it("shows the reason when an assigned volunteer has blocked the date, and Replace removes them then opens suggestions (Council Review 23)", async () => {
+    const user = userEvent.setup();
+    removeAssignmentActionMock.mockResolvedValueOnce({ ok: true });
     const detail = baseDetail();
     detail.positions = [
       basePosition({
@@ -993,7 +997,12 @@ describe("ServicePlanBuilder — assignment notifications (G1.5)", () => {
       }),
     ];
     renderBuilder(detail, { pool: [] });
-    expect(screen.getByText("Marked this date off (Family trip). Find a replacement.")).toBeInTheDocument();
+    expect(screen.getByText("Marked this date off (Family trip).")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Replace" }));
+
+    expect(removeAssignmentActionMock).toHaveBeenCalledWith("s-1", detail.plan.id);
+    expect(await screen.findByRole("dialog", { name: /Assign volunteer — Greeter/ })).toBeInTheDocument();
   });
 });
 

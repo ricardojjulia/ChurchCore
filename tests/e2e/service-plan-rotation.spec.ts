@@ -61,7 +61,7 @@ async function createLinkShift(profileId: string, title: string) {
   return token;
 }
 
-/** A pending shift with no token: only reminders create tokens today (G1.5 changes that). */
+/** A pending shift with no token, as shifts created before G1.5 (or outside the planner) still have. */
 async function createShiftWithoutToken(profileId: string, title: string) {
   await queryTenantDb(
     `insert into public.volunteer_shifts
@@ -77,9 +77,12 @@ async function createShiftWithoutToken(profileId: string, title: string) {
 
 async function cleanUp() {
   await queryTenantDb(`delete from public.volunteer_shifts where plan_id = $1 or volunteer_notes = $2`, [PLAN_ID, E2E_REASON]);
-  // Assignment messages this spec causes (G1.5); nothing else sends these subjects.
+  // Assignment messages this spec causes (G1.5), in this plan's church only.
   await queryTenantDb(
-    `delete from public.communication_logs where subject like 'Please confirm: %' or subject like 'Reminder: please confirm %'`,
+    `delete from public.communication_logs
+     where church_id = (select church_id from public.service_plans where id = $1)
+       and (subject like '%: please confirm %' or subject like '%: reminder to confirm %')`,
+    [PLAN_ID],
   );
   await queryTenantDb(`delete from public.volunteer_blocked_dates where reason = $1`, [E2E_REASON]);
 }
@@ -224,7 +227,7 @@ test.describe("Service plan rotation planner", () => {
     expect(shift.expires).toBe(expected);
     const log = await queryTenantDb<{ body_preview: string; channel: string }>(
       `select body_preview, channel from public.communication_logs
-       where recipient_id = $1 and subject like 'Please confirm: Greeter%' order by created_at desc limit 1`,
+       where recipient_id = $1 and subject like '%: please confirm Greeter%' order by created_at desc limit 1`,
       [maya],
     );
     expect(log.rows[0]).toMatchObject({ channel: "email" });
@@ -236,11 +239,20 @@ test.describe("Service plan rotation planner", () => {
     await page.getByRole("button", { name: "Decline" }).click();
     await page.getByRole("button", { name: "Submit Decline" }).click();
     await expect(page.getByText("declined", { exact: true })).toBeVisible();
+    await expect
+      .poll(async () =>
+        (await queryTenantDb<{ s: string }>(`select confirmation_status as s from public.volunteer_shifts where confirmation_token = $1`, [shift.token]))
+          .rows[0]?.s,
+      )
+      .toBe("declined");
 
     // 4. The admin sees the decline and finds a replacement from ranked suggestions.
     await page.goto(PLAN_PATH);
     await page.waitForLoadState("networkidle");
     await page.getByTestId(`plan-position-${GREETER_POSITION_ID}`).getByRole("button", { name: "Find replacement" }).click();
-    await expect(page.getByTestId("suggested-volunteers")).toBeVisible();
+    const suggested = page.getByTestId("suggested-volunteers");
+    await expect(suggested).toBeVisible();
+    // The person who just declined isn't offered back as their own replacement.
+    await expect(suggested.getByText("Maya Martinez")).toHaveCount(0);
   });
 });

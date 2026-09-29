@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 import { requireChurchSession, type ChurchAppSession } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/actions/audit";
 import { checkVolunteerBurnout } from "@/lib/burnout-calculator";
+import { appBaseUrl } from "@/lib/app-url";
+import { PROVIDER_NOT_CONFIGURED } from "@/lib/communications/provider-adapter";
 import { sendWithSuppression } from "@/lib/communications/send-with-suppression";
 import {
   SKIP_REASON_TEXT,
@@ -22,6 +24,7 @@ import {
   type BlockoutErrorCode,
 } from "@/lib/blockout-dates";
 import { getChurchSkillOptions, getServicePlanDetail, getVolunteerPool } from "@/lib/volunteer-data";
+import type { VolunteerPoolEntry } from "@/lib/volunteer-types";
 import {
   INELIGIBLE_LABEL,
   proposePlanFill,
@@ -1439,7 +1442,7 @@ export async function sendVolunteerReminderAction(input: {
   shiftId: string;
   channel?: "manual" | "email" | "sms" | "push";
   note?: string;
-}): Promise<{ ok: boolean; sentAt?: string; error?: string; notification?: NotificationOutcome }> {
+}): Promise<{ ok: boolean; sentAt?: string; error?: string; warning?: string; notification?: NotificationOutcome }> {
   const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
   const sentBy = session.churchProfileId;
@@ -1488,7 +1491,7 @@ export async function sendVolunteerReminderAction(input: {
       );
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const appUrl = appBaseUrl() ?? "";
     const confirmUrl = `${appUrl}/portal/volunteer/confirm/${token}`;
     const originalNote = input.note?.trim() || "";
     const finalNote = originalNote
@@ -1511,7 +1514,7 @@ export async function sendVolunteerReminderAction(input: {
   const supabase = await createTenantServerClient();
   const { data: shift, error: shiftError } = await supabase
     .from("volunteer_shifts")
-    .select("assigned_user_id, confirmation_status, confirmation_token, confirmation_token_expires_at")
+    .select("assigned_user_id, confirmation_status")
     .eq("id", input.shiftId)
     .eq("church_id", churchId)
     .eq("plan_id", input.planId)
@@ -1530,10 +1533,14 @@ export async function sendVolunteerReminderAction(input: {
   // G1.5: the reminder actually reaches the volunteer now (it used to only
   // record a note). notifyVolunteerOfShift refreshes the confirm link.
   const notification = await notifyVolunteerOfShift(session, input.shiftId, "reminder", input.note);
+  // Only a reminder that was sent is recorded, so the roster's reminder count
+  // means the volunteer was contacted (Council Review 23).
+  if (notification.status !== "sent") {
+    return { ok: false, error: `Reminder not sent: ${notification.reason}`, notification };
+  }
   const originalNote = input.note?.trim() || "";
   const finalNote = [originalNote, describeOutcomeForLog(notification)].filter(Boolean).join("\n\n");
-  const recordedChannel =
-    notification.status === "sent" ? notification.channel : channel === "manual" ? "manual" : channel;
+  const recordedChannel = notification.channel;
 
   const { data: reminder, error } = await supabase
     .from("volunteer_shift_reminders")
@@ -1549,7 +1556,15 @@ export async function sendVolunteerReminderAction(input: {
     .single();
 
   if (error) {
-    return { ok: false, error: error.message };
+    // The message already went out; reporting a failure here would invite a
+    // second send. Say it was sent, and that it couldn't be recorded.
+    console.error("Failed to record the reminder:", error.message);
+    return {
+      ok: true,
+      sentAt: new Date().toISOString(),
+      notification,
+      warning: "The reminder was sent, but couldn't be recorded on the roster.",
+    };
   }
 
   revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
@@ -2063,6 +2078,24 @@ export async function respondToPublicShiftAction(
 // them goes through assignVolunteerAction so its burnout and same-day
 // conflict checks still run for every assignment.
 
+/**
+ * Someone who declined a shift on this plan isn't suggested for it again: the
+ * same-day check ignores declined shifts, so they'd otherwise come back as a
+ * top replacement for the service they just declined (Council Review 23).
+ */
+function markDeclinedThisService(
+  pool: VolunteerPoolEntry[],
+  detail: NonNullable<Awaited<ReturnType<typeof getServicePlanDetail>>>,
+): VolunteerPoolEntry[] {
+  const declined = new Set(
+    detail.positions.flatMap((p) =>
+      (p.shifts ?? []).filter((s) => s.confirmationStatus === "declined" && s.assignedUserId).map((s) => s.assignedUserId!),
+    ),
+  );
+  if (declined.size === 0) return pool;
+  return pool.map((entry) => (declined.has(entry.profileId) ? { ...entry, declinedThisService: true } : entry));
+}
+
 export async function suggestVolunteersForPositionAction(input: {
   planId: string;
   positionId: string;
@@ -2073,7 +2106,10 @@ export async function suggestVolunteersForPositionAction(input: {
   const position = detail.positions.find((p) => p.id === input.positionId);
   if (!position) return { ok: false, error: "Position not found on this plan." };
 
-  const pool = await getVolunteerPool(session, detail.plan.serviceDate, position.roleTypeId);
+  const pool = markDeclinedThisService(
+    await getVolunteerPool(session, detail.plan.serviceDate, position.roleTypeId),
+    detail,
+  );
   return {
     ok: true,
     volunteers: rankVolunteersForPosition(pool, position.requiredSkills, detail.plan.serviceDate),
@@ -2099,7 +2135,7 @@ export async function proposePlanAutoFillAction(input: {
 
   const pools = new Map<string | null, Awaited<ReturnType<typeof getVolunteerPool>>>();
   for (const roleTypeId of new Set(slots.map((slot) => slot.roleTypeId))) {
-    pools.set(roleTypeId, await getVolunteerPool(session, detail.plan.serviceDate, roleTypeId));
+    pools.set(roleTypeId, markDeclinedThisService(await getVolunteerPool(session, detail.plan.serviceDate, roleTypeId), detail));
   }
 
   return {
@@ -2471,7 +2507,9 @@ export async function removeVolunteerBlockoutDatesAction(input: {
 // notify: they're deprecated (Supabase-only mandate).
 
 function describeOutcomeForLog(outcome: NotificationOutcome): string {
-  if (outcome.status === "sent") return `Sent by ${outcome.channel === "sms" ? "text" : "email"}.`;
+  if (outcome.status === "sent") {
+    return `Sent by ${outcome.channel === "sms" ? "text" : "email"}${outcome.fallback ? ` (${outcome.fallback})` : ""}.`;
+  }
   return outcome.status === "skipped" ? `Not sent: ${outcome.reason}` : `Send failed: ${outcome.reason}`;
 }
 
@@ -2481,7 +2519,7 @@ function describeOutcomeForLog(outcome: NotificationOutcome): string {
  * already sent keep working) and only its expiry is extended.
  */
 async function ensureShiftToken(
-  supabase: Awaited<ReturnType<typeof createTenantServerClient>>,
+  admin: ReturnType<typeof createTenantAdminClient>,
   churchId: string,
   shift: { id: string; confirmation_token: string | null; confirmation_token_expires_at: string | null },
   serviceDate: string,
@@ -2492,13 +2530,14 @@ async function ensureShiftToken(
   if (stillValid && current! >= wanted) return { ok: true, token: shift.confirmation_token! };
 
   const token = stillValid ? shift.confirmation_token! : crypto.randomBytes(16).toString("hex");
-  const { error } = await supabase
+  const { data: updated, error } = await admin
     .from("volunteer_shifts")
     .update({ confirmation_token: token, confirmation_token_expires_at: wanted.toISOString() })
     .eq("id", shift.id)
-    .eq("church_id", churchId);
-  if (error) {
-    console.error("Failed to set the shift's confirm link:", error.message);
+    .eq("church_id", churchId)
+    .select("id");
+  if (error || !updated || updated.length === 0) {
+    console.error("Failed to set the shift's confirm link:", error?.message ?? "no row updated");
     return { ok: false };
   }
   return { ok: true, token };
@@ -2530,8 +2569,12 @@ async function notifyVolunteerOfShift(
 ): Promise<NotificationOutcome> {
   try {
     const churchId = session.appContext.church.id;
-    const supabase = await createTenantServerClient();
-    const { data } = await supabase
+    // Members (and so the RLS-bound client) can't read confirmation_token
+    // (migration 20260929010000), so the token is read and written through
+    // the admin client, scoped to this church. Every caller has already
+    // passed requireServicePlanWriteAccess (ADR 0022, Council Review 23).
+    const admin = createTenantAdminClient();
+    const { data } = await admin
       .from("volunteer_shifts")
       .select(
         "id, title, starts_at, assigned_user_id, confirmation_token, confirmation_token_expires_at, " +
@@ -2554,39 +2597,63 @@ async function notifyVolunteerOfShift(
     });
     if (!choice.ok) return { status: "skipped", reason: SKIP_REASON_TEXT[choice.reason] };
 
+    const appUrl = appBaseUrl();
+    if (!appUrl) return { status: "skipped", reason: "the app's web address isn't configured." };
+
     const serviceDate = shift.service_plans?.service_date ?? new Date(shift.starts_at).toISOString().slice(0, 10);
-    const token = await ensureShiftToken(supabase, churchId, shift, serviceDate);
+    const token = await ensureShiftToken(admin, churchId, shift, serviceDate);
     if (!token.ok) return { status: "failed", reason: "the confirm link couldn't be created." };
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    const message = buildShiftMessage({
-      kind,
-      volunteerName: shift.profiles.full_name,
-      roleName: shift.title,
-      planName: shift.service_plans?.name ?? "the service",
-      serviceDate,
-      serviceTime: shift.service_plans?.service_time ?? null,
-      confirmUrl: `${appUrl}/portal/volunteer/confirm/${token.token}`,
-      note,
-    });
+    const send = (channel: "email" | "sms", contact: string) => {
+      const message = buildShiftMessage({
+        kind,
+        channel,
+        churchName: session.appContext.church.name,
+        volunteerName: shift.profiles!.full_name,
+        roleName: shift.title,
+        planName: shift.service_plans?.name ?? "the service",
+        serviceDate,
+        serviceTime: shift.service_plans?.service_time ?? null,
+        confirmUrl: `${appUrl}/portal/volunteer/confirm/${token.token}`,
+        note,
+      });
+      return sendWithSuppression({
+        session,
+        recipientProfileId: shift.assigned_user_id!,
+        recipientContact: contact,
+        channel,
+        subject: message.subject,
+        body: message.body,
+      });
+    };
 
-    const result = await sendWithSuppression({
-      session,
-      recipientProfileId: shift.assigned_user_id,
-      recipientContact: choice.contact,
-      channel: choice.channel,
-      subject: message.subject,
-      body: message.body,
-    });
-    if (result.sent) return { status: "sent", channel: choice.channel };
+    let channel = choice.channel;
+    let result = await send(channel, choice.contact);
+    let fallback: string | undefined;
+    // SMS needs an explicit opt-in (a missing preferences row means no), so a
+    // volunteer who prefers texts but never opted in heard nothing. They get
+    // an email instead when they have one; email consent is still checked
+    // (Council Review 23).
+    const email = shift.profiles.email?.trim();
+    if (channel === "sms" && result.skipped && result.skipCode === "opted_out" && email) {
+      channel = "email";
+      fallback = "they haven't opted in to texts";
+      result = await send(channel, email);
+    }
+
+    const channelWord = channel === "sms" ? "texts" : "email";
+    if (result.sent) return fallback ? { status: "sent", channel, fallback } : { status: "sent", channel };
     if (result.skipped) {
       return {
         status: "skipped",
         reason:
           result.skipCode === "suppressed"
-            ? `their ${choice.channel === "sms" ? "number" : "address"} is on the do-not-contact list.`
-            : `they've opted out of ${choice.channel === "sms" ? "texts" : "email"}.`,
+            ? `their ${channel === "sms" ? "number" : "address"} is on the do-not-contact list.`
+            : `they've opted out of ${channelWord}.`,
       };
+    }
+    if (result.errorCode === PROVIDER_NOT_CONFIGURED) {
+      return { status: "failed", reason: `${channel === "sms" ? "texting" : "email"} isn't set up for this church yet.` };
     }
     return { status: "failed", reason: result.error ? "the message service returned an error." : "the message service didn't accept it." };
   } catch (error) {

@@ -59,7 +59,14 @@ export type ShiftMessageInput = {
   confirmUrl: string;
   /** An optional note from the scheduler, e.g. added to a reminder. */
   note?: string | null;
+  /** Named up front, so the volunteer knows who's writing (Council Review 23). */
+  churchName: string;
+  /** SMS gets a short message that fits about two segments. */
+  channel: "email" | "sms";
 };
+
+/** Longest scheduler note carried into a text message. */
+export const SMS_NOTE_MAX = 80;
 
 function formatDate(serviceDate: string) {
   return new Date(`${serviceDate}T00:00:00Z`).toLocaleDateString("en-US", {
@@ -82,16 +89,35 @@ function formatTime(serviceTime: string | null) {
 
 export function buildShiftMessage(input: ShiftMessageInput): { subject: string; body: string } {
   const when = [formatDate(input.serviceDate), formatTime(input.serviceTime)].filter(Boolean).join(" at ");
+  const subject =
+    input.kind === "assigned"
+      ? `${input.churchName}: please confirm ${input.roleName} on ${formatDate(input.serviceDate)}`
+      : `${input.churchName}: reminder to confirm ${input.roleName} on ${formatDate(input.serviceDate)}`;
+
+  if (input.channel === "sms") {
+    const note = input.note?.trim();
+    const shortNote = note && note.length > SMS_NOTE_MAX ? `${note.slice(0, SMS_NOTE_MAX - 1)}…` : note;
+    return {
+      subject,
+      body: [
+        input.kind === "assigned"
+          ? `${input.churchName}: you're scheduled as ${input.roleName}, ${when}.`
+          : `${input.churchName} reminder: you're scheduled as ${input.roleName}, ${when}.`,
+        shortNote ? `Note: ${shortNote}` : null,
+        `Can you make it? ${input.confirmUrl}`,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    };
+  }
+
   const greeting = input.volunteerName ? `Hi ${input.volunteerName.split(" ")[0]},` : "Hi,";
   const lead =
     input.kind === "assigned"
-      ? `You've been scheduled to serve as ${input.roleName} for ${input.planName} on ${when}.`
-      : `A reminder: you're scheduled to serve as ${input.roleName} for ${input.planName} on ${when}, and we haven't heard back yet.`;
+      ? `${input.churchName} has scheduled you to serve as ${input.roleName} for ${input.planName} on ${when}.`
+      : `A reminder from ${input.churchName}: you're scheduled to serve as ${input.roleName} for ${input.planName} on ${when}, and we haven't heard back yet.`;
   return {
-    subject:
-      input.kind === "assigned"
-        ? `Please confirm: ${input.roleName} on ${formatDate(input.serviceDate)}`
-        : `Reminder: please confirm ${input.roleName} on ${formatDate(input.serviceDate)}`,
+    subject,
     body: [
       greeting,
       lead,
@@ -106,12 +132,16 @@ export function buildShiftMessage(input: ShiftMessageInput): { subject: string; 
 
 /** What happened to the volunteer's notification, for the admin. */
 export type NotificationOutcome =
-  | { status: "sent"; channel: "email" | "sms" }
+  /** `fallback` says why a volunteer who prefers texts was emailed instead. */
+  | { status: "sent"; channel: "email" | "sms"; fallback?: string }
   | { status: "skipped"; reason: string }
   | { status: "failed"; reason: string };
 
 export function describeNotification(outcome: NotificationOutcome): string {
-  if (outcome.status === "sent") return outcome.channel === "sms" ? "Text sent." : "Email sent.";
+  if (outcome.status === "sent") {
+    if (outcome.fallback) return `Emailed instead (${outcome.fallback}).`;
+    return outcome.channel === "sms" ? "Text sent." : "Email sent.";
+  }
   if (outcome.status === "skipped") return `Not notified: ${outcome.reason}`;
   return `Notification failed: ${outcome.reason}`;
 }

@@ -127,6 +127,8 @@ export type ServicePlanListEntry = ServicePlan & {
 
 export type VolunteerPoolEntry = {
   profileId: string;
+  /** Declined a shift on this service plan; set by the caller, not the pool query (Council Review 23). */
+  declinedThisService?: boolean;
   fullName: string;
   email: string | null;
   phone: string | null;

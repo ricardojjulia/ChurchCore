@@ -15,6 +15,12 @@ export type CommunicationDeliveryStatus =
   | "unsubscribed"
   | "cancelled";
 
+/**
+ * The error code an adapter returns when its keys are missing where stubs
+ * aren't allowed (production). Not transient, so the retry cron skips it.
+ */
+export const PROVIDER_NOT_CONFIGURED = "provider_not_configured";
+
 export type ProviderSendPayload = {
   to: string;
   subject?: string;
