@@ -113,7 +113,7 @@ import {
 function churchAdminSession(extras: Record<string, unknown> = {}) {
   return {
     appContext: { roleId: "church-admin", church: { id: "church-1" } },
-    profile: { id: "profile-actor", isPastoral: false },
+    churchProfileId: "profile-actor", profile: { id: "profile-actor-login", isPastoral: false },
     source: "supabase",
     userId: "user-1",
     ...extras,
@@ -123,7 +123,7 @@ function churchAdminSession(extras: Record<string, unknown> = {}) {
 function pastorSession() {
   return {
     appContext: { roleId: "pastor", church: { id: "church-1" } },
-    profile: { id: "profile-pastor", isPastoral: true },
+    churchProfileId: "profile-pastor", profile: { id: "profile-pastor-login", isPastoral: true },
     source: "supabase",
     userId: "user-2",
   };
@@ -132,7 +132,7 @@ function pastorSession() {
 function memberSession() {
   return {
     appContext: { roleId: "member", church: { id: "church-1" } },
-    profile: { id: "profile-member", isPastoral: false },
+    churchProfileId: "profile-member", profile: { id: "profile-member-login", isPastoral: false },
     source: "supabase",
     userId: "user-3",
   };

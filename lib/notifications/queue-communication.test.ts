@@ -57,7 +57,10 @@ import { queueCommunicationAction } from "@/lib/notifications/queue-communicatio
 function makeSession(churchId = "church-1", profileId: string | null = "profile-1") {
   return {
     appContext: { church: { id: churchId } },
-    profile: { id: profileId },
+    // Realistic ids: profile.id / userId is the login id, never the church profile id (S7).
+    userId: "login-1",
+    churchProfileId: profileId,
+    profile: { id: "login-1" },
   } as never;
 }
 
@@ -400,6 +403,22 @@ describe("queueCommunicationAction", () => {
       expect(prefsEq).toHaveBeenCalledWith("church_id", "church-1");
       expect(prefsEq).toHaveBeenCalledWith("profile_id", "profile-2");
       expect(insertMock).toHaveBeenCalledWith(expect.objectContaining({ church_id: "church-1", status: "sent" }));
+    });
+
+    it("records the sender's church profile id as sent_by, never their login id (S7)", async () => {
+      const { insertMock } = mockAdmin({ prefs: { sms_opt_in: true } });
+
+      await queueCommunicationAction({
+        session: makeSession("church-1", "church-profile-7"),
+        recipientProfileId: "profile-2",
+        recipientContact: "+15555550100",
+        channel: "sms",
+        body: "Service moved to 11am",
+      });
+
+      // communication_logs.sent_by references profiles(id); the login id violated it.
+      expect(insertMock).toHaveBeenCalledWith(expect.objectContaining({ sent_by: "church-profile-7" }));
+      expect(insertMock).not.toHaveBeenCalledWith(expect.objectContaining({ sent_by: "login-1" }));
     });
 
     it("honours an email opt-out instead of defaulting to opted in", async () => {

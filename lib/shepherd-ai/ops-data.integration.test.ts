@@ -51,7 +51,7 @@ describe("ops workflow queue data integration", () => {
     const data = await getShepherdAiWorkflowQueueData(
       {
         source: "supabase",
-        profile: { id: "profile-1" },
+        churchProfileId: "profile-1", profile: { id: "profile-1-login"},
         appContext: {
           church: { id: "tenant-1", name: "Grace Harbor" },
           roleId: "church-admin",

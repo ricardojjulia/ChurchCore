@@ -64,14 +64,14 @@ describe("shepherd-ai actions", () => {
     vi.clearAllMocks();
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
     });
   });
 
   it("rejects roles outside church-admin and pastor", async () => {
     requireChurchSessionMock.mockResolvedValueOnce({
       appContext: { roleId: "member", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
     });
 
     await expect(runShepherdAiEvaluationAction()).rejects.toThrow(

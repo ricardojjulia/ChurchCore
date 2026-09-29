@@ -277,8 +277,7 @@ describe("ChurchGovernanceAdapter — RBAC", () => {
         homePath: "/app/church-admin",
       },
       source: "supabase",
-      profile: {
-        id: "actor-001",
+      churchProfileId: "actor-001", profile: { id: "actor-001-login",
         name: "Admin",
         email: "admin@test.com",
         title: "Admin",

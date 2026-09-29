@@ -62,7 +62,7 @@ import { ELDER_AI_DISCLAIMER } from "@/lib/elders-types";
 const pastorSession = {
   source: "supabase",
   userId: "user-pastor",
-  profile: { id: "pastor-profile-1", roleId: "pastor" },
+  churchProfileId: "pastor-profile-1", profile: { id: "pastor-profile-1-login", roleId: "pastor" },
   appContext: {
     kind: "church",
     roleId: "pastor",
@@ -77,7 +77,7 @@ const pastorSession = {
 const churchAdminSession = {
   ...pastorSession,
   userId: "user-admin",
-  profile: { id: "admin-profile-1", roleId: "church-admin" },
+  churchProfileId: "admin-profile-1", profile: { id: "admin-profile-1-login", roleId: "church-admin" },
   appContext: {
     ...pastorSession.appContext,
     roleId: "church-admin",
@@ -87,7 +87,7 @@ const churchAdminSession = {
 const secretarySession = {
   ...pastorSession,
   userId: "user-secretary",
-  profile: { id: "sec-profile-1", roleId: "secretary" },
+  churchProfileId: "sec-profile-1", profile: { id: "sec-profile-1-login", roleId: "secretary" },
   appContext: {
     ...pastorSession.appContext,
     roleId: "secretary",

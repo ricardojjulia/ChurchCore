@@ -60,6 +60,7 @@ import type { ChurchAppSession } from "@/lib/auth";
 function makeSession(roleId: string, churchId = "church-1"): ChurchAppSession {
   return {
     userId: `user-${roleId}`,
+    churchProfileId: "church-profile-1",
     source: "supabase",
     appContext: {
       kind: "church",
@@ -186,6 +187,7 @@ import {
   approveVersion,
   translateVersion,
   submitReview,
+  assignReviewer,
 } from "@/app/app/church-admin/localization/actions";
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -308,4 +310,33 @@ describe("localization server actions", () => {
       expect(result.code).toBe("reviewer_not_assigned");
     }
   });
+
+  it("assignReviewer records the admin's church profile id, not their login id, as assigned_by (S7)", async () => {
+    requireChurchSessionMock.mockResolvedValueOnce(makeSession("church-admin"));
+
+    const result = await assignReviewer({ localeId: "es", reviewerId: "reviewer-profile-9", reviewerRole: "linguistic" });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // assigned_by references profiles(id): the fixture's login id is "user-church-admin".
+      expect(result.data.assignedBy).toBe("church-profile-1");
+    }
+    // The audit actor stays the login id.
+    expect(logAuditEventMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: "user-church-admin" }));
+  });
+
+  it("assignReviewer and submitReview refuse an account with no profile in this church", async () => {
+    requireChurchSessionMock.mockResolvedValueOnce({ ...makeSession("church-admin"), churchProfileId: null });
+    expect(await assignReviewer({ localeId: "es", reviewerId: "r", reviewerRole: "linguistic" })).toMatchObject({
+      ok: false,
+      code: "no_profile",
+    });
+
+    requireChurchSessionMock.mockResolvedValueOnce({ ...makeSession("pastor"), churchProfileId: null });
+    expect(await submitReview({ versionId: "v", reviewerRole: "linguistic", decision: "approved" })).toMatchObject({
+      ok: false,
+      code: "no_profile",
+    });
+  });
 });
+

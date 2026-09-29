@@ -35,8 +35,7 @@ import DemoFeedbackPage from "@/app/control/demo-feedback/page";
 
 const mockControlSession = {
   source: "preview",
-  profile: {
-    id: "sarah-platform",
+  churchProfileId: "sarah-platform", profile: { id: "sarah-platform-login",
     name: "Sarah Bennett",
     email: "sarah@churchcoreops.app",
     title: "Platform SuperAdmin",

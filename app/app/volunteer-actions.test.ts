@@ -109,12 +109,12 @@ describe("volunteer actions", () => {
       if (path === "/app/member/schedule") {
         return {
           appContext: { roleId: "member", church: { id: "church-1" } },
-          profile: { id: "member-1" },
+          churchProfileId: "member-1", profile: { id: "member-1-login"},
         };
       }
       return {
         appContext: { roleId: "church-admin", church: { id: "church-1" } },
-        profile: { id: "admin-1" },
+        churchProfileId: "admin-1", profile: { id: "admin-1-login"},
       };
     });
     supabaseInsertMock.mockResolvedValue({ error: { message: "insert failed" } });
@@ -123,7 +123,7 @@ describe("volunteer actions", () => {
   it("rejects create service plan for non-admin roles", async () => {
     requireChurchSessionMock.mockResolvedValueOnce({
       appContext: { roleId: "member", church: { id: "church-1" } },
-      profile: { id: "member-1" },
+      churchProfileId: "member-1", profile: { id: "member-1-login"},
     });
 
     await expect(
@@ -510,7 +510,7 @@ describe("volunteer actions", () => {
   it("rejects addRunOfServiceItemAction for non-admin roles", async () => {
     requireChurchSessionMock.mockResolvedValueOnce({
       appContext: { roleId: "member", church: { id: "church-1" } },
-      profile: { id: "member-1" },
+      churchProfileId: "member-1", profile: { id: "member-1-login"},
     });
 
     await expect(
@@ -569,7 +569,7 @@ describe("volunteer actions", () => {
     it("rejects reorder for non-admin roles", async () => {
       requireChurchSessionMock.mockResolvedValueOnce({
         appContext: { roleId: "member", church: { id: "church-1" } },
-        profile: { id: "member-1" },
+        churchProfileId: "member-1", profile: { id: "member-1-login"},
       });
 
       await expect(
@@ -614,7 +614,7 @@ describe("volunteer actions", () => {
     function sessionFor(roleId: string) {
       return {
         appContext: { roleId, church: { id: "church-1" } },
-        profile: { id: "actor-1" },
+        churchProfileId: "actor-1", profile: { id: "actor-1-login"},
       };
     }
 

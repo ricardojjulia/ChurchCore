@@ -44,7 +44,7 @@ export async function hydrateSandboxDataAction(): Promise<{ ok: boolean; error?:
     );
     await queryTenantLocalDb(
       "delete from public.profiles where church_id = $1 and id != $2",
-      [churchId, session.profile.id],
+      [churchId, session.churchProfileId],
     );
 
     // 3. Insert mock profiles (user_id is null for mock members)

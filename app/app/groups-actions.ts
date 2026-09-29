@@ -214,7 +214,9 @@ export async function joinGroupAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await requireMemberSession();
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  // Returned, not thrown: the caller shows res.error, and a throw reached the error page.
+  const profileId = session.churchProfileId;
+  if (!profileId) return { ok: false, error: "Your account has no profile in this church." };
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -251,7 +253,7 @@ export async function logGroupMeetingAction(
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
   const session = await requireAdminSession();
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
 
   if (shouldUseLocalTenantFallback()) {
     const result = await queryTenantLocalDb<{ id: string }>(
@@ -327,7 +329,7 @@ export async function logServiceAttendanceAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await requireAdminSession();
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(

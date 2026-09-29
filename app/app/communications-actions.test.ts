@@ -90,7 +90,7 @@ describe("communications actions", () => {
     vi.clearAllMocks();
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "member", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
       source: "supabase",
       userId: "user-1",
     });
@@ -176,7 +176,7 @@ describe("communications actions", () => {
   it("denies secretary role from suppression actions but allows retry", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "secretary", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
       source: "supabase",
       userId: "user-1",
     });
@@ -201,7 +201,7 @@ describe("communications actions", () => {
   it("suppresses a contact and writes consent log when profile is found", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "profile-admin" },
+      churchProfileId: "profile-admin", profile: { id: "profile-admin-login"},
       source: "supabase",
       userId: "admin-1",
     });
@@ -231,7 +231,7 @@ describe("communications actions", () => {
   it("rejects retry when max retry count is reached", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "pastor", church: { id: "church-1" } },
-      profile: { id: "profile-pastor" },
+      churchProfileId: "profile-pastor", profile: { id: "profile-pastor-login"},
       source: "supabase",
       userId: "pastor-1",
     });
@@ -259,7 +259,7 @@ describe("communications actions", () => {
   it("retries eligible failed communication", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "pastor", church: { id: "church-1" } },
-      profile: { id: "profile-pastor" },
+      churchProfileId: "profile-pastor", profile: { id: "profile-pastor-login"},
       source: "supabase",
       userId: "pastor-1",
     });
@@ -305,7 +305,7 @@ describe("communications actions", () => {
   ])("maps attempt outcome %j to %j", async (outcome, expected) => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "pastor", church: { id: "church-1" } },
-      profile: { id: "profile-pastor" },
+      churchProfileId: "profile-pastor", profile: { id: "profile-pastor-login"},
       source: "supabase",
       userId: "pastor-1",
     });
@@ -335,7 +335,7 @@ describe("communications actions", () => {
   it("rejects retry when the communication log is outside the active church scope", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "pastor", church: { id: "church-1" } },
-      profile: { id: "profile-pastor" },
+      churchProfileId: "profile-pastor", profile: { id: "profile-pastor-login"},
       source: "supabase",
       userId: "pastor-1",
     });
@@ -351,7 +351,7 @@ describe("communications actions", () => {
   it("does not write suppression consent when no in-church profile matches", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "profile-admin" },
+      churchProfileId: "profile-admin", profile: { id: "profile-admin-login"},
       source: "supabase",
       userId: "admin-1",
     });
@@ -377,7 +377,7 @@ describe("communications actions", () => {
   it("broadcast keeps going when one recipient's send throws, and reports it as an error", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "secretary", church: { id: "church-1" } },
-      profile: { id: "profile-sec" },
+      churchProfileId: "profile-sec", profile: { id: "profile-sec-login"},
       source: "supabase",
       userId: "sec-1",
     });
@@ -411,7 +411,7 @@ describe("communications actions", () => {
   it("rejects email broadcast without subject", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "pastor", church: { id: "church-1" } },
-      profile: { id: "profile-pastor" },
+      churchProfileId: "profile-pastor", profile: { id: "profile-pastor-login"},
       source: "supabase",
       userId: "pastor-1",
     });
@@ -445,7 +445,7 @@ describe("communications actions", () => {
   it("rejects broadcast with non-future schedule time", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "pastor", church: { id: "church-1" } },
-      profile: { id: "profile-pastor" },
+      churchProfileId: "profile-pastor", profile: { id: "profile-pastor-login"},
       source: "supabase",
       userId: "pastor-1",
     });
@@ -480,7 +480,7 @@ describe("communications actions", () => {
   it("normalizes future schedule and trimmed content for valid broadcast", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "pastor", church: { id: "church-1" } },
-      profile: { id: "profile-pastor" },
+      churchProfileId: "profile-pastor", profile: { id: "profile-pastor-login"},
       source: "supabase",
       userId: "pastor-1",
     });
@@ -538,7 +538,7 @@ describe("retryAllEligibleAction", () => {
   it("throws for member role", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "member", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
       source: "supabase",
       userId: "user-1",
     });
@@ -552,7 +552,7 @@ describe("retryAllEligibleAction", () => {
   it("allows secretary role (CC-COMM-001 approved amendment)", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "secretary", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
       source: "supabase",
       userId: "user-1",
     });
@@ -565,7 +565,7 @@ describe("retryAllEligibleAction", () => {
   it("calls retryEligibleCommunications with churchId for pastor role and revalidates path", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "pastor", church: { id: "church-1" } },
-      profile: { id: "profile-pastor" },
+      churchProfileId: "profile-pastor", profile: { id: "profile-pastor-login"},
       source: "supabase",
       userId: "pastor-1",
     });
@@ -580,7 +580,7 @@ describe("retryAllEligibleAction", () => {
   it("calls retryEligibleCommunications with churchId for church-admin role and revalidates path", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { id: "church-2" } },
-      profile: { id: "profile-admin" },
+      churchProfileId: "profile-admin", profile: { id: "profile-admin-login"},
       source: "supabase",
       userId: "admin-1",
     });
@@ -620,7 +620,7 @@ describe("CC-COMM-001: composeAndSendMessageAction (actions.test)", () => {
     hasTenantBackendEnvMock.mockReturnValue(true);
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "profile-actor" },
+      churchProfileId: "profile-actor", profile: { id: "profile-actor-login"},
       source: "supabase",
       userId: "user-actor",
     });
@@ -634,7 +634,7 @@ describe("CC-COMM-001: composeAndSendMessageAction (actions.test)", () => {
   it("AC1: ministry_leader role is denied", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "ministry-leader", church: { id: "church-1" } },
-      profile: { id: "profile-ml" },
+      churchProfileId: "profile-ml", profile: { id: "profile-ml-login"},
       source: "supabase",
       userId: "user-ml",
     });
@@ -744,7 +744,7 @@ describe("CC-COMM-001: cancelScheduledMessageAction (actions.test)", () => {
     hasTenantBackendEnvMock.mockReturnValue(true);
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "profile-actor" },
+      churchProfileId: "profile-actor", profile: { id: "profile-actor-login"},
       source: "supabase",
       userId: "user-actor",
     });
@@ -810,7 +810,7 @@ describe("CC-COMM-001: getMessageAnalyticsAction (actions.test)", () => {
     hasTenantBackendEnvMock.mockReturnValue(true);
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "profile-actor" },
+      churchProfileId: "profile-actor", profile: { id: "profile-actor-login"},
       source: "supabase",
       userId: "user-actor",
     });
@@ -896,7 +896,7 @@ describe("CC-COMM-001: getMessageAnalyticsAction (actions.test)", () => {
   it("AC19: ministry_leader role is denied", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "ministry-leader", church: { id: "church-1" } },
-      profile: { id: "profile-ml" },
+      churchProfileId: "profile-ml", profile: { id: "profile-ml-login"},
       source: "supabase",
       userId: "user-ml",
     });
@@ -914,7 +914,7 @@ describe("CC-COMM-001: listCommunicationLogsAction (actions.test)", () => {
     hasTenantBackendEnvMock.mockReturnValue(true);
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "profile-actor" },
+      churchProfileId: "profile-actor", profile: { id: "profile-actor-login"},
       source: "supabase",
       userId: "user-actor",
     });
@@ -957,7 +957,7 @@ describe("CC-COMM-001: listCommunicationLogsAction (actions.test)", () => {
   it("AC1: ministry_leader role is denied", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "ministry-leader", church: { id: "church-1" } },
-      profile: { id: "profile-ml" },
+      churchProfileId: "profile-ml", profile: { id: "profile-ml-login"},
       source: "supabase",
       userId: "user-ml",
     });

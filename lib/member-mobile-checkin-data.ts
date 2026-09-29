@@ -65,7 +65,8 @@ export async function getMemberMobileCheckInOptions(
   }
 
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
+  if (!profileId) return [];
 
   if (shouldUseLocalTenantFallback()) {
     const hasEnabledColumn = await hasPublicColumn(

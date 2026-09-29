@@ -41,7 +41,7 @@ describe("sendWithSuppression", () => {
     const result = await sendWithSuppression({
       session: {
         appContext: { church: { id: "church-1" } },
-        profile: { id: "profile-1" },
+        churchProfileId: "profile-1", profile: { id: "profile-1-login"},
       } as never,
       recipientProfileId: "recipient-1",
       recipientContact: "member@example.com",
@@ -61,7 +61,7 @@ describe("sendWithSuppression", () => {
     const result = await sendWithSuppression({
       session: {
         appContext: { church: { id: "church-1" } },
-        profile: { id: "profile-1" },
+        churchProfileId: "profile-1", profile: { id: "profile-1-login"},
       } as never,
       recipientProfileId: "recipient-1",
       recipientContact: "member@example.com",
@@ -85,7 +85,7 @@ describe("sendWithSuppression (Supabase path)", () => {
   // A cron-style session: no user, no profile.
   const systemSession = {
     appContext: { church: { id: "church-1" } },
-    profile: { id: null },
+    churchProfileId: null, profile: { id: null},
     userId: null,
   } as never;
 

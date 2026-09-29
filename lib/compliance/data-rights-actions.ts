@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
+import { requireChurchProfileId } from "@/lib/church-profile-id";
 import {
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
@@ -23,7 +24,7 @@ import {
 
 export async function requestDataExportAction(): Promise<void> {
   const session = await requireChurchSession("/app/member");
-  const profileId = session.profile.id;
+  const profileId = requireChurchProfileId(session);
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -48,7 +49,7 @@ export async function requestDataExportAction(): Promise<void> {
 
 export async function requestAccountDeletionAction(): Promise<void> {
   const session = await requireChurchSession("/app/member");
-  const profileId = session.profile.id;
+  const profileId = requireChurchProfileId(session);
 
   // Disallow deletion for pastor/admin accounts via self-service
   const role = session.appContext.roleId;
@@ -81,7 +82,7 @@ export async function requestAccountDeletionAction(): Promise<void> {
 
 export async function cancelDeletionRequestAction(): Promise<void> {
   const session = await requireChurchSession("/app/member");
-  const profileId = session.profile.id;
+  const profileId = requireChurchProfileId(session);
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -123,7 +124,7 @@ export interface DataExportPayload {
 export async function generateDataExportAction(): Promise<DataExportPayload> {
   const session = await requireChurchSession("/app/member");
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = requireChurchProfileId(session);
 
   if (shouldUseLocalTenantFallback()) {
     const [profile, memberships, donations, consents, prefs] = await Promise.all([
@@ -138,8 +139,10 @@ export async function generateDataExportAction(): Promise<DataExportPayload> {
         `select cm.role, cm.is_active, cm.created_at, c.name as church_name
          from public.church_memberships cm
          join public.churches c on c.id = cm.church_id
-         where cm.profile_id = $1`,
-        [profileId],
+         where cm.user_id = $1`,
+        // Memberships are keyed by the login (auth) user id; there is no
+        // church_memberships.profile_id (S7).
+        [session.userId],
       ),
       queryTenantLocalDb<Record<string, unknown>>(
         `select id, amount_cents, currency, fund_designation, is_recurring,
@@ -184,7 +187,8 @@ export async function generateDataExportAction(): Promise<DataExportPayload> {
       supabase
         .from("church_memberships")
         .select("role, is_active, created_at, churches(name)")
-        .eq("profile_id", profileId),
+        // Keyed by the login (auth) user id; church_memberships has no profile_id (S7).
+        .eq("user_id", session.userId),
       supabase
         .from("donations")
         .select("id, amount_cents, currency, fund_designation, is_recurring, is_anonymous, status, created_at")

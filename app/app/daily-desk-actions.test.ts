@@ -50,7 +50,7 @@ describe("daily desk actions", () => {
     vi.clearAllMocks();
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
       userId: "user-1",
       source: "supabase",
     });
@@ -63,7 +63,7 @@ describe("daily desk actions", () => {
     it("rejects roles outside church-admin, secretary, and pastor", async () => {
       requireChurchSessionMock.mockResolvedValueOnce({
         appContext: { roleId: "member", church: { id: "church-1" } },
-        profile: { id: "profile-1" },
+        churchProfileId: "profile-1", profile: { id: "profile-1-login"},
         userId: "user-1",
         source: "supabase",
       });

@@ -13,18 +13,50 @@ const CONFIRM_COLOR: Record<string, string> = {
   pending: "yellow", confirmed: "green", declined: "red", substitute: "orange",
 };
 
-export function MemberScheduleView({ shifts: initialShifts }: { shifts: MemberScheduleEntry[] }) {
+export function MemberScheduleView({
+  shifts: initialShifts,
+  hasChurchProfile = true,
+}: {
+  shifts: MemberScheduleEntry[];
+  /** False when the signed-in person has no profile in this church (e.g. a platform admin viewing it). */
+  hasChurchProfile?: boolean;
+}) {
   const { locale, t } = useI18n();
+  const intlLocale = locale === "en" ? "en-US" : locale === "es-PR" ? "es-PR" : "es-US";
+  const errorText = (res: { code?: string; error?: string }, fallbackKey: string) =>
+    res.code === "no_profile"
+      ? tr("errNoProfile")
+      : res.code === "not_assigned"
+        ? tr("errNotAssigned")
+        : tr(fallbackKey);
+  // Shift times are stored as the service's wall-clock time, so format in UTC.
+  const dateLine = (shift: MemberScheduleEntry) => {
+    const day = shift.serviceDate || shift.startsAt?.slice(0, 10);
+    const date = day
+      ? new Date(`${day}T00:00:00Z`).toLocaleDateString(intlLocale, {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          timeZone: "UTC",
+        })
+      : "";
+    const time = (iso: string) =>
+      new Date(iso).toLocaleTimeString(intlLocale, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
+    return shift.startsAt && shift.endsAt ? `${date} · ${time(shift.startsAt)}–${time(shift.endsAt)}` : date;
+  };
   const tr = (key: string, values?: Record<string, string | number>) =>
     t("memberSchedule", key, values);
   const [shifts, setShifts] = useState(initialShifts);
   const [isPending, startTransition] = useTransition();
+  const [pendingShiftId, setPendingShiftId] = useState<string | null>(null);
   const [declineTarget, setDeclineTarget] = useState<MemberScheduleEntry | null>(null);
   const [declineReason, setDeclineReason] = useState("");
 
   function handleConfirm(shift: MemberScheduleEntry) {
+    setPendingShiftId(shift.shiftId);
     startTransition(async () => {
       const res = await respondToShiftAction(shift.shiftId, "confirmed");
+      setPendingShiftId(null);
       if (res.ok) {
         setShifts((prev) => prev.map((s) => s.shiftId === shift.shiftId ? { ...s, confirmationStatus: "confirmed" } : s));
         notifications.show({
@@ -35,7 +67,7 @@ export function MemberScheduleView({ shifts: initialShifts }: { shifts: MemberSc
       } else {
         notifications.show({
           title: tr("errorTitle"),
-          message: res.error ?? tr("failedToConfirm"),
+          message: errorText(res, "failedToConfirm"),
           color: "red",
         });
       }
@@ -58,7 +90,7 @@ export function MemberScheduleView({ shifts: initialShifts }: { shifts: MemberSc
       } else {
         notifications.show({
           title: tr("errorTitle"),
-          message: res.error ?? tr("failedToDecline"),
+          message: errorText(res, "failedToDecline"),
           color: "red",
         });
       }
@@ -68,6 +100,11 @@ export function MemberScheduleView({ shifts: initialShifts }: { shifts: MemberSc
   return (
     <Stack gap="md" p="md">
       <Title order={3}>{tr("upcomingAssignments")}</Title>
+      {!hasChurchProfile ? (
+        <Text size="sm" c="dimmed" role="note">
+          {tr("noProfileNotice")}
+        </Text>
+      ) : null}
 
       {shifts.length === 0 ? (
         <Paper withBorder p="xl" radius="md" ta="center">
@@ -91,11 +128,7 @@ export function MemberScheduleView({ shifts: initialShifts }: { shifts: MemberSc
                   </Badge>
                 </Group>
                 <Text size="sm">{shift.planName}</Text>
-                <Text size="xs" c="dimmed">
-                  {new Date(shift.serviceDate + "T00:00:00").toLocaleDateString(locale === "es" ? "es-US" : "en-US", {
-                    weekday: "long", month: "long", day: "numeric",
-                  })}
-                </Text>
+                <Text size="xs" c="dimmed">{dateLine(shift)}</Text>
               </Stack>
               {shift.confirmationStatus === "confirmed" && (
                 <Button size="xs" color="red" variant="subtle" leftSection={<X size={13} />}
@@ -106,7 +139,8 @@ export function MemberScheduleView({ shifts: initialShifts }: { shifts: MemberSc
               {shift.confirmationStatus === "pending" && (
                 <Group gap="xs">
                   <Button size="xs" color="green" leftSection={<Check size={13} />}
-                    onClick={() => handleConfirm(shift)} loading={isPending}>
+                    onClick={() => handleConfirm(shift)} loading={isPending && pendingShiftId === shift.shiftId}
+                    disabled={isPending && pendingShiftId !== shift.shiftId}>
                     {tr("confirm")}
                   </Button>
                   <Button size="xs" color="red" variant="light" leftSection={<X size={13} />}

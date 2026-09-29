@@ -73,7 +73,7 @@ describe("app actions", () => {
     vi.clearAllMocks();
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "admin-1" },
+      churchProfileId: "admin-1", profile: { id: "admin-1-login"},
       source: "supabase",
       userId: "user-1",
     });
@@ -426,7 +426,7 @@ describe("app actions", () => {
     const mockSession = {
       source: "supabase",
       userId: "pastor-1",
-      profile: { id: "profile-pastor-1" },
+      churchProfileId: "profile-pastor-1", profile: { id: "profile-pastor-1-login"},
       appContext: {
         church: { id: "church-1" },
         roleId: "pastor",
@@ -459,7 +459,8 @@ describe("app actions", () => {
         tableName: "burnout_alerts",
         recordId: "alert-123",
         operation: "UPDATE",
-        actorId: "profile-pastor-1",
+        // Audit actors are login ids (audit_log.actor_id holds auth.uid()).
+          actorId: "profile-pastor-1-login",
         churchId: "church-1",
         actorRole: "pastor",
         newValues: { acknowledged: true },
@@ -488,7 +489,8 @@ describe("app actions", () => {
         tableName: "burnout_alerts",
         recordId: "alert-456",
         operation: "UPDATE",
-        actorId: "profile-pastor-1",
+        // Audit actors are login ids (audit_log.actor_id holds auth.uid()).
+          actorId: "profile-pastor-1-login",
         churchId: "church-1",
         actorRole: "pastor",
         newValues: { acknowledged: true },

@@ -75,7 +75,7 @@ export async function queueCommunicationAction(
   input: QueueCommunicationInput,
 ): Promise<QueueCommunicationResult> {
   const churchId = input.session.appContext.church.id;
-  const callerProfileId = input.session.profile.id ?? null;
+  const callerProfileId = input.session.churchProfileId;
 
   // ── 1. Consent check ─────────────────────────────────────────
   if (input.recipientProfileId) {

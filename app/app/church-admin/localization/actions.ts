@@ -324,14 +324,18 @@ export async function assignReviewer(input: {
     }
 
     const churchId = session.appContext.church.id;
+    // Audit actor ids are login ids; assigned_by references profiles(id) (S7).
     const actorId = session.userId;
+    if (!session.churchProfileId) {
+      return fail("Your account has no profile in this church.", "no_profile");
+    }
     const adapter = createChurchAdapter(churchId);
 
     const assignment = await adapter.assignReviewer({
       localeId: input.localeId,
       reviewerId: input.reviewerId,
       reviewerRole: input.reviewerRole,
-      assignedBy: actorId,
+      assignedBy: session.churchProfileId,
     });
 
     await logAuditEvent({
@@ -364,11 +368,16 @@ export async function submitReview(input: {
     const role = session.appContext.roleId;
     const actorId = session.userId;
     const churchId = session.appContext.church.id;
+    // Assignments are keyed by the reviewer's profile id, so the reviewer is
+    // identified by their church profile id, not their login id (S7).
+    if (!session.churchProfileId) {
+      return fail("Your account has no profile in this church.", "no_profile");
+    }
     const adapter = createChurchAdapter(churchId);
 
     const review = await adapter.submitReview({
       versionId: input.versionId,
-      reviewer: { id: actorId, role: input.reviewerRole },
+      reviewer: { id: session.churchProfileId, role: input.reviewerRole },
       decision: input.decision,
       comment: input.comment,
     });

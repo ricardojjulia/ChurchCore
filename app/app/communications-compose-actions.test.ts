@@ -92,7 +92,7 @@ import {
 function makeSession(roleId: string, churchId = "church-1") {
   return {
     appContext: { roleId, church: { id: churchId } },
-    profile: { id: "profile-actor" },
+    churchProfileId: "profile-actor", profile: { id: "profile-actor-login"},
     source: "supabase" as const,
     userId: "user-actor",
   };

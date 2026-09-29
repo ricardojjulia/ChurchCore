@@ -639,7 +639,8 @@ export async function getMemberSchedule(
   session: ChurchAppSession,
 ): Promise<MemberScheduleEntry[]> {
   if (!hasTenantBackendEnv() || session.source !== "supabase") return [];
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
+  if (!profileId) return [];
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {

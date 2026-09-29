@@ -65,7 +65,8 @@ export async function getDonorPortalData(
   }
 
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
+  if (!profileId) return EMPTY_DONOR_PORTAL_DATA;
 
   if (shouldUseLocalTenantFallback()) {
     const result = await queryTenantLocalDb<{

@@ -76,7 +76,7 @@ describe("createCalendarEventAction", () => {
   it("rejects roles that cannot manage events", async () => {
     requireChurchSessionMock.mockResolvedValueOnce({
       appContext: { roleId: "member", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
       userId: "user-1",
       source: "supabase",
     });
@@ -89,7 +89,7 @@ describe("createCalendarEventAction", () => {
   it("requires tenant backend configuration for church-admin writes", async () => {
     requireChurchSessionMock.mockResolvedValueOnce({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
       userId: "user-1",
       source: "supabase",
     });

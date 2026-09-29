@@ -25,12 +25,12 @@ function entry(overrides: Partial<MemberScheduleEntry>): MemberScheduleEntry {
   } as MemberScheduleEntry;
 }
 
-function renderView(shifts: MemberScheduleEntry[]) {
+function renderView(shifts: MemberScheduleEntry[], hasChurchProfile = true, locale: "en" | "es" | "es-PR" = "en") {
   return render(
-    <I18nProvider locale="en">
+    <I18nProvider locale={locale}>
       <MantineProvider>
         <Notifications />
-        <MemberScheduleView shifts={shifts} />
+        <MemberScheduleView shifts={shifts} hasChurchProfile={hasChurchProfile} />
       </MantineProvider>
     </I18nProvider>,
   );
@@ -65,4 +65,30 @@ describe("MemberScheduleView", () => {
     renderView([entry({ confirmationStatus: "declined" })]);
     expect(screen.queryByRole("button", { name: /Confirm|Decline|Can't make it/ })).not.toBeInTheDocument();
   });
+
+  it("shows the service date and the shift's time range, falling back to the shift when there's no plan", () => {
+    const { unmount } = renderView([entry({})]);
+    expect(screen.getByText("Sunday, October 11 · 10:00 AM–12:00 PM")).toBeInTheDocument();
+    unmount();
+    renderView([entry({ serviceDate: "", startsAt: "2026-10-18T09:00:00+00:00", endsAt: "2026-10-18T11:00:00+00:00" })]);
+    expect(screen.getByText("Sunday, October 18 · 9:00 AM–11:00 AM")).toBeInTheDocument();
+    expect(screen.queryByText(/Invalid Date/)).not.toBeInTheDocument();
+  });
+
+  it("says plainly when a response can't be saved because the shift isn't theirs", async () => {
+    const user = userEvent.setup();
+    respondToShiftActionMock.mockResolvedValue({ ok: false, code: "not_assigned", error: "server text" });
+    renderView([entry({})]);
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(await screen.findByText("That shift isn't yours to answer, or it has already happened.")).toBeInTheDocument();
+    expect(screen.queryByText("server text")).not.toBeInTheDocument();
+  });
+
+  it("explains when the person has no profile in this church", () => {
+    renderView([], false);
+    expect(
+      screen.getByText("You're viewing this church without a member profile, so personal actions aren't available here."),
+    ).toBeInTheDocument();
+  });
 });
+

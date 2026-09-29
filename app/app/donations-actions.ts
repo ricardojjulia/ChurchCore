@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
+import { requireChurchProfileId } from "@/lib/church-profile-id";
 import {
   createPaymentIntent,
   createOrGetStripeCustomer,
@@ -48,7 +49,7 @@ export async function initiateDonationAction(
 ): Promise<InitiateDonationResult> {
   const session = await requireChurchSession("/app/member");
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = requireChurchProfileId(session);
 
   // Get or create Stripe customer if donor email provided
   let stripeCustomerId: string | undefined;

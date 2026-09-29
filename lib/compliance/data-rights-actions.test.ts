@@ -48,6 +48,7 @@ vi.mock("@/lib/supabase/tenant", () => ({
 
 import {
   cancelDeletionRequestAction,
+  generateDataExportAction,
   requestAccountDeletionAction,
   requestDataExportAction,
 } from "@/lib/compliance/data-rights-actions";
@@ -56,8 +57,11 @@ describe("data rights pending-review actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     shouldUseLocalTenantFallbackMock.mockReturnValue(true);
+    // Realistic ids: the login id (userId, profile.id) is never the church profile id (S7).
     requireChurchSessionMock.mockResolvedValue({
-      profile: { id: "profile-1" },
+      userId: "login-1",
+      churchProfileId: "profile-1",
+      profile: { id: "login-1" },
       appContext: { roleId: "member", church: { id: "church-1" } },
     });
   });
@@ -84,7 +88,7 @@ describe("data rights pending-review actions", () => {
 
   it("rejects self-service deletion for staff roles", async () => {
     requireChurchSessionMock.mockResolvedValueOnce({
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
       appContext: { roleId: "pastor", church: { id: "church-1" } },
     });
 
@@ -117,4 +121,19 @@ describe("data rights pending-review actions", () => {
     );
     expect(supabaseEqMock).toHaveBeenCalledWith("id", "profile-1");
   });
+
+  it("exports the member's memberships by login id and everything else by church profile id (S7)", async () => {
+    queryTenantLocalDbMock.mockResolvedValue({ rows: [] });
+
+    await generateDataExportAction();
+
+    const calls = queryTenantLocalDbMock.mock.calls as Array<[string, unknown[]]>;
+    const membershipQuery = calls.find(([sql]) => sql.includes("from public.church_memberships"));
+    // church_memberships is keyed by user_id; it has no profile_id column.
+    expect(membershipQuery?.[0]).toContain("where cm.user_id = $1");
+    expect(membershipQuery?.[1]).toEqual(["login-1"]);
+    const profileQuery = calls.find(([sql]) => sql.includes("from public.profiles where id = $1"));
+    expect(profileQuery?.[1]).toEqual(["profile-1"]);
+  });
 });
+

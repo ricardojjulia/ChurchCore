@@ -305,7 +305,7 @@ export async function suppressContactAction(input: {
   }
 
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id ?? null;
+  const profileId = session.churchProfileId;
   const normalizedContact =
     input.channel === "email" ? input.contact.trim().toLowerCase() : input.contact.trim();
 
@@ -722,7 +722,7 @@ export async function composeAndSendMessageAction(
   }
 
   const churchId = session.appContext.church.id;
-  const sentBy = session.profile.id ?? null;
+  const sentBy = session.churchProfileId;
 
   // Resolve full recipient list
   let recipients: Awaited<ReturnType<typeof resolveRecipients>>;
@@ -983,7 +983,7 @@ export async function createTemplateAction(input: {
   }
 
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id ?? null;
+  const profileId = session.churchProfileId;
   const { createTenantServerClient } = await import("@/lib/supabase/tenant");
   const supabase = await createTenantServerClient();
 
@@ -1022,7 +1022,7 @@ export async function updateTemplateAction(input: {
   }
 
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id ?? null;
+  const profileId = session.churchProfileId;
   const { createTenantServerClient } = await import("@/lib/supabase/tenant");
   const supabase = await createTenantServerClient();
 

@@ -44,6 +44,7 @@ function buildSession(): ChurchAppSession {
   return {
     source: "supabase",
     userId: "user-1",
+    churchProfileId: "profile-1",
     homePath: "/app",
     canAccessControl: false,
     memberships: [],

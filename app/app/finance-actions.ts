@@ -133,7 +133,7 @@ export async function createJournalAction(input: CreateJournalInput): Promise<{ 
   validateLines(input.lines);
 
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
 
   if (shouldUseLocalTenantFallback()) {
     const jResult = await queryTenantLocalDb<{ id: string }>(
@@ -199,7 +199,7 @@ export async function postJournalAction(journalId: string): Promise<void> {
   if (session.appContext.roleId !== "church-admin") throw new Error("Unauthorized");
 
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -227,7 +227,7 @@ export async function voidJournalAction(journalId: string): Promise<void> {
   if (session.appContext.roleId !== "church-admin") throw new Error("Unauthorized");
 
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
@@ -294,7 +294,7 @@ export async function createBudgetAction(input: CreateBudgetInput): Promise<{ id
   if (session.appContext.roleId !== "church-admin") throw new Error("Unauthorized");
 
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
 
   if (shouldUseLocalTenantFallback()) {
     const result = await queryTenantLocalDb<{ id: string }>(
@@ -377,7 +377,7 @@ export async function importFinanceRowsAction(input: ImportFinanceRowsInput): Pr
   if (session.appContext.roleId !== "church-admin") throw new Error("Unauthorized");
 
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
 
   const validRows = input.rows.filter((r) => !r.error && r.amountCents > 0);
   if (validRows.length === 0) throw new Error("No valid rows to import");

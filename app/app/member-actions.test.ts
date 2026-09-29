@@ -44,7 +44,7 @@ describe("memberMobileCheckInAction", () => {
 
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "member", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
       source: "supabase",
     });
 
@@ -63,7 +63,7 @@ describe("memberMobileCheckInAction", () => {
   it("rejects non-member roles", async () => {
     requireChurchSessionMock.mockResolvedValueOnce({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
       source: "supabase",
     });
 
@@ -380,7 +380,7 @@ describe("memberRegisterForEventAction", () => {
 
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "member", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
       source: "supabase",
     });
 

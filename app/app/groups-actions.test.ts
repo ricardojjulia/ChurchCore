@@ -66,12 +66,12 @@ describe("groups actions", () => {
       if (path === "/app/member/groups") {
         return {
           appContext: { roleId: "member", church: { id: "church-1" } },
-          profile: { id: "member-1" },
+          churchProfileId: "member-1", profile: { id: "member-1-login"},
         };
       }
       return {
         appContext: { roleId: "church-admin", church: { id: "church-1" } },
-        profile: { id: "admin-1" },
+        churchProfileId: "admin-1", profile: { id: "admin-1-login"},
       };
     });
     supabaseInsertMock.mockReturnValue({
@@ -85,7 +85,7 @@ describe("groups actions", () => {
   it("blocks create group for non-admin/pastor roles", async () => {
     requireChurchSessionMock.mockResolvedValueOnce({
       appContext: { roleId: "member", church: { id: "church-1" } },
-      profile: { id: "member-1" },
+      churchProfileId: "member-1", profile: { id: "member-1-login"},
     });
 
     await expect(

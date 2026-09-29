@@ -83,7 +83,7 @@ async function writeSuppressedLog(input: {
   reason: SuppressionMatch["reason"];
 }): Promise<string | undefined> {
   const churchId = input.session.appContext.church.id;
-  const sentBy = input.session.profile.id ?? null;
+  const sentBy = input.session.churchProfileId;
 
   if (shouldUseLocalTenantFallback()) {
     const result = await queryTenantLocalDb<{ id: string }>(

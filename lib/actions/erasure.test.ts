@@ -22,7 +22,10 @@ import { eraseProfileData } from "@/lib/actions/erasure";
 
 function makeChurchAdminSession(overrides: { profileId?: string; churchId?: string } = {}) {
   return {
-    profile: { id: overrides.profileId ?? "actor-profile-id" },
+    // Realistic ids: the session's profile.id is the login id, never the
+    // church profile id (S7). The self-erasure guard must use the latter.
+    churchProfileId: overrides.profileId ?? "actor-profile-id",
+    profile: { id: "actor-user-id" },
     userId: "actor-user-id",
     appContext: {
       kind: "church",
@@ -35,7 +38,8 @@ function makeChurchAdminSession(overrides: { profileId?: string; churchId?: stri
 
 function makeNonAdminSession() {
   return {
-    profile: { id: "actor-profile-id" },
+    churchProfileId: "actor-profile-id",
+    profile: { id: "actor-user-id" },
     userId: "actor-user-id",
     appContext: {
       kind: "church",
@@ -75,6 +79,15 @@ describe("eraseProfileData", () => {
 
     expect(result.ok).toBe(false);
     expect(result.error).toBe("Cannot erase your own profile");
+  });
+
+  it("refuses an admin with no profile in this church, without calling the database", async () => {
+    requireChurchSessionMock.mockResolvedValue({ ...makeChurchAdminSession(), churchProfileId: null });
+
+    const result = await eraseProfileData(TARGET_PROFILE_ID);
+
+    expect(result).toMatchObject({ ok: false, error: "Your account has no profile in this church." });
+    expect(createTenantAdminClientMock).not.toHaveBeenCalled();
   });
 
   it("returns error when target profile is not found", async () => {

@@ -79,7 +79,7 @@ describe("initiateRegistrationRefundAction", () => {
     vi.clearAllMocks();
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      profile: { id: "profile-1" },
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
       source: "supabase",
       userId: "user-1",
     });

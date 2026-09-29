@@ -78,7 +78,8 @@ export async function getMemberEventRegistrationOptions(
   }
 
   const churchId = session.appContext.church.id;
-  const profileId = session.profile.id;
+  const profileId = session.churchProfileId;
+  if (!profileId) return [];
 
   if (shouldUseLocalTenantFallback()) {
     const hasFormFieldsTable = await hasPublicTable("event_registration_form_fields");

@@ -1766,7 +1766,7 @@ export async function updateRegistrationPaymentFollowUpAction(input: {
 }): Promise<{ ok: boolean; error?: string }> {
   const session = await requireAttendanceManagerSession("/app/church-admin/events");
   const churchId = session.appContext.church.id;
-  const reconciledBy = session.profile.id;
+  const reconciledBy = session.churchProfileId;
 
   await assertEventBelongsToChurch(churchId, input.eventId);
   await assertRegistrationBelongsToEvent(churchId, input.eventId, input.registrationId);
@@ -2094,7 +2094,7 @@ export async function initiateRegistrationRefundAction(
         result.refundId,
         input.amountCents,
         input.reason ?? null,
-        session.profile.id,
+        session.churchProfileId,
         churchId,
         completedAt,
       ],
@@ -2108,7 +2108,7 @@ export async function initiateRegistrationRefundAction(
         amountCents: input.amountCents,
         refundId: result.refundId,
         refundedAt: new Date().toISOString(),
-        profileId: session.profile.id,
+        profileId: session.churchProfileId,
       });
     } catch (glErr) {
       console.error("[refund-action] GL reversal failed (non-blocking):", glErr);
@@ -2175,7 +2175,7 @@ export async function initiateRegistrationRefundAction(
       refund_reason: input.reason ?? null,
       refund_requested_at: now,
       refund_completed_at: completedAt,
-      reconciled_by: session.profile.id,
+      reconciled_by: session.churchProfileId,
       reconciled_at: now,
       updated_at: now,
     })
@@ -2191,7 +2191,7 @@ export async function initiateRegistrationRefundAction(
       amountCents: input.amountCents,
       refundId: result.refundId,
       refundedAt: now,
-      profileId: session.profile.id,
+      profileId: session.churchProfileId,
     });
   } catch (glErr) {
     console.error("[refund-action] GL reversal failed (non-blocking):", glErr);
