@@ -994,7 +994,8 @@
       "dynamicParams": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
-        "tests/e2e/church-admin-readiness.spec.ts"
+        "tests/e2e/church-admin-readiness.spec.ts",
+        "components/application/volunteer-schedule.test.tsx"
       ]
     },
     "/app/church-admin/volunteers/schedules/[id]": {
@@ -1012,7 +1013,8 @@
       },
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
-        "tests/e2e/service-plan-rotation.spec.ts"
+        "tests/e2e/service-plan-rotation.spec.ts",
+        "components/application/volunteer-schedule.test.tsx"
       ],
       "seedSource": "service_plans.id of the 'Sunday Worship' draft plan seeded for the rotation planner journey in supabase/seed.sql (Service Planning Story 3). tests/e2e/service-plan-rotation.spec.ts resets this plan's shifts before it runs."
     },
@@ -2326,7 +2328,8 @@
         "app/app/service-plan-role-type-actions.test.ts",
         "app/app/rotation-planner-actions.test.ts",
         "app/app/blockout-date-actions.test.ts",
-        "app/app/session-church-profile.test.ts"
+        "app/app/session-church-profile.test.ts",
+        "app/app/assignment-notification-actions.test.ts"
       ],
       "untestedExports": {
         "logVolunteerHoursAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
