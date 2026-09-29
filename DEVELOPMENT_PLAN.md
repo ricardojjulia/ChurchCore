@@ -8,7 +8,7 @@ Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual
 
 ## Table of Contents
 
-- [0. MVP Roadmap to October 30, 2026 (tracker)](#0-mvp-roadmap-to-october-30-2026-tracker) — **start here: all open work and its status**
+- [0. MVP Roadmap to November 6, 2026 (tracker)](#0-mvp-roadmap-to-november-6-2026-tracker) — **start here: all open work and its status**
 - [1. Project Vision & Scope](#1-project-vision--scope)
 - [2. User Roles & Portals](#2-user-roles--portals)
 - [3. Core Features](#3-core-features)
@@ -23,13 +23,13 @@ Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual
 - [12. How to Use This Plan](#12-how-to-use-this-plan)
 - [Current Status and History](#current-status-and-history)
 
-## 0. MVP Roadmap to October 30, 2026 (tracker)
+## 0. MVP Roadmap to November 6, 2026 (tracker)
 
 **This section is the single place for what's left before MVP, and it is the tracker.** Everything open is either a row in the tracker below or listed under "Deferred to after MVP". Nothing lives only in a Council write-up, the history further down, or chat. The owner set it on 2026-09-26.
 
 ### 0.1 Target and rules
 
-- **MVP finish date: Friday, October 30, 2026.**
+- **MVP finish date: Friday, November 6, 2026** (moved from October 30 by the owner on 2026-09-29, with about 5.5 factory days cut; see §0.4).
 - **MVP means:**
   - all five competitive gaps meet their definition of done (in §0.3);
   - the production-safety track (the `S` rows) is complete;
@@ -39,7 +39,7 @@ Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual
   2. A phone-first member experience and a check-in kiosk.
   3. Recurring giving and donor statements.
   4. Migration from incumbents, with reconciliation.
-  5. Provider breadth: Resend, and accounting export.
+  5. Provider breadth: Resend (accounting export moved after MVP on 2026-09-29).
 - **Retired gates.** The former Phase A–D gates are retired as MVP criteria. So is their blocker ("a church onboards uncoached" plus "a real-export migration dry-run"). Migration is validated against the incumbents' published export formats, not a partner church's data.
 - **Current MVP readiness: 69/100** (Council Review 22, 2026-09-29). Council Review 22 first re-based Review 21's 67 down to 66 — Review 21's "above 71 once S8 lands" assumption held only if online card giving could actually charge, and G3.0 (found while building S8) shows it never could — then up to 69 for S8's member self-service writes (RSVP, group join, check-in, registration, data rights). Returning above 71 needs G3.0 and the S10-class fixes (public registration server-side). Prior: 67/100 at Review 21 (2026-09-28), re-based from 71 (Review 20) to 64 because signed-in writes had never worked (S7). R1 re-baselines it at MVP.
 - **Beta testers are welcome and never gate progress.**
@@ -53,12 +53,13 @@ Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual
   - Scope is cut to meet the date; quality never is.
 - **Work order:** top to bottom within each week. The safety rows in a week land before that week's feature rows. S2 (webhooks fail closed, with F4) lands before G5.1 (Resend, F2), as the comms follow-ups require.
 - **Estimates** are in factory days: one story through build, tests, Council review and merge. They are calibrated on Service Planning Stories 1–3, which took about 1–2 days each, Council included.
-  - Must rows: 31 rows, 38 factory days, about 7.6 a week (the two Testing Council runs added 2.5 on 2026-09-27; S7, S8 and S9 added 4 on 2026-09-28; G3.0, the missing card form found in S8, added 1 on 2026-09-29; S10, public event registration server-side found in Council Review 22, added 1 on 2026-09-29).
+  - **Owner decision 2026-09-29** (§0.4): MVP moved to Nov 6 and 5.5 factory days cut (G1.7, G1.8, G5.2 after MVP; T3 folded into R1). Must work left: 27 rows, 27.5 factory days, against 28 working days (Sep 30 – Nov 6). No buffer for new findings, so the cut line still applies at every milestone.
+  - Before that decision — Must rows: 31 rows, 38 factory days, about 7.6 a week (the two Testing Council runs added 2.5 on 2026-09-27; S7, S8 and S9 added 4 on 2026-09-28; G3.0, the missing card form found in S8, added 1 on 2026-09-29; S10, public event registration server-side found in Council Review 22, added 1 on 2026-09-29).
   - Stretch rows: 5 rows, 5.5 factory days.
-  - Available: 25 working days (September 28 – October 30).
-  - **The Must work is about 52% over nominal capacity (38 days against 25). The owner decides between moving the date and cutting scope.** Council Review 22's Agent 4 recommends the owner take that decision now, right after S8 merges, rather than waiting for M1 (Oct 2) — the owner has asked for that proposal next. The plan relies on two things: the calibrated pace (smaller rows often finish in under their estimate) and the cut line (§0.4). This is the plan's main risk, and it's checked at every milestone.
+  - Available before the decision: 25 working days (September 28 – October 30).
+  - The Must work was about 52% over nominal capacity (38 days against 25). Council Review 22's Agent 4 recommended deciding right after S8 merged rather than at M1; the owner did (§0.4). The plan relies on two things: the calibrated pace (smaller rows often finish in under their estimate) and the cut line (§0.4). This is the plan's main risk, and it's checked at every milestone.
 
-**Progress (update on every merge):** 1 of 31 Must rows done (G1.4) · 0 of 5 Stretch rows done · next milestone **M1, Friday October 2** · last updated 2026-09-29.
+**Progress (update on every merge):** 3 of 27 Must rows done (G1.4, S7, S8) · 0 of 5 Stretch rows done · next milestone **M1, Friday October 2** · last updated 2026-09-29.
 
 ### 0.2 Milestones
 
@@ -66,10 +67,10 @@ Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual
 |---|---|---|
 | **M0** | Mon Sep 28 | CI checks marked required on `main` (O1). Roadmap merged. |
 | **M1** | Fri Oct 2 | **Gap 1 (service planning) closed.** |
-| **M2** | Fri Oct 9 | **Production-safety track complete except `/hq`** (S1–S4, S6). Members can create, change and cancel recurring gifts (G3.1). |
-| **M3** | Fri Oct 16 | **Gap 3 (recurring giving and statements) closed.** `/hq` tenancy fixed (S5), so the safety track is complete. Resend live (G5.1). Giving, finance and comms untested exports at zero (T1a). Testing Council run #1 reported (T3). |
-| **M4** | Fri Oct 23 | **Gaps 2 (phone-first and kiosk) and 4 (migration) closed.** |
-| **M5** | Fri Oct 30 | **Gap 5 closed.** Whole-app Council re-baseline and Testing Council run #2 pass. Release checklist passes. **MVP released.** |
+| **M2** | Fri Oct 9 | **Production-safety track complete** (S1–S6, S9, S10). |
+| **M3** | Fri Oct 23 | **Gap 3 (online and recurring giving, and statements) closed** (G3.0–G3.3). **Gap 5 closed:** Resend live (G5.1). Giving, finance and comms untested exports at zero (T1a). |
+| **M4** | Fri Oct 30 | **Gaps 2 (phone-first and kiosk) and 4 (migration) closed.** |
+| **M5** | Fri Nov 6 | Whole-app Council re-baseline and the Testing Council full run pass (R1). Release checklist passes. **MVP released.** |
 
 ### 0.3 Tracker
 
@@ -81,24 +82,24 @@ Status values: `Not started`, `In progress`, `Done (#PR)`, `Deferred (reason)`. 
 |---|---|---|---|---|
 | O1 | Mark CI checks required | Sep 28 | In GitHub branch protection for `main`, `verify` and `e2e (shard 1/4)`–`e2e (shard 4/4)` are required status checks. Checked 2026-09-26: none are required yet, so CI failures don't block merges. | Not started |
 
-#### Week 1 (Sep 28 – Oct 2), milestone M1: close gap 1 (10 must days)
+#### Week 1 (Sep 28 – Oct 2), milestone M1: close gap 1 (7.5 must days)
 
 | ID | Priority | Item | Est. | Definition of done | Status |
 |---|---|---|---|---|---|
-| S7 | Must | The signed-in person's church profile id | 1.5 | `session.profile.id` is the auth (login) user id, never a church `profiles.id`, yet 51 places used it as one. So members' own schedules were empty, in-app confirm and decline and signed-in blockout dates failed, and communication-log writes violated `sent_by`'s foreign key and were lost. The session gains `churchProfileId`, each usage is classified by the column it feeds, "act as myself" paths handle a missing profile, and member shift responses no longer silently match zero rows (members have no UPDATE policy). Unit tests and member e2e journeys. Found 2026-09-28 by G1.5's journey. | In progress (`fix/session-church-profile-id`) |
-| S8 | Must | Member writes vs. RLS | 2 | Every member-reachable write is audited against the RLS policies, and each one is fixed. Found by Council Review 21: giving (`donations` insert/update are management-only, and a Stripe PaymentIntent is created before the failing insert, so the PaymentIntent must come only after the row can be written), mobile check-in (no member `attendance` insert), group join (no member `group_members` insert), RSVP (the `event_rsvps` policy compares a profile id with `auth.uid()`), registration capacity (counted through an RLS-filtered read) and payments (an admin-only upsert), data-rights 0-row checks, and data-rights and donation errors returned rather than thrown. **Approach (2026-09-29):** writes that carry business rules (giving, check-in, group join, registration capacity and payments) go through a server-side admin client scoped by `church_id` after the action's own checks (ADR 0022), not new member RLS policies, so a member can't skip those rules by writing the table directly. A member-JWT DB harness (`tests/database/member-writes-rls.test.ts`) proves those direct writes stay denied. RSVP is the one RLS fix (migration `20260929000000`): own profile, own church and an RSVP-enabled event only. Journeys for giving, group join, RSVP and full-event registration in `tests/e2e/member-writes.spec.ts`. **Found while fixing:** donation confirmation trusted the client (it now requires Stripe to report the PaymentIntent `succeeded`, only from `pending`); members had no SELECT on `event_registration_settings`, and PostgREST's object-shaped `events` embed was read as `[0]`, so member registration options were always empty (the settings hold access codes, so reads moved server-side rather than opening a member SELECT). The same `[0]` fix was applied to the public registration page's read, but that alone doesn't make it work — see S10. **Council Review 22 (2026-09-29, P1–P8, `docs/reviews/2026-09-29-council-review-22-synthesis.md`):** the donation stub (`"succeeded"` with no Stripe keys) now runs only outside production or in demo mode, so a keyless production deploy can't record fake succeeded gifts; with Stripe configured, `initiateDonationAction` returns "isn't available yet" before writing a row or calling Stripe (G3.0 isn't built), and the giving page shows that notice up front with Give disabled; confirm now posts to the GL through a shared `lib/stripe/donation-completion.ts` module, whichever of confirm or the webhook wins the `pending → succeeded` update; receipt HTML (`donor_name`, `fund_designation`) is escaped; registration re-enforces `events.visibility`, which the settings read had bypassed; household-profile reads and the registration insert move to the scoped admin client so a household member's row can be read back; check-in and registration errors no longer leak raw database text; and two member writes S8's own audit missed are fixed — a re-submitted pending change request (was a 0-row update that silently dropped the new changes) and a second save of notification preferences (was a unique-key error, now upserts on `church_id, profile_id`). Must land before G1.5 resumes and before G3.1. | Done — pending merge (Council Review 22) |
+| S7 | Must | The signed-in person's church profile id | 1.5 | `session.profile.id` is the auth (login) user id, never a church `profiles.id`, yet 51 places used it as one. So members' own schedules were empty, in-app confirm and decline and signed-in blockout dates failed, and communication-log writes violated `sent_by`'s foreign key and were lost. The session gains `churchProfileId`, each usage is classified by the column it feeds, "act as myself" paths handle a missing profile, and member shift responses no longer silently match zero rows (members have no UPDATE policy). Unit tests and member e2e journeys. Found 2026-09-28 by G1.5's journey. | Done (#158) |
+| S8 | Must | Member writes vs. RLS | 2 | Every member-reachable write is audited against the RLS policies, and each one is fixed. Found by Council Review 21: giving (`donations` insert/update are management-only, and a Stripe PaymentIntent is created before the failing insert, so the PaymentIntent must come only after the row can be written), mobile check-in (no member `attendance` insert), group join (no member `group_members` insert), RSVP (the `event_rsvps` policy compares a profile id with `auth.uid()`), registration capacity (counted through an RLS-filtered read) and payments (an admin-only upsert), data-rights 0-row checks, and data-rights and donation errors returned rather than thrown. **Approach (2026-09-29):** writes that carry business rules (giving, check-in, group join, registration capacity and payments) go through a server-side admin client scoped by `church_id` after the action's own checks (ADR 0022), not new member RLS policies, so a member can't skip those rules by writing the table directly. A member-JWT DB harness (`tests/database/member-writes-rls.test.ts`) proves those direct writes stay denied. RSVP is the one RLS fix (migration `20260929000000`): own profile, own church and an RSVP-enabled event only. Journeys for giving, group join, RSVP and full-event registration in `tests/e2e/member-writes.spec.ts`. **Found while fixing:** donation confirmation trusted the client (it now requires Stripe to report the PaymentIntent `succeeded`, only from `pending`); members had no SELECT on `event_registration_settings`, and PostgREST's object-shaped `events` embed was read as `[0]`, so member registration options were always empty (the settings hold access codes, so reads moved server-side rather than opening a member SELECT). The same `[0]` fix was applied to the public registration page's read, but that alone doesn't make it work — see S10. **Council Review 22 (2026-09-29, P1–P8, `docs/reviews/2026-09-29-council-review-22-synthesis.md`):** the donation stub (`"succeeded"` with no Stripe keys) now runs only outside production or in demo mode, so a keyless production deploy can't record fake succeeded gifts; with Stripe configured, `initiateDonationAction` returns "isn't available yet" before writing a row or calling Stripe (G3.0 isn't built), and the giving page shows that notice up front with Give disabled; confirm now posts to the GL through a shared `lib/stripe/donation-completion.ts` module, whichever of confirm or the webhook wins the `pending → succeeded` update; receipt HTML (`donor_name`, `fund_designation`) is escaped; registration re-enforces `events.visibility`, which the settings read had bypassed; household-profile reads and the registration insert move to the scoped admin client so a household member's row can be read back; check-in and registration errors no longer leak raw database text; and two member writes S8's own audit missed are fixed — a re-submitted pending change request (was a 0-row update that silently dropped the new changes) and a second save of notification preferences (was a unique-key error, now upserts on `church_id, profile_id`). Must land before G1.5 resumes and before G3.1. | Done (#159, Council Review 22) |
 | S9 | Must | Stop the login-id / profile-id mix-up from coming back | 0.5 | Rename the session's `profile.id` so it reads as the login id. A lint rule bans `session.profile.id` in `app/` and `lib/` outside audit-actor use. One resolver instead of `churchProfileId` plus `resolveActiveChurchProfileId`. Member updates check their row count. **Widened (Council Review 22):** self policies that pick a profile with `where user_id = auth.uid() limit 1` and no church filter (`event_registrations_select_own`, `notification_preferences_*`, `consent_logs`) match by church too — a login with profiles in more than one church can otherwise read or write against the wrong one's row. | Not started |
 | G1.4 | Must | Blockout dates (FS3-1) | 1.5 | A volunteer adds and removes unavailable dates from `/app/member/schedule`. An admin adds and removes them from the volunteer directory. The planner's "Unavailable that day" and the assign modal honor them. Unit, action, DB and journey tests. | Done (#156) |
 | G1.5 | Must | Assignment notifications (FS3-2) | 1.5 | Assigning a volunteer, whether by hand or by auto-fill, sends an email (or SMS, if that's their preference) with the accept/decline link, through the existing communications pipeline, with consent and suppression respected. A decline shows the admin the top replacement suggestions. **Every assignment (manual and auto-fill) creates the shift's own confirmation token, valid until the shift date plus 7 days** (today only a manual reminder creates one, with a fixed 14-day expiry; Council Review 20). The roster shows the reason when an assigned volunteer has blocked the date. Tests, including the journey: assign → volunteer declines → admin sees replacements. | Not started |
 | G1.6 | Must | Church-timezone days (FS3-4) | 0.5 | Same-day conflicts, blockout dates, 30-day load and month counts use `churches.timezone`, not UTC. Test: an evening service in UTC−4 is on the right day. | Not started |
-| G1.7 | Must | Rehearsal scheduling (Story 4) | 1.5 | A plan can have one or more rehearsals (date, time, location, which positions attend). Assigned volunteers see them on their schedule and in the calendar. Assignment notifications include them. Journey test. | Not started |
-| G1.8 | Must | A service plan requires its event (Story 5) | 1 | A migration backfills an event for every plan without one, then makes `service_plans.event_id` NOT NULL. Creating a plan creates or links its event. `volunteer_shifts.event_id` is always set. DB and journey tests. | Not started |
+| G1.7 | Must | Rehearsal scheduling (Story 4) | 1.5 | A plan can have one or more rehearsals (date, time, location, which positions attend). Assigned volunteers see them on their schedule and in the calendar. Assignment notifications include them. Journey test. | Deferred (owner decision 2026-09-29: MVP moved to Nov 6 and ~5.5 days cut, see §0.4; Gap 1 closes on planning, assignment, notification and response without rehearsals) |
+| G1.8 | Must | A service plan requires its event (Story 5) | 1 | A migration backfills an event for every plan without one, then makes `service_plans.event_id` NOT NULL. Creating a plan creates or links its event. `volunteer_shifts.event_id` is always set. DB and journey tests. | Deferred (owner decision 2026-09-29: MVP moved to Nov 6 and ~5.5 days cut, see §0.4; plans without an event keep working, and the backfill lands after MVP) |
 | G1.9 | Stretch | Transactional assign (FS3-3) | 0.5 | An `assign_volunteer_shift` RPC does the conflict, capacity and insert in one transaction. Two concurrent applies can't double-book a volunteer or over-fill a position (DB test). | Not started |
 | G1.10 | Stretch | Recurring blockouts | 1 | A volunteer or admin adds a repeating unavailability, e.g. every other Sunday or every first Sunday of the month, until an end date. It expands into day rows, within the existing 90-day and one-year limits. The top remaining parity gap with Planning Center blockouts (Council Review 20). Tests. | Not started |
 
-**Gap 1 definition of done:** G1.4–G1.8 are done, and the service-planning journeys pass in CI: build a plan, add songs, assign by hand, auto-fill, notify, accept or decline, rehearsal.
+**Gap 1 definition of done:** G1.4–G1.6 are done (G1.7 rehearsals and G1.8 plan-requires-event were moved after MVP on 2026-09-29), and the service-planning journeys pass in CI: build a plan, add songs, assign by hand, auto-fill, notify, accept or decline, rehearsal.
 
-#### Week 2 (Oct 5 – Oct 9), milestone M2: safety track and recurring gifts (8.5 must days)
+#### Week 2 (Oct 5 – Oct 9), milestone M2: the production-safety track (5.5 must days)
 
 | ID | Priority | Item | Est. | Definition of done | Status |
 |---|---|---|---|---|---|
@@ -109,23 +110,23 @@ Status values: `Not started`, `In progress`, `Done (#PR)`, `Deferred (reason)`. 
 | S4 | Must | Crons and demo routes fail closed (F8) | 0.5 | Cron routes reject requests without a valid `CRON_SECRET` outside local development. Demo-only routes return 403 when demo mode is off. Tests. | Not started |
 | S6 | Must | Server-side broadcast recipients (F6) | 0.5 | `broadcastMessageAction` resolves recipients from ids on the server and ignores client-supplied contact details. Tests. | Not started |
 | S10 | Must | Public event registration, server-side (found in Council Review 22) | 1 | The visitor registration page reads `event_registration_settings` server-side — the `[0]` embed fix alone left it empty, since members and visitors alike have no SELECT on that table. Visitor submissions go through a server action that enforces event visibility, capacity and the registration deadline, replacing the direct client insert. `event_registrations_public_insert with check (true)` is dropped — today it lets anyone with the anon key insert a confirmed, paid registration for any church, skipping capacity. DB test that an anonymous client can't insert directly. | Not started |
-| G3.0 | Must | Card form for online giving (found in S8) | 1 | Stripe Elements collects the card and confirms the PaymentIntent in the browser. Until now, with Stripe configured, the giving page could create a PaymentIntent but had no form to pay it, so S8 makes it say online card giving isn't available and that nothing was charged. `confirmDonationAction` runs after `stripe.confirmPayment` succeeds; the webhook remains the source of truth. Tests, including the declined-card path. Also removes S8's `onlineGivingMode()` "unavailable" guard (P2, Council Review 22) in favor of a "live" mode, and cancels the PaymentIntent for a gift the member abandons instead of leaving it orphaned. | Not started |
-| G3.1 | Must | Recurring gift creation (depends on S8 and G3.0) | 2 | A member creates a recurring gift (amount, fund, weekly/biweekly/monthly, start date) as a Stripe subscription. They can change the amount, fund or frequency, pause, and cancel from `/app/member/giving`. An admin sees and manages recurring gifts. `lib/stripe/*` gets tests. Journey test. | Not started |
 
-#### Week 3 (Oct 12 – Oct 16), milestone M3: close gap 3 (7 must days)
+#### Weeks 3–4 (Oct 12 – Oct 23), milestone M3: close gap 3 (8.5 must days)
 
 | ID | Priority | Item | Est. | Definition of done | Status |
 |---|---|---|---|---|---|
+| G3.0 | Must | Card form for online giving (found in S8) | 1 | Stripe Elements collects the card and confirms the PaymentIntent in the browser. Until now, with Stripe configured, the giving page could create a PaymentIntent but had no form to pay it, so S8 makes it say online card giving isn't available and that nothing was charged. `confirmDonationAction` runs after `stripe.confirmPayment` succeeds; the webhook remains the source of truth. Tests, including the declined-card path. Also removes S8's `onlineGivingMode()` "unavailable" guard (P2, Council Review 22) in favor of a "live" mode, and cancels the PaymentIntent for a gift the member abandons instead of leaving it orphaned. | Not started |
+| G3.1 | Must | Recurring gift creation (depends on S8 and G3.0) | 2 | A member creates a recurring gift (amount, fund, weekly/biweekly/monthly, start date) as a Stripe subscription. They can change the amount, fund or frequency, pause, and cancel from `/app/member/giving`. An admin sees and manages recurring gifts. `lib/stripe/*` gets tests. Journey test. | Not started |
 | G3.2 | Must | Installments from Stripe webhooks | 1.5 | `invoice.paid`, `invoice.payment_failed` and `customer.subscription.updated` record each installment as a donation, send its receipt, and post it to the ledger through the existing finance posting. A failed payment notifies the donor. Webhook and finance tests. | Not started |
 | G3.3 | Must | Year-end giving statements | 2 | An admin generates per-donor statements for a date range (default: last calendar year): a PDF with the church header, gifts and the tax-deductibility wording. Batch email to donors, with consent respected. Members download their own from `/app/member/giving`. Tests and a journey. | Not started |
 | G5.1 | Must | Resend live and provider error codes (F2) | 1 | Resend is the email provider per ADR 0006, with SendGrid as the fallback. Both providers' HTTP statuses and errors map to the retry cron's transient codes. Adapter and cron tests. | Not started |
 | T1a | Must | Untested exports: giving, finance, comms | 1 | Zero `untestedExports` waivers in the giving, finance and communications action modules. | Not started |
-| T3 | Must | Testing Council full run #1 | 1.5 | A `MAXIMALIST_EXHAUSTIVE` run of the Testing Council (v6, `docs/prompts/ai-council-of-testers-v6.md`) over every manifest surface, against local Supabase. Report in `docs/reviews/`. Every defect becomes a tracker row or a §0.5 entry, and Critical and High defects are fixed or owner-deferred before M4. Includes a lens where a non-platform user performs every create and self-service action through the UI (Council Review 21: the page sweep only proved pages render). | Not started |
+| T3 | Must | Testing Council full run #1 | 1.5 | A `MAXIMALIST_EXHAUSTIVE` run of the Testing Council (v6, `docs/prompts/ai-council-of-testers-v6.md`) over every manifest surface, against local Supabase. Report in `docs/reviews/`. Every defect becomes a tracker row or a §0.5 entry, and Critical and High defects are fixed or owner-deferred before M4. Includes a lens where a non-platform user performs every create and self-service action through the UI (Council Review 21: the page sweep only proved pages render). | Deferred (owner decision 2026-09-29: MVP moved to Nov 6 and ~5.5 days cut, see §0.4; folded into R1: one full Testing Council run against the release candidate) |
 | G3.4 | Stretch | Pledges and campaigns | 1.5 | An admin creates a campaign (goal, dates, fund). A member pledges. Progress comes from actual gifts, and members see their own pledge progress. Tests. | Not started |
 
 **Gap 3 definition of done:** G3.1–G3.3 are done. Giving journeys pass in CI: one-time gift, recurring create, change and cancel, installment recorded and receipted, statement generated. Pledges (G3.4) are a stretch; if they're cut, they are recorded as deferred, not silently dropped.
 
-#### Week 4 (Oct 19 – Oct 23), milestone M4: close gaps 2 and 4 (5.5 must days)
+#### Week 5 (Oct 26 – Oct 30), milestone M4: close gaps 2 and 4 (5.5 must days)
 
 | ID | Priority | Item | Est. | Definition of done | Status |
 |---|---|---|---|---|---|
@@ -139,17 +140,17 @@ Status values: `Not started`, `In progress`, `Done (#PR)`, `Deferred (reason)`. 
 **Gap 2 definition of done:** G2.1 and G2.2 are done, and the mobile and kiosk journeys pass in CI.
 **Gap 4 definition of done:** G4.1 and G4.2 are done, and the migration journey passes in CI.
 
-#### Week 5 (Oct 26 – Oct 30), milestone M5: close gap 5 and release (7 must days)
+#### Week 6 (Nov 2 – Nov 6), milestone M5: release (5.5 must days)
 
 | ID | Priority | Item | Est. | Definition of done | Status |
 |---|---|---|---|---|---|
-| G5.2 | Must | Accounting export | 1.5 | General-ledger export for a date range: QuickBooks-importable (IIF) and Xero-importable (CSV), with account mapping from the chart of accounts. Round-trip tests against the formats. | Not started |
+| G5.2 | Must | Accounting export | 1.5 | General-ledger export for a date range: QuickBooks-importable (IIF) and Xero-importable (CSV), with account mapping from the chart of accounts. Round-trip tests against the formats. | Deferred (owner decision 2026-09-29: MVP moved to Nov 6 and ~5.5 days cut, see §0.4; Gap 5 closes on Resend, G5.1) |
 | T1b | Must | Untested exports: child safety, pastoral | 1 | Zero `untestedExports` waivers in the children's ministry and pastoral/elders action modules. | Not started |
 | T2 | Must | Journeys for the remaining core workflows | 1.5 | End-to-end journeys in CI for child check-in and check-out (with authorized pickup), pastoral care notes, and people and households. | Not started |
-| R1 | Must | Whole-app Council re-baseline and Testing Council run #2 | 2.5 | A full four-agent Council review, not diff-scoped. Every competitive gap is judged closed against its definition of done. No open Critical or High finding. Module percentages are re-scored (the last whole-app audit was Review 12). A second full Testing Council run (v6) against the release candidate, with no open Critical or High defect. Findings from both councils are fixed or recorded as `B-`/deferred rows. | Not started |
-| R2 | Must | MVP release | 0.5 | Every item in the release checklist (§0.6) passes. A version bump, CHANGELOG release section and git tag. README and this plan state "MVP released 2026-10-30" with the re-baselined score. | Not started |
+| R1 | Must | Whole-app Council re-baseline and the Testing Council full run | 2.5 | A full four-agent Council review, not diff-scoped. Every competitive gap is judged closed against its definition of done. No open Critical or High finding. Module percentages are re-scored (the last whole-app audit was Review 12). A full Testing Council run (v6, `MAXIMALIST_EXHAUSTIVE`, every manifest surface) against the release candidate — the only full run before MVP, since T3 was folded in on 2026-09-29, with no open Critical or High defect. Findings from both councils are fixed or recorded as `B-`/deferred rows. | Not started |
+| R2 | Must | MVP release | 0.5 | Every item in the release checklist (§0.6) passes. A version bump, CHANGELOG release section and git tag. README and this plan state "MVP released 2026-11-06" with the re-baselined score. | Not started |
 
-**Gap 5 definition of done:** G5.1 and G5.2 are done.
+**Gap 5 definition of done:** G5.1 is done (G5.2 accounting export was moved after MVP on 2026-09-29). G5.1 lands in weeks 3–4.
 
 #### Beta feedback
 
@@ -168,6 +169,9 @@ On each milestone date, compare the Must rows due by then against their status.
   5. G1.9 transactional assign
 - **Still behind after that:** the owner decides whether to move the date or cut a Must row. That decision is recorded here with its date.
 - **Must rows are never silently dropped.**
+
+**Decisions recorded here:**
+- **2026-09-29 (owner), date and scope.** With 33 Must days left against 23 working days, and each fix finding more work (7.5 days added between Sep 26 and Sep 29), the owner moved MVP one week to **Friday, November 6** and cut about 5.5 days: G1.7 rehearsals, G1.8 plan-requires-event and G5.2 accounting export move after MVP (§0.5), and T3 is folded into R1, so there is one full Testing Council run, against the release candidate. The safety track and giving rows are untouched. Must work left after the decision: 27.5 factory days against 28 working days. Chosen over keeping Oct 30 with a ~10-day cut (which would have left gaps 2 and 4 only partly closed) and over Nov 13 with full scope.
 
 ### 0.5 Deferred to after MVP
 
@@ -188,6 +192,9 @@ Each item was triaged on 2026-09-26 from the Council reviews and the plan histor
 | Household blockouts (one entry for a whole family) | Review 20 | Needs household links in scheduling, which don't exist yet. |
 | A self-service schedule page for staff roles (admin, pastor, leader, secretary) | Review 20 | `/app/member/schedule` is member-only. Staff can manage their own dates in the directory, except a secretary, who rarely volunteers. |
 | Moving blocked dates when two profiles are merged | Review 20 | Merges are rare, and blockouts are future-only and quick to re-enter. |
+| Rehearsal scheduling (G1.7, Story 4) | Owner decision 2026-09-29 | Cut to meet the Nov 6 date. Gap 1 closes on planning, assignment, notification and response; rehearsals are the next service-planning story after MVP. |
+| A service plan requires its event (G1.8, Story 5) | Owner decision 2026-09-29 | Cut to meet the Nov 6 date. Plans without an event keep working; the backfill and NOT NULL land after MVP. |
+| Accounting export, QuickBooks IIF and Xero CSV (G5.2) | Owner decision 2026-09-29 | Cut to meet the Nov 6 date. Gap 5 closes on Resend (G5.1). |
 | `respondToCalendarEventRsvpAction` still throws instead of returning a result | Review 22 | Pre-existing, outside S8's scope (S8 fixed the RSVP-write RLS policy, not this action's error handling); waived in `tests/coverage-manifest.json`. |
 | A paid registration whose payment-row upsert fails is logged server-side while the member still sees a success message | Review 22 | The registration itself succeeded; the payment-tracking row is a bookkeeping detail. Revisit with S10 or the finance/reporting follow-ups. |
 | A group's "Requested" join state is lost on page reload | Review 22 | Cosmetic — the underlying `group_members` row (`status: pending`) is correct; only the just-submitted UI state doesn't persist across a refresh. |
@@ -310,7 +317,7 @@ Implementation starts in later sprints.
 
 ## 8. Sprint Roadmap
 
-> **Historical.** This was the original sprint plan. Most of its scope shipped under different names through the Council process. Open work and dates are in [§0](#0-mvp-roadmap-to-october-30-2026-tracker).
+> **Historical.** This was the original sprint plan. Most of its scope shipped under different names through the Council process. Open work and dates are in [§0](#0-mvp-roadmap-to-november-6-2026-tracker).
 
 | Sprint | Focus | Goal | Estimated Duration |
 | --- | --- | --- | --- |
@@ -475,13 +482,13 @@ The control-plane / tenant split is fully live:
 
 ## Current Status and History
 
-This section is the history of what shipped and why, round by round through the Council Review protocol (`improve-software.md`, `docs/reviews/`). **Open work and status live in [§0](#0-mvp-roadmap-to-october-30-2026-tracker), not here.** Keep the two in sync: every Council round adds a history bullet here and updates §0's tracker rows.
+This section is the history of what shipped and why, round by round through the Council Review protocol (`improve-software.md`, `docs/reviews/`). **Open work and status live in [§0](#0-mvp-roadmap-to-november-6-2026-tracker), not here.** Keep the two in sync: every Council round adds a history bullet here and updates §0's tracker rows.
 
 ### MVP readiness history
 
 **MVP readiness: 69/100** (Council Review 22, 2026-09-29): first re-based from 67/100 at Review 21 down to 66 — Review 21's "above 71 once S8 lands" assumption held only if online card giving could actually charge, and G3.0 (found while building S8) shows it never could — then up to 69 for S8's member self-service writes (RSVP, group join, check-in, registration, data rights). Returning above 71 needs G3.0 and the S10-class fixes (public event registration server-side). Prior figures for reference: 67/100 at Review 21 (2026-09-28, itself re-based from 71/100 at Review 20 down to 64 because signed-in writes had never worked, S7), 71/100 at Review 20 (2026-09-27), up from 70/100 at Review 19, up from 65/100, where it sat through Reviews 9–13.
 
-**The MVP definition, the five competitive gaps with their definitions of done, the working order and the production-safety track moved to [§0](#0-mvp-roadmap-to-october-30-2026-tracker) on 2026-09-26.** §0 is the one place for open work, tracked row by row against the October 30, 2026 finish date. The bullets below are the history of what shipped.
+**The MVP definition, the five competitive gaps with their definitions of done, the working order and the production-safety track moved to [§0](#0-mvp-roadmap-to-november-6-2026-tracker) on 2026-09-26.** §0 is the one place for open work, tracked row by row against the October 30, 2026 finish date. The bullets below are the history of what shipped.
 
 **Legacy doc note:** `docs/plans/mvp-competitive-go-no-go-checklist.md` and `docs/mvp-competitive-analysis.md` predate Council Review 9 and describe the retired Phase A–D gate framework. The 2026-09-26 MVP definition in §0 supersedes them, and both now carry a superseded notice.
 
@@ -609,4 +616,4 @@ This section is the history of what shipped and why, round by round through the 
   - Full agent reports: [agent-1-database-api](docs/reviews/2026-09-29-council-review-22-agent-1-database-api.md), [agent-2-route-page](docs/reviews/2026-09-29-council-review-22-agent-2-route-page.md), [agent-3-ux-shell](docs/reviews/2026-09-29-council-review-22-agent-3-ux-shell.md), [agent-4-feature-competitive](docs/reviews/2026-09-29-council-review-22-agent-4-feature-competitive.md).
   - **Documenter note (this close-out):** no PR exists yet for `fix/member-writes-rls-s8` (checked via `gh pr list`). Verification above is local only — the CI `e2e` job (required per `AGENTS.md` §7) has not run on this branch. Open a draft PR to get a real CI run, including `e2e`, before merge sign-off; do not treat the local sweep as a substitute (the standing `feedback_local_e2e_environment` memory lesson).
 
-**Next:** see [§0](#0-mvp-roadmap-to-october-30-2026-tracker). As of 2026-09-29, milestone M1 is behind: S7 (session church profile id) merged (`29d1776`, PR #158, Council Review 21); S8 (member writes vs. RLS) is built and Council Review 22-clean on `fix/member-writes-rls-s8` (`4377e49`/`7ea5504`), pending a PR and a real CI `e2e` run before merge. Once S8 merges: G1.5 (assignment notifications) resumes on `feat/assignment-notifications-g1-5`, which has been paused mid-work waiting on S7 and S8; the owner has asked for the date-vs-scope proposal (§0.1, Must work now 52% over nominal capacity) right after S8 merges, not at M1; then S9 (regression guards), S5 (widened), S10 (public registration server-side) and the rest of the Week 2 safety track are still not started. Everything in the former residual backlog here was triaged into §0.3 (a tracker row) or §0.5 (deferred, with a reason). Do not restart Sprint 2–7 framing from scratch: most of that scope already shipped under different names through the Council process.
+**Next:** see [§0](#0-mvp-roadmap-to-november-6-2026-tracker). As of 2026-09-29, milestone M1 is behind: S7 (session church profile id) merged (`29d1776`, PR #158, Council Review 21); S8 (member writes vs. RLS) is built and Council Review 22-clean on `fix/member-writes-rls-s8` (`4377e49`/`7ea5504`), pending a PR and a real CI `e2e` run before merge. Once S8 merges: G1.5 (assignment notifications) resumes on `feat/assignment-notifications-g1-5`, which has been paused mid-work waiting on S7 and S8; the owner has asked for the date-vs-scope proposal (§0.1, Must work now 52% over nominal capacity) right after S8 merges, not at M1; then S9 (regression guards), S5 (widened), S10 (public registration server-side) and the rest of the Week 2 safety track are still not started. Everything in the former residual backlog here was triaged into §0.3 (a tracker row) or §0.5 (deferred, with a reason). Do not restart Sprint 2–7 framing from scratch: most of that scope already shipped under different names through the Council process.
