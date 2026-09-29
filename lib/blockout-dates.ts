@@ -27,6 +27,7 @@ export type BlockoutErrorCode =
   | "range_too_long"
   | "link_expired"
   | "not_found"
+  | "no_profile"
   | "save_failed";
 
 /** Consecutive days with the same reason, shown and removed as one entry (a vacation). */

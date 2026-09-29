@@ -2434,10 +2434,7 @@
       ],
       "tests": [
         "lib/compliance/data-rights-actions.test.ts"
-      ],
-      "untestedExports": {
-        "generateDataExportAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
-      }
+      ]
     }
   }
 }

@@ -1363,10 +1363,10 @@ export async function respondToShiftAction(
   shiftId: string,
   response: "confirmed" | "declined",
   reason?: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; code?: "no_profile" | "not_assigned" }> {
   const session = await requireChurchSession("/app/member/schedule");
   const profileId = session.churchProfileId;
-  if (!profileId) return { ok: false, error: "Your account has no profile in this church." };
+  if (!profileId) return { ok: false, code: "no_profile", error: "Your account has no profile in this church." };
   const churchId = session.appContext.church.id;
 
   if (shouldUseLocalTenantFallback()) {
@@ -1399,10 +1399,17 @@ export async function respondToShiftAction(
     .eq("id", shiftId)
     .eq("assigned_user_id", profileId)
     .eq("church_id", churchId)
+    // Only shifts that haven't happened yet (from the start of today, UTC).
+    .gte("starts_at", `${new Date().toISOString().slice(0, 10)}T00:00:00`)
     .select("id");
 
-  if (error) return { ok: false, error: error.message };
-  if (!updated || updated.length === 0) return { ok: false, error: "That shift isn't assigned to you." };
+  if (error) {
+    console.error("Failed to save shift response:", error.message);
+    return { ok: false, error: "Couldn't save your response. Please try again." };
+  }
+  if (!updated || updated.length === 0) {
+    return { ok: false, code: "not_assigned", error: "That shift isn't assigned to you, or it has already happened." };
+  }
   revalidatePath("/app/member/schedule");
   return { ok: true };
 }
@@ -2338,7 +2345,7 @@ export async function addMyBlockoutDatesAction(input: {
 }): Promise<BlockoutChangeResult> {
   const session = await requireChurchSession(MEMBER_SCHEDULE_PATH);
   const supabase = await createTenantServerClient();
-  if (!session.churchProfileId) return VOLUNTEER_NOT_FOUND;
+  if (!session.churchProfileId) return NO_PROFILE;
   const result = await addBlockouts(supabase, session.appContext.church.id, session.churchProfileId, input);
   if (result.ok) revalidateBlockoutViews();
   return result;
@@ -2347,7 +2354,7 @@ export async function addMyBlockoutDatesAction(input: {
 export async function removeMyBlockoutDatesAction(input: { from: string; to?: string | null }): Promise<BlockoutChangeResult> {
   const session = await requireChurchSession(MEMBER_SCHEDULE_PATH);
   const supabase = await createTenantServerClient();
-  if (!session.churchProfileId) return VOLUNTEER_NOT_FOUND;
+  if (!session.churchProfileId) return NO_PROFILE;
   const result = await removeBlockouts(supabase, session.appContext.church.id, session.churchProfileId, input);
   if (result.ok) revalidateBlockoutViews();
   return result;
@@ -2355,6 +2362,7 @@ export async function removeMyBlockoutDatesAction(input: { from: string; to?: st
 
 const LINK_EXPIRED = { ok: false, code: "link_expired", error: "This link is invalid or has expired." } as const;
 const VOLUNTEER_NOT_FOUND = { ok: false, code: "not_found", error: "Volunteer not found." } as const;
+const NO_PROFILE = { ok: false, code: "no_profile", error: "Your account has no profile in this church." } as const;
 
 /**
  * The volunteer and church a valid, unexpired shift token belongs to. Any of

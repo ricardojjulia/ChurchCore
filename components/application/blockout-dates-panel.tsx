@@ -43,6 +43,7 @@ const ERROR_KEYS: Record<BlockoutErrorCode | "load_failed", string> = {
   range_too_long: "errRangeTooLong",
   link_expired: "errLinkExpired",
   not_found: "errNotFound",
+  no_profile: "errNoProfile",
   save_failed: "errSave",
   load_failed: "errLoad",
 };

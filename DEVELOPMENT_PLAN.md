@@ -41,7 +41,7 @@ Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual
   4. Migration from incumbents, with reconciliation.
   5. Provider breadth: Resend, and accounting export.
 - **Retired gates.** The former Phase A–D gates are retired as MVP criteria. So is their blocker ("a church onboards uncoached" plus "a real-export migration dry-run"). Migration is validated against the incumbents' published export formats, not a partner church's data.
-- **Current MVP readiness: 71/100** (Council Review 20, 2026-09-27). R1 re-baselines it at MVP.
+- **Current MVP readiness: 67/100** (Council Review 21, 2026-09-28). Council Review 21 re-based Review 20's 71 to 64, because signed-in writes had never worked (S7), and scored 67 once S7 is merged. S8 is needed to return above 71. R1 re-baselines it at MVP.
 - **Beta testers are welcome and never gate progress.**
   - Their feedback becomes a tracker row (ID `B-n`) and is ranked like any other work.
   - It is never a precondition for starting or finishing anything.
@@ -53,12 +53,12 @@ Visual companion: [docs/development-plan-visual.md](docs/development-plan-visual
   - Scope is cut to meet the date; quality never is.
 - **Work order:** top to bottom within each week. The safety rows in a week land before that week's feature rows. S2 (webhooks fail closed, with F4) lands before G5.1 (Resend, F2), as the comms follow-ups require.
 - **Estimates** are in factory days: one story through build, tests, Council review and merge. They are calibrated on Service Planning Stories 1–3, which took about 1–2 days each, Council included.
-  - Must rows: 27 rows, 33.5 factory days, about 6.7 a week (the two Testing Council runs added 2.5 on 2026-09-27; S7 added 1.5 on 2026-09-28).
+  - Must rows: 29 rows, 36 factory days, about 7.2 a week (the two Testing Council runs added 2.5 on 2026-09-27; S7, S8 and S9 added 4 on 2026-09-28).
   - Stretch rows: 5 rows, 5.5 factory days.
   - Available: 25 working days (September 28 – October 30).
-  - **The Must work is about 34% over nominal capacity.** The plan relies on two things: the calibrated pace (smaller rows often finish in under their estimate) and the cut line (§0.4). This is the plan's main risk, and it's checked at every milestone.
+  - **The Must work is about 44% over nominal capacity. The owner decides at M1 (Oct 2) between moving the date and cutting scope.** The plan relies on two things: the calibrated pace (smaller rows often finish in under their estimate) and the cut line (§0.4). This is the plan's main risk, and it's checked at every milestone.
 
-**Progress (update on every merge):** 1 of 27 Must rows done (G1.4) · 0 of 5 Stretch rows done · next milestone **M1, Friday October 2** · last updated 2026-09-28.
+**Progress (update on every merge):** 1 of 29 Must rows done (G1.4) · 0 of 5 Stretch rows done · next milestone **M1, Friday October 2** · last updated 2026-09-28.
 
 ### 0.2 Milestones
 
@@ -81,11 +81,13 @@ Status values: `Not started`, `In progress`, `Done (#PR)`, `Deferred (reason)`. 
 |---|---|---|---|---|
 | O1 | Mark CI checks required | Sep 28 | In GitHub branch protection for `main`, `verify` and `e2e (shard 1/4)`–`e2e (shard 4/4)` are required status checks. Checked 2026-09-26: none are required yet, so CI failures don't block merges. | Not started |
 
-#### Week 1 (Sep 28 – Oct 2), milestone M1: close gap 1 (7.5 must days)
+#### Week 1 (Sep 28 – Oct 2), milestone M1: close gap 1 (10 must days)
 
 | ID | Priority | Item | Est. | Definition of done | Status |
 |---|---|---|---|---|---|
 | S7 | Must | The signed-in person's church profile id | 1.5 | `session.profile.id` is the auth (login) user id, never a church `profiles.id`, yet 51 places used it as one. So members' own schedules were empty, in-app confirm and decline and signed-in blockout dates failed, and communication-log writes violated `sent_by`'s foreign key and were lost. The session gains `churchProfileId`, each usage is classified by the column it feeds, "act as myself" paths handle a missing profile, and member shift responses no longer silently match zero rows (members have no UPDATE policy). Unit tests and member e2e journeys. Found 2026-09-28 by G1.5's journey. | In progress (`fix/session-church-profile-id`) |
+| S8 | Must | Member writes vs. RLS | 2 | Every member-reachable write is audited against the RLS policies, and each one is fixed. Found by Council Review 21: giving (`donations` insert/update are management-only, and a Stripe PaymentIntent is created before the failing insert, so the PaymentIntent must come only after the row can be written), mobile check-in (no member `attendance` insert), group join (no member `group_members` insert), RSVP (the `event_rsvps` policy compares a profile id with `auth.uid()`), registration capacity (counted through an RLS-filtered read) and payments (an admin-only upsert), data-rights 0-row checks, and data-rights and donation errors returned rather than thrown. A member-JWT DB test harness runs each member action's writes as `authenticated`. Must land before G1.5 resumes and before G3.1. | Not started |
+| S9 | Must | Stop the login-id / profile-id mix-up from coming back | 0.5 | Rename the session's `profile.id` so it reads as the login id. A lint rule bans `session.profile.id` in `app/` and `lib/` outside audit-actor use. One resolver instead of `churchProfileId` plus `resolveActiveChurchProfileId`. Member updates check their row count. | Not started |
 | G1.4 | Must | Blockout dates (FS3-1) | 1.5 | A volunteer adds and removes unavailable dates from `/app/member/schedule`. An admin adds and removes them from the volunteer directory. The planner's "Unavailable that day" and the assign modal honor them. Unit, action, DB and journey tests. | Done (#156) |
 | G1.5 | Must | Assignment notifications (FS3-2) | 1.5 | Assigning a volunteer, whether by hand or by auto-fill, sends an email (or SMS, if that's their preference) with the accept/decline link, through the existing communications pipeline, with consent and suppression respected. A decline shows the admin the top replacement suggestions. **Every assignment (manual and auto-fill) creates the shift's own confirmation token, valid until the shift date plus 7 days** (today only a manual reminder creates one, with a fixed 14-day expiry; Council Review 20). The roster shows the reason when an assigned volunteer has blocked the date. Tests, including the journey: assign → volunteer declines → admin sees replacements. | Not started |
 | G1.6 | Must | Church-timezone days (FS3-4) | 0.5 | Same-day conflicts, blockout dates, 30-day load and month counts use `churches.timezone`, not UTC. Test: an evening service in UTC−4 is on the right day. | Not started |
@@ -96,27 +98,27 @@ Status values: `Not started`, `In progress`, `Done (#PR)`, `Deferred (reason)`. 
 
 **Gap 1 definition of done:** G1.4–G1.8 are done, and the service-planning journeys pass in CI: build a plan, add songs, assign by hand, auto-fill, notify, accept or decline, rehearsal.
 
-#### Week 2 (Oct 5 – Oct 9), milestone M2: safety track and recurring gifts (5.5 must days)
+#### Week 2 (Oct 5 – Oct 9), milestone M2: safety track and recurring gifts (6.5 must days)
 
 | ID | Priority | Item | Est. | Definition of done | Status |
 |---|---|---|---|---|---|
+| S5 | Must | `/hq` role source and tenancy | 1 | `/hq` authorizes from membership roles, like the rest of the app. The `hq_*` tables gain `church_id` with RLS. The profile-role drift found at Council Review 18 is traced and fixed. **Council Review 21 adds a privilege escalation:** members can update their own `profiles.role`, `church_id`, `user_id` and `membership_status` (`profiles_update_self` plus column grants), and `current_user_role()`, which gates `/hq` and every `hq_*` policy, trusts `profiles.role`. So those columns are locked against self-edits, `current_user_role()` reads `church_memberships`, and `lib/auth.ts` drops its `profiles.role` membership fallback. Tests, including a DB test that a member can't change their own role. | Not started |
 | S1 | Must | Communication-log access alignment (F7) | 1 | `communication_logs` RLS matches the page gates: a secretary can read what their pages show, and a ministry leader can no longer read logs the app denies them. A pure church-admin e2e fixture, so the sweep no longer passes through the platform-admin RLS bypass. DB tests for each role. | Not started |
 | S2 | Must | Webhooks fail closed (with F4) | 1 | All four delivery and payment webhooks (Stripe, SendGrid, Twilio, Resend) reject requests when their signing secret is unset, in every environment. Stripe enforces a replay window. The F4 webhook log lookup is verified: suppressions from bounces and STOPs are actually written. Route tests for each. | Not started |
 | S3 | Must | `/api/reports/custom` | 0.5 | `requireChurchSession` sits outside the `try`, so a signed-out user is redirected, not shown an error. The `queryTenantLocalDb` read is replaced with an RLS-respecting client, which also removes the events export's non-existent `start`/`"end"` columns (Council Review 20). Tests. | Not started |
 | S4 | Must | Crons and demo routes fail closed (F8) | 0.5 | Cron routes reject requests without a valid `CRON_SECRET` outside local development. Demo-only routes return 403 when demo mode is off. Tests. | Not started |
 | S6 | Must | Server-side broadcast recipients (F6) | 0.5 | `broadcastMessageAction` resolves recipients from ids on the server and ignores client-supplied contact details. Tests. | Not started |
-| G3.1 | Must | Recurring gift creation | 2 | A member creates a recurring gift (amount, fund, weekly/biweekly/monthly, start date) as a Stripe subscription. They can change the amount, fund or frequency, pause, and cancel from `/app/member/giving`. An admin sees and manages recurring gifts. `lib/stripe/*` gets tests. Journey test. | Not started |
+| G3.1 | Must | Recurring gift creation (depends on S8) | 2 | A member creates a recurring gift (amount, fund, weekly/biweekly/monthly, start date) as a Stripe subscription. They can change the amount, fund or frequency, pause, and cancel from `/app/member/giving`. An admin sees and manages recurring gifts. `lib/stripe/*` gets tests. Journey test. | Not started |
 
-#### Week 3 (Oct 12 – Oct 16), milestone M3: close gap 3 (8 must days)
+#### Week 3 (Oct 12 – Oct 16), milestone M3: close gap 3 (7 must days)
 
 | ID | Priority | Item | Est. | Definition of done | Status |
 |---|---|---|---|---|---|
-| S5 | Must | `/hq` role source and tenancy | 1 | `/hq` authorizes from membership roles, like the rest of the app. The `hq_*` tables gain `church_id` with RLS. The profile-role drift found at Council Review 18 is traced and fixed. Tests. | Not started |
 | G3.2 | Must | Installments from Stripe webhooks | 1.5 | `invoice.paid`, `invoice.payment_failed` and `customer.subscription.updated` record each installment as a donation, send its receipt, and post it to the ledger through the existing finance posting. A failed payment notifies the donor. Webhook and finance tests. | Not started |
 | G3.3 | Must | Year-end giving statements | 2 | An admin generates per-donor statements for a date range (default: last calendar year): a PDF with the church header, gifts and the tax-deductibility wording. Batch email to donors, with consent respected. Members download their own from `/app/member/giving`. Tests and a journey. | Not started |
 | G5.1 | Must | Resend live and provider error codes (F2) | 1 | Resend is the email provider per ADR 0006, with SendGrid as the fallback. Both providers' HTTP statuses and errors map to the retry cron's transient codes. Adapter and cron tests. | Not started |
 | T1a | Must | Untested exports: giving, finance, comms | 1 | Zero `untestedExports` waivers in the giving, finance and communications action modules. | Not started |
-| T3 | Must | Testing Council full run #1 | 1.5 | A `MAXIMALIST_EXHAUSTIVE` run of the Testing Council (v6, `docs/prompts/ai-council-of-testers-v6.md`) over every manifest surface, against local Supabase. Report in `docs/reviews/`. Every defect becomes a tracker row or a §0.5 entry, and Critical and High defects are fixed or owner-deferred before M4. | Not started |
+| T3 | Must | Testing Council full run #1 | 1.5 | A `MAXIMALIST_EXHAUSTIVE` run of the Testing Council (v6, `docs/prompts/ai-council-of-testers-v6.md`) over every manifest surface, against local Supabase. Report in `docs/reviews/`. Every defect becomes a tracker row or a §0.5 entry, and Critical and High defects are fixed or owner-deferred before M4. Includes a lens where a non-platform user performs every create and self-service action through the UI (Council Review 21: the page sweep only proved pages render). | Not started |
 | G3.4 | Stretch | Pledges and campaigns | 1.5 | An admin creates a campaign (goal, dates, fund). A member pledges. Progress comes from actual gifts, and members see their own pledge progress. Tests. | Not started |
 
 **Gap 3 definition of done:** G3.1–G3.3 are done. Giving journeys pass in CI: one-time gift, recurring create, change and cancel, installment recorded and receipted, statement generated. Pledges (G3.4) are a stretch; if they're cut, they are recorded as deferred, not silently dropped.

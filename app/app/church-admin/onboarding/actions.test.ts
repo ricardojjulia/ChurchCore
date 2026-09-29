@@ -31,14 +31,14 @@ describe("hydrateSandboxDataAction", () => {
     vi.clearAllMocks();
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
-      churchProfileId: "profile-1", profile: { id: "profile-1"},
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
     });
   });
 
   it("rejects non church-admin roles", async () => {
     requireChurchSessionMock.mockResolvedValueOnce({
       appContext: { roleId: "member", church: { id: "church-1" } },
-      churchProfileId: "profile-1", profile: { id: "profile-1"},
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
     });
 
     const result = await hydrateSandboxDataAction();

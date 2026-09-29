@@ -80,7 +80,7 @@ describe("giving actions", () => {
         roleId: "church-admin",
         church: { id: "church-1", slug: "my-church" },
       },
-      churchProfileId: "profile-1", profile: { id: "profile-1"},
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
     });
     shouldUseLocalTenantFallbackMock.mockReturnValue(true);
     supabaseUpsertMock.mockResolvedValue({ error: null });
@@ -94,7 +94,7 @@ describe("giving actions", () => {
         roleId: "member",
         church: { id: "church-1", slug: "my-church" },
       },
-      churchProfileId: "profile-1", profile: { id: "profile-1"},
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
     });
 
     await expect(

@@ -51,7 +51,7 @@ describe("runPeopleImportDryRunAction", () => {
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
       source: "supabase",
       userId: "user-1",
-      churchProfileId: "profile-admin", profile: { id: "profile-admin"},
+      churchProfileId: "profile-admin", profile: { id: "profile-admin-login"},
     });
     hasTenantBackendEnvMock.mockReturnValue(true);
     resolveActiveChurchProfileIdMock.mockResolvedValue("profile-admin");
@@ -75,7 +75,7 @@ describe("runPeopleImportDryRunAction", () => {
       appContext: { roleId: "pastor", church: { id: "church-1" } },
       source: "supabase",
       userId: "user-1",
-      churchProfileId: "profile-pastor", profile: { id: "profile-pastor"},
+      churchProfileId: "profile-pastor", profile: { id: "profile-pastor-login"},
     });
 
     await expect(
@@ -179,7 +179,7 @@ describe("runPeopleImportDryRunAction", () => {
       appContext: { roleId: "pastor", church: { id: "church-1" } },
       source: "supabase",
       userId: "user-1",
-      churchProfileId: "profile-pastor", profile: { id: "profile-pastor"},
+      churchProfileId: "profile-pastor", profile: { id: "profile-pastor-login"},
     });
 
     await expect(commitPeopleImportBatchAction({ batchId: "batch-1" })).rejects.toThrow(

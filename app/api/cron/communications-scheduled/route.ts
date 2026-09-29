@@ -119,6 +119,8 @@ export async function GET(request: NextRequest) {
             profile: { id: null as string | null },
             source: "supabase" as const,
             userId: null as string | null,
+            // No person is acting: logs are unattributed (sent_by null) (S7).
+            churchProfileId: null as string | null,
           };
 
           for (const recipient of recipients) {

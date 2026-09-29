@@ -66,7 +66,7 @@ describe("donations actions", () => {
     vi.clearAllMocks();
     requireChurchSessionMock.mockResolvedValue({
       appContext: { church: { id: "church-1", name: "Grace Church" } },
-      churchProfileId: "profile-1", profile: { id: "profile-1"},
+      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
       userId: "user-1",
     });
     shouldUseLocalTenantFallbackMock.mockReturnValue(true);

@@ -120,7 +120,7 @@ function mockSupabasePath(tableQueues: Record<string, QueuedResult[]>) {
 function sessionFor(roleId: string) {
   return {
     appContext: { roleId, church: { id: "church-1" } },
-    churchProfileId: "actor-1", profile: { id: "actor-1"},
+    churchProfileId: "actor-1", profile: { id: "actor-1-login"},
   };
 }
 

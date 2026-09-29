@@ -83,6 +83,8 @@ describe("acting as the signed-in person uses their church profile id (S7)", () 
         expect.arrayContaining([
           { client: "admin", table: "volunteer_shifts", method: "eq", args: ["assigned_user_id", CHURCH_PROFILE_ID] },
           { client: "admin", table: "volunteer_shifts", method: "eq", args: ["church_id", "church-1"] },
+          // Only shifts that haven't happened yet.
+          { client: "admin", table: "volunteer_shifts", method: "gte", args: ["starts_at", "2026-10-01T00:00:00"] },
         ]),
       );
       expect(calls.some((c) => c.args.includes(LOGIN_ID))).toBe(false);
@@ -96,7 +98,8 @@ describe("acting as the signed-in person uses their church profile id (S7)", () 
       queue("volunteer_shifts", { data: [], error: null });
       expect(await respondToShiftAction("someone-elses-shift", "declined")).toEqual({
         ok: false,
-        error: "That shift isn't assigned to you.",
+        code: "not_assigned",
+        error: "That shift isn't assigned to you, or it has already happened.",
       });
     });
 
@@ -104,6 +107,7 @@ describe("acting as the signed-in person uses their church profile id (S7)", () 
       requireChurchSessionMock.mockResolvedValue(memberSession(null));
       expect(await respondToShiftAction("shift-1", "confirmed")).toEqual({
         ok: false,
+        code: "no_profile",
         error: "Your account has no profile in this church.",
       });
       expect(calls).toHaveLength(0);
@@ -129,7 +133,7 @@ describe("acting as the signed-in person uses their church profile id (S7)", () 
     it("lists nothing and refuses to save for someone with no profile in this church", async () => {
       requireChurchSessionMock.mockResolvedValue(memberSession(null));
       expect(await listMyBlockoutDatesAction()).toEqual([]);
-      expect(await addMyBlockoutDatesAction({ from: "2026-10-11" })).toMatchObject({ ok: false, code: "not_found" });
+      expect(await addMyBlockoutDatesAction({ from: "2026-10-11" })).toMatchObject({ ok: false, code: "no_profile" });
       expect(calls).toHaveLength(0);
     });
   });

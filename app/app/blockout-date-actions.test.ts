@@ -73,7 +73,7 @@ const TODAY = "2026-10-01";
 const FUTURE = "2026-10-11";
 
 function sessionFor(roleId: string) {
-  return { appContext: { roleId, church: { id: "church-1" } }, churchProfileId: "me", profile: { id: "me"} };
+  return { appContext: { roleId, church: { id: "church-1" } }, churchProfileId: "me", profile: { id: "me-login"} };
 }
 
 function queue(table: string, ...results: Array<{ data?: unknown; error?: unknown }>) {

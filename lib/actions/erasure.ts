@@ -33,8 +33,20 @@ export async function eraseProfileData(
     };
   }
 
-  const actorProfileId = session.profile.id;
+  // The admin's church profile id (not their login id, which is never a
+  // profiles.id): the self-erasure guard compares it with the target, and
+  // erase_profile_pii resolves the actor through profiles.id (S7).
+  const actorProfileId = session.churchProfileId;
   const churchId = appContext.church.id;
+  if (!actorProfileId) {
+    return {
+      ok: false,
+      profileId: targetProfileId,
+      erasedAt: "",
+      actorId: "",
+      error: "Your account has no profile in this church.",
+    };
+  }
 
   if (actorProfileId === targetProfileId) {
     return {

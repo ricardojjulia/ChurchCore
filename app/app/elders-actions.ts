@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
-import { requireChurchProfileId } from "@/lib/church-profile-id";
 import {
   callMinistryAI,
 } from "@/lib/ai-ministry/client";
@@ -655,13 +654,17 @@ export async function generateSermonOutlineAction(
     return { ok: false, error: "Note title is too long." };
   }
 
+  if (!session.churchProfileId) {
+    return { ok: false, error: "Your account has no profile in this church." };
+  }
+
   try {
     const prompt = buildSermonOutlinePrompt(noteType, noteTitle.trim(), existingContent);
     let outline = await callMinistryAI(
       prompt,
       AI_FEATURES.SERMON_PLANNING,
       session.appContext.church.id,
-      requireChurchProfileId(session),
+      session.churchProfileId,
     );
     outline = outline + `\n\n---\n*Disclaimer: ${ELDER_AI_DISCLAIMER}*`;
     return { ok: true, outline };
@@ -701,13 +704,17 @@ export async function generateBibleStudyAnswerAction(
     return { ok: false, error: "Query is too long. Please limit to 500 characters." };
   }
 
+  if (!session.churchProfileId) {
+    return { ok: false, error: "Your account has no profile in this church." };
+  }
+
   try {
     const prompt = buildBibleStudyPrompt(query.trim());
     const raw = await callMinistryAI(
       prompt,
       AI_FEATURES.BIBLE_STUDY,
       session.appContext.church.id,
-      requireChurchProfileId(session),
+      session.churchProfileId,
     );
     const sections = parseBibleStudyResponse(raw);
     return { ok: true, sections };

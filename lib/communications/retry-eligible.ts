@@ -382,6 +382,8 @@ function buildSyntheticSession(churchId: string): ChurchAppSession {
     profile: { id: null } as unknown as ChurchAppSession["profile"],
     source: "supabase",
     userId: "",
+    // No person is acting: retried logs are unattributed (sent_by null) (S7).
+    churchProfileId: null,
     homePath: "/app/church-admin",
     canAccessControl: false,
     memberships: [],

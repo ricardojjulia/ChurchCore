@@ -51,7 +51,7 @@ describe("runAttendanceImportDryRunAction", () => {
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
       source: "supabase",
       userId: "user-1",
-      churchProfileId: "profile-admin", profile: { id: "profile-admin"},
+      churchProfileId: "profile-admin", profile: { id: "profile-admin-login"},
     });
     hasTenantBackendEnvMock.mockReturnValue(true);
     resolveActiveChurchProfileIdMock.mockResolvedValue("profile-admin");
@@ -81,7 +81,7 @@ describe("runAttendanceImportDryRunAction", () => {
       appContext: { roleId: "pastor", church: { id: "church-1" } },
       source: "supabase",
       userId: "user-1",
-      churchProfileId: "profile-pastor", profile: { id: "profile-pastor"},
+      churchProfileId: "profile-pastor", profile: { id: "profile-pastor-login"},
     });
 
     await expect(
@@ -112,7 +112,7 @@ describe("runAttendanceImportDryRunAction", () => {
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
       source: "preview",
       userId: "user-1",
-      churchProfileId: "profile-admin", profile: { id: "profile-admin"},
+      churchProfileId: "profile-admin", profile: { id: "profile-admin-login"},
     });
 
     await expect(
@@ -184,7 +184,7 @@ describe("commitAttendanceImportBatchAction", () => {
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
       source: "supabase",
       userId: "user-1",
-      churchProfileId: "profile-admin", profile: { id: "profile-admin"},
+      churchProfileId: "profile-admin", profile: { id: "profile-admin-login"},
     });
     hasTenantBackendEnvMock.mockReturnValue(true);
     resolveActiveChurchProfileIdMock.mockResolvedValue("profile-admin");
@@ -220,7 +220,7 @@ describe("commitAttendanceImportBatchAction", () => {
       appContext: { roleId: "ministry_leader", church: { id: "church-1" } },
       source: "supabase",
       userId: "user-1",
-      churchProfileId: "profile-ml", profile: { id: "profile-ml"},
+      churchProfileId: "profile-ml", profile: { id: "profile-ml-login"},
     });
 
     await expect(
@@ -245,7 +245,7 @@ describe("commitAttendanceImportBatchAction", () => {
       appContext: { roleId: "church-admin", church: { id: "church-1" } },
       source: "preview",
       userId: "user-1",
-      churchProfileId: "profile-admin", profile: { id: "profile-admin"},
+      churchProfileId: "profile-admin", profile: { id: "profile-admin-login"},
     });
 
     await expect(

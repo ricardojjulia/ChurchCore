@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
-import { requireChurchProfileId } from "@/lib/church-profile-id";
 import {
   createTenantServerClient,
   queryTenantLocalDb,
@@ -215,7 +214,9 @@ export async function joinGroupAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await requireMemberSession();
   const churchId = session.appContext.church.id;
-  const profileId = requireChurchProfileId(session);
+  // Returned, not thrown: the caller shows res.error, and a throw reached the error page.
+  const profileId = session.churchProfileId;
+  if (!profileId) return { ok: false, error: "Your account has no profile in this church." };
 
   if (shouldUseLocalTenantFallback()) {
     await queryTenantLocalDb(
