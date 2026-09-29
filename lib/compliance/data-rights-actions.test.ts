@@ -6,7 +6,6 @@ const {
   queryTenantLocalDbMock,
   shouldUseLocalTenantFallbackMock,
   createTenantServerClientMock,
-  supabaseFromMock,
   supabaseUpdateMock,
   supabaseEqMock,
 } = vi.hoisted(() => {
@@ -15,7 +14,9 @@ const {
   const queryTenantLocalDb = vi.fn();
   const shouldUseLocalTenantFallback = vi.fn();
 
-  const eq = vi.fn(() => ({ eq }));
+  // update().eq().select() resolves to the updated rows (S8 row-count check).
+  const select = vi.fn(async () => ({ data: [{ id: "profile-1" }], error: null }));
+  const eq = vi.fn(() => ({ eq, select }));
   const update = vi.fn(() => ({ eq }));
   const from = vi.fn(() => ({ update }));
   const createTenantServerClient = vi.fn(async () => ({ from }));
@@ -26,7 +27,6 @@ const {
     queryTenantLocalDbMock: queryTenantLocalDb,
     shouldUseLocalTenantFallbackMock: shouldUseLocalTenantFallback,
     createTenantServerClientMock: createTenantServerClient,
-    supabaseFromMock: from,
     supabaseUpdateMock: update,
     supabaseEqMock: eq,
   };
@@ -66,66 +66,66 @@ describe("data rights pending-review actions", () => {
     });
   });
 
-  it("marks account deletion as pending review for eligible member accounts", async () => {
-    await requestAccountDeletionAction();
+  it("marks account deletion as pending review for the member's own profile", async () => {
+    expect(await requestAccountDeletionAction()).toEqual({ ok: true });
 
-    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
-      expect.stringContaining("set data_delete_requested_at = now()"),
-      ["profile-1"],
+    expect(supabaseUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data_delete_requested_at: expect.any(String) }),
     );
+    expect(supabaseEqMock).toHaveBeenCalledWith("id", "profile-1");
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/member/data-rights");
   });
 
-  it("allows members to cancel a pending deletion request", async () => {
-    await cancelDeletionRequestAction();
-
-    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
-      expect.stringContaining("set data_delete_requested_at = null"),
-      ["profile-1"],
-    );
-    expect(revalidatePathMock).toHaveBeenCalledWith("/app/member/data-rights");
+  it("lets a member cancel a pending deletion request", async () => {
+    expect(await cancelDeletionRequestAction()).toEqual({ ok: true });
+    expect(supabaseUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data_delete_requested_at: null }));
   });
 
-  it("rejects self-service deletion for staff roles", async () => {
+  it("returns an error, not a throw, for staff self-service deletion", async () => {
     requireChurchSessionMock.mockResolvedValueOnce({
-      churchProfileId: "profile-1", profile: { id: "profile-1-login"},
+      userId: "login-1",
+      churchProfileId: "profile-1",
+      profile: { id: "login-1" },
       appContext: { roleId: "pastor", church: { id: "church-1" } },
     });
 
-    await expect(requestAccountDeletionAction()).rejects.toThrow(
-      "Staff accounts cannot be deleted via self-service",
-    );
+    expect(await requestAccountDeletionAction()).toEqual({
+      ok: false,
+      error: "Staff accounts cannot be deleted via self-service. Contact your platform administrator.",
+    });
+    expect(supabaseUpdateMock).not.toHaveBeenCalled();
   });
 
-  it("records export requests in local fallback mode", async () => {
-    await requestDataExportAction();
-
-    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
-      expect.stringContaining("set data_export_requested_at = now()"),
-      ["profile-1"],
-    );
-    expect(revalidatePathMock).toHaveBeenCalledWith("/app/member/data-rights");
-  });
-
-  it("writes pending deletion timestamp in supabase mode", async () => {
-    shouldUseLocalTenantFallbackMock.mockReturnValueOnce(false);
-
-    await requestAccountDeletionAction();
-
-    expect(supabaseFromMock).toHaveBeenCalledWith("profiles");
+  it("records an export request", async () => {
+    expect(await requestDataExportAction()).toEqual({ ok: true });
     expect(supabaseUpdateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data_delete_requested_at: expect.any(String),
-        updated_at: expect.any(String),
-      }),
+      expect.objectContaining({ data_export_requested_at: expect.any(String) }),
     );
-    expect(supabaseEqMock).toHaveBeenCalledWith("id", "profile-1");
+  });
+
+  it("reports a request that matched no row instead of pretending it was sent (S8)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { select } = supabaseEqMock() as unknown as { select: ReturnType<typeof vi.fn> };
+    select.mockResolvedValueOnce({ data: [], error: null });
+    expect(await requestDataExportAction()).toEqual({ ok: false, error: "Couldn't find your profile to update." });
+    errorSpy.mockRestore();
+  });
+
+  it("refuses someone with no profile in this church", async () => {
+    requireChurchSessionMock.mockResolvedValueOnce({
+      userId: "login-1",
+      churchProfileId: null,
+      profile: { id: "login-1" },
+      appContext: { roleId: "member", church: { id: "church-1" } },
+    });
+    expect(await requestDataExportAction()).toEqual({ ok: false, error: "Your account has no profile in this church." });
   });
 
   it("exports the member's memberships by login id and everything else by church profile id (S7)", async () => {
+    shouldUseLocalTenantFallbackMock.mockReturnValue(true);
     queryTenantLocalDbMock.mockResolvedValue({ rows: [] });
 
-    await generateDataExportAction();
+    expect(await generateDataExportAction()).toMatchObject({ ok: true, payload: { memberships: [] } });
 
     const calls = queryTenantLocalDbMock.mock.calls as Array<[string, unknown[]]>;
     const membershipQuery = calls.find(([sql]) => sql.includes("from public.church_memberships"));

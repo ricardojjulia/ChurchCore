@@ -25,6 +25,8 @@ export interface CreatePaymentIntentInput {
   donorEmail?: string;
   donorName?: string;
   churchId: string;
+  /** Our donations row id, so the webhook can find the row (S8). */
+  donationId?: string;
 }
 
 export interface CreatePaymentIntentResult {
@@ -54,6 +56,7 @@ export async function createPaymentIntent(
     "metadata[fund_designation]": input.fundDesignation ?? "General",
     "metadata[voluntary]": "true",
   };
+  if (input.donationId) body["metadata[donation_id]"] = input.donationId;
   if (input.stripeCustomerId) body.customer = input.stripeCustomerId;
   if (input.donorEmail) body.receipt_email = input.donorEmail;
 
@@ -113,3 +116,15 @@ export async function cancelStripeSubscription(
 
   return { cancelled: true, isStub: false };
 }
+
+/**
+ * A PaymentIntent's status as Stripe reports it, so a donation is only marked
+ * succeeded when Stripe says so, never on the browser's word (S8). Without
+ * STRIPE_SECRET_KEY (local stub) every payment counts as succeeded.
+ */
+export async function retrievePaymentIntentStatus(paymentIntentId: string): Promise<string> {
+  if (!hasStripeConfig()) return "succeeded";
+  const pi = await stripeRequest<{ status: string }>("GET", `/payment_intents/${encodeURIComponent(paymentIntentId)}`);
+  return pi.status;
+}
+

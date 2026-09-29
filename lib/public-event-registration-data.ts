@@ -65,6 +65,15 @@ async function hasPublicColumn(table: string, column: string): Promise<boolean> 
   return Boolean(result.rows[0]?.exists);
 }
 
+type PublicEmbeddedEvent = {
+  id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  category: string;
+  visibility: string;
+};
+
 export async function getPublicEventRegistrationOptions(
   churchId: string,
 ): Promise<PublicEventRegistrationOption[]> {
@@ -239,14 +248,9 @@ export async function getPublicEventRegistrationOptions(
     waitlist_enabled: boolean;
     approval_required: boolean | null;
     household_registration_enabled: boolean | null;
-    events: Array<{
-      id: string;
-      title: string;
-      starts_at: string;
-      ends_at: string;
-      category: string;
-      visibility: string;
-    }>;
+    // PostgREST returns this many-to-one embed as an object, not an array;
+    // typed as either shape so the `[0]` bug can't come back (S8).
+    events: PublicEmbeddedEvent | PublicEmbeddedEvent[] | null;
   }>;
 
   const countRows = (registrationCountsQuery.data ?? []) as Array<{
@@ -301,7 +305,7 @@ export async function getPublicEventRegistrationOptions(
 
   return settingsRows
     .map((row) => {
-      const event = row.events[0];
+      const event = Array.isArray(row.events) ? row.events[0] : row.events;
       if (!event) {
         return null;
       }

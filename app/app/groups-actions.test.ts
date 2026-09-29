@@ -54,7 +54,6 @@ vi.mock("@/lib/supabase/tenant", () => ({
 import {
   addFirstTimeVisitorAction,
   createGroupAction,
-  joinGroupAction,
   recordAttendanceAction,
 } from "@/app/app/groups-actions";
 
@@ -125,16 +124,8 @@ describe("groups actions", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/groups");
   });
 
-  it("creates a pending member join request in local fallback mode", async () => {
-    const result = await joinGroupAction("group-22");
-
-    expect(result).toEqual({ ok: true });
-    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
-      expect.stringContaining("insert into public.group_members"),
-      ["group-22", "church-1", "member-1"],
-    );
-    expect(revalidatePathMock).toHaveBeenCalledWith("/app/member/groups");
-  });
+  // joinGroupAction is covered in app/app/group-join-actions.test.ts (S8:
+  // Supabase-only, scoped admin-client write).
 
   it("validates first-time visitor name", async () => {
     const result = await addFirstTimeVisitorAction({

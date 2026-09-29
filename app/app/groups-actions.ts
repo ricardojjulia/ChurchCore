@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
 import {
+  createTenantAdminClient,
   createTenantServerClient,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
@@ -218,23 +219,29 @@ export async function joinGroupAction(
   const profileId = session.churchProfileId;
   if (!profileId) return { ok: false, error: "Your account has no profile in this church." };
 
-  if (shouldUseLocalTenantFallback()) {
-    await queryTenantLocalDb(
-      `insert into public.group_members (group_id, church_id, profile_id, role, status)
-       values ($1, $2, $3, 'member', 'pending')
-       on conflict (group_id, profile_id) do nothing`,
-      [groupId, churchId, profileId],
-    );
-    revalidatePath(GROUPS_MEMBER_PATH);
-    return { ok: true };
-  }
+  // S8: members have no INSERT policy on group_members (a leader or admin
+  // adds people), so this failed under RLS. The request is written through the
+  // admin client, scoped server-side to the member and church, and only for an
+  // open, active group in their own church (ADR 0022). Supabase-only.
+  const supabase = createTenantAdminClient();
+  const { data: group } = await supabase
+    .from("groups")
+    .select("id, is_open, is_active")
+    .eq("id", groupId)
+    .eq("church_id", churchId)
+    .maybeSingle();
+  const g = group as { id: string; is_open: boolean | null; is_active: boolean | null } | null;
+  if (!g) return { ok: false, error: "That group wasn't found." };
+  if (!g.is_active || !g.is_open) return { ok: false, error: "That group isn't taking new members right now." };
 
-  const supabase = await createTenantServerClient();
   const { error } = await supabase.from("group_members").upsert(
     { group_id: groupId, church_id: churchId, profile_id: profileId, role: "member", status: "pending" },
     { onConflict: "group_id,profile_id", ignoreDuplicates: true },
   );
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    console.error("Failed to request group membership:", error.message);
+    return { ok: false, error: "Couldn't send your request. Please try again." };
+  }
   revalidatePath(GROUPS_MEMBER_PATH);
   return { ok: true };
 }

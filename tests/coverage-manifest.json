@@ -80,7 +80,8 @@
       "dynamicParams": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
-        "tests/e2e/member-mobile-foundation.spec.ts"
+        "tests/e2e/member-mobile-foundation.spec.ts",
+        "tests/e2e/member-writes.spec.ts"
       ]
     },
     "/app/church-admin/accounts": {
@@ -1281,7 +1282,8 @@
       "dynamicParams": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
-        "tests/e2e/member-mobile-foundation.spec.ts"
+        "tests/e2e/member-mobile-foundation.spec.ts",
+        "tests/e2e/member-writes.spec.ts"
       ]
     },
     "/app/member/groups": {
@@ -1299,7 +1301,8 @@
       "dynamicParams": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
-        "tests/e2e/member-mobile-foundation.spec.ts"
+        "tests/e2e/member-mobile-foundation.spec.ts",
+        "tests/e2e/member-writes.spec.ts"
       ],
       "note": "ACCESS-CONTROL INCONSISTENCY: unlike every sibling /app/member/* page, this page.tsx has no roleId check at all after requireChurchSession \u2014 any signed-in church role (not just member) can open it. getGroupsList(session, {activeOnly:true}) does look tenant-scoped (no obvious data leak beyond the group directory itself), but the missing role gate breaks the pattern every other member/* route follows and should be reviewed."
     },
@@ -2238,7 +2241,8 @@
         "updateGroupAction"
       ],
       "tests": [
-        "app/app/groups-actions.test.ts"
+        "app/app/groups-actions.test.ts",
+        "app/app/group-join-actions.test.ts"
       ],
       "untestedExports": {
         "addGroupMemberAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",

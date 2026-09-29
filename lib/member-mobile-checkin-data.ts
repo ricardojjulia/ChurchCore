@@ -2,6 +2,7 @@ import "server-only";
 
 import type { ChurchAppSession } from "@/lib/auth";
 import {
+  createTenantAdminClient,
   createTenantServerClient,
   hasTenantBackendEnv,
   queryTenantLocalDb,
@@ -208,7 +209,11 @@ export async function getMemberMobileCheckInOptions(
   }
 
   const supabase = await createTenantServerClient();
-  const { data: settingsRows } = await supabase
+  // S8: members have no SELECT policy on event_registration_settings (each
+  // row also holds the check-in access code), so this read returned nothing
+  // for members. It goes through the admin client, scoped to the church, and
+  // never returns the access code to the client (ADR 0022).
+  const { data: settingsRows } = await createTenantAdminClient()
     .from("event_registration_settings")
     .select(
       "event_id, mobile_member_check_in_enabled, mobile_member_check_in_starts_at, mobile_member_check_in_ends_at, mobile_member_check_in_access_code, mobile_member_check_in_allow_household, mobile_member_check_in_location_lat, mobile_member_check_in_location_lng, mobile_member_check_in_location_radius_meters, events!inner(id, title, category, starts_at, ends_at, visibility, church_id)",
