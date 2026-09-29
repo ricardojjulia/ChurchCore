@@ -45,3 +45,10 @@ Suppression and consent are compliance controls (CAN-SPAM / TCPA unsubscribe and
 - The service-role client is used on one more tenant path, so the explicit `church_id` filter is the tenant boundary for every call listed in Decision 1. Any new query in this path must keep that filter. Tests assert it for the lookups and the compose insert.
 - A missing `SUPABASE_SERVICE_ROLE_KEY` now fails these sends, where before they silently skipped the checks. That's intended.
 - **Not covered here:** delivery-webhook log resolution (`lib/communications/webhook-events.ts`) has the same no-user shape. It is tracked separately as follow-up F4, to be verified and fixed under this same rule.
+
+## Later applications of this pattern
+
+The scoped-admin-client-plus-server-side-check shape (Decision 1–2) has since been reused outside communications, for the same reason: RLS alone either doesn't grant the write, or would have to trust client input to enforce a business rule:
+
+- **S7 (Council Review 21, 2026-09-28):** `respondToShiftAction` (a member confirming or declining their own volunteer shift) — members have no UPDATE policy on `volunteer_shifts`, so a direct client update matched zero rows while reporting success. Moved to a scoped admin client with a row-count check.
+- **S8 (Council Review 22, 2026-09-29):** member-reachable business-rule writes that RLS gives members no INSERT/UPDATE for — donations, mobile check-in (`attendance`), group join (`group_members`), event-registration capacity and payments. Each write is scoped by `church_id` and `session.churchProfileId` from the server, after the action's own checks (visibility, capacity, deadline, RSVP-enabled, etc.), never from client input. A member-JWT DB harness (`tests/database/member-writes-rls.test.ts`) proves the underlying tables still deny a member's direct write — the admin client enforces the business rule the RLS policy can't express, it doesn't relax RLS. The one case fixed with an actual RLS policy change instead, because the fix was expressible as one, is `event_rsvps` (the self policy compared a profile id with `auth.uid()`, not `session.churchProfileId`).

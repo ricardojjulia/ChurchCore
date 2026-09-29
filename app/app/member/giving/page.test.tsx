@@ -8,6 +8,7 @@ const {
   applicationShellMock,
   donorPortalMock,
   memberBottomNavMock,
+  onlineGivingNoticeMock,
 } = vi.hoisted(() => ({
   redirectMock: vi.fn((url: string) => {
     throw { url };
@@ -23,6 +24,11 @@ const {
   )),
   donorPortalMock: vi.fn(() => <div>Donor Portal</div>),
   memberBottomNavMock: vi.fn(() => <div>Bottom Nav</div>),
+  onlineGivingNoticeMock: vi.fn(),
+}));
+
+vi.mock("@/lib/stripe/donations", () => ({
+  onlineGivingNotice: onlineGivingNoticeMock,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -59,6 +65,7 @@ describe("member giving page", () => {
       homePath: "/app/church-admin",
     });
     getDonorPortalDataMock.mockResolvedValue({ donations: [] });
+    onlineGivingNoticeMock.mockReturnValue(null);
   });
 
   it("redirects non-member roles to their home path", async () => {
@@ -78,6 +85,16 @@ describe("member giving page", () => {
     expect(screen.getByText("Grace Church")).toBeInTheDocument();
     expect(screen.getByText("Donor Portal")).toBeInTheDocument();
     expect(getDonorPortalDataMock).toHaveBeenCalled();
-    expect(donorPortalMock).toHaveBeenCalledWith({ data: { donations: [] } }, undefined);
+    expect(donorPortalMock).toHaveBeenCalledWith({ data: { donations: [] }, givingNotice: null }, undefined);
+  });
+
+  it("tells members up front when online giving is off (Council Review 22)", async () => {
+    onlineGivingNoticeMock.mockReturnValue("Online card giving isn't available yet.");
+    render(await MemberGivingPage());
+
+    expect(donorPortalMock).toHaveBeenCalledWith(
+      { data: { donations: [] }, givingNotice: "Online card giving isn't available yet." },
+      undefined,
+    );
   });
 });

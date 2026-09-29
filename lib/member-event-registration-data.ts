@@ -2,6 +2,7 @@ import "server-only";
 
 import type { ChurchAppSession } from "@/lib/auth";
 import {
+  createTenantAdminClient,
   createTenantServerClient,
   hasTenantBackendEnv,
   queryTenantLocalDb,
@@ -65,6 +66,16 @@ async function hasPublicTable(table: string): Promise<boolean> {
 
   return Boolean(result.rows[0]?.exists);
 }
+
+type EmbeddedEvent = {
+  id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  category: string;
+  visibility: string;
+  church_id: string;
+};
 
 export async function getMemberEventRegistrationOptions(
   session: ChurchAppSession,
@@ -238,7 +249,11 @@ export async function getMemberEventRegistrationOptions(
 
   const supabase = await createTenantServerClient();
 
-  const settingsQuery = await supabase
+  // S8: members have no SELECT policy on event_registration_settings (each
+  // row also holds the check-in access code), so this read returned nothing
+  // for members. It goes through the admin client, scoped to the church, and
+  // never returns the access code to the client (ADR 0022).
+  const settingsQuery = await createTenantAdminClient()
     .from("event_registration_settings")
     .select(
       "event_id, price_cents, currency, capacity, deadline, waitlist_enabled, approval_required, household_registration_enabled, events!inner(id, title, starts_at, ends_at, category, visibility, church_id)",
@@ -247,7 +262,10 @@ export async function getMemberEventRegistrationOptions(
     .eq("registration_open", true)
     .in("events.visibility", ["public", "members"]);
 
-  const registrationsQuery = await supabase
+  // Counts (spots taken, waitlist) need everyone's registrations, which a
+  // member's RLS view doesn't include (S8). Server-only: only counts and the
+  // member's own status leave this function.
+  const registrationsQuery = await createTenantAdminClient()
     .from("event_registrations")
     .select("event_id, status, is_waitlisted, profile_id, registered_at")
     .eq("church_id", churchId)
@@ -268,15 +286,8 @@ export async function getMemberEventRegistrationOptions(
     waitlist_enabled: boolean;
     approval_required: boolean | null;
     household_registration_enabled: boolean | null;
-    events: Array<{
-      id: string;
-      title: string;
-      starts_at: string;
-      ends_at: string;
-      category: string;
-      visibility: string;
-      church_id: string;
-    }>;
+    // A many-to-one embed: PostgREST returns an object (typed defensively).
+    events: EmbeddedEvent | EmbeddedEvent[] | null;
   }>;
 
   const memberRegistrations = (registrationsQuery.data ?? []) as Array<{
@@ -344,7 +355,9 @@ export async function getMemberEventRegistrationOptions(
 
   return settingsRows
     .map((row) => {
-      const event = row.events[0];
+      // PostgREST returns a many-to-one embed as an object, not an array, so
+      // `row.events[0]` was always undefined and every option was dropped (S8).
+      const event = Array.isArray(row.events) ? row.events[0] : row.events;
       if (!event) {
         return null;
       }

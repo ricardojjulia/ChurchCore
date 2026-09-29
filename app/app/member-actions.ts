@@ -6,7 +6,7 @@ import { requireChurchSession } from "@/lib/auth";
 import { resolveRegistrationLifecycle } from "@/lib/event-registration-lifecycle";
 import { createEventRegistrationPaymentIntent } from "@/lib/stripe/event-registrations";
 import {
-  createTenantServerClient,
+  createTenantAdminClient,
   hasTenantBackendEnv,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
@@ -26,6 +26,9 @@ export type MemberMobileCheckInResult = {
   previewMode?: boolean;
   error?: string;
 };
+
+/** What a member sees when check-in fails for a reason that isn't theirs to fix; the cause is logged. */
+const CHECK_IN_FAILED = "Couldn't check you in. Please try again or see a volunteer.";
 
 type CheckInGate = {
   title: string;
@@ -347,9 +350,12 @@ export async function memberMobileCheckInAction(
     return { ok: true, alreadyCheckedIn: false };
   }
 
-  const supabase = await createTenantServerClient();
-
-  const { data: gateRow, error: gateError } = await supabase
+  // S8: members have no SELECT policy on event_registration_settings (each
+  // row also holds the check-in access code), so this read returned nothing
+  // for members. It goes through the admin client, scoped to the church, and
+  // never returns the access code to the client (ADR 0022).
+  const admin = createTenantAdminClient();
+  const { data: gateRow, error: gateError } = await admin
     .from("event_registration_settings")
     .select(
       "mobile_member_check_in_enabled, mobile_member_check_in_starts_at, mobile_member_check_in_ends_at, mobile_member_check_in_access_code, mobile_member_check_in_allow_household, mobile_member_check_in_location_lat, mobile_member_check_in_location_lng, mobile_member_check_in_location_radius_meters, events!inner(id, title, starts_at, ends_at, visibility, church_id)",
@@ -360,7 +366,8 @@ export async function memberMobileCheckInAction(
     .maybeSingle();
 
   if (gateError) {
-    return { ok: false, error: gateError.message };
+    console.error("Failed to read the check-in settings:", gateError.message);
+    return { ok: false, error: CHECK_IN_FAILED };
   }
 
   const eventRecord = gateRow?.events
@@ -388,7 +395,11 @@ export async function memberMobileCheckInAction(
     locationRadiusMeters: gateRow.mobile_member_check_in_location_radius_meters ?? null,
   };
 
-  const { data: profileRows, error: profileError } = await supabase
+  // Household profiles are read through the admin client, scoped to this
+  // church and these two ids: a household member who hides themselves from
+  // the directory is invisible to the member's RLS-bound read (Council
+  // Review 22). The household rule is enforced below.
+  const { data: profileRows, error: profileError } = await admin
     .from("profiles")
     .select("id, family_id")
     .in("id", targetProfileId === profileId ? [profileId] : [profileId, targetProfileId])
@@ -396,7 +407,8 @@ export async function memberMobileCheckInAction(
     .is("merged_at", null);
 
   if (profileError) {
-    return { ok: false, error: profileError.message };
+    console.error("Failed to read the household profiles:", profileError.message);
+    return { ok: false, error: CHECK_IN_FAILED };
   }
 
   const currentProfile = profileRows?.find((row) => row.id === profileId) ?? null;
@@ -418,7 +430,11 @@ export async function memberMobileCheckInAction(
     };
   }
 
-  const { data: existing, error: existingError } = await supabase
+  // S8: members have no INSERT policy on attendance (staff record it), so the
+  // insert failed under RLS. Every rule above (window, access code, location,
+  // household) has passed, so the write goes through the admin client, scoped
+  // to this church, event and household member (ADR 0022).
+  const { data: existing, error: existingError } = await admin
     .from("attendance")
     .select("id")
     .eq("church_id", churchId)
@@ -428,14 +444,15 @@ export async function memberMobileCheckInAction(
     .maybeSingle();
 
   if (existingError) {
-    return { ok: false, error: existingError.message };
+    console.error("Failed to check for an existing check-in:", existingError.message);
+    return { ok: false, error: CHECK_IN_FAILED };
   }
 
   if (existing?.id) {
     return { ok: true, alreadyCheckedIn: true };
   }
 
-  const { error: insertError } = await supabase.from("attendance").insert({
+  const { error: insertError } = await admin.from("attendance").insert({
     church_id: churchId,
     event_id: input.eventId,
     profile_id: targetProfileId,
@@ -444,7 +461,8 @@ export async function memberMobileCheckInAction(
   });
 
   if (insertError) {
-    return { ok: false, error: insertError.message };
+    console.error("Failed to record mobile check-in:", insertError.message);
+    return { ok: false, error: CHECK_IN_FAILED };
   }
 
   revalidatePath("/app/member");
@@ -697,9 +715,12 @@ export async function memberRegisterForEventAction(
     };
   }
 
-  const supabase = await createTenantServerClient();
-
-  const { data: settings } = await supabase
+  // S8: members have no SELECT policy on event_registration_settings (each
+  // row also holds the check-in access code), so this read returned nothing
+  // for members. It goes through the admin client, scoped to the church, and
+  // never returns the access code to the client (ADR 0022).
+  const admin = createTenantAdminClient();
+  const { data: settings } = await admin
     .from("event_registration_settings")
     .select("registration_open, capacity, waitlist_enabled, approval_required, household_registration_enabled, deadline, price_cents, currency, events!inner(id, visibility)")
     .eq("event_id", input.eventId)
@@ -710,11 +731,22 @@ export async function memberRegisterForEventAction(
     return { ok: false, error: "Registration is closed for this event." };
   }
 
+  // The admin read above bypasses the events RLS, so the visibility rule the
+  // RLS-bound read used to apply is enforced here: members may register only
+  // for member or public events, never staff-only ones (Council Review 22).
+  const settingsEvent = Array.isArray(settings.events) ? settings.events[0] : settings.events;
+  if (!settingsEvent || (settingsEvent.visibility !== "members" && settingsEvent.visibility !== "public")) {
+    return { ok: false, error: "Registration is closed for this event." };
+  }
+
   if (settings.deadline && Date.now() > new Date(settings.deadline).getTime()) {
     return { ok: false, error: "Registration deadline has passed." };
   }
 
-  const { data: currentProfile } = await supabase
+  // Profiles are read through the admin client, scoped to this church: a
+  // household member hidden from the directory is invisible to the member's
+  // RLS-bound read (Council Review 22). The household rule is enforced below.
+  const { data: currentProfile } = await admin
     .from("profiles")
     .select("id, full_name, email, phone, family_id")
     .eq("id", profileId)
@@ -724,7 +756,7 @@ export async function memberRegisterForEventAction(
 
   const { data: targetProfile } = targetProfileId === profileId
     ? { data: currentProfile }
-    : await supabase
+    : await admin
         .from("profiles")
         .select("id, full_name, email, phone, family_id")
         .eq("id", targetProfileId)
@@ -746,7 +778,11 @@ export async function memberRegisterForEventAction(
     }
   }
 
-  const { data: existing } = await supabase
+  // S8: a member's RLS-bound reads only see their own registrations, so the
+  // capacity count below always came to ~0 and capacity was never enforced.
+  // The duplicate check and the count read every registration through the
+  // admin client, scoped to this church and event (ADR 0022).
+  const { data: existing } = await admin
     .from("event_registrations")
     .select("id")
     .eq("event_id", input.eventId)
@@ -761,7 +797,7 @@ export async function memberRegisterForEventAction(
 
   let isWaitlisted = false;
   if (settings.capacity) {
-    const { count } = await supabase
+    const { count } = await admin
       .from("event_registrations")
       .select("id", { count: "exact", head: true })
       .eq("event_id", input.eventId)
@@ -783,7 +819,10 @@ export async function memberRegisterForEventAction(
     priceCents: settings.price_cents ?? 0,
   });
 
-  const { data, error } = await supabase.from("event_registrations").insert({
+  // Written through the admin client after every rule above has passed: a
+  // household member's row can't be read back through the member's own
+  // select policy, so the RLS-bound insert failed (Council Review 22).
+  const { data, error } = await admin.from("event_registrations").insert({
     event_id: input.eventId,
     church_id: churchId,
     profile_id: targetProfile.id,
@@ -797,8 +836,9 @@ export async function memberRegisterForEventAction(
     custom_fields: input.customFields ?? null,
   }).select("id").single();
 
-  if (error) {
-    return { ok: false, error: error.message };
+  if (error || !data) {
+    console.error("Failed to record the registration:", error?.message);
+    return { ok: false, error: "Couldn't complete your registration. Please try again." };
   }
 
   if (paymentStatus === "pending" && data?.id) {
@@ -824,7 +864,9 @@ export async function memberRegisterForEventAction(
 
     const intentId = paymentIntent?.paymentIntentId ?? (demoMode ? `pi_demo_${data.id.slice(-8)}` : null);
 
-    await supabase.from("event_registration_payments").upsert(
+    // S8: the payments table is admin-only, so this upsert failed silently
+    // and paid registrations had no payment record to reconcile against.
+    const { error: paymentError } = await admin.from("event_registration_payments").upsert(
       {
         registration_id: data.id,
         event_id: input.eventId,
@@ -838,6 +880,9 @@ export async function memberRegisterForEventAction(
       },
       { onConflict: "registration_id" },
     );
+    if (paymentError) {
+      console.error("Failed to record the registration payment:", paymentError.message);
+    }
 
     revalidatePath("/app/member");
     revalidatePath(`/app/church-admin/events/${input.eventId}`);

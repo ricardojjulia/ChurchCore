@@ -37,7 +37,11 @@ export function DataRightsPanel({
   function handleRequestExport() {
     startTransition(async () => {
       try {
-        await requestDataExportAction();
+        const res = await requestDataExportAction();
+        if (!res.ok) {
+          notifications.show({ title: "Couldn't request your export", message: res.error, color: "red" });
+          return;
+        }
         setExportRequested(new Date().toISOString());
         notifications.show({
           title: "Export requested",
@@ -45,7 +49,7 @@ export function DataRightsPanel({
           color: "blue",
         });
       } catch (err) {
-        notifications.show({ title: "Error", message: String(err), color: "red" });
+        notifications.show({ title: "Error", message: err instanceof Error && err.message ? err.message : "Something went wrong. Please try again.", color: "red" });
       }
     });
   }
@@ -53,8 +57,12 @@ export function DataRightsPanel({
   function handleDownloadExport() {
     startTransition(async () => {
       try {
-        const payload = await generateDataExportAction();
-        const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        const res = await generateDataExportAction();
+        if (!res.ok) {
+          notifications.show({ title: "Couldn't prepare your export", message: res.error, color: "red" });
+          return;
+        }
+        const blob = new Blob([JSON.stringify(res.payload, null, 2)], {
           type: "application/json",
         });
         const url = URL.createObjectURL(blob);
@@ -69,7 +77,7 @@ export function DataRightsPanel({
           color: "teal",
         });
       } catch (err) {
-        notifications.show({ title: "Error", message: String(err), color: "red" });
+        notifications.show({ title: "Error", message: err instanceof Error && err.message ? err.message : "Something went wrong. Please try again.", color: "red" });
       }
     });
   }
@@ -77,7 +85,11 @@ export function DataRightsPanel({
   function handleRequestDeletion() {
     startTransition(async () => {
       try {
-        await requestAccountDeletionAction();
+        const res = await requestAccountDeletionAction();
+        if (!res.ok) {
+          notifications.show({ title: "Couldn't request deletion", message: res.error, color: "red" });
+          return;
+        }
         setDeletionPending(new Date().toISOString());
         notifications.show({
           title: "Deletion requested",
@@ -85,7 +97,7 @@ export function DataRightsPanel({
           color: "orange",
         });
       } catch (err) {
-        notifications.show({ title: "Error", message: String(err), color: "red" });
+        notifications.show({ title: "Error", message: err instanceof Error && err.message ? err.message : "Something went wrong. Please try again.", color: "red" });
       }
     });
   }
@@ -93,7 +105,11 @@ export function DataRightsPanel({
   function handleCancelDeletion() {
     startTransition(async () => {
       try {
-        await cancelDeletionRequestAction();
+        const res = await cancelDeletionRequestAction();
+        if (!res.ok) {
+          notifications.show({ title: "Couldn't cancel the request", message: res.error, color: "red" });
+          return;
+        }
         setDeletionPending(null);
         notifications.show({
           title: "Deletion cancelled",
@@ -101,7 +117,7 @@ export function DataRightsPanel({
           color: "teal",
         });
       } catch (err) {
-        notifications.show({ title: "Error", message: String(err), color: "red" });
+        notifications.show({ title: "Error", message: err instanceof Error && err.message ? err.message : "Something went wrong. Please try again.", color: "red" });
       }
     });
   }

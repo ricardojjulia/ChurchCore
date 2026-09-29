@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
-import { requireChurchProfileId } from "@/lib/church-profile-id";
 import {
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
@@ -22,87 +21,62 @@ import {
  * Actual deletion is approved by a church admin (or auto-approved after 30 days).
  */
 
-export async function requestDataExportAction(): Promise<void> {
-  const session = await requireChurchSession("/app/member");
-  const profileId = requireChurchProfileId(session);
+export type DataRightsResult = { ok: true } | { ok: false; error: string };
 
-  if (shouldUseLocalTenantFallback()) {
-    await queryTenantLocalDb(
-      `update public.profiles
-       set data_export_requested_at = now(), updated_at = now()
-       where id = $1`,
-      [profileId],
-    );
-  } else {
-    const supabase = await createTenantServerClient();
-    await supabase
-      .from("profiles")
-      .update({
-        data_export_requested_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", profileId);
+const NO_PROFILE_RESULT: DataRightsResult = { ok: false, error: "Your account has no profile in this church." };
+
+/**
+ * Sets or clears one of the member's own data-rights timestamps. Members may
+ * update their own profile row (profiles_update_own_data_rights), so this
+ * goes through the RLS-bound client; the row count is checked so a request
+ * that matched nothing is reported, not silently "sent" (S8). Supabase-only.
+ */
+async function setOwnDataRightsField(
+  profileId: string,
+  field: "data_export_requested_at" | "data_delete_requested_at",
+  value: string | null,
+): Promise<DataRightsResult> {
+  const supabase = await createTenantServerClient();
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({ [field]: value, updated_at: now })
+    .eq("id", profileId)
+    .select("id");
+  if (error) {
+    console.error(`Failed to update ${field}:`, error.message);
+    return { ok: false, error: "Couldn't save your request. Please try again." };
   }
-
+  if (!data || data.length === 0) return { ok: false, error: "Couldn't find your profile to update." };
   revalidatePath("/app/member/data-rights");
+  return { ok: true };
 }
 
-export async function requestAccountDeletionAction(): Promise<void> {
+export async function requestDataExportAction(): Promise<DataRightsResult> {
   const session = await requireChurchSession("/app/member");
-  const profileId = requireChurchProfileId(session);
+  if (!session.churchProfileId) return NO_PROFILE_RESULT;
+  return setOwnDataRightsField(session.churchProfileId, "data_export_requested_at", new Date().toISOString());
+}
+
+export async function requestAccountDeletionAction(): Promise<DataRightsResult> {
+  const session = await requireChurchSession("/app/member");
+  if (!session.churchProfileId) return NO_PROFILE_RESULT;
 
   // Disallow deletion for pastor/admin accounts via self-service
   const role = session.appContext.roleId;
   if (role === "pastor" || role === "church-admin") {
-    throw new Error(
-      "Staff accounts cannot be deleted via self-service. Contact your platform administrator.",
-    );
+    return {
+      ok: false,
+      error: "Staff accounts cannot be deleted via self-service. Contact your platform administrator.",
+    };
   }
-
-  if (shouldUseLocalTenantFallback()) {
-    await queryTenantLocalDb(
-      `update public.profiles
-       set data_delete_requested_at = now(), updated_at = now()
-       where id = $1`,
-      [profileId],
-    );
-  } else {
-    const supabase = await createTenantServerClient();
-    await supabase
-      .from("profiles")
-      .update({
-        data_delete_requested_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", profileId);
-  }
-
-  revalidatePath("/app/member/data-rights");
+  return setOwnDataRightsField(session.churchProfileId, "data_delete_requested_at", new Date().toISOString());
 }
 
-export async function cancelDeletionRequestAction(): Promise<void> {
+export async function cancelDeletionRequestAction(): Promise<DataRightsResult> {
   const session = await requireChurchSession("/app/member");
-  const profileId = requireChurchProfileId(session);
-
-  if (shouldUseLocalTenantFallback()) {
-    await queryTenantLocalDb(
-      `update public.profiles
-       set data_delete_requested_at = null, updated_at = now()
-       where id = $1`,
-      [profileId],
-    );
-  } else {
-    const supabase = await createTenantServerClient();
-    await supabase
-      .from("profiles")
-      .update({
-        data_delete_requested_at: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", profileId);
-  }
-
-  revalidatePath("/app/member/data-rights");
+  if (!session.churchProfileId) return NO_PROFILE_RESULT;
+  return setOwnDataRightsField(session.churchProfileId, "data_delete_requested_at", null);
 }
 
 export interface DataExportPayload {
@@ -121,10 +95,13 @@ export interface DataExportPayload {
  * Excludes fields marked [Erased] and sensitive church-admin records.
  * Called from the DataRightsPanel — the JSON is downloaded client-side.
  */
-export async function generateDataExportAction(): Promise<DataExportPayload> {
+export async function generateDataExportAction(): Promise<
+  { ok: true; payload: DataExportPayload } | { ok: false; error: string }
+> {
   const session = await requireChurchSession("/app/member");
   const churchId = session.appContext.church.id;
-  const profileId = requireChurchProfileId(session);
+  const profileId = session.churchProfileId;
+  if (!profileId) return NO_PROFILE_RESULT as { ok: false; error: string };
 
   if (shouldUseLocalTenantFallback()) {
     const [profile, memberships, donations, consents, prefs] = await Promise.all([
@@ -164,12 +141,15 @@ export async function generateDataExportAction(): Promise<DataExportPayload> {
     ]);
 
     return {
-      exportedAt: new Date().toISOString(),
-      profile: profile.rows[0] ?? {},
-      memberships: memberships.rows,
-      donations: donations.rows,
-      consentLogs: consents.rows,
-      notificationPreferences: prefs.rows,
+      ok: true,
+      payload: {
+        exportedAt: new Date().toISOString(),
+        profile: profile.rows[0] ?? {},
+        memberships: memberships.rows,
+        donations: donations.rows,
+        consentLogs: consents.rows,
+        notificationPreferences: prefs.rows,
+      },
     };
   }
 
@@ -207,11 +187,14 @@ export async function generateDataExportAction(): Promise<DataExportPayload> {
     ]);
 
   return {
-    exportedAt: new Date().toISOString(),
-    profile: (profile ?? {}) as Record<string, unknown>,
-    memberships: memberships ?? [],
-    donations: donations ?? [],
-    consentLogs: consents ?? [],
-    notificationPreferences: prefs ?? [],
+    ok: true,
+    payload: {
+      exportedAt: new Date().toISOString(),
+      profile: (profile ?? {}) as Record<string, unknown>,
+      memberships: memberships ?? [],
+      donations: donations ?? [],
+      consentLogs: consents ?? [],
+      notificationPreferences: prefs ?? [],
+    },
   };
 }

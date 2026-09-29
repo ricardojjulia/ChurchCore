@@ -5,6 +5,7 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import { MemberBottomNav } from "@/components/application/member-bottom-nav";
 import { requireChurchSession } from "@/lib/auth";
 import { getDonorPortalData } from "@/lib/donations-data";
+import { onlineGivingNotice } from "@/lib/stripe/donations";
 
 export default async function MemberGivingPage() {
   const session = await requireChurchSession("/app/member/giving");
@@ -45,7 +46,7 @@ export default async function MemberGivingPage() {
       navItems={navItems}
       bottomNav={<MemberBottomNav />}
     >
-      <DonorPortal data={data} />
+      <DonorPortal data={data} givingNotice={onlineGivingNotice()} />
     </ApplicationShell>
   );
 }

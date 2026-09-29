@@ -23,6 +23,7 @@ import { notifications } from "@mantine/notifications";
 import { Heart, RefreshCw, XCircle } from "lucide-react";
 
 import {
+  confirmDonationAction,
   initiateDonationAction,
   cancelRecurringDonationAction,
 } from "@/app/app/donations-actions";
@@ -59,7 +60,14 @@ const FUND_OPTIONS = [
   { value: "Community Outreach", label: "Community Outreach" },
 ];
 
-export function DonorPortal({ data }: { data: DonorPortalData }) {
+export function DonorPortal({
+  data,
+  givingNotice = null,
+}: {
+  data: DonorPortalData;
+  /** Why online giving is off right now, or null when a member can give (Council Review 22). */
+  givingNotice?: string | null;
+}) {
   const { donations, totalGiven } = data;
 
   const [giveOpen, give] = useDisclosure(false);
@@ -86,20 +94,23 @@ export function DonorPortal({ data }: { data: DonorPortalData }) {
           donorEmail: isAnonymous ? undefined : donorEmail.trim() || undefined,
         });
 
-        if (result.isStub) {
-          notifications.show({
-            title: "Gift recorded (dev mode)",
-            message: `Thank you for your generous gift of ${formatCents(cents)} to ${fund}. (Stripe not configured — running in stub mode.)`,
-            color: "teal",
-          });
-        } else {
-          // In production, load Stripe Elements here using result.clientSecret
-          notifications.show({
-            title: "Gift initiated",
-            message: `Your gift of ${formatCents(cents)} to ${fund} is being processed. A receipt will be sent to ${donorEmail || "your email"}.`,
-            color: "teal",
-          });
+        if (!result.ok) {
+          notifications.show({ title: "Couldn't start your gift", message: result.error, color: "red" });
+          return;
         }
+
+        // initiateDonationAction only succeeds in stub mode until the card form
+        // ships (G3.0): there's no card to take, so record the gift now.
+        const confirmed = await confirmDonationAction(result.donationId, result.paymentIntentId);
+        notifications.show(
+          confirmed.ok
+            ? {
+                title: "Gift recorded (dev mode)",
+                message: `Thank you for your generous gift of ${formatCents(cents)} to ${fund}. (Stripe not configured — running in stub mode.)`,
+                color: "teal",
+              }
+            : { title: "Couldn't record your gift", message: confirmed.error ?? "Please try again.", color: "red" },
+        );
 
         setAmountDollars(25);
         setNote("");
@@ -117,7 +128,11 @@ export function DonorPortal({ data }: { data: DonorPortalData }) {
   function handleCancelRecurring(donationId: string) {
     startTransition(async () => {
       try {
-        await cancelRecurringDonationAction(donationId);
+        const cancelled = await cancelRecurringDonationAction(donationId);
+        if (!cancelled.ok) {
+          notifications.show({ title: "Couldn't cancel", message: cancelled.error ?? "Please try again.", color: "red" });
+          return;
+        }
         notifications.show({
           title: "Recurring gift cancelled",
           message: "Your recurring gift has been cancelled. Thank you for your past generosity.",
@@ -155,11 +170,18 @@ export function DonorPortal({ data }: { data: DonorPortalData }) {
             radius="xl"
             leftSection={<Heart size={14} />}
             onClick={give.open}
+            disabled={Boolean(givingNotice)}
           >
             Give now
           </Button>
         </Group>
       </Paper>
+
+      {givingNotice ? (
+        <Alert color="yellow" variant="light" radius="md" title="Online giving is off">
+          <Text fz="sm">{givingNotice}</Text>
+        </Alert>
+      ) : null}
 
       {/* Voluntary giving notice */}
       <Alert color="teal" variant="light" radius="md" icon={<Heart size={14} />}>

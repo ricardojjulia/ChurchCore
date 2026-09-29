@@ -15,7 +15,7 @@ ChurchCore is part of a broader product family:
 
 ## Product Position & Competitive Analysis
 
-> **MVP status: 67/100 (Council Review 21, re-based). MVP target: October 30, 2026.** Council Review 21 found that signed-in writes across most of the app had never actually worked (`session.profile.id` is the login id, not a church profile id) — the score that scored Reviews 9–20 only ever proved pages render, not that a real signed-in user could write. Re-based from 71 down to 64, then back to 67 once the fix landed (`docs/reviews/2026-09-28-council-review-21-synthesis.md`). MVP is defined as closing five ranked competitive gaps against Planning Center, Breeze and Tithe.ly: service planning depth (~87% closed), phone-first mobile, recurring giving and statements, migration reconciliation, and provider breadth, plus a production-safety track. All open work, milestones and status are tracked in one place: [`DEVELOPMENT_PLAN.md` §0](DEVELOPMENT_PLAN.md#0-mvp-roadmap-to-october-30-2026-tracker).
+> **MVP status: 69/100 (Council Review 22, re-based). MVP target: October 30, 2026.** Council Review 21 found that signed-in writes across most of the app had never actually worked (`session.profile.id` is the login id, not a church profile id); Council Review 22 then found members had almost no RLS grant to write with at all (giving, check-in, group join, RSVP, registration), and that online card giving could never actually charge (no Stripe Elements form exists yet). Readiness moved 71 → 64 → 67 (S7, Council Review 21) → 66 → 69 (S8, Council Review 22) as each layer was found and fixed (`docs/reviews/2026-09-29-council-review-22-synthesis.md`). MVP is defined as closing five ranked competitive gaps against Planning Center, Breeze and Tithe.ly: service planning depth (~87% closed), phone-first mobile, recurring giving and statements, migration reconciliation, and provider breadth, plus a production-safety track. All open work, milestones and status are tracked in one place: [`DEVELOPMENT_PLAN.md` §0](DEVELOPMENT_PLAN.md#0-mvp-roadmap-to-october-30-2026-tracker).
 
 Key facts at a glance:
 
@@ -464,7 +464,7 @@ For voluntary donations (Sprint 7+), also supply:
 - `STRIPE_SECRET_KEY` — Stripe secret key (`sk_live_…` or `sk_test_…`)
 - `STRIPE_WEBHOOK_SECRET` — webhook signing secret (`whsec_…`) for payment confirmation
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` — for Stripe Elements on the frontend
-- When absent, donation actions return stub results so local dev is unaffected. ChurchCore takes **no platform fees** — 100% of every donation goes directly to the church.
+- When absent, donation actions return stub results **outside production** (or with `NEXT_PUBLIC_DEMO_MODE=true`), so local dev is unaffected — a production deploy without these keys refuses to give, rather than recording gifts that were never actually charged (Council Review 22, S8). Even with keys configured, online card giving isn't live yet: there's a Stripe PaymentIntent but no card-entry form (`DEVELOPMENT_PLAN.md` row G3.0). ChurchCore takes **no platform fees** — 100% of every donation goes directly to the church.
 
 For Communications Hub (Phase 6), also supply:
 

@@ -501,18 +501,31 @@ async function queueMemberChangeRequest(
   if (existingRequestError) throw new Error(existingRequestError.message);
 
   if (existingRequest?.id) {
-    const { error: updateError } = await supabase
+    // Members have no UPDATE policy on member_change_requests (staff review
+    // them), so this update matched 0 rows without an error and a re-submitted
+    // change was silently dropped (Council Review 22). Both callers pass the
+    // member's own profile, resolved server-side, so the update goes through
+    // the admin client, scoped to this church, that profile and a request
+    // that's still pending (ADR 0022), and the row count is checked.
+    const { data: updatedRows, error: updateError } = await createTenantAdminClient()
       .from("member_change_requests")
       .update({
         proposed_changes: params.proposedChanges,
         reviewer_note: null,
         reviewer_profile_id: null,
         reviewed_at: null,
+        updated_at: new Date().toISOString(),
       })
       .eq("id", existingRequest.id)
-      .eq("church_id", session.appContext.church.id);
+      .eq("church_id", session.appContext.church.id)
+      .eq("target_profile_id", params.targetProfileId)
+      .eq("status", "pending")
+      .select("id");
 
     if (updateError) throw new Error(updateError.message);
+    if (!updatedRows || updatedRows.length === 0) {
+      throw new Error("Your earlier request was just reviewed. Please submit your changes again.");
+    }
     return existingRequest.id;
   }
 
