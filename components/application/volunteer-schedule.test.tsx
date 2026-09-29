@@ -25,6 +25,7 @@ const {
   suggestVolunteersForPositionActionMock,
   proposePlanAutoFillActionMock,
   applyPlanAutoFillActionMock,
+  removeAssignmentActionMock,
 } = vi.hoisted(() => ({
   searchSongLibraryActionMock: vi.fn(),
   addSongToServicePlanActionMock: vi.fn(),
@@ -40,6 +41,7 @@ const {
   ),
   proposePlanAutoFillActionMock: vi.fn(),
   applyPlanAutoFillActionMock: vi.fn(),
+  removeAssignmentActionMock: vi.fn(),
 }));
 
 // Captures the onDragEnd handler DndContext is rendered with, so tests can
@@ -84,7 +86,7 @@ vi.mock("@/app/app/volunteer-actions", () => ({
   createServicePlanAction: vi.fn(),
   createSongAndAddToServicePlanAction: createSongAndAddToServicePlanActionMock,
   reorderServicePlanItemsAction: reorderServicePlanItemsActionMock,
-  removeAssignmentAction: vi.fn(),
+  removeAssignmentAction: removeAssignmentActionMock,
   removeServicePlanItemAction: removeServicePlanItemActionMock,
   searchSongLibraryAction: searchSongLibraryActionMock,
   suggestVolunteersForPositionAction: suggestVolunteersForPositionActionMock,
@@ -895,6 +897,112 @@ describe("ServicePlanBuilder — rotation planner feedback (Council Review 19)",
 
     const dialog = screen.getByRole("dialog");
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Service plan not found.");
+  });
+});
+
+describe("ServicePlanBuilder — assignment notifications (G1.5)", () => {
+  it("tells the admin whether the volunteer was notified", async () => {
+    const user = userEvent.setup();
+    const detail = baseDetail();
+    detail.positions = [basePosition({ id: "pos-1", roleName: "Greeter", quantityNeeded: 2 })];
+    assignVolunteerActionMock.mockResolvedValue({ ok: true, notification: { status: "sent", channel: "email" } });
+    renderBuilder(detail, { pool: [basePoolEntry({ profileId: "p-1", fullName: "Alice Helper" })] });
+
+    await user.click(screen.getByRole("button", { name: "Assign" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Assign" }));
+
+    expect(await screen.findByText("Alice Helper assigned as Greeter. Email sent.")).toBeInTheDocument();
+  });
+
+  it("says why when a volunteer couldn't be notified", async () => {
+    const user = userEvent.setup();
+    const detail = baseDetail();
+    detail.positions = [basePosition({ id: "pos-1", roleName: "Greeter", quantityNeeded: 2 })];
+    assignVolunteerActionMock.mockResolvedValue({
+      ok: true,
+      notification: { status: "skipped", reason: "no email or phone on file." },
+    });
+    renderBuilder(detail, { pool: [basePoolEntry({ profileId: "p-1", fullName: "Alice Helper" })] });
+
+    await user.click(screen.getByRole("button", { name: "Assign" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Assign" }));
+
+    expect(
+      await screen.findByText("Alice Helper assigned as Greeter. Not notified: no email or phone on file."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows each auto-filled volunteer's notification outcome", async () => {
+    const user = userEvent.setup();
+    const detail = baseDetail();
+    detail.unfilledCount = 1;
+    detail.positions = [basePosition({ id: "pos-1", roleName: "Greeter", quantityNeeded: 1 })];
+    proposePlanAutoFillActionMock.mockResolvedValueOnce({
+      ok: true,
+      proposal: [{ positionId: "pos-1", roleName: "Greeter", profileId: "p-maya", fullName: "Maya Martinez", reasons: [] }],
+    });
+    applyPlanAutoFillActionMock.mockResolvedValueOnce({
+      ok: true,
+      results: [{ positionId: "pos-1", profileId: "p-maya", ok: true, notification: { status: "sent", channel: "sms" } }],
+    });
+    renderBuilder(detail, { pool: [] });
+
+    await user.click(screen.getByRole("button", { name: "Auto-fill plan" }));
+    await clickWhenEnabled(user, await screen.findByRole("button", { name: "Apply 1 assignment" }));
+
+    expect(await within(screen.getByTestId("auto-fill-proposal")).findByText("Text sent.")).toBeInTheDocument();
+  });
+
+  it("offers Find replacement on a declined shift, opening the assign modal for that position", async () => {
+    const user = userEvent.setup();
+    const detail = baseDetail();
+    detail.positions = [
+      basePosition({
+        id: "pos-1",
+        roleName: "Greeter",
+        quantityNeeded: 1,
+        filled: 0,
+        shifts: [baseShift({ id: "s-1", positionId: "pos-1", assignedUserId: "p-9", volunteerName: "Declined Dan", confirmationStatus: "declined" })],
+      }),
+    ];
+    renderBuilder(detail, { pool: [] });
+
+    await user.click(screen.getByRole("button", { name: "Find replacement" }));
+
+    expect(await screen.findByRole("dialog", { name: /Assign volunteer — Greeter/ })).toBeInTheDocument();
+    expect(suggestVolunteersForPositionActionMock).toHaveBeenCalledWith({ planId: detail.plan.id, positionId: "pos-1" });
+  });
+
+  it("shows the reason when an assigned volunteer has blocked the date, and Replace removes them then opens suggestions (Council Review 23)", async () => {
+    const user = userEvent.setup();
+    removeAssignmentActionMock.mockResolvedValueOnce({ ok: true });
+    const detail = baseDetail();
+    detail.positions = [
+      basePosition({
+        id: "pos-1",
+        roleName: "Greeter",
+        quantityNeeded: 1,
+        filled: 1,
+        shifts: [
+          baseShift({
+            id: "s-1",
+            positionId: "pos-1",
+            assignedUserId: "p-9",
+            volunteerName: "Away Amy",
+            confirmationStatus: "confirmed",
+            volunteerUnavailable: true,
+            volunteerUnavailableReason: "Family trip",
+          }),
+        ],
+      }),
+    ];
+    renderBuilder(detail, { pool: [] });
+    expect(screen.getByText("Marked this date off (Family trip).")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Replace" }));
+
+    expect(removeAssignmentActionMock).toHaveBeenCalledWith("s-1", detail.plan.id);
+    expect(await screen.findByRole("dialog", { name: /Assign volunteer — Greeter/ })).toBeInTheDocument();
   });
 });
 

@@ -281,7 +281,7 @@ describe("volunteer actions", () => {
         "shift-1",
         "member-2",
         "email",
-        "Please confirm by Thursday.\n\nConfirm here: http://localhost:3000/portal/volunteer/confirm/mock-token-123",
+        "Please confirm by Thursday.\n\nConfirm here: http://localhost:4200/portal/volunteer/confirm/mock-token-123",
         "admin-1",
       ],
     );

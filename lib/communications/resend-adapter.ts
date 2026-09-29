@@ -6,6 +6,8 @@ import type {
   ProviderSendPayload,
   ProviderSendResult,
 } from "@/lib/communications/provider-adapter";
+import { stubsAllowed } from "@/lib/stub-mode";
+import { PROVIDER_NOT_CONFIGURED } from "@/lib/communications/provider-adapter";
 
 function parseJson(rawBody: string): unknown {
   try {
@@ -24,10 +26,11 @@ export const resendAdapter: ProviderAdapter = {
     const fromEmail = process.env.RESEND_FROM_EMAIL;
 
     if (!apiKey || !fromEmail) {
-      return {
-        accepted: true,
-        providerMessageId: `resend-stub-${Date.now()}`,
-      };
+      // Stubbed only where stubs are allowed; in production a missing key
+      // must not report a message as delivered (Council Review 23).
+      return stubsAllowed()
+        ? { accepted: true, providerMessageId: `resend-stub-${Date.now()}` }
+        : { accepted: false, errorCode: PROVIDER_NOT_CONFIGURED, errorMessage: "Resend isn't configured." };
     }
 
     const body: Record<string, unknown> = {

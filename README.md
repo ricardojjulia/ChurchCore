@@ -15,7 +15,7 @@ ChurchCore is part of a broader product family:
 
 ## Product Position & Competitive Analysis
 
-> **MVP status: 69/100 (Council Review 22, re-based). MVP target: October 30, 2026.** Council Review 21 found that signed-in writes across most of the app had never actually worked (`session.profile.id` is the login id, not a church profile id); Council Review 22 then found members had almost no RLS grant to write with at all (giving, check-in, group join, RSVP, registration), and that online card giving could never actually charge (no Stripe Elements form exists yet). Readiness moved 71 → 64 → 67 (S7, Council Review 21) → 66 → 69 (S8, Council Review 22) as each layer was found and fixed (`docs/reviews/2026-09-29-council-review-22-synthesis.md`). MVP is defined as closing five ranked competitive gaps against Planning Center, Breeze and Tithe.ly: service planning depth (~87% closed), phone-first mobile, recurring giving and statements, migration reconciliation, and provider breadth, plus a production-safety track. All open work, milestones and status are tracked in one place: [`DEVELOPMENT_PLAN.md` §0](DEVELOPMENT_PLAN.md#0-mvp-roadmap-to-october-30-2026-tracker).
+> **MVP status: 69/100 (Council Review 22, re-based). MVP target: November 6, 2026 (moved from October 30 on 2026-09-29, with about 5.5 days of scope cut).** Council Review 21 found that signed-in writes across most of the app had never actually worked (`session.profile.id` is the login id, not a church profile id); Council Review 22 then found members had almost no RLS grant to write with at all (giving, check-in, group join, RSVP, registration), and that online card giving could never actually charge (no Stripe Elements form exists yet). Readiness moved 71 → 64 → 67 (S7, Council Review 21) → 66 → 69 (S8, Council Review 22) as each layer was found and fixed (`docs/reviews/2026-09-29-council-review-22-synthesis.md`). MVP is defined as closing five ranked competitive gaps against Planning Center, Breeze and Tithe.ly: service planning depth (~87% closed), phone-first mobile, recurring giving and statements, migration reconciliation, and provider breadth, plus a production-safety track. All open work, milestones and status are tracked in one place: [`DEVELOPMENT_PLAN.md` §0](DEVELOPMENT_PLAN.md#0-mvp-roadmap-to-november-6-2026-tracker).
 
 Key facts at a glance:
 
@@ -470,7 +470,8 @@ For Communications Hub (Phase 6), also supply:
 
 - `SENDGRID_API_KEY` and `SENDGRID_FROM_EMAIL` — outbound email via SendGrid
 - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM_NUMBER` — outbound SMS via Twilio
-- When these vars are absent the notification actions log to the console and return a stub result so local dev is unaffected.
+- `RESEND_API_KEY` and `RESEND_FROM_EMAIL` — outbound email via Resend (ADR 0006's designated primary provider; not yet wired into the send path — `DEVELOPMENT_PLAN.md` row G5.1)
+- When these vars are absent, the adapters return a stub "sent" result **outside production** (or with `NEXT_PUBLIC_DEMO_MODE=true`), so local dev and demos are unaffected — a production deploy without them returns `provider_not_configured` instead of reporting a message as delivered that never was (Council Reviews 22 and 23; `lib/stub-mode.ts`). Volunteer assignment notifications (`DEVELOPMENT_PLAN.md` row G1.5) and the giving flow (row S8) both depend on this rule. Outbound links (e.g. a volunteer's confirm link) use `NEXT_PUBLIC_APP_URL`; in production without it, the send is skipped rather than mailing a dead `localhost` link.
 
 Architectural note:
 

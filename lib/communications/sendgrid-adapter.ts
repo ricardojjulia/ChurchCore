@@ -6,6 +6,8 @@ import type {
   ProviderSendPayload,
   ProviderSendResult,
 } from "@/lib/communications/provider-adapter";
+import { stubsAllowed } from "@/lib/stub-mode";
+import { PROVIDER_NOT_CONFIGURED } from "@/lib/communications/provider-adapter";
 
 function buildHmac(payload: string, secret: string): string {
   return createHmac("sha256", secret).update(payload, "utf8").digest("hex");
@@ -65,10 +67,11 @@ export const sendgridAdapter: ProviderAdapter = {
     const fromEmail = process.env.SENDGRID_FROM_EMAIL;
 
     if (!apiKey || !fromEmail) {
-      return {
-        accepted: true,
-        providerMessageId: `sendgrid-stub-${Date.now()}`,
-      };
+      // Stubbed only where stubs are allowed; in production a missing key
+      // must not report a message as delivered (Council Review 23).
+      return stubsAllowed()
+        ? { accepted: true, providerMessageId: `sendgrid-stub-${Date.now()}` }
+        : { accepted: false, errorCode: PROVIDER_NOT_CONFIGURED, errorMessage: "Sendgrid isn't configured." };
     }
 
     const response = await fetch("https://api.sendgrid.com/v3/mail/send", {

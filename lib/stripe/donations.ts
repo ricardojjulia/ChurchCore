@@ -13,6 +13,8 @@
  *    our sendEmail helper (consent-gated).
  */
 
+import { stubsAllowed } from "@/lib/stub-mode";
+
 import { stripeRequest, hasStripeConfig } from "./client";
 
 /**
@@ -31,7 +33,7 @@ export type OnlineGivingMode = "stub" | "unconfigured" | "unavailable";
 
 /** Stubbed payments are allowed only outside production, or in demo mode. */
 export function stubPaymentsAllowed(): boolean {
-  return process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+  return stubsAllowed();
 }
 
 export function onlineGivingMode(): OnlineGivingMode {

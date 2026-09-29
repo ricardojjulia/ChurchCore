@@ -6,6 +6,16 @@ import { revalidatePath } from "next/cache";
 import { requireChurchSession, type ChurchAppSession } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/actions/audit";
 import { checkVolunteerBurnout } from "@/lib/burnout-calculator";
+import { appBaseUrl } from "@/lib/app-url";
+import { PROVIDER_NOT_CONFIGURED } from "@/lib/communications/provider-adapter";
+import { sendWithSuppression } from "@/lib/communications/send-with-suppression";
+import {
+  SKIP_REASON_TEXT,
+  buildShiftMessage,
+  chooseChannel,
+  tokenExpiryFor,
+  type NotificationOutcome,
+} from "@/lib/volunteer-notifications";
 import {
   expandBlockoutRange,
   todayUtc,
@@ -14,6 +24,7 @@ import {
   type BlockoutErrorCode,
 } from "@/lib/blockout-dates";
 import { getChurchSkillOptions, getServicePlanDetail, getVolunteerPool } from "@/lib/volunteer-data";
+import type { VolunteerPoolEntry } from "@/lib/volunteer-types";
 import {
   INELIGIBLE_LABEL,
   proposePlanFill,
@@ -1163,7 +1174,7 @@ export async function assignVolunteerAction(input: {
   startsAt: string;
   endsAt: string;
   bypassBurnout?: boolean;
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; notification?: NotificationOutcome }> {
   const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
 
@@ -1300,16 +1311,26 @@ export async function assignVolunteerAction(input: {
     return { ok: false, error: "This volunteer is already assigned on this service date." };
   }
 
-  const { error } = await supabase.from("volunteer_shifts").insert({
-    church_id: churchId,
-    event_id: linkedEventId,
-    plan_id: input.planId,
-    position_id: input.positionId,
-    assigned_user_id: input.profileId, title: input.roleName,
-    starts_at: input.startsAt, ends_at: input.endsAt,
-    status: "assigned", confirmation_status: "pending",
-  });
+  const { data: inserted, error } = await supabase
+    .from("volunteer_shifts")
+    .insert({
+      church_id: churchId,
+      event_id: linkedEventId,
+      plan_id: input.planId,
+      position_id: input.positionId,
+      assigned_user_id: input.profileId, title: input.roleName,
+      starts_at: input.startsAt, ends_at: input.endsAt,
+      status: "assigned", confirmation_status: "pending",
+    })
+    .select("id")
+    .single();
   if (error) return { ok: false, error: error.message };
+
+  // G1.5: tell the volunteer, with their own confirm link. A failed or skipped
+  // notification never undoes the assignment; the admin sees the outcome.
+  const notification = inserted?.id
+    ? await notifyVolunteerOfShift(session, inserted.id, "assigned")
+    : ({ status: "failed", reason: "the new shift couldn't be read back." } as const);
 
   if (input.bypassBurnout) {
     try {
@@ -1328,7 +1349,7 @@ export async function assignVolunteerAction(input: {
   }
 
   revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
-  return { ok: true };
+  return { ok: true, notification };
 }
 
 // ── Remove assignment ────────────────────────────────────────
@@ -1421,7 +1442,7 @@ export async function sendVolunteerReminderAction(input: {
   shiftId: string;
   channel?: "manual" | "email" | "sms" | "push";
   note?: string;
-}): Promise<{ ok: boolean; sentAt?: string; error?: string }> {
+}): Promise<{ ok: boolean; sentAt?: string; error?: string; warning?: string; notification?: NotificationOutcome }> {
   const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
   const sentBy = session.churchProfileId;
@@ -1470,7 +1491,7 @@ export async function sendVolunteerReminderAction(input: {
       );
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const appUrl = appBaseUrl() ?? "";
     const confirmUrl = `${appUrl}/portal/volunteer/confirm/${token}`;
     const originalNote = input.note?.trim() || "";
     const finalNote = originalNote
@@ -1493,7 +1514,7 @@ export async function sendVolunteerReminderAction(input: {
   const supabase = await createTenantServerClient();
   const { data: shift, error: shiftError } = await supabase
     .from("volunteer_shifts")
-    .select("assigned_user_id, confirmation_status, confirmation_token, confirmation_token_expires_at")
+    .select("assigned_user_id, confirmation_status")
     .eq("id", input.shiftId)
     .eq("church_id", churchId)
     .eq("plan_id", input.planId)
@@ -1509,34 +1530,17 @@ export async function sendVolunteerReminderAction(input: {
     return { ok: false, error: "Only pending volunteer responses can be reminded." };
   }
 
-  let token = shift.confirmation_token;
-  const expiresAt = shift.confirmation_token_expires_at ? new Date(shift.confirmation_token_expires_at) : null;
-  const now = new Date();
-
-  if (!token || !expiresAt || expiresAt < now) {
-    token = crypto.randomBytes(16).toString("hex");
-    const newExpiresAt = new Date();
-    newExpiresAt.setDate(newExpiresAt.getDate() + 14);
-
-    const { error: updateError } = await supabase
-      .from("volunteer_shifts")
-      .update({
-        confirmation_token: token,
-        confirmation_token_expires_at: newExpiresAt.toISOString(),
-      })
-      .eq("id", input.shiftId);
-
-    if (updateError) {
-      return { ok: false, error: `Failed to generate token: ${updateError.message}` };
-    }
+  // G1.5: the reminder actually reaches the volunteer now (it used to only
+  // record a note). notifyVolunteerOfShift refreshes the confirm link.
+  const notification = await notifyVolunteerOfShift(session, input.shiftId, "reminder", input.note);
+  // Only a reminder that was sent is recorded, so the roster's reminder count
+  // means the volunteer was contacted (Council Review 23).
+  if (notification.status !== "sent") {
+    return { ok: false, error: `Reminder not sent: ${notification.reason}`, notification };
   }
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const confirmUrl = `${appUrl}/portal/volunteer/confirm/${token}`;
   const originalNote = input.note?.trim() || "";
-  const finalNote = originalNote
-    ? `${originalNote}\n\nConfirm here: ${confirmUrl}`
-    : `Please confirm your volunteer assignment here: ${confirmUrl}`;
+  const finalNote = [originalNote, describeOutcomeForLog(notification)].filter(Boolean).join("\n\n");
+  const recordedChannel = notification.channel;
 
   const { data: reminder, error } = await supabase
     .from("volunteer_shift_reminders")
@@ -1544,7 +1548,7 @@ export async function sendVolunteerReminderAction(input: {
       church_id: churchId,
       shift_id: input.shiftId,
       reminded_profile_id: shift.assigned_user_id,
-      reminder_channel: channel,
+      reminder_channel: recordedChannel,
       reminder_note: finalNote,
       sent_by: sentBy,
     })
@@ -1552,12 +1556,20 @@ export async function sendVolunteerReminderAction(input: {
     .single();
 
   if (error) {
-    return { ok: false, error: error.message };
+    // The message already went out; reporting a failure here would invite a
+    // second send. Say it was sent, and that it couldn't be recorded.
+    console.error("Failed to record the reminder:", error.message);
+    return {
+      ok: true,
+      sentAt: new Date().toISOString(),
+      notification,
+      warning: "The reminder was sent, but couldn't be recorded on the roster.",
+    };
   }
 
   revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
   revalidatePath(SCHEDULES_PATH);
-  return { ok: true, sentAt: reminder?.sent_at ?? new Date().toISOString() };
+  return { ok: true, sentAt: reminder?.sent_at ?? new Date().toISOString(), notification };
 }
 
 // ── Log volunteer hours ──────────────────────────────────────
@@ -2066,6 +2078,24 @@ export async function respondToPublicShiftAction(
 // them goes through assignVolunteerAction so its burnout and same-day
 // conflict checks still run for every assignment.
 
+/**
+ * Someone who declined a shift on this plan isn't suggested for it again: the
+ * same-day check ignores declined shifts, so they'd otherwise come back as a
+ * top replacement for the service they just declined (Council Review 23).
+ */
+function markDeclinedThisService(
+  pool: VolunteerPoolEntry[],
+  detail: NonNullable<Awaited<ReturnType<typeof getServicePlanDetail>>>,
+): VolunteerPoolEntry[] {
+  const declined = new Set(
+    detail.positions.flatMap((p) =>
+      (p.shifts ?? []).filter((s) => s.confirmationStatus === "declined" && s.assignedUserId).map((s) => s.assignedUserId!),
+    ),
+  );
+  if (declined.size === 0) return pool;
+  return pool.map((entry) => (declined.has(entry.profileId) ? { ...entry, declinedThisService: true } : entry));
+}
+
 export async function suggestVolunteersForPositionAction(input: {
   planId: string;
   positionId: string;
@@ -2076,7 +2106,10 @@ export async function suggestVolunteersForPositionAction(input: {
   const position = detail.positions.find((p) => p.id === input.positionId);
   if (!position) return { ok: false, error: "Position not found on this plan." };
 
-  const pool = await getVolunteerPool(session, detail.plan.serviceDate, position.roleTypeId);
+  const pool = markDeclinedThisService(
+    await getVolunteerPool(session, detail.plan.serviceDate, position.roleTypeId),
+    detail,
+  );
   return {
     ok: true,
     volunteers: rankVolunteersForPosition(pool, position.requiredSkills, detail.plan.serviceDate),
@@ -2102,7 +2135,7 @@ export async function proposePlanAutoFillAction(input: {
 
   const pools = new Map<string | null, Awaited<ReturnType<typeof getVolunteerPool>>>();
   for (const roleTypeId of new Set(slots.map((slot) => slot.roleTypeId))) {
-    pools.set(roleTypeId, await getVolunteerPool(session, detail.plan.serviceDate, roleTypeId));
+    pools.set(roleTypeId, markDeclinedThisService(await getVolunteerPool(session, detail.plan.serviceDate, roleTypeId), detail));
   }
 
   return {
@@ -2111,7 +2144,13 @@ export async function proposePlanAutoFillAction(input: {
   };
 }
 
-export type AutoFillResult = { positionId: string; profileId: string; ok: boolean; error?: string };
+export type AutoFillResult = {
+  positionId: string;
+  profileId: string;
+  ok: boolean;
+  error?: string;
+  notification?: NotificationOutcome;
+};
 
 export async function applyPlanAutoFillAction(input: {
   planId: string;
@@ -2170,7 +2209,13 @@ export async function applyPlanAutoFillAction(input: {
       startsAt,
       endsAt,
     });
-    results.push({ positionId, profileId, ok: res.ok, ...(res.error ? { error: res.error } : {}) });
+    results.push({
+      positionId,
+      profileId,
+      ok: res.ok,
+      ...(res.error ? { error: res.error } : {}),
+      ...(res.notification ? { notification: res.notification } : {}),
+    });
     if (res.ok) openByPosition.set(positionId, open - 1);
   }
 
@@ -2452,4 +2497,167 @@ export async function removeVolunteerBlockoutDatesAction(input: {
   const result = await removeBlockouts(ctx.supabase, ctx.churchId, input.profileId, input);
   if (result.ok) revalidateBlockoutViews();
   return result;
+}
+
+// ── Assignment notifications (G1.5) ───────────────────────────────────────
+//
+// Every assignment gets its own confirm link and a message, through the
+// communications pipeline (sendWithSuppression applies suppressions and
+// opt-ins and writes the communication log). Local-SQL fallback paths don't
+// notify: they're deprecated (Supabase-only mandate).
+
+function describeOutcomeForLog(outcome: NotificationOutcome): string {
+  if (outcome.status === "sent") {
+    return `Sent by ${outcome.channel === "sms" ? "text" : "email"}${outcome.fallback ? ` (${outcome.fallback})` : ""}.`;
+  }
+  return outcome.status === "skipped" ? `Not sent: ${outcome.reason}` : `Send failed: ${outcome.reason}`;
+}
+
+/**
+ * Makes sure the shift has a confirm link valid until at least
+ * tokenExpiryFor(serviceDate). An existing unexpired token is kept (links
+ * already sent keep working) and only its expiry is extended.
+ */
+async function ensureShiftToken(
+  admin: ReturnType<typeof createTenantAdminClient>,
+  churchId: string,
+  shift: { id: string; confirmation_token: string | null; confirmation_token_expires_at: string | null },
+  serviceDate: string,
+): Promise<{ ok: true; token: string } | { ok: false }> {
+  const wanted = tokenExpiryFor(serviceDate);
+  const current = shift.confirmation_token_expires_at ? new Date(shift.confirmation_token_expires_at) : null;
+  const stillValid = Boolean(shift.confirmation_token) && current !== null && current > new Date();
+  if (stillValid && current! >= wanted) return { ok: true, token: shift.confirmation_token! };
+
+  const token = stillValid ? shift.confirmation_token! : crypto.randomBytes(16).toString("hex");
+  const { data: updated, error } = await admin
+    .from("volunteer_shifts")
+    .update({ confirmation_token: token, confirmation_token_expires_at: wanted.toISOString() })
+    .eq("id", shift.id)
+    .eq("church_id", churchId)
+    .select("id");
+  if (error || !updated || updated.length === 0) {
+    console.error("Failed to set the shift's confirm link:", error?.message ?? "no row updated");
+    return { ok: false };
+  }
+  return { ok: true, token };
+}
+
+type ShiftForNotification = {
+  id: string;
+  title: string;
+  starts_at: string;
+  assigned_user_id: string | null;
+  confirmation_token: string | null;
+  confirmation_token_expires_at: string | null;
+  service_plans: { name: string; service_date: string; service_time: string | null } | null;
+  profiles: {
+    full_name: string | null;
+    email: string | null;
+    phone: string | null;
+    preferred_contact_method: string | null;
+    contact_allowed: boolean | null;
+  } | null;
+};
+
+/** Tells the shift's volunteer about it. Never throws: the outcome is returned for the admin. */
+async function notifyVolunteerOfShift(
+  session: ChurchAppSession,
+  shiftId: string,
+  kind: "assigned" | "reminder",
+  note?: string | null,
+): Promise<NotificationOutcome> {
+  try {
+    const churchId = session.appContext.church.id;
+    // Members (and so the RLS-bound client) can't read confirmation_token
+    // (migration 20260929010000), so the token is read and written through
+    // the admin client, scoped to this church. Every caller has already
+    // passed requireServicePlanWriteAccess (ADR 0022, Council Review 23).
+    const admin = createTenantAdminClient();
+    const { data } = await admin
+      .from("volunteer_shifts")
+      .select(
+        "id, title, starts_at, assigned_user_id, confirmation_token, confirmation_token_expires_at, " +
+          "service_plans(name, service_date, service_time), " +
+          "profiles(full_name, email, phone, preferred_contact_method, contact_allowed)",
+      )
+      .eq("id", shiftId)
+      .eq("church_id", churchId)
+      .maybeSingle();
+    const shift = data as ShiftForNotification | null;
+    if (!shift?.assigned_user_id || !shift.profiles) {
+      return { status: "skipped", reason: "the shift has no volunteer." };
+    }
+
+    const choice = chooseChannel({
+      preferredContactMethod: shift.profiles.preferred_contact_method,
+      contactAllowed: shift.profiles.contact_allowed ?? true,
+      email: shift.profiles.email,
+      phone: shift.profiles.phone,
+    });
+    if (!choice.ok) return { status: "skipped", reason: SKIP_REASON_TEXT[choice.reason] };
+
+    const appUrl = appBaseUrl();
+    if (!appUrl) return { status: "skipped", reason: "the app's web address isn't configured." };
+
+    const serviceDate = shift.service_plans?.service_date ?? new Date(shift.starts_at).toISOString().slice(0, 10);
+    const token = await ensureShiftToken(admin, churchId, shift, serviceDate);
+    if (!token.ok) return { status: "failed", reason: "the confirm link couldn't be created." };
+
+    const send = (channel: "email" | "sms", contact: string) => {
+      const message = buildShiftMessage({
+        kind,
+        channel,
+        churchName: session.appContext.church.name,
+        volunteerName: shift.profiles!.full_name,
+        roleName: shift.title,
+        planName: shift.service_plans?.name ?? "the service",
+        serviceDate,
+        serviceTime: shift.service_plans?.service_time ?? null,
+        confirmUrl: `${appUrl}/portal/volunteer/confirm/${token.token}`,
+        note,
+      });
+      return sendWithSuppression({
+        session,
+        recipientProfileId: shift.assigned_user_id!,
+        recipientContact: contact,
+        channel,
+        subject: message.subject,
+        body: message.body,
+      });
+    };
+
+    let channel = choice.channel;
+    let result = await send(channel, choice.contact);
+    let fallback: string | undefined;
+    // SMS needs an explicit opt-in (a missing preferences row means no), so a
+    // volunteer who prefers texts but never opted in heard nothing. They get
+    // an email instead when they have one; email consent is still checked
+    // (Council Review 23).
+    const email = shift.profiles.email?.trim();
+    if (channel === "sms" && result.skipped && result.skipCode === "opted_out" && email) {
+      channel = "email";
+      fallback = "they haven't opted in to texts";
+      result = await send(channel, email);
+    }
+
+    const channelWord = channel === "sms" ? "texts" : "email";
+    if (result.sent) return fallback ? { status: "sent", channel, fallback } : { status: "sent", channel };
+    if (result.skipped) {
+      return {
+        status: "skipped",
+        reason:
+          result.skipCode === "suppressed"
+            ? `their ${channel === "sms" ? "number" : "address"} is on the do-not-contact list.`
+            : `they've opted out of ${channelWord}.`,
+      };
+    }
+    if (result.errorCode === PROVIDER_NOT_CONFIGURED) {
+      return { status: "failed", reason: `${channel === "sms" ? "texting" : "email"} isn't set up for this church yet.` };
+    }
+    return { status: "failed", reason: result.error ? "the message service returned an error." : "the message service didn't accept it." };
+  } catch (error) {
+    console.error("Failed to notify volunteer:", error);
+    return { status: "failed", reason: "the message couldn't be sent." };
+  }
 }

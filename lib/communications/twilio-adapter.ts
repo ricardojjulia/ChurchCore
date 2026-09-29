@@ -6,6 +6,8 @@ import type {
   ProviderSendPayload,
   ProviderSendResult,
 } from "@/lib/communications/provider-adapter";
+import { stubsAllowed } from "@/lib/stub-mode";
+import { PROVIDER_NOT_CONFIGURED } from "@/lib/communications/provider-adapter";
 
 function buildHmac(payload: string, secret: string): string {
   return createHmac("sha256", secret).update(payload, "utf8").digest("hex");
@@ -50,10 +52,11 @@ export const twilioAdapter: ProviderAdapter = {
     const fromNumber = process.env.TWILIO_FROM_NUMBER;
 
     if (!accountSid || !authToken || !fromNumber) {
-      return {
-        accepted: true,
-        providerMessageId: `twilio-stub-${Date.now()}`,
-      };
+      // Stubbed only where stubs are allowed; in production a missing key
+      // must not report a message as delivered (Council Review 23).
+      return stubsAllowed()
+        ? { accepted: true, providerMessageId: `twilio-stub-${Date.now()}` }
+        : { accepted: false, errorCode: PROVIDER_NOT_CONFIGURED, errorMessage: "Twilio isn't configured." };
     }
 
     const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");

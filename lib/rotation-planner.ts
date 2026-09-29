@@ -22,7 +22,13 @@ import type { VolunteerPoolEntry } from "@/lib/volunteer-types";
 
 export const BURNOUT_SHIFT_THRESHOLD = 3;
 
-export type IneligibleReason = "not_volunteer" | "blocked" | "serving_on_date" | "monthly_limit" | "high_load";
+export type IneligibleReason =
+  | "not_volunteer"
+  | "blocked"
+  | "serving_on_date"
+  | "monthly_limit"
+  | "high_load"
+  | "declined_this_service";
 
 export type RankedVolunteer = {
   profileId: string;
@@ -54,6 +60,7 @@ function ineligibleReasonsFor(entry: VolunteerPoolEntry): IneligibleReason[] {
     reasons.push("monthly_limit");
   }
   if (entry.recentShiftCount >= BURNOUT_SHIFT_THRESHOLD) reasons.push("high_load");
+  if (entry.declinedThisService) reasons.push("declined_this_service");
   return reasons;
 }
 
@@ -63,6 +70,7 @@ export const INELIGIBLE_LABEL: Record<IneligibleReason, string> = {
   serving_on_date: "Already serving that day",
   monthly_limit: "At monthly limit",
   high_load: `${BURNOUT_SHIFT_THRESHOLD}+ shifts in 30 days`,
+  declined_this_service: "Declined this service",
 };
 
 /** "N shift(s) in 30 days" — the one wording for recent load across the UI. */

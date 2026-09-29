@@ -65,6 +65,7 @@ import {
   addRosterAssignmentAction,
   quickCheckInEventMemberAction,
 } from "@/app/app/church-admin-actions";
+import { describeNotification } from "@/lib/volunteer-notifications";
 import {
   INELIGIBLE_LABEL,
   recentShiftsLabel,
@@ -684,7 +685,7 @@ export function ServicePlanBuilder({
   const [detail, setDetail] = useState(initialDetail);
   const [linkedEventOps, setLinkedEventOps] = useState(initialLinkedEventOps);
   const [isPending, startTransition] = useTransition();
-  const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [msg, setMsg] = useState<{ type: "success" | "warning" | "error"; text: string } | null>(null);
   const [showAddPosition, setShowAddPosition] = useState(false);
   const [showRunItemForm, setShowRunItemForm] = useState(false);
   const [posForm, setPosForm] = useState({ roleTypeId: "", quantityNeeded: 1 });
@@ -1397,7 +1398,11 @@ export function ServicePlanBuilder({
       if (res.ok) {
         addAssignedShift(assignTarget.positionId, profileId, fullName, assignTarget.roleName);
         closeAssignModal();
-        setMsg({ type: "success", text: `${fullName} assigned as ${assignTarget.roleName}.` });
+        setMsg({
+          // Yellow when the volunteer wasn't actually told (Council Review 23).
+          type: res.notification && res.notification.status !== "sent" ? "warning" : "success",
+          text: `${fullName} assigned as ${assignTarget.roleName}.${res.notification ? ` ${describeNotification(res.notification)}` : ""}`,
+        });
       } else if (res.error?.startsWith("BURNOUT_WARNING:")) {
         setBurnoutConfirmation({
           profileId,
@@ -1425,7 +1430,10 @@ export function ServicePlanBuilder({
         addAssignedShift(assignTarget.positionId, profileId, fullName, assignTarget.roleName);
         closeAssignModal();
         setBurnoutConfirmation(null);
-        setMsg({ type: "success", text: `${fullName} assigned as ${assignTarget.roleName} (bypass audit logged).` });
+        setMsg({
+          type: res.notification && res.notification.status !== "sent" ? "warning" : "success",
+          text: `${fullName} assigned as ${assignTarget.roleName} (bypass audit logged).${res.notification ? ` ${describeNotification(res.notification)}` : ""}`,
+        });
       } else {
         setBurnoutConfirmation(null);
         setModalError(res.error ?? "Assignment failed.");
@@ -1433,10 +1441,11 @@ export function ServicePlanBuilder({
     });
   }
 
-  function handleRemove(shiftId: string, positionId: string) {
+  function handleRemove(shiftId: string, positionId: string, onRemoved?: () => void) {
     startTransition(async () => {
       const res = await removeAssignmentAction(shiftId, detail.plan.id);
       if (res.ok) {
+        onRemoved?.();
         setDetail((d) => ({
           ...d,
           positions: d.positions.map((p) => {
@@ -1484,7 +1493,7 @@ export function ServicePlanBuilder({
       });
 
       if (!res.ok) {
-        setMsg({ type: "error", text: res.error ?? "Failed to send reminder." });
+        setMsg({ type: "error", text: res.error ? `${volunteerName}: ${res.error}` : "Failed to send reminder." });
         return;
       }
 
@@ -1507,7 +1516,19 @@ export function ServicePlanBuilder({
             : position,
         ),
       }));
-      setMsg({ type: "success", text: `Reminder logged for ${volunteerName}.` });
+      const sent = res.notification?.status === "sent" ? res.notification : null;
+      const how = sent
+        ? sent.fallback
+          ? ` by email (${sent.fallback})`
+          : sent.channel === "sms"
+            ? " by text"
+            : " by email"
+        : "";
+      setMsg(
+        res.warning
+          ? { type: "warning", text: `Reminder sent to ${volunteerName}${how}. ${res.warning}` }
+          : { type: "success", text: `Reminder sent to ${volunteerName}${how}.` },
+      );
     });
   }
 
@@ -2107,7 +2128,11 @@ export function ServicePlanBuilder({
       </Paper>
 
       {msg && (
-        <Alert color={msg.type === "success" ? "green" : "red"} withCloseButton onClose={() => setMsg(null)}>
+        <Alert
+          color={msg.type === "success" ? "green" : msg.type === "warning" ? "yellow" : "red"}
+          withCloseButton
+          onClose={() => setMsg(null)}
+        >
           {msg.text}
         </Alert>
       )}
@@ -2194,7 +2219,9 @@ export function ServicePlanBuilder({
                       {shift.volunteerUnavailable && shift.confirmationStatus !== "declined" ? (
                         <Group gap={4} wrap="nowrap">
                           <Badge size="xs" color="red" variant="light">Unavailable</Badge>
-                          <Text size="xs" c="red.8">Marked this date off. Find a replacement.</Text>
+                          <Text size="xs" c="red.8">
+                            Marked this date off{shift.volunteerUnavailableReason ? ` (${shift.volunteerUnavailableReason})` : ""}.
+                          </Text>
                         </Group>
                       ) : null}
                     </Group>
@@ -2211,6 +2238,37 @@ export function ServicePlanBuilder({
                         <Badge size="xs" color="gray" variant="light">
                           {shift.reminderCount} reminder{shift.reminderCount === 1 ? "" : "s"} · last {formatDateTime(shift.lastReminderAt)}
                         </Badge>
+                      ) : null}
+                      {shift.volunteerUnavailable && shift.confirmationStatus !== "declined" ? (
+                        // They blocked the date but haven't declined, so they still fill
+                        // the slot: Replace removes them, then opens the suggestions
+                        // (Council Review 23).
+                        <Button
+                          size="xs"
+                          variant="light"
+                          color="red"
+                          leftSection={<UserPlus size={12} />}
+                          loading={isPending}
+                          onClick={() =>
+                            handleRemove(shift.id, pos.id, () =>
+                              setAssignTarget({ positionId: pos.id, roleName: pos.roleName, requiredSkills: pos.requiredSkills }),
+                            )
+                          }
+                        >
+                          Replace
+                        </Button>
+                      ) : null}
+                      {shift.confirmationStatus === "declined" && pos.filled < pos.quantityNeeded ? (
+                        <Button
+                          size="xs"
+                          variant="light"
+                          leftSection={<UserPlus size={12} />}
+                          onClick={() =>
+                            setAssignTarget({ positionId: pos.id, roleName: pos.roleName, requiredSkills: pos.requiredSkills })
+                          }
+                        >
+                          Find replacement
+                        </Button>
                       ) : null}
                       {shift.confirmationStatus === "pending" && shift.assignedUserId ? (
                         <Button
@@ -2356,6 +2414,11 @@ export function ServicePlanBuilder({
                         ) : null}
                         {result && !result.ok ? (
                           <Text size="xs" c="red">{result.error}</Text>
+                        ) : null}
+                        {result?.ok && result.notification ? (
+                          <Text size="xs" c={result.notification.status === "sent" ? "dimmed" : "orange.8"}>
+                            {describeNotification(result.notification)}
+                          </Text>
                         ) : null}
                       </Stack>
                       {result ? (

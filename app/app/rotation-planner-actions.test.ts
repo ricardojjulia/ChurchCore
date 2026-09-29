@@ -11,9 +11,11 @@ const {
   revalidatePathMock,
   requireChurchSessionMock,
   createTenantServerClientMock,
+  createTenantAdminClientMock,
   getServicePlanDetailMock,
   getVolunteerPoolMock,
   checkVolunteerBurnoutMock,
+  sendWithSuppressionMock,
   tableResults,
   calls,
 } = vi.hoisted(() => {
@@ -44,9 +46,11 @@ const {
     revalidatePathMock: vi.fn(),
     requireChurchSessionMock: vi.fn(),
     createTenantServerClientMock: vi.fn(async () => ({ from: (table: string) => builder(table) })),
+    createTenantAdminClientMock: vi.fn(() => ({ from: (table: string) => builder(table) })),
     getServicePlanDetailMock: vi.fn(),
     getVolunteerPoolMock: vi.fn(),
     checkVolunteerBurnoutMock: vi.fn(async () => ({ isBurnedOut: false })),
+    sendWithSuppressionMock: vi.fn(async () => ({ sent: true, skipped: false })),
     tableResults,
     calls,
   };
@@ -56,12 +60,15 @@ vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/auth", () => ({ requireChurchSession: requireChurchSessionMock }));
 vi.mock("@/lib/supabase/tenant", () => ({
   createTenantServerClient: createTenantServerClientMock,
-  createTenantAdminClient: vi.fn(),
+  // G1.5's notification reads and writes the confirm token through the admin
+  // client (Council Review 23); it shares the same queued results.
+  createTenantAdminClient: createTenantAdminClientMock,
   queryTenantLocalDb: vi.fn(),
   shouldUseLocalTenantFallback: vi.fn(() => false),
 }));
 vi.mock("@/lib/actions/audit", () => ({ logAuditEvent: vi.fn() }));
 vi.mock("@/lib/burnout-calculator", () => ({ checkVolunteerBurnout: checkVolunteerBurnoutMock }));
+vi.mock("@/lib/communications/send-with-suppression", () => ({ sendWithSuppression: sendWithSuppressionMock }));
 vi.mock("@/lib/volunteer-data", () => ({
   getChurchSkillOptions: vi.fn(async () => []),
   getServicePlanDetail: getServicePlanDetailMock,
@@ -112,13 +119,33 @@ function queue(table: string, ...results: Array<{ data?: unknown; error?: unknow
 
 /**
  * Queues the reads one successful assignVolunteerAction makes, in order:
- * plan → position → profile → filled count → same-day conflicts → insert.
+ * plan → position → profile → filled count → same-day conflicts → insert,
+ * then the G1.5 notification's shift read and confirm-link update.
  */
 function queueAssignable({ quantityNeeded = 1, filled = 0 } = {}) {
   queue("service_plans", { data: { event_id: "event-1" }, error: null });
   queue("service_plan_positions", { data: { id: "pos", quantity_needed: quantityNeeded }, error: null });
   queue("profiles", { data: { id: "p" }, error: null });
-  queue("volunteer_shifts", { count: filled, error: null }, { data: [], error: null }, { error: null });
+  queue(
+    "volunteer_shifts",
+    { count: filled, error: null },
+    { data: [], error: null },
+    { data: { id: "new-shift" }, error: null },
+    {
+      data: {
+        id: "new-shift",
+        title: "Greeter",
+        starts_at: "2026-10-06T10:00:00+00:00",
+        assigned_user_id: "p-maya",
+        confirmation_token: null,
+        confirmation_token_expires_at: null,
+        service_plans: { name: "Sunday Worship", service_date: "2026-10-06", service_time: "10:00:00" },
+        profiles: { full_name: "Maya", email: "maya@example.org", phone: null, preferred_contact_method: null, contact_allowed: true },
+      },
+      error: null,
+    },
+    { data: [{ id: "new-shift" }], error: null },
+  );
 }
 
 describe("rotation planner actions", () => {
@@ -162,6 +189,24 @@ describe("rotation planner actions", () => {
         ["Aisha", true],
         ["Blocked Ben", false],
       ]);
+    });
+
+    it("doesn't suggest someone who declined a shift on this plan (Council Review 23)", async () => {
+      const detail = planDetail([{ id: "pos-1", roleTypeId: "role-g", roleName: "Greeter", requiredSkills: [], quantityNeeded: 1, filled: 0 }]);
+      (detail.positions[0] as { shifts?: unknown[] }).shifts = [{ assignedUserId: "p-dan", confirmationStatus: "declined" }];
+      getServicePlanDetailMock.mockResolvedValue(detail);
+      getVolunteerPoolMock.mockResolvedValue([
+        volunteer({ profileId: "p-dan", fullName: "Declined Dan" }),
+        volunteer({ profileId: "p-aisha", fullName: "Aisha" }),
+      ]);
+
+      const result = await suggestVolunteersForPositionAction({ planId: "plan-1", positionId: "pos-1" });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const dan = result.volunteers.find((v) => v.profileId === "p-dan");
+      expect(dan).toMatchObject({ eligible: false, ineligibleReasons: ["declined_this_service"] });
+      expect(dan?.reasons).toContain("Declined this service");
     });
 
     it("returns an error for an unknown plan or a position that isn't on the plan", async () => {
@@ -230,7 +275,10 @@ describe("rotation planner actions", () => {
         assignments: [{ positionId: "pos-g", profileId: "p-maya" }],
       });
 
-      expect(result).toEqual({ ok: true, results: [{ positionId: "pos-g", profileId: "p-maya", ok: true }] });
+      expect(result).toEqual({
+        ok: true,
+        results: [{ positionId: "pos-g", profileId: "p-maya", ok: true, notification: { status: "sent", channel: "email" } }],
+      });
       const insert = calls.find((c) => c.table === "volunteer_shifts" && c.method === "insert");
       expect(insert?.args[0]).toMatchObject({
         church_id: "church-1",
@@ -337,7 +385,7 @@ describe("rotation planner actions", () => {
     it("assigns when the volunteer is free that day", async () => {
       queueAssignable();
 
-      expect(await assignVolunteerAction(input)).toEqual({ ok: true });
+      expect(await assignVolunteerAction(input)).toEqual({ ok: true, notification: { status: "sent", channel: "email" } });
       expect(calls.some((c) => c.table === "volunteer_shifts" && c.method === "insert")).toBe(true);
       // The position lookup is scoped to the plan and the church.
       expect(calls).toEqual(

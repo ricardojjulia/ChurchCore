@@ -273,7 +273,10 @@ export async function getServicePlanDetail(
     supabase.from("service_plan_positions")
       .select("*, service_plan_role_types(name, required_skills)")
       .eq("plan_id", planId).order("sort_order"),
-    supabase.from("volunteer_shifts").select("*, profiles(full_name, email, phone)")
+    // Explicit columns: members (and the RLS-bound client) can't read
+    // confirmation_token, so "*" would fail (Council Review 23).
+    supabase.from("volunteer_shifts")
+      .select("id, church_id, event_id, ministry_id, assigned_user_id, title, starts_at, ends_at, status, created_at, updated_at, plan_id, position_id, confirmation_status, decline_reason, responded_at, volunteer_notes, confirmation_token_expires_at, profiles(full_name, email, phone)")
       .eq("plan_id", planId).order("starts_at"),
     supabase.from("service_plan_items").select("*").eq("plan_id", planId).order("sort_order"),
   ]);
@@ -307,19 +310,24 @@ export async function getServicePlanDetail(
   const assignedIds = Array.from(
     new Set((shifts ?? []).map((shift) => shift.assigned_user_id).filter((id): id is string => Boolean(id))),
   );
-  const unavailableIds = new Set<string>();
+  const unavailableReasons = new Map<string, string | null>();
   if (assignedIds.length > 0) {
     const { data: blocked } = await supabase
       .from("volunteer_blocked_dates")
-      .select("profile_id")
+      .select("profile_id, reason")
       .eq("church_id", churchId)
       .eq("blocked_date", plan.service_date)
       .in("profile_id", assignedIds);
-    for (const row of blocked ?? []) unavailableIds.add(row.profile_id);
+    for (const row of blocked ?? []) unavailableReasons.set(row.profile_id, row.reason ?? null);
   }
 
   const mappedShifts = (shifts ?? []).map((s) => {
-    const p = s.profiles as { full_name: string; email: string; phone: string } | null;
+    // A many-to-one embed arrives as an object; typed as an array by the client.
+    const embedded = s.profiles as unknown as
+      | { full_name: string; email: string; phone: string }
+      | Array<{ full_name: string; email: string; phone: string }>
+      | null;
+    const p = Array.isArray(embedded) ? (embedded[0] ?? null) : embedded;
     const reminder = reminderByShiftId.get(s.id);
     return {
       id: s.id, churchId: s.church_id, eventId: s.event_id, planId: s.plan_id,
@@ -331,7 +339,8 @@ export async function getServicePlanDetail(
       reminderCount: reminder?.reminder_count ?? 0,
       lastReminderAt: reminder?.last_reminder_at ?? null,
       volunteerName: p?.full_name ?? null, volunteerEmail: p?.email ?? null, volunteerPhone: p?.phone ?? null,
-      volunteerUnavailable: s.assigned_user_id ? unavailableIds.has(s.assigned_user_id) : false,
+      volunteerUnavailable: s.assigned_user_id ? unavailableReasons.has(s.assigned_user_id) : false,
+      volunteerUnavailableReason: s.assigned_user_id ? (unavailableReasons.get(s.assigned_user_id) ?? null) : null,
     };
   });
 
