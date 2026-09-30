@@ -202,6 +202,24 @@ describe("CalendarLiveBoard", () => {
   // AC1: "+N more" truncation at 3 events per cell
   // -------------------------------------------------------------------------
 
+  it("month view: puts an event on the church's day even when the viewer's browser is east of the church (Council Review 24)", () => {
+    // Church in Honolulu (UTC−10); this machine's zone is New York or UTC,
+    // both east of it. The grid used to build each cell at the viewer's local
+    // midnight, which is still the previous Honolulu day, so every event sat a
+    // cell late and the last day of the month's events vanished.
+    vi.setSystemTime(new Date("2026-09-30T20:00:00Z")); // Sep 30, 10 am in Honolulu
+    const events = [
+      makeEvent({ id: "last-day", title: "Last-day potluck", startsAt: "2026-09-30T22:00:00Z", endsAt: "2026-10-01T00:00:00Z" }),
+      makeEvent({ id: "first-day", title: "First-day prayer", startsAt: "2026-09-01T22:00:00Z", endsAt: "2026-09-01T23:00:00Z" }),
+    ];
+    renderBoard({ viewMode: "month", events, churchTimeZone: "Pacific/Honolulu" });
+
+    expect(screen.getByText("Last-day potluck")).toBeInTheDocument();
+    // The Sep 1 event sits in the "1" cell, not a neighbour.
+    const firstCell = screen.getByText("First-day prayer").closest("[data-day-key]");
+    expect(firstCell?.getAttribute("data-day-key")).toBe("2026-09-01");
+  });
+
   it("month view: renders '+2 more' when a day cell has 5 events", () => {
     // All 5 events on 2026-06-07 (UTC) so they land in the same day cell
     const events = Array.from({ length: 5 }, (_, i) =>

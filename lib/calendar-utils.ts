@@ -6,6 +6,8 @@
  * regardless of the browser or server's local timezone.
  */
 
+import { startOfDayInTimeZone } from "@/lib/church-time";
+
 export function formatCategory(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/g, (match) => match.toUpperCase());
 }
@@ -191,4 +193,22 @@ export function getPeriodLabel(
   }).format(saturdayDate);
 
   return `${startFmt} – ${endFmt}`;
+}
+
+/** `YYYY-MM-DD` for a calendar day; out-of-range days roll over (day 0, day 32). */
+export function dayKeyFromParts(year: number, monthIndex: number, day: number): string {
+  return new Date(Date.UTC(year, monthIndex, day)).toISOString().slice(0, 10);
+}
+
+/**
+ * An instant inside a church-local calendar day: its local noon. Grid cells
+ * built from `new Date(year, month, day)` are midnight in the *viewer's*
+ * zone, which for a viewer east of the church is still the previous church
+ * day, so every cell showed the day before's events (found by CI running in
+ * UTC on the last day of a month, Council Review 24). Noon in the church's
+ * zone is on the right day for every viewer.
+ */
+export function churchDayAnchor(dayKey: string, timeZone: string): Date {
+  const start = startOfDayInTimeZone(dayKey, timeZone) ?? new Date(`${dayKey}T00:00:00Z`);
+  return new Date(start.getTime() + 12 * 60 * 60 * 1000);
 }
