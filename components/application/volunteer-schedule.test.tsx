@@ -915,6 +915,22 @@ describe("ServicePlanBuilder — rotation planner feedback (Council Review 19)",
 });
 
 describe("ServicePlanBuilder — assignment notifications (G1.5)", () => {
+  it("removes a just-assigned volunteer by their real shift id, not a made-up one (Council Review 25)", async () => {
+    const user = userEvent.setup();
+    const detail = baseDetail();
+    detail.positions = [basePosition({ id: "pos-1", roleName: "Greeter", quantityNeeded: 2 })];
+    assignVolunteerActionMock.mockResolvedValue({ ok: true, shiftId: "shift-real" });
+    removeAssignmentActionMock.mockResolvedValue({ ok: true });
+    renderBuilder(detail, { pool: [basePoolEntry({ profileId: "p-1", fullName: "Alice Helper" })] });
+
+    await user.click(screen.getByRole("button", { name: "Assign" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Assign" }));
+    await screen.findByText(/^Alice Helper assigned as Greeter\./);
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(removeAssignmentActionMock).toHaveBeenCalledWith("shift-real", detail.plan.id));
+  });
+
   it("tells the admin whether the volunteer was notified", async () => {
     const user = userEvent.setup();
     const detail = baseDetail();

@@ -398,6 +398,7 @@ export async function createServicePlanAction(
       serviceTime: input.serviceTime ?? null,
     }));
   if (!eventId) return { ok: false, error: "Couldn't create the plan's service event. Please try again." };
+  const createdEvent = !linkedEvent.eventId;
   const { data: plan, error } = await supabase.from("service_plans").insert({
     church_id: churchId,
     event_id: eventId,
@@ -412,7 +413,11 @@ export async function createServicePlanAction(
     created_by: profileId,
   }).select("id").single();
 
-  if (error || !plan) return { ok: false, error: error?.message ?? "Failed." };
+  if (error || !plan) {
+    // Don't leave the event we just made behind (Council Review 25).
+    if (createdEvent) await supabase.from("events").delete().eq("id", eventId).eq("church_id", churchId);
+    return { ok: false, error: error?.message ?? "Failed." };
+  }
   revalidatePath(SCHEDULES_PATH);
   return { ok: true, id: plan.id };
 }
@@ -482,7 +487,10 @@ export async function updateServicePlanDetailsAction(
   const { error } = await supabase
     .from("service_plans")
     .update({
-      event_id: linkedEvent.eventId,
+      // Choosing another event relinks; leaving it empty keeps the plan's
+      // current event instead of unlinking it, which made the next assignment
+      // create a second one (Council Review 25).
+      ...(linkedEvent.eventId ? { event_id: linkedEvent.eventId } : {}),
       name: input.name.trim(),
       service_type: input.serviceType,
       service_date: input.serviceDate,
@@ -1187,7 +1195,15 @@ export async function assignVolunteerAction(input: {
   startsAt: string;
   endsAt: string;
   bypassBurnout?: boolean;
-}): Promise<{ ok: boolean; error?: string; notification?: NotificationOutcome }> {
+}): Promise<{
+  ok: boolean;
+  error?: string;
+  notification?: NotificationOutcome;
+  /** The new shift's id: the page uses it for Remove and Remind (Council Review 25). */
+  shiftId?: string;
+  /** The plan's event, which an older plan may only just have got (Council Review 25). */
+  eventId?: string;
+}> {
   const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
 
@@ -1378,7 +1394,7 @@ export async function assignVolunteerAction(input: {
   }
 
   revalidatePath(`${SCHEDULES_PATH}/${input.planId}`);
-  return { ok: true, notification };
+  return { ok: true, notification, shiftId: inserted?.id, ...(linkedEventId ? { eventId: linkedEventId } : {}) };
 }
 
 // ── Remove assignment ────────────────────────────────────────
@@ -1400,9 +1416,14 @@ export async function removeAssignmentAction(
   }
 
   const supabase = await createTenantServerClient();
-  const { error } = await supabase.from("volunteer_shifts")
-    .delete().eq("id", shiftId).eq("church_id", churchId);
+  const { data: removed, error } = await supabase.from("volunteer_shifts")
+    .delete().eq("id", shiftId).eq("church_id", churchId).select("id");
   if (error) return { ok: false, error: error.message };
+  // Say so when nothing was removed, instead of the page dropping a volunteer
+  // who's still assigned (Council Review 25).
+  if (!removed || removed.length === 0) {
+    return { ok: false, error: "That assignment was already removed, or couldn't be found. Refresh the page." };
+  }
   revalidatePath(`${SCHEDULES_PATH}/${planId}`);
   return { ok: true };
 }
@@ -2017,6 +2038,11 @@ async function createPlanEvent(
       church_id: session.appContext.church.id,
       title: plan.name,
       category: "worship",
+      // Staff-only and without RSVPs: it exists so shifts have an event, and
+      // mustn't appear to members as a service they can RSVP to (Council
+      // Review 25).
+      visibility: "leaders",
+      rsvp_enabled: false,
       starts_at: startsAt.toISOString(),
       ends_at: new Date(startsAt.getTime() + SHIFT_LENGTH_HOURS * 60 * 60 * 1000).toISOString(),
       created_by: session.churchProfileId,
@@ -2060,7 +2086,8 @@ async function ensurePlanEvent(
     .is("event_id", null)
     .select("id");
   if (error || !linked || linked.length === 0) {
-    // Someone else linked an event first: use theirs.
+    // Someone else linked an event first: use theirs, and remove ours.
+    await supabase.from("events").delete().eq("id", eventId).eq("church_id", churchId);
     const { data: again } = await supabase
       .from("service_plans")
       .select("event_id")
@@ -2275,6 +2302,8 @@ export type AutoFillResult = {
   positionId: string;
   profileId: string;
   ok: boolean;
+  /** The new shift's id, so the page can remove or remind it right away. */
+  shiftId?: string;
   error?: string;
   notification?: NotificationOutcome;
 };
@@ -2340,6 +2369,7 @@ export async function applyPlanAutoFillAction(input: {
       positionId,
       profileId,
       ok: res.ok,
+      ...(res.shiftId ? { shiftId: res.shiftId } : {}),
       ...(res.error ? { error: res.error } : {}),
       ...(res.notification ? { notification: res.notification } : {}),
     });

@@ -77,15 +77,17 @@ test.describe("Service plan build journey (G1.11)", () => {
 
     // No event was linked, so the plan got its own — at 10:00 in the church's
     // zone, as a real instant — or no one could be assigned to it.
-    const event = await queryTenantDb<{ title: string; matches: boolean }>(
-      `select e.title, e.starts_at = ((sp.service_date + time '10:00') at time zone c.timezone) as matches
+    const event = await queryTenantDb<{ title: string; matches: boolean; visibility: string; rsvp_enabled: boolean }>(
+      `select e.title, e.starts_at = ((sp.service_date + time '10:00') at time zone c.timezone) as matches,
+              e.visibility, e.rsvp_enabled
        from public.service_plans sp
        join public.events e on e.id = sp.event_id
        join public.churches c on c.id = sp.church_id
        where sp.id = $1`,
       [id],
     );
-    expect(event.rows).toEqual([{ title: PLAN_NAME, matches: true }]);
+    // Staff-only, without RSVPs: not a service members see (Council Review 25).
+    expect(event.rows).toEqual([{ title: PLAN_NAME, matches: true, visibility: "leaders", rsvp_enabled: false }]);
 
     // 2. Add a song that isn't in the library: it's created, then added.
     const search = page.getByLabel("Search song library");
@@ -135,6 +137,14 @@ test.describe("Service plan build journey (G1.11)", () => {
     await addPosition.getByLabel("Quantity needed").fill("2");
     await addPosition.getByRole("button", { name: "Add", exact: true }).click();
     await expect(addPosition).toBeHidden();
+    // Positions point at a role type (Story 2); role_name is legacy and empty.
+    const positions = await queryTenantDb<{ role_name: string; quantity_needed: number }>(
+      `select rt.name as role_name, spp.quantity_needed
+       from public.service_plan_positions spp join public.service_plan_role_types rt on rt.id = spp.role_type_id
+       where spp.plan_id = $1`,
+      [id],
+    );
+    expect(positions.rows).toEqual([{ role_name: "Greeter", quantity_needed: 2 }]);
 
     // 5. Assign one volunteer by hand.
     const position = page.locator('[data-testid^="plan-position-"]', { hasText: "Greeter" });
@@ -166,5 +176,29 @@ test.describe("Service plan build journey (G1.11)", () => {
       { day: serviceDate, clock: "10:00" },
       { day: serviceDate, clock: "10:00" },
     ]);
+    // Both shifts hang off the plan's own event.
+    const onPlanEvent = await queryTenantDb<{ n: string }>(
+      `select count(*) as n from public.volunteer_shifts vs join public.service_plans sp on sp.id = vs.plan_id
+       where vs.plan_id = $1 and vs.event_id = sp.event_id`,
+      [id],
+    );
+    expect(onPlanEvent.rows[0].n).toBe("2");
+
+    // 7. Remove the hand-assigned volunteer without reloading: the page acts on
+    //    the real shift, so it's really gone (Council Review 25).
+    await page.getByRole("dialog", { name: "Auto-fill plan" }).getByRole("button", { name: "Done" }).click();
+    const mayaRow = position.locator("div", { hasText: "Maya Martinez" }).filter({
+      has: page.getByRole("button", { name: "Remove" }),
+    }).last();
+    await mayaRow.getByRole("button", { name: "Remove" }).click();
+    await expect
+      .poll(async () =>
+        (await queryTenantDb<{ n: string }>(
+          `select count(*) as n from public.volunteer_shifts vs join public.profiles p on p.id = vs.assigned_user_id
+           where vs.plan_id = $1 and p.email = 'maya@graceharbor.church'`,
+          [id],
+        )).rows[0].n,
+      )
+      .toBe("0");
   });
 });

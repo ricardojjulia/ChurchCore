@@ -135,6 +135,9 @@ function formatWallClockTime(value: string) {
   return new Date(value).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
 }
 
+/** What happens when a new plan has no linked event (G1.11, Council Review 25). */
+const NEW_PLAN_EVENT_NOTE = "Leave blank to create a staff-only event for this service.";
+
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("en-US", {
     month: "short",
@@ -545,10 +548,13 @@ export function ServicePlansWorkspace({
           </Group>
           {eventOptions.length > 0 ? (
             <Select label="Linked church event (optional)" placeholder="Choose an existing event"
+              description={NEW_PLAN_EVENT_NOTE}
               data={eventOptions}
               value={form.eventId} onChange={(v) => setForm((f) => ({ ...f, eventId: v ?? "" }))}
               clearable />
-          ) : null}
+          ) : (
+            <Text size="xs" c="dimmed">{NEW_PLAN_EVENT_NOTE}</Text>
+          )}
           {templates.length > 0 && (
             <Select label="Apply template (optional)" placeholder="Choose a template"
               data={[{ value: "", label: "No template" }, ...templates.map((t) => ({ value: t.id, label: t.name }))]}
@@ -1334,10 +1340,22 @@ export function ServicePlanBuilder({
   }, [assignPositionId, detail.plan.id, filledForTarget]);
 
   /** Adds a just-created pending shift to the page's copy of the plan. */
-  function addAssignedShift(positionId: string, profileId: string, fullName: string, roleName: string) {
+  function addAssignedShift(
+    positionId: string,
+    profileId: string,
+    fullName: string,
+    roleName: string,
+    saved: { shiftId?: string; eventId?: string } = {},
+  ) {
     const { startsAt, endsAt } = shiftWindowForPlan(detail.plan.serviceDate, detail.plan.serviceTime);
+    // An older plan may only just have got its event (G1.11): keep the details
+    // form in step, so saving it doesn't unlink the event (Council Review 25).
+    if (saved.eventId && !detail.plan.eventId) {
+      setDetailsForm((form) => (form.eventId ? form : { ...form, eventId: saved.eventId! }));
+    }
     setDetail((d) => ({
       ...d,
+      plan: saved.eventId && !d.plan.eventId ? { ...d.plan, eventId: saved.eventId } : d.plan,
       positions: d.positions.map((p) =>
         p.id === positionId
           ? {
@@ -1345,8 +1363,10 @@ export function ServicePlanBuilder({
               filled: p.filled + 1,
               pending: p.pending + 1,
               shifts: [...p.shifts, {
-                id: crypto.randomUUID(), churchId: d.plan.churchId,
-                eventId: d.plan.eventId, planId: d.plan.id, positionId: p.id,
+                // The saved shift's id, so Remove and Remind act on the real row
+                // (a made-up id deleted nothing, Council Review 25).
+                id: saved.shiftId ?? crypto.randomUUID(), churchId: d.plan.churchId,
+                eventId: saved.eventId ?? d.plan.eventId, planId: d.plan.id, positionId: p.id,
                 assignedUserId: profileId, title: roleName,
                 startsAt, endsAt, status: "assigned", confirmationStatus: "pending",
                 declineReason: null, respondedAt: null, volunteerNotes: null,
@@ -1391,7 +1411,9 @@ export function ServicePlanBuilder({
         for (const result of res.results) {
           if (!result.ok) continue;
           const item = autoFill.proposal.find((p) => p.positionId === result.positionId && p.profileId === result.profileId);
-          if (item?.fullName) addAssignedShift(result.positionId, result.profileId, item.fullName, item.roleName);
+          if (item?.fullName) {
+            addAssignedShift(result.positionId, result.profileId, item.fullName, item.roleName, { shiftId: result.shiftId });
+          }
         }
         setAutoFill((current) => (current ? { ...current, results: res.results } : current));
       } catch {
@@ -1411,7 +1433,10 @@ export function ServicePlanBuilder({
         profileId, roleName: assignTarget.roleName, startsAt, endsAt,
       });
       if (res.ok) {
-        addAssignedShift(assignTarget.positionId, profileId, fullName, assignTarget.roleName);
+        addAssignedShift(assignTarget.positionId, profileId, fullName, assignTarget.roleName, {
+          shiftId: res.shiftId,
+          eventId: res.eventId,
+        });
         closeAssignModal();
         setMsg({
           // Yellow when the volunteer wasn't actually told (Council Review 23).
@@ -1442,7 +1467,10 @@ export function ServicePlanBuilder({
         bypassBurnout: true,
       });
       if (res.ok) {
-        addAssignedShift(assignTarget.positionId, profileId, fullName, assignTarget.roleName);
+        addAssignedShift(assignTarget.positionId, profileId, fullName, assignTarget.roleName, {
+          shiftId: res.shiftId,
+          eventId: res.eventId,
+        });
         closeAssignModal();
         setBurnoutConfirmation(null);
         setMsg({

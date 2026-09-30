@@ -138,7 +138,7 @@ describe("assignment notifications", () => {
 
     const result = await assignVolunteerAction(ASSIGN);
 
-    expect(result).toEqual({ ok: true, notification: { status: "sent", channel: "email" } });
+    expect(result).toMatchObject({ ok: true, notification: { status: "sent", channel: "email" } });
     const [update] = tokenUpdates();
     const { confirmation_token: token, confirmation_token_expires_at: expiresAt } = update.args[0] as Record<string, string>;
     expect(token).toMatch(/^[0-9a-f]{32}$/);
@@ -157,7 +157,7 @@ describe("assignment notifications", () => {
 
   it("refuses a shift time that isn't the church's wall-clock time (ADR 0023, Council Review 24)", async () => {
     for (const startsAt of ["2026-11-15T10:00:00Z", "2026-11-15T10:00:00-05:00", "2026-11-15T10:00:00.000Z"]) {
-      expect(await assignVolunteerAction({ ...ASSIGN, startsAt })).toEqual({
+      expect(await assignVolunteerAction({ ...ASSIGN, startsAt })).toMatchObject({
         ok: false,
         error: "Shift times must be the church's local time.",
       });
@@ -195,7 +195,7 @@ describe("assignment notifications", () => {
       .mockResolvedValueOnce({ sent: true, skipped: false });
     queueAssign(shiftRow({}, { preferred_contact_method: "sms" }));
 
-    expect(await assignVolunteerAction(ASSIGN)).toEqual({
+    expect(await assignVolunteerAction(ASSIGN)).toMatchObject({
       ok: true,
       notification: { status: "sent", channel: "email", fallback: "they haven't opted in to texts" },
     });
@@ -221,7 +221,7 @@ describe("assignment notifications", () => {
       errorCode: "provider_not_configured",
     });
     queueAssign(shiftRow());
-    expect(await assignVolunteerAction(ASSIGN)).toEqual({
+    expect(await assignVolunteerAction(ASSIGN)).toMatchObject({
       ok: true,
       notification: { status: "failed", reason: "email isn't set up for this church yet." },
     });
@@ -231,7 +231,7 @@ describe("assignment notifications", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
     queueAssign(shiftRow());
-    expect(await assignVolunteerAction(ASSIGN)).toEqual({
+    expect(await assignVolunteerAction(ASSIGN)).toMatchObject({
       ok: true,
       notification: { status: "skipped", reason: "the app's web address isn't configured." },
     });
@@ -240,7 +240,7 @@ describe("assignment notifications", () => {
 
   it("keeps the assignment, and says why, when the volunteer can't be messaged", async () => {
     queueAssign(shiftRow({}, { email: null, phone: null }));
-    expect(await assignVolunteerAction(ASSIGN)).toEqual({
+    expect(await assignVolunteerAction(ASSIGN)).toMatchObject({
       ok: true,
       notification: { status: "skipped", reason: "no email or phone on file." },
     });
@@ -268,7 +268,7 @@ describe("assignment notifications", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     sendWithSuppressionMock.mockRejectedValueOnce(new Error("provider down"));
     queueAssign(shiftRow());
-    expect(await assignVolunteerAction(ASSIGN)).toEqual({
+    expect(await assignVolunteerAction(ASSIGN)).toMatchObject({
       ok: true,
       notification: { status: "failed", reason: "the message couldn't be sent." },
     });

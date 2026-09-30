@@ -31,7 +31,7 @@ vi.mock("@/lib/supabase/tenant", () => {
   }
   function builder(table: string) {
     const chain: Record<string, unknown> = {};
-    for (const method of ["select", "eq", "neq", "is", "gte", "lt", "limit", "insert", "update", "order"]) {
+    for (const method of ["select", "eq", "neq", "is", "gte", "lt", "limit", "insert", "update", "delete", "order"]) {
       chain[method] = (...args: unknown[]) => {
         calls.push({ table, method, args });
         return chain;
@@ -51,7 +51,7 @@ vi.mock("@/lib/supabase/tenant", () => {
   };
 });
 
-import { assignVolunteerAction, createServicePlanAction } from "@/app/app/volunteer-actions";
+import { assignVolunteerAction, createServicePlanAction, removeAssignmentAction } from "@/app/app/volunteer-actions";
 
 const SESSION = {
   userId: "login-admin",
@@ -88,6 +88,9 @@ describe("a service plan always has its event (G1.11)", () => {
       starts_at: "2026-10-04T14:00:00.000Z",
       ends_at: "2026-10-04T16:00:00.000Z",
       created_by: "profile-admin",
+      // Staff-only, no RSVPs: not a service members see (Council Review 25).
+      visibility: "leaders",
+      rsvp_enabled: false,
     });
     expect(inserts("service_plans")[0].args[0]).toMatchObject({ event_id: "event-new" });
   });
@@ -123,7 +126,8 @@ describe("a service plan always has its event (G1.11)", () => {
       endsAt: "2026-10-04T11:30:00",
     });
 
-    expect(result.ok).toBe(true);
+    // The page gets the real shift and the plan's new event (Council Review 25).
+    expect(result).toMatchObject({ ok: true, shiftId: "shift-1", eventId: "event-new" });
     expect(inserts("events")[0].args[0]).toMatchObject({ title: "Old Plan", starts_at: "2026-10-04T13:30:00.000Z" });
     expect(calls).toEqual(
       expect.arrayContaining([
@@ -132,5 +136,62 @@ describe("a service plan always has its event (G1.11)", () => {
       ]),
     );
     expect(inserts("volunteer_shifts")[0].args[0]).toMatchObject({ event_id: "event-new" });
+  });
+
+  it("removes the event it made when the plan can't be saved (Council Review 25)", async () => {
+    queue("events", { data: { id: "event-new" }, error: null }, { data: null, error: null });
+    queue("service_plans", { data: null, error: { message: "invalid input" } });
+
+    expect(await createServicePlanAction({ name: "Harvest", serviceDate: "2026-10-04", serviceTime: "10:00" })).toMatchObject({
+      ok: false,
+    });
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        { table: "events", method: "delete", args: [] },
+        { table: "events", method: "eq", args: ["id", "event-new"] },
+      ]),
+    );
+  });
+
+  it("uses the event another assignment linked first, and removes its own (Council Review 25)", async () => {
+    queue(
+      "service_plans",
+      { data: { event_id: null }, error: null },
+      { data: { id: "plan-old", name: "Old Plan", service_date: "2026-10-04", service_time: null, event_id: null }, error: null },
+      { data: [], error: null }, // lost the race: nothing linked
+      { data: { event_id: "event-winner" }, error: null },
+    );
+    queue("events", { data: { id: "event-mine" }, error: null }, { data: null, error: null });
+    queue("service_plan_positions", { data: { id: "pos-1", quantity_needed: 2 }, error: null });
+    queue("profiles", { data: { id: "p-maya" }, error: null });
+    queue("volunteer_shifts", { count: 0, error: null }, { data: [], error: null }, { data: { id: "shift-1" }, error: null });
+
+    const result = await assignVolunteerAction({
+      planId: "plan-old",
+      positionId: "pos-1",
+      profileId: "p-maya",
+      roleName: "Greeter",
+      startsAt: "2026-10-04T09:00:00",
+      endsAt: "2026-10-04T11:00:00",
+    });
+
+    expect(result).toMatchObject({ ok: true, eventId: "event-winner" });
+    expect(calls).toEqual(expect.arrayContaining([{ table: "events", method: "eq", args: ["id", "event-mine"] }]));
+    expect(inserts("volunteer_shifts")[0].args[0]).toMatchObject({ event_id: "event-winner" });
+  });
+});
+
+describe("removing an assignment (Council Review 25)", () => {
+  it("says so when nothing was removed, instead of reporting success", async () => {
+    queue("volunteer_shifts", { data: [], error: null });
+    expect(await removeAssignmentAction("made-up-id", "plan-1")).toEqual({
+      ok: false,
+      error: "That assignment was already removed, or couldn't be found. Refresh the page.",
+    });
+  });
+
+  it("removes a real shift", async () => {
+    queue("volunteer_shifts", { data: [{ id: "shift-1" }], error: null });
+    expect(await removeAssignmentAction("shift-1", "plan-1")).toEqual({ ok: true });
   });
 });

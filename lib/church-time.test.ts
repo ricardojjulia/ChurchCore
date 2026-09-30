@@ -70,6 +70,9 @@ describe("zonedTimeToInstant", () => {
   it("is null for a malformed date or time", () => {
     expect(zonedTimeToInstant("2026-10-04", "10am", "UTC")).toBeNull();
     expect(zonedTimeToInstant("nope", "10:00", "UTC")).toBeNull();
+    // Impossible values are refused, not rolled over (Council Review 25).
+    expect(zonedTimeToInstant("2026-02-30", "10:00", "UTC")).toBeNull();
+    expect(zonedTimeToInstant("2026-10-04", "25:99", "UTC")).toBeNull();
   });
 });
 
