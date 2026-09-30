@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  churchDayAnchor,
+  dayKeyFromParts,
+  toChurchDateKey,
   formatCategory,
   getCategoryColor,
   getChurchHour,
@@ -122,5 +125,20 @@ describe("getPeriodLabel", () => {
     const label = getPeriodLabel("day", date, "UTC");
     expect(label).toContain("Sunday");
     expect(label).toContain("2026");
+  });
+});
+
+describe("church calendar days (Council Review 24)", () => {
+  it("builds day keys with month roll-over", () => {
+    expect(dayKeyFromParts(2026, 8, 30)).toBe("2026-09-30");
+    expect(dayKeyFromParts(2026, 8, 31)).toBe("2026-10-01");
+    expect(dayKeyFromParts(2026, 9, 0)).toBe("2026-09-30");
+  });
+
+  it("anchors a day at church-local noon, which is on that church day for any zone", () => {
+    for (const zone of ["America/New_York", "Pacific/Honolulu", "Pacific/Kiritimati", "Asia/Kolkata", "UTC"]) {
+      expect(toChurchDateKey(churchDayAnchor("2026-09-30", zone), zone)).toBe("2026-09-30");
+    }
+    expect(churchDayAnchor("2026-09-30", "America/New_York").toISOString()).toBe("2026-09-30T16:00:00.000Z");
   });
 });

@@ -17,8 +17,8 @@ import {
   type NotificationOutcome,
 } from "@/lib/volunteer-notifications";
 import {
+  churchToday,
   expandBlockoutRange,
-  todayUtc,
   validateBlockoutRemoval,
   type BlockoutDate,
   type BlockoutErrorCode,
@@ -1178,6 +1178,13 @@ export async function assignVolunteerAction(input: {
   const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
 
+  // Shift times are the church's local wall-clock time with no offset
+  // (ADR 0023); an offset or "Z" would store a real instant and put the shift
+  // on the wrong day for every day check (Council Review 24).
+  if (!WALL_CLOCK_TIME.test(input.startsAt) || !WALL_CLOCK_TIME.test(input.endsAt)) {
+    return { ok: false, error: "Shift times must be the church's local time." };
+  }
+
   // Burnout check
   if (!input.bypassBurnout) {
     const burnoutResult = await checkVolunteerBurnout(churchId, input.profileId, input.startsAt);
@@ -1420,8 +1427,9 @@ export async function respondToShiftAction(
     .eq("id", shiftId)
     .eq("assigned_user_id", profileId)
     .eq("church_id", churchId)
-    // Only shifts that haven't happened yet (from the start of today, UTC).
-    .gte("starts_at", `${new Date().toISOString().slice(0, 10)}T00:00:00`)
+    // Only shifts that haven't happened yet: from the start of the church's
+    // today, in the wall-clock form shift times are stored in (G1.6, ADR 0023).
+    .gte("starts_at", `${churchToday(session.appContext.church.timezone)}T00:00:00`)
     .select("id");
 
   if (error) {
@@ -1969,6 +1977,19 @@ export async function getPublicVolunteerShiftByToken(token: string) {
   return shift;
 }
 
+/** A shift time in the church's wall-clock form: no offset, no "Z" (ADR 0023). */
+const WALL_CLOCK_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
+
+/** The church's time zone, for token pages that have no session (G1.6). */
+async function churchTimeZoneFor(churchId: string): Promise<string | null> {
+  const { data } = await createTenantAdminClient()
+    .from("churches")
+    .select("timezone")
+    .eq("id", churchId)
+    .maybeSingle();
+  return (data as { timezone: string | null } | null)?.timezone ?? null;
+}
+
 export async function getPublicVolunteerScheduleByToken(token: string) {
   if (!token) return [];
 
@@ -2005,7 +2026,10 @@ export async function getPublicVolunteerScheduleByToken(token: string) {
     `)
     .eq("assigned_user_id", profileId)
     .eq("church_id", churchId)
-    .gte("starts_at", new Date().toISOString())
+    // From the start of the church's today, in the wall-clock form shift times
+    // are stored in, like the signed-in schedule: comparing with the real now
+    // dropped an 8 pm service at 4 pm in a UTC−4 church (Council Review 24).
+    .gte("starts_at", `${churchToday(await churchTimeZoneFor(churchId))}T00:00:00`)
     .order("starts_at", { ascending: true });
 
   if (error) {
@@ -2028,6 +2052,11 @@ export async function respondToPublicShiftAction(
   if (!shift) {
     return { ok: false, error: "Invalid or expired token." };
   }
+  // Like the signed-in response, only a shift that hasn't happened yet can be
+  // answered; its UTC date is its church-local day (ADR 0023, Council Review 24).
+  if (shift.starts_at.slice(0, 10) < churchToday(await churchTimeZoneFor(shift.church_id))) {
+    return { ok: false, error: "This service has already happened." };
+  }
 
   const supabase = createTenantAdminClient();
 
@@ -2036,7 +2065,7 @@ export async function respondToPublicShiftAction(
     decline_reason: shift.decline_reason,
   };
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("volunteer_shifts")
     .update({
       confirmation_status: response,
@@ -2044,10 +2073,13 @@ export async function respondToPublicShiftAction(
       responded_at: new Date().toISOString(),
       status: response === "confirmed" ? "confirmed" : "open",
     })
-    .eq("id", shift.id);
+    .eq("id", shift.id)
+    .eq("church_id", shift.church_id)
+    .select("id");
 
-  if (error) {
-    return { ok: false, error: error.message };
+  if (error || !updated || updated.length === 0) {
+    console.error("Failed to save the volunteer's response:", error?.message ?? "no row updated");
+    return { ok: false, error: "Couldn't save your response. Please try again." };
   }
 
   try {
@@ -2280,13 +2312,18 @@ export type BlockoutChangeResult =
 
 const SAVE_FAILED = { ok: false, code: "save_failed", error: "Couldn't save. Please try again." } as const;
 
-async function listUpcomingBlockouts(client: TenantClient, churchId: string, profileId: string): Promise<BlockoutDate[]> {
+async function listUpcomingBlockouts(
+  client: TenantClient,
+  churchId: string,
+  profileId: string,
+  timeZone: string | null,
+): Promise<BlockoutDate[]> {
   const { data, error } = await client
     .from("volunteer_blocked_dates")
     .select("blocked_date, reason")
     .eq("church_id", churchId)
     .eq("profile_id", profileId)
-    .gte("blocked_date", todayUtc())
+    .gte("blocked_date", churchToday(timeZone))
     .order("blocked_date");
   if (error) throw new Error(`Failed to load unavailable dates: ${error.message}`);
   return ((data ?? []) as Array<{ blocked_date: string; reason: string | null }>).map((row) => ({
@@ -2326,8 +2363,9 @@ async function addBlockouts(
   churchId: string,
   profileId: string,
   input: { from: string; to?: string | null; reason?: string | null },
+  timeZone: string | null,
 ): Promise<BlockoutChangeResult> {
-  const range = expandBlockoutRange(input);
+  const range = expandBlockoutRange(input, new Date(), timeZone);
   if (!range.ok) return range;
   // Re-adding a day already blocked updates its reason.
   const { error } = await client.from("volunteer_blocked_dates").upsert(
@@ -2340,7 +2378,7 @@ async function addBlockouts(
   }
   return {
     ok: true,
-    dates: await listUpcomingBlockouts(client, churchId, profileId),
+    dates: await listUpcomingBlockouts(client, churchId, profileId, timeZone),
     scheduledOn: await scheduledOnDays(client, churchId, profileId, range.dates),
   };
 }
@@ -2351,8 +2389,9 @@ async function removeBlockouts(
   churchId: string,
   profileId: string,
   input: { from: string; to?: string | null },
+  timeZone: string | null,
 ): Promise<BlockoutChangeResult> {
-  const range = validateBlockoutRemoval(input);
+  const range = validateBlockoutRemoval(input, new Date(), timeZone);
   if (!range.ok) return range;
   const { error } = await client
     .from("volunteer_blocked_dates")
@@ -2365,7 +2404,7 @@ async function removeBlockouts(
     console.error("Failed to remove unavailable dates:", error.message);
     return SAVE_FAILED;
   }
-  return { ok: true, dates: await listUpcomingBlockouts(client, churchId, profileId), scheduledOn: [] };
+  return { ok: true, dates: await listUpcomingBlockouts(client, churchId, profileId, timeZone), scheduledOn: [] };
 }
 
 function revalidateBlockoutViews() {
@@ -2380,7 +2419,7 @@ export async function listMyBlockoutDatesAction(): Promise<BlockoutDate[]> {
   const session = await requireChurchSession(MEMBER_SCHEDULE_PATH);
   const supabase = await createTenantServerClient();
   if (!session.churchProfileId) return [];
-  return listUpcomingBlockouts(supabase, session.appContext.church.id, session.churchProfileId);
+  return listUpcomingBlockouts(supabase, session.appContext.church.id, session.churchProfileId, session.appContext.church.timezone);
 }
 
 export async function addMyBlockoutDatesAction(input: {
@@ -2391,7 +2430,7 @@ export async function addMyBlockoutDatesAction(input: {
   const session = await requireChurchSession(MEMBER_SCHEDULE_PATH);
   const supabase = await createTenantServerClient();
   if (!session.churchProfileId) return NO_PROFILE;
-  const result = await addBlockouts(supabase, session.appContext.church.id, session.churchProfileId, input);
+  const result = await addBlockouts(supabase, session.appContext.church.id, session.churchProfileId, input, session.appContext.church.timezone);
   if (result.ok) revalidateBlockoutViews();
   return result;
 }
@@ -2400,7 +2439,7 @@ export async function removeMyBlockoutDatesAction(input: { from: string; to?: st
   const session = await requireChurchSession(MEMBER_SCHEDULE_PATH);
   const supabase = await createTenantServerClient();
   if (!session.churchProfileId) return NO_PROFILE;
-  const result = await removeBlockouts(supabase, session.appContext.church.id, session.churchProfileId, input);
+  const result = await removeBlockouts(supabase, session.appContext.church.id, session.churchProfileId, input, session.appContext.church.timezone);
   if (result.ok) revalidateBlockoutViews();
   return result;
 }
@@ -2414,16 +2453,23 @@ const NO_PROFILE = { ok: false, code: "no_profile", error: "Your account has no 
  * the volunteer's shift tokens works, including a declined or past shift's,
  * until it expires: it's the same person (Council Review 20).
  */
-async function volunteerForToken(token: string): Promise<{ churchId: string; profileId: string } | null> {
+async function volunteerForToken(
+  token: string,
+): Promise<{ churchId: string; profileId: string; timeZone: string | null } | null> {
   const shift = await getPublicVolunteerShiftByToken(token);
   if (!shift?.assigned_user_id) return null;
-  return { churchId: shift.church_id, profileId: shift.assigned_user_id };
+  // The church's zone decides which day is "today" for this volunteer (G1.6).
+  return {
+    churchId: shift.church_id,
+    profileId: shift.assigned_user_id,
+    timeZone: await churchTimeZoneFor(shift.church_id),
+  };
 }
 
 export async function listBlockoutDatesByTokenAction(token: string): Promise<BlockoutDate[] | null> {
   const who = await volunteerForToken(token);
   if (!who) return null;
-  return listUpcomingBlockouts(createTenantAdminClient(), who.churchId, who.profileId);
+  return listUpcomingBlockouts(createTenantAdminClient(), who.churchId, who.profileId, who.timeZone);
 }
 
 export async function addBlockoutDatesByTokenAction(input: {
@@ -2434,7 +2480,7 @@ export async function addBlockoutDatesByTokenAction(input: {
 }): Promise<BlockoutChangeResult> {
   const who = await volunteerForToken(input.token);
   if (!who) return LINK_EXPIRED;
-  const result = await addBlockouts(createTenantAdminClient(), who.churchId, who.profileId, input);
+  const result = await addBlockouts(createTenantAdminClient(), who.churchId, who.profileId, input, who.timeZone);
   if (result.ok) revalidateBlockoutViews();
   return result;
 }
@@ -2446,7 +2492,7 @@ export async function removeBlockoutDatesByTokenAction(input: {
 }): Promise<BlockoutChangeResult> {
   const who = await volunteerForToken(input.token);
   if (!who) return LINK_EXPIRED;
-  const result = await removeBlockouts(createTenantAdminClient(), who.churchId, who.profileId, input);
+  const result = await removeBlockouts(createTenantAdminClient(), who.churchId, who.profileId, input, who.timeZone);
   if (result.ok) revalidateBlockoutViews();
   return result;
 }
@@ -2463,7 +2509,7 @@ async function adminBlockoutContext(profileId: string) {
     .eq("church_id", churchId)
     .is("merged_into_profile_id", null)
     .maybeSingle();
-  return profile ? { supabase, churchId } : null;
+  return profile ? { supabase, churchId, timeZone: session.appContext.church.timezone } : null;
 }
 
 export async function listVolunteerBlockoutDatesAction(input: {
@@ -2471,7 +2517,7 @@ export async function listVolunteerBlockoutDatesAction(input: {
 }): Promise<{ ok: true; dates: BlockoutDate[] } | { ok: false; code: BlockoutErrorCode; error: string }> {
   const ctx = await adminBlockoutContext(input.profileId);
   if (!ctx) return VOLUNTEER_NOT_FOUND;
-  return { ok: true, dates: await listUpcomingBlockouts(ctx.supabase, ctx.churchId, input.profileId) };
+  return { ok: true, dates: await listUpcomingBlockouts(ctx.supabase, ctx.churchId, input.profileId, ctx.timeZone) };
 }
 
 export async function addVolunteerBlockoutDatesAction(input: {
@@ -2482,7 +2528,7 @@ export async function addVolunteerBlockoutDatesAction(input: {
 }): Promise<BlockoutChangeResult> {
   const ctx = await adminBlockoutContext(input.profileId);
   if (!ctx) return VOLUNTEER_NOT_FOUND;
-  const result = await addBlockouts(ctx.supabase, ctx.churchId, input.profileId, input);
+  const result = await addBlockouts(ctx.supabase, ctx.churchId, input.profileId, input, ctx.timeZone);
   if (result.ok) revalidateBlockoutViews();
   return result;
 }
@@ -2494,7 +2540,7 @@ export async function removeVolunteerBlockoutDatesAction(input: {
 }): Promise<BlockoutChangeResult> {
   const ctx = await adminBlockoutContext(input.profileId);
   if (!ctx) return VOLUNTEER_NOT_FOUND;
-  const result = await removeBlockouts(ctx.supabase, ctx.churchId, input.profileId, input);
+  const result = await removeBlockouts(ctx.supabase, ctx.churchId, input.profileId, input, ctx.timeZone);
   if (result.ok) revalidateBlockoutViews();
   return result;
 }
@@ -2523,8 +2569,9 @@ async function ensureShiftToken(
   churchId: string,
   shift: { id: string; confirmation_token: string | null; confirmation_token_expires_at: string | null },
   serviceDate: string,
+  timeZone: string | null,
 ): Promise<{ ok: true; token: string } | { ok: false }> {
-  const wanted = tokenExpiryFor(serviceDate);
+  const wanted = tokenExpiryFor(serviceDate, new Date(), timeZone);
   const current = shift.confirmation_token_expires_at ? new Date(shift.confirmation_token_expires_at) : null;
   const stillValid = Boolean(shift.confirmation_token) && current !== null && current > new Date();
   if (stillValid && current! >= wanted) return { ok: true, token: shift.confirmation_token! };
@@ -2601,7 +2648,7 @@ async function notifyVolunteerOfShift(
     if (!appUrl) return { status: "skipped", reason: "the app's web address isn't configured." };
 
     const serviceDate = shift.service_plans?.service_date ?? new Date(shift.starts_at).toISOString().slice(0, 10);
-    const token = await ensureShiftToken(admin, churchId, shift, serviceDate);
+    const token = await ensureShiftToken(admin, churchId, shift, serviceDate, session.appContext.church.timezone);
     if (!token.ok) return { status: "failed", reason: "the confirm link couldn't be created." };
 
     const send = (channel: "email" | "sms", contact: string) => {

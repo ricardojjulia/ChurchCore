@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // lib/volunteer-data.ts had no pre-existing test coverage before this story
 // (a gap called out in Council Review 14's "Next" line) — this file starts
@@ -34,6 +34,8 @@ vi.mock("@/lib/supabase/tenant", () => ({
 import type { ChurchAppSession } from "@/lib/auth";
 import {
   getChurchSkillOptions,
+  getMemberSchedule,
+  getServicePlanList,
   getRoleTypes,
   getServicePlanDetail,
   getVolunteerDirectory,
@@ -460,6 +462,39 @@ describe("volunteer-data loaders", () => {
       await expect(getVolunteerDirectory(sessionFor("church-7"))).rejects.toThrow(
         "Failed to load the volunteer directory: boom",
       );
+    });
+  });
+
+  // ── G1.6: "today" is the church's today (Council Review 24) ──────
+  describe("church-local today", () => {
+    // 8:30 pm on Oct 5 in New York; UTC is already Oct 6.
+    const EVENING_IN_NEW_YORK = new Date("2026-10-06T00:30:00Z");
+    const nySession = {
+      source: "supabase",
+      churchProfileId: "profile-1",
+      appContext: { church: { id: "church-1", timezone: "America/New_York" } },
+    } as unknown as ChurchAppSession;
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(EVENING_IN_NEW_YORK);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("keeps tonight's service in the upcoming plan list all evening", async () => {
+      const builders = mockSupabasePath({ service_plans: [{ data: [], error: null }] });
+      await getServicePlanList(nySession, { upcoming: true });
+      expect(builders.service_plans.gte).toHaveBeenCalledWith("service_date", "2026-10-05");
+    });
+
+    it("keeps tonight's shift on the member's schedule until the day ends", async () => {
+      const builders = mockSupabasePath({ volunteer_shifts: [{ data: [], error: null }] });
+      await getMemberSchedule(nySession);
+      // Wall-clock shift times (ADR 0023) compared with the church's today in the same form.
+      expect(builders.volunteer_shifts.gte).toHaveBeenCalledWith("starts_at", "2026-10-05T00:00:00");
     });
   });
 });

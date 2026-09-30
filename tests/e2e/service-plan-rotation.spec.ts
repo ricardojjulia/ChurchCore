@@ -200,9 +200,6 @@ test.describe("Service plan rotation planner", () => {
 
   test("assigning a volunteer messages them a link; they decline; the admin finds a replacement", async ({ page }) => {
     const maya = await profileIdByEmail("maya@graceharbor.church");
-    const planDate = (
-      await queryTenantDb<{ d: string }>(`select service_date::text as d from public.service_plans where id = $1`, [PLAN_ID])
-    ).rows[0].d;
 
     // 1. Assign by hand; the admin is told the volunteer was emailed.
     await page.goto(PLAN_PATH);
@@ -223,7 +220,14 @@ test.describe("Service plan rotation planner", () => {
       )
     ).rows[0];
     expect(shift.token).toMatch(/^[0-9a-f]{32}$/);
-    const expected = new Date(Date.parse(`${planDate}T00:00:00Z`) + 8 * 86_400_000).toISOString().slice(0, 16);
+    // The end of the service date + 7 days, at midnight in the church's own time zone (G1.6).
+    const expected = (
+      await queryTenantDb<{ e: string }>(
+        `select to_char((((sp.service_date + 8)::timestamp at time zone c.timezone) at time zone 'UTC'), 'YYYY-MM-DD"T"HH24:MI') as e
+         from public.service_plans sp join public.churches c on c.id = sp.church_id where sp.id = $1`,
+        [PLAN_ID],
+      )
+    ).rows[0].e;
     expect(shift.expires).toBe(expected);
     const log = await queryTenantDb<{ body_preview: string; channel: string }>(
       `select body_preview, channel from public.communication_logs

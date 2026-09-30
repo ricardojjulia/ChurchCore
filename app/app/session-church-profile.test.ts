@@ -94,6 +94,25 @@ describe("acting as the signed-in person uses their church profile id (S7)", () 
       );
     });
 
+    it("still accepts a response on the evening of an evening service at a UTC−4 church (G1.6)", async () => {
+      // 8:30 pm on Oct 5 in New York is already Oct 6 in UTC. The 8 pm service
+      // is stored as church wall-clock (2026-10-05T20:00), so the "hasn't
+      // happened yet" cut-off must be the church's today, Oct 5, not UTC's.
+      vi.setSystemTime(new Date("2026-10-06T00:30:00Z"));
+      requireChurchSessionMock.mockResolvedValue({
+        ...memberSession(),
+        appContext: { roleId: "member", church: { id: "church-1", timezone: "America/New_York" } },
+      });
+      queue("volunteer_shifts", { data: [{ id: "shift-1" }], error: null });
+
+      expect(await respondToShiftAction("shift-1", "confirmed")).toEqual({ ok: true });
+      expect(calls).toEqual(
+        expect.arrayContaining([
+          { client: "admin", table: "volunteer_shifts", method: "gte", args: ["starts_at", "2026-10-05T00:00:00"] },
+        ]),
+      );
+    });
+
     it("reports a shift that isn't theirs instead of pretending it saved", async () => {
       queue("volunteer_shifts", { data: [], error: null });
       expect(await respondToShiftAction("someone-elses-shift", "declined")).toEqual({

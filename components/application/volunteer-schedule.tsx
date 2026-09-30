@@ -126,6 +126,15 @@ function formatDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 }
 
+/**
+ * Run-of-service times are church wall-clock stored as UTC, like shift times
+ * (ADR 0023), so they're shown in UTC: in the browser's zone a 10:00 item read
+ * as 6:00 AM in New York (Council Review 24).
+ */
+function formatWallClockTime(value: string) {
+  return new Date(value).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
+}
+
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("en-US", {
     month: "short",
@@ -274,11 +283,14 @@ export function ServicePlansWorkspace({
   events,
   templates,
   source,
+  churchToday,
 }: {
   plans: ServicePlanListEntry[];
   events: ServicePlanEventOption[];
   templates: ServicePlanTemplate[];
   source: "preview" | "live";
+  /** The church's today (YYYY-MM-DD), from the server: tonight's service stays "upcoming" all evening (G1.6). */
+  churchToday: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -305,8 +317,8 @@ export function ServicePlansWorkspace({
       : view === "response-gaps"
         ? plans.filter((plan) => plan.confirmedCount < plan.filledCount)
       : plans;
-  const upcoming = visiblePlans.filter((p) => p.serviceDate >= new Date().toISOString().slice(0, 10));
-  const past = visiblePlans.filter((p) => p.serviceDate < new Date().toISOString().slice(0, 10));
+  const upcoming = visiblePlans.filter((p) => p.serviceDate >= churchToday);
+  const past = visiblePlans.filter((p) => p.serviceDate < churchToday);
   const readinessState =
     view === "unassigned"
       ? source === "preview"
@@ -622,9 +634,9 @@ function SortableRunOfServiceRow({
             {item.leaderName ? <Text size="xs" c="dimmed">Leader: {item.leaderName}</Text> : null}
             {item.startsAt || item.endsAt ? (
               <Text size="xs" c="dimmed">
-                {item.startsAt ? new Date(item.startsAt).toLocaleTimeString() : ""}
+                {item.startsAt ? formatWallClockTime(item.startsAt) : ""}
                 {item.startsAt && item.endsAt ? " - " : ""}
-                {item.endsAt ? new Date(item.endsAt).toLocaleTimeString() : ""}
+                {item.endsAt ? formatWallClockTime(item.endsAt) : ""}
               </Text>
             ) : null}
             {item.notes ? <Text size="xs">{item.notes}</Text> : null}

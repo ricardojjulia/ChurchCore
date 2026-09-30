@@ -1,10 +1,11 @@
+import { todayInTimeZone } from "@/lib/church-time";
+
 /**
  * Blockout dates (G1.4): the days a volunteer can't serve. Stored one row per
  * day in volunteer_blocked_dates; the rotation planner's "Unavailable that
  * day" and the assign modal read them.
  *
- * "Today" is a UTC date for now; G1.6 moves day boundaries to the church's
- * timezone.
+ * "Today" is the church's today, from churches.timezone (G1.6, ADR 0023).
  */
 
 /** Longest single range a volunteer can add at once (e.g. a vacation). */
@@ -48,8 +49,9 @@ function toDay(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-export function todayUtc(now: Date = new Date()): string {
-  return now.toISOString().slice(0, 10);
+/** The church's today (G1.6): a church at UTC−4 mustn't reach "tomorrow" at 8 pm local. */
+export function churchToday(timeZone: string | null | undefined, now: Date = new Date()): string {
+  return todayInTimeZone(timeZone, now);
 }
 
 /**
@@ -59,6 +61,7 @@ export function todayUtc(now: Date = new Date()): string {
 export function expandBlockoutRange(
   input: { from: string; to?: string | null; reason?: string | null },
   now: Date = new Date(),
+  timeZone?: string | null,
 ):
   | { ok: true; dates: string[]; reason: string | null }
   | { ok: false; code: BlockoutErrorCode; error: string } {
@@ -67,7 +70,7 @@ export function expandBlockoutRange(
   if (from === null || to === null) return { ok: false, code: "invalid_date", error: "Choose a valid date." };
   if (to < from) return { ok: false, code: "end_before_start", error: "The end date is before the start date." };
 
-  const today = parseDay(todayUtc(now))!;
+  const today = parseDay(churchToday(timeZone, now))!;
   if (from < today) return { ok: false, code: "past", error: "You can't mark a date in the past." };
   if (to > today + MAX_BLOCKOUT_DAYS_AHEAD * MS_PER_DAY) {
     return { ok: false, code: "too_far", error: `Dates can be at most ${MAX_BLOCKOUT_DAYS_AHEAD} days ahead.` };
@@ -89,12 +92,13 @@ export function expandBlockoutRange(
 export function validateBlockoutRemoval(
   input: { from: string; to?: string | null },
   now: Date = new Date(),
+  timeZone?: string | null,
 ): { ok: true; from: string; to: string } | { ok: false; code: BlockoutErrorCode; error: string } {
   const from = parseDay(input.from);
   const to = parseDay(input.to || input.from);
   if (from === null || to === null) return { ok: false, code: "invalid_date", error: "Choose a valid date." };
   if (to < from) return { ok: false, code: "end_before_start", error: "The end date is before the start date." };
-  if (from < parseDay(todayUtc(now))!) return { ok: false, code: "past", error: "Past dates can't be changed." };
+  if (from < parseDay(churchToday(timeZone, now))!) return { ok: false, code: "past", error: "Past dates can't be changed." };
   return { ok: true, from: toDay(from), to: toDay(to) };
 }
 

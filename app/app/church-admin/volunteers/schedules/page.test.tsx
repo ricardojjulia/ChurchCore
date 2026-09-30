@@ -114,9 +114,24 @@ describe("service plans page", () => {
         events: [{ id: "event-1", title: "Sunday Worship", startsAt: "2026-04-21T09:00:00Z" }],
         templates: [{ id: "template-1" }],
         source: "live",
+        churchToday: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       },
       undefined,
     );
+  });
+
+  it("passes the church's today, so tonight's service isn't split into Past after 8 pm (Council Review 24)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // 8:30 pm on Oct 5 in New York; UTC is already Oct 6.
+    vi.setSystemTime(new Date("2026-10-06T00:30:00Z"));
+    requireChurchSessionMock.mockResolvedValueOnce({
+      appContext: { roleId: "church-admin", church: { name: "Grace Church", timezone: "America/New_York" } },
+    });
+
+    render(await ServicePlansPage());
+    vi.useRealTimers();
+
+    expect(workspaceMock).toHaveBeenCalledWith(expect.objectContaining({ churchToday: "2026-10-05" }), undefined);
   });
 
   it("passes preview source when the tenant backend is unavailable", async () => {
@@ -131,6 +146,7 @@ describe("service plans page", () => {
         events: [{ id: "event-1", title: "Sunday Worship", startsAt: "2026-04-21T09:00:00Z" }],
         templates: [{ id: "template-1" }],
         source: "preview",
+        churchToday: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       },
       undefined,
     );

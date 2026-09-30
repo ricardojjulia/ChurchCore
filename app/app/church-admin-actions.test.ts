@@ -556,6 +556,13 @@ describe("church-admin actions", () => {
     expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
   });
 
+  it("rejects a time zone that isn't a real IANA zone (G1.6, Council Review 24)", async () => {
+    const result = await updateChurchSettingsAction({ name: "Grace Harbor Church", timezone: "Eastern" });
+
+    expect(result).toEqual({ ok: false, error: "Choose a time zone like America/New_York." });
+    expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+  });
+
   it("approves a new portal account request in local fallback mode", async () => {
     queryTenantLocalDbMock
       .mockResolvedValueOnce({ rows: [{ id: "admin-profile-1" }] })

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { todayInTimeZone } from "@/lib/church-time";
 import {
   createTenantServerClient,
   hasTenantBackendEnv,
@@ -60,7 +61,8 @@ export async function getServicePlanList(
     .from("service_plans")
     .select("*, service_plan_positions(id), volunteer_shifts(id, confirmation_status)")
     .eq("church_id", churchId)
-    [op]("service_date", new Date().toISOString().slice(0, 10))
+    // The church's today, not UTC's (G1.6).
+    [op]("service_date", todayInTimeZone(session.appContext.church.timezone))
     .order("service_date", { ascending: upcoming })
     .limit(52);
 
@@ -686,7 +688,10 @@ export async function getMemberSchedule(
     .select("id, title, starts_at, ends_at, confirmation_status, service_plans(name, service_date)")
     .eq("assigned_user_id", profileId)
     .eq("church_id", churchId)
-    .gte("starts_at", new Date().toISOString())
+    // Shift times are church wall-clock labelled UTC (ADR 0023), so compare
+    // with the start of the church's today in the same form: today's shifts
+    // stay listed all day, instead of vanishing hours early (G1.6).
+    .gte("starts_at", `${todayInTimeZone(session.appContext.church.timezone)}T00:00:00`)
     .order("starts_at");
 
   return (data ?? []).map((s) => {

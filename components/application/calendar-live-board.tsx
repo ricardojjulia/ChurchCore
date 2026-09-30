@@ -30,6 +30,8 @@ import {
 import type { ChurchCalendarEvent } from "@/lib/church-calendar-data";
 import {
   formatCategory,
+  churchDayAnchor,
+  dayKeyFromParts,
   formatDateKey,
   formatTimeRange,
   getCategoryColor,
@@ -270,13 +272,6 @@ export function CalendarLiveBoard({
     setCurrentDate(d);
   }
 
-  function getDaysInMonth(date: Date) {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  }
-
-  function getFirstDayOfMonth(date: Date) {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
-  }
 
   // Grouped agenda list used on mobile in month view
   const agendaDaysForMonth = useMemo(() => {
@@ -304,7 +299,7 @@ export function CalendarLiveBoard({
                 <Button
                   variant="subtle"
                   size="compact-sm"
-                  onClick={() => openDate(new Date(`${day.dayKey}T12:00:00`))}
+                  onClick={() => openDate(churchDayAnchor(day.dayKey, churchTimeZone))}
                 >
                   {day.label}
                 </Button>
@@ -342,11 +337,11 @@ export function CalendarLiveBoard({
       );
     }
 
-    // Desktop: 7-column grid
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const daysInMonth = getDaysInMonth(currentDate);
-    const firstDay = getFirstDayOfMonth(currentDate);
+    // Desktop: 7-column grid. The month and its days are the church's, not the
+    // viewer's (Council Review 24).
+    const { year, month } = getChurchDateParts(currentDate, churchTimeZone);
+    const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    const firstDay = new Date(Date.UTC(year, month, 1)).getUTCDay();
     const days = [];
 
     for (let index = 0; index < firstDay; index += 1) {
@@ -359,14 +354,15 @@ export function CalendarLiveBoard({
     }
 
     for (let day = 1; day <= daysInMonth; day += 1) {
-      const date = new Date(year, month, day);
-      const dayKey = toChurchDateKey(date, churchTimeZone);
+      const dayKey = dayKeyFromParts(year, month, day);
+      const date = churchDayAnchor(dayKey, churchTimeZone);
       const dayEvents = getEventsForDate(date);
       const isToday = dayKey === todayKey;
 
       days.push(
         <div
           key={`day-${day}`}
+          data-day-key={dayKey}
           onClick={() => openDate(date)}
           style={{
             minHeight: 100,
@@ -425,18 +421,16 @@ export function CalendarLiveBoard({
   function renderWeekView() {
     const isMobileView = isMobile;
 
-    // Start of week (Sunday) for desktop; currentDate for 3-day mobile
-    const startDay = new Date(currentDate);
-    if (!isMobileView) {
-      startDay.setDate(currentDate.getDate() - currentDate.getDay());
-    }
+    // Start of week (Sunday) for desktop; currentDate for 3-day mobile. Days
+    // are the church's calendar days, anchored at church-local noon, so they
+    // don't shift for a viewer in another zone (Council Review 24).
+    const current = getChurchDateParts(currentDate, churchTimeZone);
+    const startOffset = isMobileView ? 0 : current.weekday;
 
     const numDays = isMobileView ? 3 : 7;
-    const weekDays = Array.from({ length: numDays }, (_, i) => {
-      const d = new Date(startDay);
-      d.setDate(startDay.getDate() + i);
-      return d;
-    });
+    const weekDays = Array.from({ length: numDays }, (_, i) =>
+      churchDayAnchor(dayKeyFromParts(current.year, current.month, current.day - startOffset + i), churchTimeZone),
+    );
 
     // Hours to display: 6 AM to 9 PM (16 hours)
     const hours = Array.from({ length: 16 }, (_, i) => i + 6);

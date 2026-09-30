@@ -4,13 +4,20 @@ import {
   MAX_BLOCKOUT_RANGE_DAYS,
   expandBlockoutRange,
   groupBlockoutRanges,
-  todayUtc,
+  churchToday,
   validateBlockoutRemoval,
 } from "@/lib/blockout-dates";
 
 const NOW = new Date("2026-10-01T15:00:00Z");
 
 describe("expandBlockoutRange", () => {
+  it("uses the church's today, so a church at UTC−4 can still mark today in the evening (G1.6)", () => {
+    // 9:30 pm on Oct 5 in New York; UTC is already on Oct 6.
+    const evening = new Date("2026-10-06T01:30:00Z");
+    expect(expandBlockoutRange({ from: "2026-10-05" }, evening, "America/New_York")).toMatchObject({ ok: true });
+    expect(expandBlockoutRange({ from: "2026-10-05" }, evening, "UTC")).toMatchObject({ ok: false, code: "past" });
+  });
+
   it("expands a single day", () => {
     expect(expandBlockoutRange({ from: "2026-10-04" }, NOW)).toEqual({ ok: true, dates: ["2026-10-04"], reason: null });
   });
@@ -25,7 +32,7 @@ describe("expandBlockoutRange", () => {
   });
 
   it("allows today but not the past", () => {
-    expect(expandBlockoutRange({ from: todayUtc(NOW) }, NOW)).toMatchObject({ ok: true });
+    expect(expandBlockoutRange({ from: churchToday("UTC", NOW) }, NOW)).toMatchObject({ ok: true });
     expect(expandBlockoutRange({ from: "2026-09-30" }, NOW)).toEqual({
       ok: false,
       code: "past",
