@@ -701,6 +701,20 @@ describe("ServicePlanBuilder — add position (role type picker)", () => {
     });
   });
 
+  it("offers Auto-fill as soon as a new position adds unfilled slots, without a reload (G1.11)", async () => {
+    const user = userEvent.setup();
+    addPlanPositionActionMock.mockResolvedValue({ ok: true, id: "pos-1" });
+    renderBuilder({ ...baseDetail(), unfilledCount: 0 }, { roleTypes: [{ id: "role-1", name: "Greeter" }] });
+    expect(screen.queryByRole("button", { name: "Auto-fill plan" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Add Position" }));
+    await user.click(screen.getByRole("combobox", { name: /role type/i }));
+    await user.click(await screen.findByText("Greeter"));
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByRole("button", { name: "Auto-fill plan" })).toBeInTheDocument();
+  });
+
   it("surfaces the server's own validation error when the action rejects the submission", async () => {
     const user = userEvent.setup();
     addPlanPositionActionMock.mockResolvedValue({

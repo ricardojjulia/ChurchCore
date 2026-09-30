@@ -84,3 +84,19 @@ export function startOfDayInTimeZone(day: string, timeZone: string | null | unde
   );
   return new Date(onDay ?? Math.max(before, after));
 }
+
+/**
+ * The real instant of a church-local date and time, e.g. 10:00 on 2026-10-04
+ * in America/New_York → 14:00Z. For true instants like `events.starts_at`, not
+ * volunteer shift times (which stay wall-clock, ADR 0023). Null when malformed.
+ */
+export function zonedTimeToInstant(day: string, time: string, timeZone: string | null | undefined): Date | null {
+  const zone = validTimeZone(timeZone);
+  const match = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(time);
+  const guess = Date.parse(`${day}T00:00:00Z`);
+  if (!match || Number.isNaN(guess)) return null;
+  const asUtc = guess + (Number(match[1]) * 60 + Number(match[2])) * 60_000 + Number(match[3] ?? 0) * 1000;
+  const first = asUtc - offsetMinutes(zone, asUtc) * 60_000;
+  return new Date(asUtc - offsetMinutes(zone, first) * 60_000);
+}
+

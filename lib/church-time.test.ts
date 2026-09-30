@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { startOfDayInTimeZone, todayInTimeZone } from "@/lib/church-time";
+import { startOfDayInTimeZone, todayInTimeZone, zonedTimeToInstant } from "@/lib/church-time";
 
 // G1.6 (FS3-4): "today" is the church's today, not UTC's.
 
@@ -59,3 +59,17 @@ describe("startOfDayInTimeZone", () => {
     expect(startOfDayInTimeZone("2026-10-05", undefined)!.toISOString()).toBe("2026-10-05T00:00:00.000Z");
   });
 });
+
+describe("zonedTimeToInstant", () => {
+  it("turns a church-local date and time into the real instant", () => {
+    expect(zonedTimeToInstant("2026-10-04", "10:00", "America/New_York")!.toISOString()).toBe("2026-10-04T14:00:00.000Z");
+    expect(zonedTimeToInstant("2026-12-06", "18:30", "America/New_York")!.toISOString()).toBe("2026-12-06T23:30:00.000Z");
+    expect(zonedTimeToInstant("2026-10-04", "10:00:00", "Asia/Kolkata")!.toISOString()).toBe("2026-10-04T04:30:00.000Z");
+  });
+
+  it("is null for a malformed date or time", () => {
+    expect(zonedTimeToInstant("2026-10-04", "10am", "UTC")).toBeNull();
+    expect(zonedTimeToInstant("nope", "10:00", "UTC")).toBeNull();
+  });
+});
+

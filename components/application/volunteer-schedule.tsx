@@ -1290,6 +1290,9 @@ export function ServicePlanBuilder({
             ministryId: null, sortOrder: d.positions.length,
             shifts: [], filled: 0, pending: 0,
           }],
+          // The new slots are unfilled: without this, the Unfilled count stayed
+          // put and Auto-fill stayed hidden until a reload (found by G1.11).
+          unfilledCount: d.unfilledCount + posForm.quantityNeeded,
         }));
         setShowAddPosition(false);
         setPosForm({ roleTypeId: "", quantityNeeded: 1 });
