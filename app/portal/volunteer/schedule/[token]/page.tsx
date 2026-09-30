@@ -59,8 +59,8 @@ export default async function VolunteerSchedulePage({
             <Stack gap="md">
               {(shifts as PublicShift[]).map((shift) => {
                 const { place: eventTitle, dateLabel: dateStr, timeLabel: timeString } = describePublicShift(shift);
-                // Respond only with this shift's own, unexpired token: only reminders create
-                // tokens today, and falling back to the page's token opened the wrong shift.
+                // Respond only with this shift's own, unexpired token: falling back to the
+                // page's token opened the wrong shift. Every assignment gets one since G1.5.
                 const respondToken =
                   shift.confirmation_status !== "declined" &&
                   shift.confirmation_token &&

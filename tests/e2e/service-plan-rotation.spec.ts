@@ -180,7 +180,12 @@ test.describe("Service plan rotation planner", () => {
     // Only the shift with its own token can be answered from here; the other
     // one must not borrow this page's token (it opened the wrong shift).
     await expect(main.getByText("E2E Usher Untokened")).toBeVisible();
-    await expect(main.getByRole("link", { name: "Respond" })).toHaveCount(1);
+    // Scoped to this test's two shifts: other specs running in parallel give
+    // Maya shifts of their own (e.g. the build journey), each with a link.
+    await expect(main.locator(".mantine-Card-root", { hasText: "E2E Greeter" }).getByRole("link", { name: "Respond" })).toHaveCount(1);
+    await expect(
+      main.locator(".mantine-Card-root", { hasText: "E2E Usher Untokened" }).getByRole("link", { name: "Respond" }),
+    ).toHaveCount(0);
     await expect(main.getByText("To change this, contact your team leader.")).toBeVisible();
 
     const panel = page.getByTestId("blockout-dates");
