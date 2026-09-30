@@ -178,37 +178,8 @@ async function resolveActorProfileId(session: ChurchManagerSession) {
   if (!hasTenantBackendEnv() || session.source !== "supabase") {
     return null;
   }
-
-  if (shouldUseLocalTenantFallback()) {
-    const result = await queryTenantLocalDb<{ id: string }>(
-      `
-        select id
-        from public.profiles
-        where user_id = $1
-          and church_id = $2
-          and merged_at is null
-        limit 1
-      `,
-      [session.userId, session.appContext.church.id],
-    );
-
-    return result.rows[0]?.id ?? null;
-  }
-
-  const supabase = await createTenantServerClient();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("user_id", session.userId)
-    .eq("church_id", session.appContext.church.id)
-    .is("merged_at", null)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data?.id ?? null;
+  // The session's church profile id, resolved once (S9, Council Review 26).
+  return session.churchProfileId;
 }
 
 async function assertEventBelongsToChurch(churchId: string, eventId: string) {

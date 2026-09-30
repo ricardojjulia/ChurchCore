@@ -551,7 +551,8 @@ async function loadSupabaseAppDataFromLocalDb(userId: string) {
         role: profileRow.role,
         displayTitle: profileRow.display_title,
         isPastoral: Boolean(profileRow.is_pastoral),
-        // Local dual-path (deprecated): merged profiles aren't selected here.
+        // Local dual-path (deprecated, Supabase-only mandate): this query
+        // doesn't read merged_at, so a merged profile isn't detected here.
         merged: false,
         church:
           profileRow.church_id &&

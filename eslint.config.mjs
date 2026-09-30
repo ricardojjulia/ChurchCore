@@ -15,10 +15,25 @@ const eslintConfig = defineConfig([
     rules: {
       "no-restricted-syntax": [
         "error",
+        // session.profile.id, session?.profile?.id, ctx.session.profile.id.
+        // Scoped to sessions, so a PostgREST embed named `profile` is fine.
         {
-          selector: "MemberExpression[property.name='id'][object.type='MemberExpression'][object.property.name='profile']",
+          selector:
+            "MemberExpression[property.name='id'][object.type='MemberExpression'][object.property.name='profile'][object.object.name='session']",
           message:
             "session.profile.id is the login id, not a church profile id. Use session.churchProfileId (profile references) or session.userId (the login id).",
+        },
+        {
+          selector:
+            "MemberExpression[property.name='id'][object.type='MemberExpression'][object.property.name='profile'][object.object.property.name='session']",
+          message:
+            "session.profile.id is the login id, not a church profile id. Use session.churchProfileId (profile references) or session.userId (the login id).",
+        },
+        // const { profile } = session — the way around the rule above (Council Review 26).
+        {
+          selector: "VariableDeclarator[init.name='session'] > ObjectPattern > Property[key.name='profile']",
+          message:
+            "Don't destructure profile from the session: profile.id is the login id. Use session.churchProfileId or session.userId.",
         },
       ],
     },
