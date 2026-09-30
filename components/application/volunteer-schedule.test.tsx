@@ -926,7 +926,9 @@ describe("ServicePlanBuilder — assignment notifications (G1.5)", () => {
     await user.click(screen.getByRole("button", { name: "Assign" }));
     await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Assign" }));
     await screen.findByText(/^Alice Helper assigned as Greeter\./);
-    await user.click(screen.getByRole("button", { name: "Remove" }));
+    // Remove shows as loading while the assignment's transition settles; a
+    // click on the disabled button is ignored (slower in CI).
+    await clickWhenEnabled(user, screen.getByRole("button", { name: "Remove" }));
 
     await waitFor(() => expect(removeAssignmentActionMock).toHaveBeenCalledWith("shift-real", detail.plan.id));
   });
