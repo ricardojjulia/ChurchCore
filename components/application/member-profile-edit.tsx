@@ -85,6 +85,10 @@ export function MemberProfileEdit({ profile }: Props) {
           contactAllowed,
           emergencyContactConsentVerified,
         });
+        if (result.status === "error") {
+          setServerError(translateMember("profileSaveError"));
+          return;
+        }
         setReviewMessage(
           result.status === "pending_review"
             ? translateMember("updateSubmittedForReview")

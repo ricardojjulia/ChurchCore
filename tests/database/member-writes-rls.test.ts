@@ -159,6 +159,23 @@ describe("member writes under RLS (S8)", () => {
     });
   });
 
+  describe("one profile per login (S9)", () => {
+    it("a login can't have a second profile, so self policies that pick `where user_id = auth.uid() limit 1` can't land on another church's row", async () => {
+      await inRolledBackTransaction(async (client) => {
+        await client.query("savepoint second_profile");
+        const second = await client
+          .query(`insert into public.profiles (id, church_id, full_name, user_id) values (gen_random_uuid(), $1, 'Second', $2)`, [
+            CHURCH_B,
+            MEMBER_USER,
+          ])
+          .then(() => null)
+          .catch((error: Error) => error.message);
+        await client.query("rollback to savepoint second_profile");
+        expect(second).toMatch(/profiles_user_id_uidx|duplicate key/);
+      });
+    });
+  });
+
   describe("event RSVPs", () => {
     const RSVP = `insert into public.event_rsvps (event_id, user_id, status) values ($1, $2, 'yes')`;
 

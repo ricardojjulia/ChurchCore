@@ -351,13 +351,8 @@ export async function getDiscernmentSessionDetail(
 
   if (!sessionRow) return null;
 
-  const { data: myProfile } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("user_id", session.userId)
-    .eq("church_id", churchId)
-    .maybeSingle();
-  const myProfileId = myProfile?.id ?? null;
+  // The session's church profile id, resolved once (S9, Council Review 26).
+  const myProfileId = session.churchProfileId;
 
   const [prayerRes, notesRes, acksRes] = await Promise.all([
     supabase

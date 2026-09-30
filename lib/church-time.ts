@@ -28,7 +28,7 @@ function validTimeZone(timeZone: string | null | undefined): string {
 }
 
 /** The church's current calendar day, `YYYY-MM-DD`. An unknown zone falls back to UTC. */
-export function todayInTimeZone(timeZone: string | null | undefined, now: Date = new Date()): string {
+export function todayInTimeZone(timeZone: string | null, now: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: validTimeZone(timeZone),
     year: "numeric",
@@ -70,7 +70,7 @@ function offsetMinutes(timeZone: string, instant: number): number {
  * America/Santiago, America/Havana start their DST at 00:00). Null for a
  * malformed day.
  */
-export function startOfDayInTimeZone(day: string, timeZone: string | null | undefined): Date | null {
+export function startOfDayInTimeZone(day: string, timeZone: string | null): Date | null {
   const zone = validTimeZone(timeZone);
   const utcMidnight = Date.parse(`${day}T00:00:00Z`);
   if (Number.isNaN(utcMidnight)) return null;
@@ -90,7 +90,7 @@ export function startOfDayInTimeZone(day: string, timeZone: string | null | unde
  * in America/New_York → 14:00Z. For true instants like `events.starts_at`, not
  * volunteer shift times (which stay wall-clock, ADR 0023). Null when malformed.
  */
-export function zonedTimeToInstant(day: string, time: string, timeZone: string | null | undefined): Date | null {
+export function zonedTimeToInstant(day: string, time: string, timeZone: string | null): Date | null {
   const zone = validTimeZone(timeZone);
   const match = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(time);
   const guess = Date.parse(`${day}T00:00:00Z`);

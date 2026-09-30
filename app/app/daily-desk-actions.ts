@@ -59,41 +59,6 @@ function normalizeDateTime(value: string | null | undefined) {
   return date.toISOString();
 }
 
-async function resolveActorProfileId(userId: string, churchId: string) {
-  if (!hasTenantBackendEnv()) return null;
-
-  if (shouldUseLocalTenantFallback()) {
-    const result = await queryTenantLocalDb<{ id: string }>(
-      `
-        select id
-        from public.profiles
-        where user_id = $1
-          and church_id = $2
-          and merged_at is null
-        limit 1
-      `,
-      [userId, churchId],
-    );
-
-    return result.rows[0]?.id ?? null;
-  }
-
-  const supabase = await createTenantServerClient();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("church_id", churchId)
-    .is("merged_at", null)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data?.id ?? null;
-}
-
 async function assertProfileInChurch(churchId: string, profileId: string | null | undefined) {
   if (!profileId) return null;
 
@@ -156,7 +121,8 @@ export async function createDailyWorkItemAction(input: CreateDailyWorkItemInput)
 
   const relatedProfileId = await assertProfileInChurch(churchId, input.relatedProfileId);
   const assignedToProfileId = await assertProfileInChurch(churchId, input.assignedToProfileId);
-  const actorProfileId = await resolveActorProfileId(session.userId, churchId);
+  // The session's church profile id, resolved once (S9, Council Review 26).
+  const actorProfileId = session.churchProfileId;
   const scheduledAt = normalizeDateTime(input.scheduledAt);
   const dueAt = normalizeDateTime(input.dueAt);
   const status = input.itemType === "visit" || input.itemType === "calendar_item" ? "scheduled" : "open";

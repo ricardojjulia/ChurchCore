@@ -6,8 +6,8 @@ import type { AuthSession } from "@/lib/auth";
  * a tenant). Use it where an action needs to act *as* the person.
  *
  * `session.profile.id` is the auth (login) user id, not a profiles id (S7).
- * The session resolves `churchProfileId` once, at sign-in; the older
- * `resolveActiveChurchProfileId` in lib/church-profile.ts looks it up per call.
+ * The session resolves `churchProfileId` once, at sign-in, and every other
+ * helper (`resolveActiveChurchProfileId` included) returns that value (S9).
  */
 export function requireChurchProfileId(session: Pick<AuthSession, "churchProfileId">): string {
   if (!session.churchProfileId) {

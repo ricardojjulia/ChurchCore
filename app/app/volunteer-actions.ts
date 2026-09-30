@@ -1070,7 +1070,7 @@ export async function deactivateRoleTypeAction(
         tableName: "service_plan_role_types",
         recordId: roleTypeId,
         operation: "UPDATE",
-        actorId: session.profile.id,
+        actorId: session.userId,
         churchId,
         actorRole: session.appContext.roleId,
         oldValues: { isActive: wasActive },
@@ -1109,7 +1109,7 @@ export async function deactivateRoleTypeAction(
       tableName: "service_plan_role_types",
       recordId: roleTypeId,
       operation: "UPDATE",
-      actorId: session.profile.id,
+      actorId: session.userId,
       churchId,
       actorRole: session.appContext.roleId,
       oldValues: { isActive: current.is_active },
@@ -1269,7 +1269,7 @@ export async function assignVolunteerAction(input: {
           tableName: "volunteer_shifts",
           recordId: input.profileId,
           operation: "UPDATE",
-          actorId: session.profile.id,
+          actorId: session.userId,
           churchId,
           actorRole: session.appContext.roleId,
           newValues: { burnout_bypass: true, roleName: input.roleName },
@@ -1383,7 +1383,7 @@ export async function assignVolunteerAction(input: {
         tableName: "volunteer_shifts",
         recordId: input.profileId,
         operation: "UPDATE",
-        actorId: session.profile.id,
+        actorId: session.userId,
         churchId,
         actorRole: session.appContext.roleId,
         newValues: { burnout_bypass: true, roleName: input.roleName },
@@ -2490,7 +2490,7 @@ async function addBlockouts(
   input: { from: string; to?: string | null; reason?: string | null },
   timeZone: string | null,
 ): Promise<BlockoutChangeResult> {
-  const range = expandBlockoutRange(input, new Date(), timeZone);
+  const range = expandBlockoutRange(input, timeZone);
   if (!range.ok) return range;
   // Re-adding a day already blocked updates its reason.
   const { error } = await client.from("volunteer_blocked_dates").upsert(
@@ -2516,7 +2516,7 @@ async function removeBlockouts(
   input: { from: string; to?: string | null },
   timeZone: string | null,
 ): Promise<BlockoutChangeResult> {
-  const range = validateBlockoutRemoval(input, new Date(), timeZone);
+  const range = validateBlockoutRemoval(input, timeZone);
   if (!range.ok) return range;
   const { error } = await client
     .from("volunteer_blocked_dates")
@@ -2696,7 +2696,7 @@ async function ensureShiftToken(
   serviceDate: string,
   timeZone: string | null,
 ): Promise<{ ok: true; token: string } | { ok: false }> {
-  const wanted = tokenExpiryFor(serviceDate, new Date(), timeZone);
+  const wanted = tokenExpiryFor(serviceDate, timeZone);
   const current = shift.confirmation_token_expires_at ? new Date(shift.confirmation_token_expires_at) : null;
   const stillValid = Boolean(shift.confirmation_token) && current !== null && current > new Date();
   if (stillValid && current! >= wanted) return { ok: true, token: shift.confirmation_token! };

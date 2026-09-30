@@ -43,11 +43,13 @@ This matrix records allowed roles and verification evidence for high-sensitivity
 | `handleChargeRefunded` (Stripe webhook) | No user role — service-only; verified by Stripe webhook signature | Any authenticated user role (not applicable; route is service-level) | Webhook signature verification in `app/api/webhooks/stripe/route.ts`; available in Supabase production mode |
 | Member event registration action | Member | ChurchAdmin, Pastor, Ministry Leader, Secretary, Public | [app/app/member-actions.test.ts](app/app/member-actions.test.ts) |
 | Public event registration action | Public | N/A (route intentionally public) | Action guards in [app/portal/actions.ts](app/portal/actions.ts) and route scoping in [app/portal/events/register/page.tsx](app/portal/events/register/page.tsx) |
+| `merge_duplicate_profile` (SQL `SECURITY DEFINER` function) | ChurchAdmin, Pastor — checked from `church_memberships.user_id = auth.uid()` inside the function body | Member, Secretary, Ministry Leader, Public/anon (execute revoked from `anon`/`PUBLIC`) | `supabase/migrations/20260930000000_merge_duplicate_profile_actor_from_auth.sql`; DB tests in `tests/database/profile-merge-auth.test.ts` |
 
 ## Notes
 
 - Each row is expected to retain a corresponding executable test as behavior evolves.
 - Cross-church scope protection remains mandatory for all tenant writes and should be validated in action tests whenever write paths are expanded.
+- **A `SECURITY DEFINER` function takes its actor from `auth.uid()`, called inside the function body, never from a caller-supplied argument** (ADR 0024, S9/Council Review 26). `merge_duplicate_profile` previously compared a login id (`church_memberships.user_id`) with a caller-supplied `actor_profile_id` argument — every real admin failed the check, and anyone passing an admin's login id as the argument passed it, a live privilege escalation. This is the SQL-function-layer counterpart of the `session.profile.id`-vs-`session.churchProfileId` mix-up the S7–S9 line of fixes closed at the application layer; the lint rule S9 added has no reach into SQL, so a new or changed `SECURITY DEFINER` function needs this checked explicitly — it isn't caught by the app-layer tooling.
 
 ## WS-4 Evidence Refresh
 

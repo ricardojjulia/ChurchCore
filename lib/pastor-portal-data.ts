@@ -313,7 +313,7 @@ export async function getPastorPortalData(
             tableName: "pastoral_notes",
             recordId: targetId,
             operation: "READ_PASTORAL",
-            actorId: profile.id,
+            actorId: session.userId,
             churchId: session.appContext.church.id,
             actorRole: session.appContext.roleId,
           }).catch((err) => console.error("Failed to log read audit event:", err))
@@ -502,7 +502,7 @@ export async function getPastorPortalData(
           tableName: "pastoral_notes",
           recordId: targetId,
           operation: "READ_PASTORAL",
-          actorId: profile.id,
+          actorId: session.userId,
           churchId: session.appContext.church.id,
           actorRole: session.appContext.roleId,
         }).catch((err) => console.error("Failed to log read audit event:", err))

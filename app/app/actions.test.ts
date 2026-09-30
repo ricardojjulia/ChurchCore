@@ -268,8 +268,8 @@ describe("app actions", () => {
   });
 
   it("approves a pending member profile change request", async () => {
+    // The reviewer's profile comes from the session now, not a query (S9).
     queryTenantLocalDbMock
-      .mockResolvedValueOnce({ rows: [{ id: "admin-profile-1" }] })
       .mockResolvedValueOnce({
         rows: [
           {
@@ -313,12 +313,12 @@ describe("app actions", () => {
     });
 
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
-      2,
+      1,
       expect.stringContaining("from public.member_change_requests"),
       ["request-1", "church-1"],
     );
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
-      4,
+      3,
       expect.stringContaining("update public.profiles"),
       [
         "Ada Lovelace",
@@ -339,7 +339,7 @@ describe("app actions", () => {
           sql.includes("update public.member_change_requests") &&
           Array.isArray(params) &&
           params[0] === "approved" &&
-          params[1] === "admin-profile-1" &&
+          params[1] === "admin-1" &&
           params[2] === "Looks good." &&
           params[3] === "request-1" &&
           params[4] === "church-1",
@@ -350,8 +350,8 @@ describe("app actions", () => {
   });
 
   it("rejects a pending member family change request without applying canonical writes", async () => {
+    // The reviewer's profile comes from the session now, not a query (S9).
     queryTenantLocalDbMock
-      .mockResolvedValueOnce({ rows: [{ id: "admin-profile-1" }] })
       .mockResolvedValueOnce({
         rows: [
           {
@@ -376,11 +376,11 @@ describe("app actions", () => {
     });
 
     expect(queryTenantLocalDbMock).toHaveBeenNthCalledWith(
-      3,
+      2,
       expect.stringContaining("update public.member_change_requests"),
-      ["rejected", "admin-profile-1", "Needs guardian details.", "request-2", "church-1"],
+      ["rejected", "admin-1", "Needs guardian details.", "request-2", "church-1"],
     );
-    expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(3);
+    expect(queryTenantLocalDbMock).toHaveBeenCalledTimes(2);
   });
 
   describe("emergency contact consent validation", () => {
@@ -460,7 +460,7 @@ describe("app actions", () => {
         recordId: "alert-123",
         operation: "UPDATE",
         // Audit actors are login ids (audit_log.actor_id holds auth.uid()).
-          actorId: "profile-pastor-1-login",
+          actorId: "pastor-1",
         churchId: "church-1",
         actorRole: "pastor",
         newValues: { acknowledged: true },
@@ -490,7 +490,7 @@ describe("app actions", () => {
         recordId: "alert-456",
         operation: "UPDATE",
         // Audit actors are login ids (audit_log.actor_id holds auth.uid()).
-          actorId: "profile-pastor-1-login",
+          actorId: "pastor-1",
         churchId: "church-1",
         actorRole: "pastor",
         newValues: { acknowledged: true },

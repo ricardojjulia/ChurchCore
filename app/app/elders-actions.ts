@@ -47,24 +47,8 @@ async function requireCouncilSession(redirectPath: string) {
 async function resolveProfileId(
   session: Awaited<ReturnType<typeof requireChurchSession>>,
 ): Promise<string | null> {
-  const churchId = session.appContext.church.id;
-
-  if (shouldUseLocalTenantFallback()) {
-    const result = await queryTenantLocalDb<{ id: string }>(
-      `select id from public.profiles where user_id = $1 and church_id = $2 limit 1`,
-      [session.userId, churchId],
-    );
-    return result.rows[0]?.id ?? null;
-  }
-
-  const supabase = await createTenantServerClient();
-  const { data } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("user_id", session.userId)
-    .eq("church_id", churchId)
-    .maybeSingle();
-  return data?.id ?? null;
+  // The session's church profile id, resolved once (S9, Council Review 26).
+  return session.churchProfileId;
 }
 
 // ============================================================

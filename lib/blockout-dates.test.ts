@@ -14,16 +14,16 @@ describe("expandBlockoutRange", () => {
   it("uses the church's today, so a church at UTC−4 can still mark today in the evening (G1.6)", () => {
     // 9:30 pm on Oct 5 in New York; UTC is already on Oct 6.
     const evening = new Date("2026-10-06T01:30:00Z");
-    expect(expandBlockoutRange({ from: "2026-10-05" }, evening, "America/New_York")).toMatchObject({ ok: true });
-    expect(expandBlockoutRange({ from: "2026-10-05" }, evening, "UTC")).toMatchObject({ ok: false, code: "past" });
+    expect(expandBlockoutRange({ from: "2026-10-05" }, "America/New_York", evening)).toMatchObject({ ok: true });
+    expect(expandBlockoutRange({ from: "2026-10-05" }, "UTC", evening)).toMatchObject({ ok: false, code: "past" });
   });
 
   it("expands a single day", () => {
-    expect(expandBlockoutRange({ from: "2026-10-04" }, NOW)).toEqual({ ok: true, dates: ["2026-10-04"], reason: null });
+    expect(expandBlockoutRange({ from: "2026-10-04" }, "UTC", NOW)).toEqual({ ok: true, dates: ["2026-10-04"], reason: null });
   });
 
   it("expands an inclusive range across a month boundary and trims the reason", () => {
-    const result = expandBlockoutRange({ from: "2026-10-30", to: "2026-11-02", reason: "  Family trip  " }, NOW);
+    const result = expandBlockoutRange({ from: "2026-10-30", to: "2026-11-02", reason: "  Family trip  " }, "UTC", NOW);
     expect(result).toEqual({
       ok: true,
       dates: ["2026-10-30", "2026-10-31", "2026-11-01", "2026-11-02"],
@@ -32,8 +32,8 @@ describe("expandBlockoutRange", () => {
   });
 
   it("allows today but not the past", () => {
-    expect(expandBlockoutRange({ from: churchToday("UTC", NOW) }, NOW)).toMatchObject({ ok: true });
-    expect(expandBlockoutRange({ from: "2026-09-30" }, NOW)).toEqual({
+    expect(expandBlockoutRange({ from: churchToday("UTC", NOW) }, "UTC", NOW)).toMatchObject({ ok: true });
+    expect(expandBlockoutRange({ from: "2026-09-30" }, "UTC", NOW)).toEqual({
       ok: false,
       code: "past",
       error: "You can't mark a date in the past.",
@@ -41,9 +41,9 @@ describe("expandBlockoutRange", () => {
   });
 
   it("rejects bad input: invalid or impossible dates, reversed ranges", () => {
-    expect(expandBlockoutRange({ from: "10/04/2026" }, NOW)).toMatchObject({ ok: false });
-    expect(expandBlockoutRange({ from: "2026-02-30" }, NOW)).toMatchObject({ ok: false });
-    expect(expandBlockoutRange({ from: "2026-10-05", to: "2026-10-04" }, NOW)).toEqual({
+    expect(expandBlockoutRange({ from: "10/04/2026" }, "UTC", NOW)).toMatchObject({ ok: false });
+    expect(expandBlockoutRange({ from: "2026-02-30" }, "UTC", NOW)).toMatchObject({ ok: false });
+    expect(expandBlockoutRange({ from: "2026-10-05", to: "2026-10-04" }, "UTC", NOW)).toEqual({
       ok: false,
       code: "end_before_start",
       error: "The end date is before the start date.",
@@ -54,23 +54,23 @@ describe("expandBlockoutRange", () => {
     const ninetyDaysLater = new Date(Date.parse("2026-10-02T00:00:00Z") + (MAX_BLOCKOUT_RANGE_DAYS - 1) * 86_400_000)
       .toISOString()
       .slice(0, 10);
-    expect(expandBlockoutRange({ from: "2026-10-02", to: ninetyDaysLater }, NOW)).toMatchObject({ ok: true });
-    expect(expandBlockoutRange({ from: "2026-10-02", to: "2027-01-01" }, NOW)).toMatchObject({ ok: false });
-    expect(expandBlockoutRange({ from: "2027-12-01" }, NOW)).toMatchObject({ ok: false });
+    expect(expandBlockoutRange({ from: "2026-10-02", to: ninetyDaysLater }, "UTC", NOW)).toMatchObject({ ok: true });
+    expect(expandBlockoutRange({ from: "2026-10-02", to: "2027-01-01" }, "UTC", NOW)).toMatchObject({ ok: false });
+    expect(expandBlockoutRange({ from: "2027-12-01" }, "UTC", NOW)).toMatchObject({ ok: false });
   });
 });
 
 describe("validateBlockoutRemoval", () => {
   it("accepts a day or range starting today or later, and rejects the past and bad input", () => {
-    expect(validateBlockoutRemoval({ from: "2026-10-01" }, NOW)).toEqual({ ok: true, from: "2026-10-01", to: "2026-10-01" });
-    expect(validateBlockoutRemoval({ from: "2026-10-03", to: "2026-10-24" }, NOW)).toEqual({
+    expect(validateBlockoutRemoval({ from: "2026-10-01" }, "UTC", NOW)).toEqual({ ok: true, from: "2026-10-01", to: "2026-10-01" });
+    expect(validateBlockoutRemoval({ from: "2026-10-03", to: "2026-10-24" }, "UTC", NOW)).toEqual({
       ok: true,
       from: "2026-10-03",
       to: "2026-10-24",
     });
-    expect(validateBlockoutRemoval({ from: "2026-09-30" }, NOW)).toMatchObject({ ok: false, code: "past" });
-    expect(validateBlockoutRemoval({ from: "nope" }, NOW)).toMatchObject({ ok: false, code: "invalid_date" });
-    expect(validateBlockoutRemoval({ from: "2026-10-05", to: "2026-10-04" }, NOW)).toMatchObject({ ok: false });
+    expect(validateBlockoutRemoval({ from: "2026-09-30" }, "UTC", NOW)).toMatchObject({ ok: false, code: "past" });
+    expect(validateBlockoutRemoval({ from: "nope" }, "UTC", NOW)).toMatchObject({ ok: false, code: "invalid_date" });
+    expect(validateBlockoutRemoval({ from: "2026-10-05", to: "2026-10-04" }, "UTC", NOW)).toMatchObject({ ok: false });
   });
 });
 

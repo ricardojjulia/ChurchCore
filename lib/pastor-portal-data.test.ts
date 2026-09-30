@@ -106,7 +106,7 @@ describe("getPastorPortalData read auditing", () => {
         tableName: "pastoral_notes",
         recordId: "target-profile-A",
         operation: "READ_PASTORAL",
-        actorId: "profile-1",
+        actorId: "user-1",
         churchId: "church-1",
         actorRole: "pastor",
       })
@@ -117,7 +117,7 @@ describe("getPastorPortalData read auditing", () => {
         tableName: "pastoral_notes",
         recordId: "target-profile-B",
         operation: "READ_PASTORAL",
-        actorId: "profile-1",
+        actorId: "user-1",
         churchId: "church-1",
         actorRole: "pastor",
       })

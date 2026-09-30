@@ -39,8 +39,10 @@ export type UpdateFamilyInput = {
 };
 
 export type MemberSelfServiceUpdateResult = {
-  status: "saved" | "pending_review";
+  status: "saved" | "pending_review" | "error";
   requestId?: string;
+  /** Shown to the member when status is "error" (S9, Council Review 26). */
+  message?: string;
 };
 
 type MemberChangeRequestType = "profile" | "family";
@@ -292,32 +294,8 @@ async function requirePastorProfileContext(redirectPath: string) {
     return { session, profileId: null as string | null };
   }
 
-  if (shouldUseLocalTenantFallback()) {
-    const profileResult = await queryTenantLocalDb<{ id: string }>(
-      `
-        select id
-        from public.profiles
-        where user_id = $1
-          and church_id = $2
-        limit 1
-      `,
-      [session.userId, session.appContext.church.id],
-    );
-
-    return { session, profileId: profileResult.rows[0]?.id ?? null };
-  }
-
-  const supabase = await createTenantServerClient();
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("user_id", session.userId)
-    .eq("church_id", session.appContext.church.id)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-
-  return { session, profileId: profile?.id ?? null };
+  // The session's church profile id, resolved once (S9, Council Review 26).
+  return { session, profileId: session.churchProfileId };
 }
 
 async function requireChurchAdminSession(redirectPath: string) {
@@ -388,62 +366,16 @@ async function requireChurchAdminProfileContext(redirectPath: string) {
     return { session, profileId: null as string | null };
   }
 
-  if (shouldUseLocalTenantFallback()) {
-    const profileResult = await queryTenantLocalDb<{ id: string }>(
-      `
-        select id
-        from public.profiles
-        where user_id = $1
-          and church_id = $2
-        limit 1
-      `,
-      [session.userId, session.appContext.church.id],
-    );
-
-    return { session, profileId: profileResult.rows[0]?.id ?? null };
-  }
-
-  const supabase = await createTenantServerClient();
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("user_id", session.userId)
-    .eq("church_id", session.appContext.church.id)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-
-  return { session, profileId: profile?.id ?? null };
+  // The session's church profile id, resolved once (S9, Council Review 26).
+  return { session, profileId: session.churchProfileId };
 }
 
+/**
+ * The signed-in person's church profile id: the session's, resolved once when
+ * it was built (S9 — one source of truth instead of a query per caller).
+ */
 async function resolveSessionProfileId(session: Awaited<ReturnType<typeof requireChurchSession>>) {
-  if (shouldUseLocalTenantFallback()) {
-    const profileResult = await queryTenantLocalDb<{ id: string }>(
-      `
-        select id
-        from public.profiles
-        where user_id = $1
-          and church_id = $2
-          and merged_at is null
-        limit 1
-      `,
-      [session.userId, session.appContext.church.id],
-    );
-
-    return profileResult.rows[0]?.id ?? null;
-  }
-
-  const supabase = await createTenantServerClient();
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("user_id", session.userId)
-    .eq("church_id", session.appContext.church.id)
-    .is("merged_at", null)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-  return profile?.id ?? null;
+  return session.churchProfileId;
 }
 
 async function queueMemberChangeRequest(
@@ -952,7 +884,7 @@ export async function updateMemberProfileAction(
 
   if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && hasTenantAdminBackendEnv()) {
     const adminSupabase = createTenantAdminClient();
-    await adminSupabase.from("profiles").update({
+    const { data: updatedRows, error: updateError } = await adminSupabase.from("profiles").update({
       full_name: fullName,
       phone,
       address,
@@ -962,7 +894,12 @@ export async function updateMemberProfileAction(
       emergency_contact_phone: emergencyContactPhone,
       directory_visible: input.directoryVisible,
       contact_allowed: input.contactAllowed,
-    }).eq("id", activeProfileId).eq("church_id", session.appContext.church.id);
+    }).eq("id", activeProfileId).eq("church_id", session.appContext.church.id).select("id");
+    // A demo save that matched nothing mustn't report "saved" (S9).
+    if (updateError || !updatedRows || updatedRows.length === 0) {
+      // Returned, not thrown: a production build hides a thrown message.
+      return { status: "error", message: "Couldn't save your profile. Please try again." };
+    }
 
     revalidatePath("/app/member");
     revalidatePath("/app/member/directory");
@@ -2660,13 +2597,8 @@ export async function reviewVolunteerMatchAction(input: ReviewVolunteerMatchInpu
   } else {
     const supabase = await createTenantServerClient();
 
-    const { data: reviewerProfile } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("user_id", session.userId)
-      .eq("church_id", churchId)
-      .maybeSingle();
-    reviewerProfileId = reviewerProfile?.id ?? null;
+    // The session's church profile id (S9, Council Review 26).
+    reviewerProfileId = session.churchProfileId;
 
     const { data: suggestion, error: sErr } = await supabase
       .from("volunteer_match_suggestions")
@@ -2865,7 +2797,7 @@ export async function acknowledgeBurnoutAlertAction(input: AcknowledgeBurnoutAle
     tableName: "burnout_alerts",
     recordId: input.alertId,
     operation: "UPDATE",
-    actorId: session.profile.id,
+    actorId: session.userId,
     churchId: churchId,
     actorRole: session.appContext.roleId,
     newValues: { acknowledged: true },
