@@ -1,6 +1,6 @@
-import { todayInTimeZone } from "@/lib/church-time";
 import "server-only";
 
+import { todayInTimeZone } from "@/lib/church-time";
 import {
   createTenantServerClient,
   hasTenantBackendEnv,

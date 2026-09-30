@@ -22,6 +22,7 @@ import {
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
+import { isValidTimeZone } from "@/lib/church-time";
 
 type ChurchManagerSession = Awaited<ReturnType<typeof requireChurchSession>>;
 
@@ -112,6 +113,12 @@ function normalizeChurchSettingsInput(input: UpdateChurchSettingsInput) {
 
   if (timezone.length > 80) {
     throw new Error("Timezone must be 80 characters or fewer.");
+  }
+
+  // Scheduling's "today" comes from this zone (G1.6); an unknown one would
+  // silently fall back to UTC (Council Review 24).
+  if (!isValidTimeZone(timezone)) {
+    throw new Error("Choose a time zone like America/New_York.");
   }
 
   if (publicSummary && publicSummary.length > 500) {

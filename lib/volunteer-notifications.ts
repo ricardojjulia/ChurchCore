@@ -21,10 +21,12 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
  * the church's time zone (G1.6), and at least 7 days from now.
  */
 export function tokenExpiryFor(serviceDate: string, now: Date = new Date(), timeZone?: string | null): Date {
-  const expiryDay = new Date(Date.parse(`${serviceDate}T00:00:00Z`) + (TOKEN_DAYS_AFTER_SERVICE + 1) * MS_PER_DAY)
-    .toISOString()
-    .slice(0, 10);
-  const afterService = startOfDayInTimeZone(expiryDay, timeZone).getTime();
+  const serviceMs = Date.parse(`${serviceDate}T00:00:00Z`);
+  const expiryDay = Number.isNaN(serviceMs)
+    ? null
+    : new Date(serviceMs + (TOKEN_DAYS_AFTER_SERVICE + 1) * MS_PER_DAY).toISOString().slice(0, 10);
+  // A malformed date falls back to the minimum below rather than throwing.
+  const afterService = expiryDay ? (startOfDayInTimeZone(expiryDay, timeZone)?.getTime() ?? Number.NaN) : Number.NaN;
   const minimum = now.getTime() + MIN_TOKEN_DAYS_FROM_NOW * MS_PER_DAY;
   return new Date(Math.max(Number.isNaN(afterService) ? 0 : afterService, minimum));
 }

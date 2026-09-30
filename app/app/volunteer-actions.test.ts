@@ -193,8 +193,8 @@ describe("volunteer actions", () => {
       positionId: "position-1",
       profileId: "member-2",
       roleName: "Usher",
-      startsAt: "2026-04-21T09:00:00.000Z",
-      endsAt: "2026-04-21T10:30:00.000Z",
+      startsAt: "2026-04-21T09:00:00",
+      endsAt: "2026-04-21T10:30:00",
     });
 
     expect(result).toEqual({
@@ -215,8 +215,8 @@ describe("volunteer actions", () => {
       positionId: "position-1",
       profileId: "member-2",
       roleName: "Usher",
-      startsAt: "2026-04-21T09:00:00.000Z",
-      endsAt: "2026-04-21T10:30:00.000Z",
+      startsAt: "2026-04-21T09:00:00",
+      endsAt: "2026-04-21T10:30:00",
     });
 
     expect(result).toEqual({ ok: true });
@@ -229,8 +229,8 @@ describe("volunteer actions", () => {
         "position-1",
         "member-2",
         "Usher",
-        "2026-04-21T09:00:00.000Z",
-        "2026-04-21T10:30:00.000Z",
+        "2026-04-21T09:00:00",
+        "2026-04-21T10:30:00",
       ],
     );
   });
@@ -673,8 +673,8 @@ describe("volunteer actions", () => {
           positionId: "position-1",
           profileId: "member-2",
           roleName: "Usher",
-          startsAt: "2026-04-21T09:00:00.000Z",
-          endsAt: "2026-04-21T10:30:00.000Z",
+          startsAt: "2026-04-21T09:00:00",
+          endsAt: "2026-04-21T10:30:00",
         });
         expect(result).toEqual({ ok: true });
       }
@@ -744,8 +744,8 @@ describe("volunteer actions", () => {
             positionId: "position-1",
             profileId: "member-2",
             roleName: "Usher",
-            startsAt: "2026-04-21T09:00:00.000Z",
-            endsAt: "2026-04-21T10:30:00.000Z",
+            startsAt: "2026-04-21T09:00:00",
+            endsAt: "2026-04-21T10:30:00",
           }),
         ).rejects.toThrow("Unauthorized");
 
@@ -818,7 +818,7 @@ describe("volunteer actions", () => {
         id: "shift-123",
         title: "Worship Leader",
         confirmation_status: "pending",
-        confirmation_token_expires_at: new Date(Date.now() + 100000).toISOString(),
+        confirmation_token_expires_at: "2099-01-01T00:00:00Z",
         church_id: "church-1",
         assigned_user_id: "user-456",
       };
@@ -829,10 +829,19 @@ describe("volunteer actions", () => {
       ];
 
       supabaseBuilderMock.maybeSingle.mockResolvedValueOnce({ data: mockShift, error: null });
+      // The church's time zone (G1.6).
+      supabaseBuilderMock.maybeSingle.mockResolvedValueOnce({ data: { timezone: "America/New_York" }, error: null });
       supabaseBuilderMock.order.mockResolvedValueOnce({ data: mockSchedule, error: null });
 
+      vi.useFakeTimers({ toFake: ["Date"] });
+      // 8:30 pm on Oct 5 in New York; UTC is already Oct 6.
+      vi.setSystemTime(new Date("2026-10-06T00:30:00Z"));
       const result = await getPublicVolunteerScheduleByToken("valid-token");
+      vi.useRealTimers();
       expect(result).toEqual(mockSchedule);
+      // From the start of the church's today in wall-clock form, not the real
+      // now: tonight's service stays listed (Council Review 24).
+      expect(supabaseBuilderMock.gte).toHaveBeenCalledWith("starts_at", "2026-10-05T00:00:00");
     });
 
     it("respondToPublicShiftAction validates token and updates shift status", async () => {
@@ -843,11 +852,16 @@ describe("volunteer actions", () => {
         confirmation_token_expires_at: new Date(Date.now() + 100000).toISOString(),
         church_id: "church-1",
         assigned_user_id: "user-456",
+        starts_at: "2099-07-21T10:00:00+00:00",
       };
 
       supabaseBuilderMock.maybeSingle.mockResolvedValueOnce({ data: mockShift, error: null });
-      supabaseBuilderMock.eq.mockReturnValueOnce(supabaseBuilderMock);
-      supabaseBuilderMock.maybeSingle.mockResolvedValueOnce({ error: null }); // For update call
+      supabaseBuilderMock.maybeSingle.mockResolvedValueOnce({ data: { timezone: "America/New_York" }, error: null });
+      // Shift lookup and time-zone lookup chain on; the update's select("id") resolves.
+      supabaseBuilderMock.select
+        .mockReturnValueOnce(supabaseBuilderMock)
+        .mockReturnValueOnce(supabaseBuilderMock)
+        .mockReturnValueOnce(Promise.resolve({ data: [{ id: "shift-123" }], error: null }) as never);
 
       const result = await respondToPublicShiftAction("valid-token", "confirmed");
       expect(result).toEqual({ ok: true });
@@ -857,6 +871,27 @@ describe("volunteer actions", () => {
         operation: "UPDATE",
         actorRole: "anonymous_volunteer",
       }));
+    });
+
+    it("respondToPublicShiftAction refuses a service that has already happened (Council Review 24)", async () => {
+      supabaseBuilderMock.maybeSingle.mockResolvedValueOnce({
+        data: {
+          id: "shift-old",
+          confirmation_status: "pending",
+          confirmation_token_expires_at: new Date(Date.now() + 100000).toISOString(),
+          church_id: "church-1",
+          assigned_user_id: "user-456",
+          starts_at: "2020-01-05T10:00:00+00:00",
+        },
+        error: null,
+      });
+      supabaseBuilderMock.maybeSingle.mockResolvedValueOnce({ data: { timezone: "America/New_York" }, error: null });
+
+      expect(await respondToPublicShiftAction("old-token", "declined")).toEqual({
+        ok: false,
+        error: "This service has already happened.",
+      });
+      expect(supabaseBuilderMock.update).not.toHaveBeenCalled();
     });
   });
 });

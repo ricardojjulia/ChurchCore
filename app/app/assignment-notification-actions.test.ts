@@ -155,6 +155,16 @@ describe("assignment notifications", () => {
     );
   });
 
+  it("refuses a shift time that isn't the church's wall-clock time (ADR 0023, Council Review 24)", async () => {
+    for (const startsAt of ["2026-11-15T10:00:00Z", "2026-11-15T10:00:00-05:00", "2026-11-15T10:00:00.000Z"]) {
+      expect(await assignVolunteerAction({ ...ASSIGN, startsAt })).toEqual({
+        ok: false,
+        error: "Shift times must be the church's local time.",
+      });
+    }
+    expect(calls.some((c) => c.method === "insert")).toBe(false);
+  });
+
   it("reads and writes the confirm token only through the church-scoped admin client (Council Review 23)", async () => {
     queueAssign(shiftRow());
     await assignVolunteerAction(ASSIGN);

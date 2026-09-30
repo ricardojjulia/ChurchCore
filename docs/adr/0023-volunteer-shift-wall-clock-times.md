@@ -38,15 +38,26 @@ What was wrong (Council Review 19, FS3-4) was every comparison against **"today"
 
 Applied in G1.6 to:
 
-- the member's shift response;
+- the member's shift response, and the response from the emailed link;
 - adding, removing and listing blockout dates (member, token link, admin);
-- the member schedule;
-- the upcoming/past service-plan split;
+- the member schedule, and the schedule reached from the emailed link;
+- the upcoming/past service-plan split, on the server and in the admin list (the church's today is passed down to the client);
 - the confirm-link expiry.
+
+*(Corrected by Council Review 24. This ADR's first draft listed the member schedule and the plan split as fixed, but the emailed-link schedule and the client-side split still used UTC.)*
+
+4. **Enforce the convention where it can break.**
+   - `assignVolunteerAction` refuses a shift time with an offset or `Z`.
+   - The church settings action accepts only a valid IANA zone. An unknown zone would silently fall back to UTC.
+   - Run-of-service item times, stored the same way, are displayed in UTC too.
 
 ## Consequences
 
 - An evening service at a UTC−4 church stays on its own day, all evening, everywhere the volunteer or admin sees it.
 - **Any new code writing a shift time must write local wall-clock without an offset.** Any new code reading one must either display it in UTC or treat it as local. Mixing a shift time with a real instant (e.g. `events.starts_at`, `now()`) needs one side converted first.
-- `lib/burnout-calculator.ts` counts the last 30 days from `now()` against wall-clock shift times, so it's off by the church's offset (hours in a 30-day window). Accepted as negligible.
-- **Deferred after MVP:** converting shift times to true instants (a data migration, `shiftWindowForPlan` writing offsets, displays in the church zone), which would remove the convention. Recorded in `DEVELOPMENT_PLAN.md` §0.5.
+- **Accepted small offsets.**
+  - `get_volunteer_pool`'s last-served compares wall-clock shift times with `now()`. That is off by the church's offset, a few hours.
+  - `lib/burnout-calculator.ts` counts 30 days back from the target shift, not from `now()`. It parses the offset-less string in the server's clock zone, so it's exact on a UTC server, as Vercel and CI are.
+  - *(Corrected by Council Review 24; the first draft said burnout counted from `now()`.)*
+- **The day math relies on the database session time zone being UTC.** That covers `starts_at::date`, `date_trunc('month', …)`, and `date + time` → `timestamptz` in fixtures. It is the Supabase default and nothing changes it; a change would silently move every shift's day.
+- **Deferred after MVP:** converting shift times to true instants (a data migration, `shiftWindowForPlan` writing offsets, displays in the church zone), which would remove the convention. It must land **before** any ICS export, reminder cron keyed to shift times, calendar that merges events and shifts, or Planning Center import, since each of those meets real instants (Council Review 24). Recorded in `DEVELOPMENT_PLAN.md` §0.5.

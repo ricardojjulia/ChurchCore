@@ -1,15 +1,14 @@
+import { todayInTimeZone } from "@/lib/church-time";
+
 /**
  * Blockout dates (G1.4): the days a volunteer can't serve. Stored one row per
  * day in volunteer_blocked_dates; the rotation planner's "Unavailable that
  * day" and the assign modal read them.
  *
- * "Today" is a UTC date for now; G1.6 moves day boundaries to the church's
- * timezone.
+ * "Today" is the church's today, from churches.timezone (G1.6, ADR 0023).
  */
 
 /** Longest single range a volunteer can add at once (e.g. a vacation). */
-import { todayInTimeZone } from "@/lib/church-time";
-
 export const MAX_BLOCKOUT_RANGE_DAYS = 90;
 /** How far ahead a blockout can be set. */
 export const MAX_BLOCKOUT_DAYS_AHEAD = 365;

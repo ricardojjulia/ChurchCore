@@ -12,14 +12,19 @@
 
 const FALLBACK_TIME_ZONE = "UTC";
 
-function validTimeZone(timeZone: string | null | undefined): string {
-  if (!timeZone) return FALLBACK_TIME_ZONE;
+/** True for an IANA zone the runtime knows, e.g. "America/New_York" (not "Eastern"). */
+export function isValidTimeZone(timeZone: string | null | undefined): boolean {
+  if (!timeZone) return false;
   try {
     new Intl.DateTimeFormat("en-US", { timeZone });
-    return timeZone;
+    return true;
   } catch {
-    return FALLBACK_TIME_ZONE;
+    return false;
   }
+}
+
+function validTimeZone(timeZone: string | null | undefined): string {
+  return timeZone && isValidTimeZone(timeZone) ? timeZone : FALLBACK_TIME_ZONE;
 }
 
 /** The church's current calendar day, `YYYY-MM-DD`. An unknown zone falls back to UTC. */
@@ -59,12 +64,23 @@ function offsetMinutes(timeZone: string, instant: number): number {
   return Math.round((asUtc - instant) / 60_000);
 }
 
-/** The real instant a church-local calendar day (`YYYY-MM-DD`) begins, i.e. 00:00 in the zone. */
-export function startOfDayInTimeZone(day: string, timeZone: string | null | undefined): Date {
+/**
+ * The real instant a church-local calendar day (`YYYY-MM-DD`) begins: 00:00 in
+ * the zone, or the first instant of the day where DST skips midnight (e.g.
+ * America/Santiago, America/Havana start their DST at 00:00). Null for a
+ * malformed day.
+ */
+export function startOfDayInTimeZone(day: string, timeZone: string | null | undefined): Date | null {
   const zone = validTimeZone(timeZone);
   const utcMidnight = Date.parse(`${day}T00:00:00Z`);
-  // Two passes settle the offset across a DST change on that day.
-  let instant = utcMidnight - offsetMinutes(zone, utcMidnight) * 60_000;
-  instant = utcMidnight - offsetMinutes(zone, instant) * 60_000;
-  return new Date(instant);
+  if (Number.isNaN(utcMidnight)) return null;
+  // Midnight under the offset in force just before and just after it. When DST
+  // jumps at midnight, only the later candidate falls on the requested day
+  // (Council Review 24); otherwise both agree.
+  const before = utcMidnight - offsetMinutes(zone, utcMidnight) * 60_000;
+  const after = utcMidnight - offsetMinutes(zone, before) * 60_000;
+  const onDay = [Math.min(before, after), Math.max(before, after)].find(
+    (instant) => todayInTimeZone(zone, new Date(instant)) === day,
+  );
+  return new Date(onDay ?? Math.max(before, after));
 }

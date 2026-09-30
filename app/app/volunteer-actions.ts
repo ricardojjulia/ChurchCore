@@ -1178,6 +1178,13 @@ export async function assignVolunteerAction(input: {
   const session = await requireServicePlanWriteAccess();
   const churchId = session.appContext.church.id;
 
+  // Shift times are the church's local wall-clock time with no offset
+  // (ADR 0023); an offset or "Z" would store a real instant and put the shift
+  // on the wrong day for every day check (Council Review 24).
+  if (!WALL_CLOCK_TIME.test(input.startsAt) || !WALL_CLOCK_TIME.test(input.endsAt)) {
+    return { ok: false, error: "Shift times must be the church's local time." };
+  }
+
   // Burnout check
   if (!input.bypassBurnout) {
     const burnoutResult = await checkVolunteerBurnout(churchId, input.profileId, input.startsAt);
@@ -1970,6 +1977,19 @@ export async function getPublicVolunteerShiftByToken(token: string) {
   return shift;
 }
 
+/** A shift time in the church's wall-clock form: no offset, no "Z" (ADR 0023). */
+const WALL_CLOCK_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
+
+/** The church's time zone, for token pages that have no session (G1.6). */
+async function churchTimeZoneFor(churchId: string): Promise<string | null> {
+  const { data } = await createTenantAdminClient()
+    .from("churches")
+    .select("timezone")
+    .eq("id", churchId)
+    .maybeSingle();
+  return (data as { timezone: string | null } | null)?.timezone ?? null;
+}
+
 export async function getPublicVolunteerScheduleByToken(token: string) {
   if (!token) return [];
 
@@ -2006,7 +2026,10 @@ export async function getPublicVolunteerScheduleByToken(token: string) {
     `)
     .eq("assigned_user_id", profileId)
     .eq("church_id", churchId)
-    .gte("starts_at", new Date().toISOString())
+    // From the start of the church's today, in the wall-clock form shift times
+    // are stored in, like the signed-in schedule: comparing with the real now
+    // dropped an 8 pm service at 4 pm in a UTC−4 church (Council Review 24).
+    .gte("starts_at", `${churchToday(await churchTimeZoneFor(churchId))}T00:00:00`)
     .order("starts_at", { ascending: true });
 
   if (error) {
@@ -2029,6 +2052,11 @@ export async function respondToPublicShiftAction(
   if (!shift) {
     return { ok: false, error: "Invalid or expired token." };
   }
+  // Like the signed-in response, only a shift that hasn't happened yet can be
+  // answered; its UTC date is its church-local day (ADR 0023, Council Review 24).
+  if (shift.starts_at.slice(0, 10) < churchToday(await churchTimeZoneFor(shift.church_id))) {
+    return { ok: false, error: "This service has already happened." };
+  }
 
   const supabase = createTenantAdminClient();
 
@@ -2037,7 +2065,7 @@ export async function respondToPublicShiftAction(
     decline_reason: shift.decline_reason,
   };
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("volunteer_shifts")
     .update({
       confirmation_status: response,
@@ -2045,10 +2073,13 @@ export async function respondToPublicShiftAction(
       responded_at: new Date().toISOString(),
       status: response === "confirmed" ? "confirmed" : "open",
     })
-    .eq("id", shift.id);
+    .eq("id", shift.id)
+    .eq("church_id", shift.church_id)
+    .select("id");
 
-  if (error) {
-    return { ok: false, error: error.message };
+  if (error || !updated || updated.length === 0) {
+    console.error("Failed to save the volunteer's response:", error?.message ?? "no row updated");
+    return { ok: false, error: "Couldn't save your response. Please try again." };
   }
 
   try {
@@ -2428,15 +2459,10 @@ async function volunteerForToken(
   const shift = await getPublicVolunteerShiftByToken(token);
   if (!shift?.assigned_user_id) return null;
   // The church's zone decides which day is "today" for this volunteer (G1.6).
-  const { data: church } = await createTenantAdminClient()
-    .from("churches")
-    .select("timezone")
-    .eq("id", shift.church_id)
-    .maybeSingle();
   return {
     churchId: shift.church_id,
     profileId: shift.assigned_user_id,
-    timeZone: (church as { timezone: string | null } | null)?.timezone ?? null,
+    timeZone: await churchTimeZoneFor(shift.church_id),
   };
 }
 
