@@ -62,3 +62,14 @@ Diff-scoped, 11 files. G1.6 keeps volunteer shift times as church wall-clock lab
 - **Showing the church's time zone** ("Times are in Eastern time") on the member schedule, portal pages and email footer (Agent 3): §0.5, cheap follow-up.
 - Make the `timeZone` parameters required (Agent 2): folded into S9's regression guards.
 - Event picker labels in the browser's zone (Agent 3), and the New Year's Eve `p_year` edge (Agent 1): §0.5, minor.
+
+## 8. Addendum — found by CI after the review (2026-09-30)
+
+The PR's first CI run failed the S8 RSVP journey on shard 1. It was a real bug, not a flake:
+- **Cause:** the calendar's month and week grids built each cell as `new Date(year, month, day)`, midnight in the *viewer's* browser zone, then read which church day that instant falls on.
+- **Effect:** for a viewer east of the church (CI's browser runs in UTC; the church is in New York), that's the previous church day. Every event sat one cell late, and the last day of the month's events vanished. It showed on Sep 30, the month's last day.
+- **Fix:** cells are church calendar days anchored at church-local noon (`churchDayAnchor`, `dayKeyFromParts` in `lib/calendar-utils.ts`).
+- **Proof:** a regression test puts the church in Honolulu, west of any test machine. It fails on the old code and passes on the new.
+
+It's the same class of bug as G1.6 (a day computed in the wrong zone), in the calendar rather than volunteer scheduling. All four agents missed it, because it lives outside the diff.
+
