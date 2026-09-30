@@ -277,7 +277,9 @@ describe("rotation planner actions", () => {
 
       expect(result).toEqual({
         ok: true,
-        results: [{ positionId: "pos-g", profileId: "p-maya", ok: true, notification: { status: "sent", channel: "email" } }],
+        results: [
+          { positionId: "pos-g", profileId: "p-maya", ok: true, shiftId: "new-shift", notification: { status: "sent", channel: "email" } },
+        ],
       });
       const insert = calls.find((c) => c.table === "volunteer_shifts" && c.method === "insert");
       expect(insert?.args[0]).toMatchObject({
@@ -365,7 +367,7 @@ describe("rotation planner actions", () => {
       queue("profiles", { data: { id: "p-maya" }, error: null });
       queue("volunteer_shifts", { count: 0, error: null }, { data: [{ id: "existing-shift" }], error: null });
 
-      expect(await assignVolunteerAction(input)).toEqual({
+      expect(await assignVolunteerAction(input)).toMatchObject({
         ok: false,
         error: "This volunteer is already assigned on this service date.",
       });
@@ -385,7 +387,7 @@ describe("rotation planner actions", () => {
     it("assigns when the volunteer is free that day", async () => {
       queueAssignable();
 
-      expect(await assignVolunteerAction(input)).toEqual({ ok: true, notification: { status: "sent", channel: "email" } });
+      expect(await assignVolunteerAction(input)).toMatchObject({ ok: true, notification: { status: "sent", channel: "email" } });
       expect(calls.some((c) => c.table === "volunteer_shifts" && c.method === "insert")).toBe(true);
       // The position lookup is scoped to the plan and the church.
       expect(calls).toEqual(
@@ -402,7 +404,7 @@ describe("rotation planner actions", () => {
       queue("service_plans", { data: { event_id: "event-1" }, error: null });
       queue("service_plan_positions", { data: null, error: null });
 
-      expect(await assignVolunteerAction(input)).toEqual({ ok: false, error: "Position not found on this plan." });
+      expect(await assignVolunteerAction(input)).toMatchObject({ ok: false, error: "Position not found on this plan." });
       expect(calls.some((c) => c.method === "insert")).toBe(false);
     });
 
@@ -411,7 +413,7 @@ describe("rotation planner actions", () => {
       queue("service_plan_positions", { data: { id: "pos-g", quantity_needed: 1 }, error: null });
       queue("profiles", { data: null, error: null });
 
-      expect(await assignVolunteerAction(input)).toEqual({ ok: false, error: "Volunteer not found in this church." });
+      expect(await assignVolunteerAction(input)).toMatchObject({ ok: false, error: "Volunteer not found in this church." });
       expect(calls.some((c) => c.method === "insert")).toBe(false);
     });
 
@@ -421,7 +423,7 @@ describe("rotation planner actions", () => {
       queue("profiles", { data: { id: "p-maya" }, error: null });
       queue("volunteer_shifts", { count: 2, error: null });
 
-      expect(await assignVolunteerAction(input)).toEqual({ ok: false, error: "This position is already filled." });
+      expect(await assignVolunteerAction(input)).toMatchObject({ ok: false, error: "This position is already filled." });
       expect(calls.some((c) => c.method === "insert")).toBe(false);
     });
   });

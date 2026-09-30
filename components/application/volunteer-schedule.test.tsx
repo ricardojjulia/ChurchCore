@@ -701,6 +701,20 @@ describe("ServicePlanBuilder — add position (role type picker)", () => {
     });
   });
 
+  it("offers Auto-fill as soon as a new position adds unfilled slots, without a reload (G1.11)", async () => {
+    const user = userEvent.setup();
+    addPlanPositionActionMock.mockResolvedValue({ ok: true, id: "pos-1" });
+    renderBuilder({ ...baseDetail(), unfilledCount: 0 }, { roleTypes: [{ id: "role-1", name: "Greeter" }] });
+    expect(screen.queryByRole("button", { name: "Auto-fill plan" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Add Position" }));
+    await user.click(screen.getByRole("combobox", { name: /role type/i }));
+    await user.click(await screen.findByText("Greeter"));
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByRole("button", { name: "Auto-fill plan" })).toBeInTheDocument();
+  });
+
   it("surfaces the server's own validation error when the action rejects the submission", async () => {
     const user = userEvent.setup();
     addPlanPositionActionMock.mockResolvedValue({
@@ -901,6 +915,24 @@ describe("ServicePlanBuilder — rotation planner feedback (Council Review 19)",
 });
 
 describe("ServicePlanBuilder — assignment notifications (G1.5)", () => {
+  it("removes a just-assigned volunteer by their real shift id, not a made-up one (Council Review 25)", async () => {
+    const user = userEvent.setup();
+    const detail = baseDetail();
+    detail.positions = [basePosition({ id: "pos-1", roleName: "Greeter", quantityNeeded: 2 })];
+    assignVolunteerActionMock.mockResolvedValue({ ok: true, shiftId: "shift-real" });
+    removeAssignmentActionMock.mockResolvedValue({ ok: true });
+    renderBuilder(detail, { pool: [basePoolEntry({ profileId: "p-1", fullName: "Alice Helper" })] });
+
+    await user.click(screen.getByRole("button", { name: "Assign" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Assign" }));
+    await screen.findByText(/^Alice Helper assigned as Greeter\./);
+    // Remove shows as loading while the assignment's transition settles; a
+    // click on the disabled button is ignored (slower in CI).
+    await clickWhenEnabled(user, screen.getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(removeAssignmentActionMock).toHaveBeenCalledWith("shift-real", detail.plan.id));
+  });
+
   it("tells the admin whether the volunteer was notified", async () => {
     const user = userEvent.setup();
     const detail = baseDetail();
