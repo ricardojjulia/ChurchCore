@@ -70,6 +70,8 @@ type HydratedProfileRecord = {
   displayTitle: string | null;
   isPastoral: boolean;
   church: ChurchSummary | null;
+  /** Merged into another profile: not this person's profile any more (S9). */
+  merged: boolean;
 };
 
 export type ControlAppContext = {
@@ -344,6 +346,19 @@ function normalizeMembershipRows(rows: unknown[] | null | undefined) {
   });
 }
 
+/**
+ * The signed-in person's profiles.id in the church in context, or null. The
+ * profile row belongs to one church, so it's only "theirs" in that church,
+ * and not once it's been merged into another (S9). profiles.user_id is
+ * unique, so a login has at most one profile.
+ */
+export function churchProfileIdFor(
+  appContext: AppContext,
+  profile: { id: string; churchId: string | null; merged: boolean } | null,
+): string | null {
+  return appContext.kind === "church" && profile?.churchId === appContext.church.id && !profile.merged ? profile.id : null;
+}
+
 function normalizeHydratedProfileRow(
   row: unknown,
 ): HydratedProfileRecord | null {
@@ -374,6 +389,7 @@ function normalizeHydratedProfileRow(
       typeof record.display_title === "string" ? record.display_title : null,
     isPastoral: Boolean(record.is_pastoral),
     church,
+    merged: record.merged_at != null && record.merged_at !== undefined,
   };
 }
 
@@ -535,6 +551,8 @@ async function loadSupabaseAppDataFromLocalDb(userId: string) {
         role: profileRow.role,
         displayTitle: profileRow.display_title,
         isPastoral: Boolean(profileRow.is_pastoral),
+        // Local dual-path (deprecated): merged profiles aren't selected here.
+        merged: false,
         church:
           profileRow.church_id &&
           profileRow.church_name &&
@@ -961,7 +979,7 @@ export async function getSession(
               tenantSupabase
                 .from("profiles")
                 .select(
-                  "id, user_id, church_id, full_name, email, role, display_title, is_pastoral, churches(id, name, slug, timezone)",
+                  "id, user_id, church_id, full_name, email, role, display_title, is_pastoral, merged_at, churches(id, name, slug, timezone)",
                 )
                 .eq("user_id", user.id)
                 .maybeSingle(),
@@ -1107,11 +1125,7 @@ export async function getSession(
       source: "supabase",
       profile,
       userId: user.id,
-      // The profile row belongs to one church; it's only "theirs" in that church.
-      churchProfileId:
-        appContext.kind === "church" && hydratedProfile?.churchId === appContext.church.id
-          ? hydratedProfile.id
-          : null,
+      churchProfileId: churchProfileIdFor(appContext, hydratedProfile),
       appContext,
       memberships,
       tenantViews,

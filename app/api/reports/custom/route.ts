@@ -89,7 +89,7 @@ export async function GET(request: Request) {
         tableName: "reports",
         recordId: churchId,
         operation: "UPDATE",
-        actorId: session.profile.id,
+        actorId: session.userId,
         churchId,
         actorRole: session.appContext.roleId,
         newValues: { entity, rowCount: rows.length },

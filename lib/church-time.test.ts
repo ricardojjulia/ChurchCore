@@ -56,7 +56,7 @@ describe("startOfDayInTimeZone", () => {
 
   it("is UTC midnight for UTC or an unknown zone", () => {
     expect(startOfDayInTimeZone("2026-10-05", "UTC")!.toISOString()).toBe("2026-10-05T00:00:00.000Z");
-    expect(startOfDayInTimeZone("2026-10-05", undefined)!.toISOString()).toBe("2026-10-05T00:00:00.000Z");
+    expect(startOfDayInTimeZone("2026-10-05", null)!.toISOString()).toBe("2026-10-05T00:00:00.000Z");
   });
 });
 

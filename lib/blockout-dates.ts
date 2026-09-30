@@ -50,7 +50,7 @@ function toDay(ms: number): string {
 }
 
 /** The church's today (G1.6): a church at UTC−4 mustn't reach "tomorrow" at 8 pm local. */
-export function churchToday(timeZone: string | null | undefined, now: Date = new Date()): string {
+export function churchToday(timeZone: string | null, now: Date = new Date()): string {
   return todayInTimeZone(timeZone, now);
 }
 
@@ -60,8 +60,9 @@ export function churchToday(timeZone: string | null | undefined, now: Date = new
  */
 export function expandBlockoutRange(
   input: { from: string; to?: string | null; reason?: string | null },
+  // Required, so no caller silently gets UTC instead of the church's zone (S9).
+  timeZone: string | null,
   now: Date = new Date(),
-  timeZone?: string | null,
 ):
   | { ok: true; dates: string[]; reason: string | null }
   | { ok: false; code: BlockoutErrorCode; error: string } {
@@ -91,8 +92,8 @@ export function expandBlockoutRange(
  */
 export function validateBlockoutRemoval(
   input: { from: string; to?: string | null },
+  timeZone: string | null,
   now: Date = new Date(),
-  timeZone?: string | null,
 ): { ok: true; from: string; to: string } | { ok: false; code: BlockoutErrorCode; error: string } {
   const from = parseDay(input.from);
   const to = parseDay(input.to || input.from);

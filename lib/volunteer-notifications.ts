@@ -20,7 +20,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
  * When a shift's confirm link expires: the end of the service date + 7 days in
  * the church's time zone (G1.6), and at least 7 days from now.
  */
-export function tokenExpiryFor(serviceDate: string, now: Date = new Date(), timeZone?: string | null): Date {
+export function tokenExpiryFor(serviceDate: string, timeZone: string | null, now: Date = new Date()): Date {
   const serviceMs = Date.parse(`${serviceDate}T00:00:00Z`);
   const expiryDay = Number.isNaN(serviceMs)
     ? null

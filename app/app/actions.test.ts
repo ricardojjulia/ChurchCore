@@ -460,7 +460,7 @@ describe("app actions", () => {
         recordId: "alert-123",
         operation: "UPDATE",
         // Audit actors are login ids (audit_log.actor_id holds auth.uid()).
-          actorId: "profile-pastor-1-login",
+          actorId: "pastor-1",
         churchId: "church-1",
         actorRole: "pastor",
         newValues: { acknowledged: true },
@@ -490,7 +490,7 @@ describe("app actions", () => {
         recordId: "alert-456",
         operation: "UPDATE",
         // Audit actors are login ids (audit_log.actor_id holds auth.uid()).
-          actorId: "profile-pastor-1-login",
+          actorId: "pastor-1",
         churchId: "church-1",
         actorRole: "pastor",
         newValues: { acknowledged: true },
