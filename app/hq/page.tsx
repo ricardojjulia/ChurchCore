@@ -118,7 +118,8 @@ export default function ProjectHQPage() {
   // Authentication & Session state
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [userRole, setUserRole] = useState<"admin" | "manager" | "teacher" | "member" | null>(null);
+  // Platform admins get "admin"; everyone else "member" (S5).
+  const [userRole, setUserRole] = useState<"admin" | "member" | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
 
@@ -233,7 +234,7 @@ export default function ProjectHQPage() {
 
   // Permissions helper
   const canDelete = userRole === "admin";
-  const canWrite = userRole === "admin" || userRole === "manager";
+  const canWrite = userRole === "admin";
 
   // Task Mutations
   async function handleSaveTask(event: React.FormEvent<HTMLFormElement>) {

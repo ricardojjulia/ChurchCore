@@ -32,6 +32,14 @@ export async function POST(request: NextRequest): Promise<Response> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // The HQ advisor serves Project HQ, which is platform staff only (S5):
+  // without this any signed-in member could spend the AI budget, and its
+  // hq_sessions log is platform-admin only anyway (Council Review 27).
+  const { data: isPlatformAdmin, error: roleError } = await supabase.rpc("is_platform_admin");
+  if (roleError || isPlatformAdmin !== true) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(

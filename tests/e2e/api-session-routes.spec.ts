@@ -93,10 +93,10 @@ test.describe("GET /api/reports/custom — signed out", () => {
 test.describe("session routes — signed in as member", () => {
   test.use({ storageState: authFilePath("member") });
 
-  test("POST /api/ai without ANTHROPIC_API_KEY -> 500 with a clear message, no crash", async ({ page }) => {
+  test("POST /api/ai -> 403: the HQ advisor is platform staff only (S5, Council Review 27)", async ({ page }) => {
     const response = await page.request.post("/api/ai", { data: { prompt: "hello" } });
-    expect(response.status()).toBe(500);
-    expect(await response.json()).toEqual({ error: "AI features are not configured in this environment." });
+    expect(response.status()).toBe(403);
+    expect(await response.json()).toEqual({ error: "Forbidden" });
   });
 
   test("POST /api/push/subscribe for the caller's own profile -> graceful skip without VAPID keys", async ({ page }) => {
@@ -190,5 +190,17 @@ test.describe("control-plane routes — signed in as a tenant role (church-admin
     });
     expect(response.status()).toBe(307);
     expect(response.headers()["location"]).toContain("force=1");
+  });
+});
+
+// The sweep's church-admin identity (sarah) is also a platform admin, so she
+// reaches the HQ advisor; without ANTHROPIC_API_KEY it degrades gracefully.
+test.describe("session routes — signed in as a platform admin", () => {
+  test.use({ storageState: authFilePath("church-admin") });
+
+  test("POST /api/ai without ANTHROPIC_API_KEY -> 500 with a clear message, no crash", async ({ page }) => {
+    const response = await page.request.post("/api/ai", { data: { prompt: "hello" } });
+    expect(response.status()).toBe(500);
+    expect(await response.json()).toEqual({ error: "AI features are not configured in this environment." });
   });
 });

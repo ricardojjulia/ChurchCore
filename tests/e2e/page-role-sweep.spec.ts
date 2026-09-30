@@ -72,13 +72,6 @@ const INLINE_DENIAL: Record<string, { message: string; absentHeading: string }> 
  * the test fails, and the entry must be removed.
  */
 const KNOWN_BUGS: Record<string, { reason: string; landing?: string; text?: string }> = {
-  "secretary /hq": {
-    reason:
-      "app/hq/layout.tsx gates on current_user_role(), which reads profiles.role, while the rest of the app uses " +
-      "church_memberships.role. The local secretary's profile role is member_volunteer (seed.sql sets 'secretary'; " +
-      "the cause of that drift is a Council Review 18 follow-up), so /hq sends her to /app and on to her homePath.",
-    landing: "/app/secretary",
-  },
   "secretary /app/communications/history/[logId]": {
     reason:
       "The page's gate admits secretary, but communication_logs RLS (can_manage_church) excludes her, so the log " +

@@ -18,6 +18,7 @@ const MEMBER = "00000000-0000-0000-0000-00000000e501";
 const ADMIN = "00000000-0000-0000-0000-00000000e502";
 const SECRETARY = "00000000-0000-0000-0000-00000000e503";
 const PLATFORM = "00000000-0000-0000-0000-00000000e504";
+const LEADER = "00000000-0000-0000-0000-00000000e505";
 
 describe("S5: self-edit lock, membership roles, platform-only /hq", () => {
   let pool: Pool;
@@ -43,17 +44,18 @@ describe("S5: self-edit lock, membership roles, platform-only /hq", () => {
         [ADMIN, "lock-admin@example.test"],
         [SECRETARY, "lock-secretary@example.test"],
         [PLATFORM, "lock-platform@example.test"],
+        [LEADER, "lock-leader@example.test"],
       ]) {
         await client.query(`insert into auth.users (id, email) values ($1, $2)`, [id, email]);
       }
       await client.query(
         `insert into public.church_memberships (church_id, user_id, role) values
-           ($1, $2, 'member'), ($1, $3, 'church_admin'), ($1, $4, 'secretary')`,
-        [CHURCH, MEMBER, ADMIN, SECRETARY],
+           ($1, $2, 'member'), ($1, $3, 'church_admin'), ($1, $4, 'secretary'), ($1, $5, 'ministry_leader')`,
+        [CHURCH, MEMBER, ADMIN, SECRETARY, LEADER],
       );
       await client.query(`update public.profiles set church_id = $1 where user_id = any($2::uuid[])`, [
         CHURCH,
-        [MEMBER, ADMIN, SECRETARY],
+        [MEMBER, ADMIN, SECRETARY, LEADER],
       ]);
       await client.query(`insert into public.platform_admins (user_id) values ($1)`, [PLATFORM]);
       await testFn(client);
@@ -106,6 +108,44 @@ describe("S5: self-edit lock, membership roles, platform-only /hq", () => {
           MEMBER,
           `update public.profiles set phone = '555-0100', data_export_requested_at = now() where user_id = $1`,
           [MEMBER],
+        );
+        expect(res.error).toBeNull();
+        expect(res.rowCount).toBe(1);
+      });
+    });
+
+    it("a member can't move themselves into another household (Council Review 27)", async () => {
+      await inRolledBackTransaction(async (client) => {
+        const family = await client.query<{ id: string }>(
+          `insert into public.families (church_id, family_name) values ($1, 'Other Household') returning id`,
+          [CHURCH],
+        );
+        const res = await as(client, MEMBER, `update public.profiles set family_id = $2 where user_id = $1`, [
+          MEMBER,
+          family.rows[0].id,
+        ]);
+        expect(res.error).toMatch(/can't change that on your own profile/);
+      });
+    });
+
+    it("a ministry leader can't set their own safety clearance or deletion approval (owner decision 2026-09-30)", async () => {
+      await inRolledBackTransaction(async (client) => {
+        for (const sql of [
+          `update public.profiles set safety_clearance_date = current_date where user_id = $1`,
+          `update public.profiles set data_delete_approved_at = now() where user_id = $1`,
+        ]) {
+          expect((await as(client, LEADER, sql, [LEADER])).error).toMatch(/can't change that on your own profile/);
+        }
+      });
+    });
+
+    it("a church admin can demote themselves: the membership sync isn't blocked (Council Review 27)", async () => {
+      await inRolledBackTransaction(async (client) => {
+        const res = await as(
+          client,
+          ADMIN,
+          `update public.church_memberships set role = 'pastor' where user_id = $1 and church_id = $2`,
+          [ADMIN, CHURCH],
         );
         expect(res.error).toBeNull();
         expect(res.rowCount).toBe(1);

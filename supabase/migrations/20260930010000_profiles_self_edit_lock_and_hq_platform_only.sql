@@ -7,8 +7,13 @@
 --    data-rights approval, pastoral flag or safety clearance through PostgREST.
 --    Column grants can't close this (managers edit the same columns through
 --    the same role), so a trigger refuses a change to these columns on your
---    own profile unless you manage that church. Server-side admin writes run
---    without a user (auth.uid() is null) and aren't affected.
+--    own profile unless you're a church admin there or a platform admin
+--    (owner decision 2026-09-30: pastors and ministry leaders ask an admin,
+--    like everyone else). family_id is locked too: moving yourself into
+--    another household let you edit that family and check its people in
+--    (Council Review 27). Server-side admin writes run without a user
+--    (auth.uid() is null), and changes made by the membership snapshot sync
+--    (a trigger) are allowed, so neither is affected.
 --
 -- 2. current_user_role() read profiles.role, which a member could set, and
 --    which can't even say "secretary" (the enum has no such value, so the
@@ -32,8 +37,18 @@ as $$
 begin
   if auth.uid() is null
      or old.user_id is distinct from auth.uid()
+     -- Written by another trigger (the membership snapshot sync), not by the
+     -- member: e.g. a church admin demoting themselves re-syncs their profile
+     -- after they've stopped being an admin (Council Review 27).
+     or pg_trigger_depth() > 1
      or public.is_platform_admin()
-     or (old.church_id is not null and public.can_manage_church(old.church_id)) then
+     or exists (
+       select 1 from public.church_memberships membership
+       where membership.user_id = auth.uid()
+         and membership.church_id = old.church_id
+         and membership.role = 'church_admin'
+         and membership.is_active
+     ) then
     return new;
   end if;
 
@@ -47,7 +62,8 @@ begin
      or new.safety_clearance_date is distinct from old.safety_clearance_date
      or new.merged_into_profile_id is distinct from old.merged_into_profile_id
      or new.merged_at is distinct from old.merged_at
-     or new.member_number is distinct from old.member_number then
+     or new.member_number is distinct from old.member_number
+     or new.family_id is distinct from old.family_id then
     raise exception 'You can''t change that on your own profile. Ask a church administrator.'
       using errcode = '42501';
   end if;
