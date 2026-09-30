@@ -118,7 +118,8 @@ export default function ProjectHQPage() {
   // Authentication & Session state
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [userRole, setUserRole] = useState<"admin" | "manager" | "teacher" | "member" | null>(null);
+  // Platform admins get "admin"; everyone else "member" (S5).
+  const [userRole, setUserRole] = useState<"admin" | "member" | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
 
@@ -206,13 +207,14 @@ export default function ProjectHQPage() {
 
         setProfile(profileData as unknown as Profile);
 
-        // Fetch role via RPC
-        const { data: roleData, error: roleError } = await supabase.rpc("current_user_role");
+        // Project HQ is ChurchCore's internal dashboard: platform admins only
+        // (S5, owner decision 2026-09-30). Church roles no longer grant access.
+        const { data: isPlatformAdmin, error: roleError } = await supabase.rpc("is_platform_admin");
         if (roleError) {
-          console.error("Error fetching user role:", roleError);
+          console.error("Error checking platform access:", roleError);
           setUserRole("member");
         } else {
-          setUserRole(roleData as "admin" | "manager" | "teacher" | "member" | null);
+          setUserRole(isPlatformAdmin === true ? "admin" : "member");
         }
       } catch (err) {
         console.error("Auth session load error:", err);
@@ -232,7 +234,7 @@ export default function ProjectHQPage() {
 
   // Permissions helper
   const canDelete = userRole === "admin";
-  const canWrite = userRole === "admin" || userRole === "manager";
+  const canWrite = userRole === "admin";
 
   // Task Mutations
   async function handleSaveTask(event: React.FormEvent<HTMLFormElement>) {
@@ -540,8 +542,7 @@ export default function ProjectHQPage() {
             <Lock size={32} color="red" />
             <Title order={3}>Access Denied</Title>
             <Text c="dimmed" ta="center" size="sm">
-              Project HQ is reserved exclusively for LMS administrators, managers, and teachers.
-              Your account current role does not have authorization.
+              Project HQ is ChurchCore&apos;s internal project dashboard, for platform staff only.
             </Text>
             <Button color="gray" fullWidth onClick={() => router.push("/workspace/member")}>
               Return to Member Portal

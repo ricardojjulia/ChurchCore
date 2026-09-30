@@ -1,6 +1,33 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { scrubPII } from "@/app/api/ai/route";
+const { getUserMock, rpcMock } = vi.hoisted(() => ({ getUserMock: vi.fn(), rpcMock: vi.fn() }));
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: vi.fn(async () => ({ auth: { getUser: getUserMock }, rpc: rpcMock })),
+}));
+
+import { POST, scrubPII } from "@/app/api/ai/route";
+
+describe("POST /api/ai gate (S5, Council Review 27)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const request = () =>
+    new Request("http://localhost/api/ai", { method: "POST", body: JSON.stringify({ prompt: "hi" }) }) as never;
+
+  it("refuses signed-out callers", async () => {
+    getUserMock.mockResolvedValue({ data: { user: null }, error: null });
+    expect((await POST(request())).status).toBe(401);
+  });
+
+  it("refuses signed-in users who aren't platform admins, before any AI call", async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
+    rpcMock.mockResolvedValue({ data: false, error: null });
+    expect((await POST(request())).status).toBe(403);
+    expect(rpcMock).toHaveBeenCalledWith("is_platform_admin");
+  });
+});
 
 describe("scrubPII", () => {
   it("scrubs email addresses", () => {

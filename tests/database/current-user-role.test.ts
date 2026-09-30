@@ -60,7 +60,8 @@ describe("current_user_role RLS helper function", () => {
     });
   });
 
-  it("returns 'admin' if user profile role is 'church_admin'", async () => {
+  // Roles come from church_memberships, not profiles.role (S5).
+  it("returns 'admin' for a church_admin membership", async () => {
     await runTestInTransaction(async (client) => {
       const testUserId = "22222222-2222-2222-2222-222222222222";
       const churchId = "00000000-0000-0000-0000-000000000001";
@@ -86,6 +87,10 @@ describe("current_user_role RLS helper function", () => {
          WHERE user_id = $1`,
         [testUserId, "Admin Tester", "church_admin", churchId]
       );
+      await client.query(
+        `INSERT INTO public.church_memberships (church_id, user_id, role) VALUES ($1, $2, 'church_admin')`,
+        [churchId, testUserId]
+      );
 
       await client.query("SELECT set_config('request.jwt.claim.sub', $1, true)", [testUserId]);
 
@@ -94,7 +99,7 @@ describe("current_user_role RLS helper function", () => {
     });
   });
 
-  it("returns 'manager' if user profile role is in pastor/secretary/ministry_leader list", async () => {
+  it("returns 'manager' for a pastor, secretary or ministry_leader membership", async () => {
     await runTestInTransaction(async (client) => {
       const testUserId = "33333333-3333-3333-3333-333333333333";
       const churchId = "00000000-0000-0000-0000-000000000001";
@@ -117,6 +122,10 @@ describe("current_user_role RLS helper function", () => {
          WHERE user_id = $1`,
         [testUserId, "Pastor Tester", "pastor_elder", churchId]
       );
+      await client.query(
+        `INSERT INTO public.church_memberships (church_id, user_id, role) VALUES ($1, $2, 'pastor')`,
+        [churchId, testUserId]
+      );
 
       await client.query("SELECT set_config('request.jwt.claim.sub', $1, true)", [testUserId]);
 
@@ -125,7 +134,7 @@ describe("current_user_role RLS helper function", () => {
     });
   });
 
-  it("returns 'teacher' if profile role is 'member_volunteer' and has a 'lead_teacher' volunteer assignment", async () => {
+  it("returns 'teacher' for a member with a 'lead_teacher' volunteer assignment", async () => {
     await runTestInTransaction(async (client) => {
       const testUserId = "44444444-4444-4444-4444-444444444444";
       const churchId = "00000000-0000-0000-0000-000000000001";
@@ -169,6 +178,10 @@ describe("current_user_role RLS helper function", () => {
         [testUserId]
       );
       const profileId = profileRes.rows[0]?.id;
+      await client.query(
+        `INSERT INTO public.church_memberships (church_id, user_id, role) VALUES ($1, $2, 'member')`,
+        [churchId, testUserId]
+      );
 
       await client.query(
         `UPDATE public.profiles 

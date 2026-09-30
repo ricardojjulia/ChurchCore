@@ -45,11 +45,11 @@ describe("HqLayout", () => {
     expect(rpcMock).not.toHaveBeenCalled();
   });
 
-  it("redirects members to /app without rendering the dashboard", async () => {
+  it("redirects anyone who isn't a platform admin, church admins included (S5)", async () => {
     getSessionMock.mockResolvedValueOnce({
       data: { session: { user: { id: "user-1" } } },
     });
-    rpcMock.mockResolvedValueOnce({ data: "member", error: null });
+    rpcMock.mockResolvedValueOnce({ data: false, error: null });
 
     await expect(
       HqLayout({ children: <div>content</div> }),
@@ -67,17 +67,15 @@ describe("HqLayout", () => {
     ).rejects.toEqual({ url: "/app" });
   });
 
-  it("renders children for admin, manager, and teacher roles", async () => {
-    for (const role of ["admin", "manager", "teacher"]) {
-      getSessionMock.mockResolvedValueOnce({
-        data: { session: { user: { id: "user-1" } } },
-      });
-      rpcMock.mockResolvedValueOnce({ data: role, error: null });
+  it("renders children for a platform admin", async () => {
+    getSessionMock.mockResolvedValueOnce({
+      data: { session: { user: { id: "user-1" } } },
+    });
+    rpcMock.mockResolvedValueOnce({ data: true, error: null });
 
-      const result = await HqLayout({ children: <div>content</div> });
-      expect(result).toBeTruthy();
-    }
-
+    const result = await HqLayout({ children: <div>content</div> });
+    expect(result).toBeTruthy();
+    expect(rpcMock).toHaveBeenCalledWith("is_platform_admin");
     expect(redirectMock).not.toHaveBeenCalled();
   });
 });

@@ -143,4 +143,49 @@ describe("merging duplicate profiles (Council Review 26)", () => {
     expect(grantees).not.toContain("anon");
     expect(grantees).not.toContain("PUBLIC");
   });
+
+  // Council Review 27: erase_profile_pii had the same flaw, and anon could run it.
+  describe("erasing a member's personal data (Council Review 27)", () => {
+    async function eraseAs(client: PoolClient, userId: string, target: string, actor: string | null) {
+      await client.query("savepoint erase_as");
+      await client.query(`set local role authenticated`);
+      await client.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: userId, role: "authenticated" })]);
+      try {
+        await client.query(`select public.erase_profile_pii($1, $2)`, [target, actor]);
+        await client.query("release savepoint erase_as");
+        return null;
+      } catch (error) {
+        await client.query("rollback to savepoint erase_as");
+        return (error as Error).message;
+      } finally {
+        await client.query(`reset role`);
+      }
+    }
+
+    it("anyone signed out, or a member naming an admin, can't erase; a church admin can", async () => {
+      await inRolledBackTransaction(async (client, ids) => {
+        // Signed out: no execute privilege. Checked through the catalog, because
+        // calling a function anon may not execute crashes the local Supabase
+        // Postgres backend (a local image fault, not ours).
+        const anon = await client.query(
+          `select has_function_privilege('anon', 'public.erase_profile_pii(uuid, uuid)', 'execute') as can`,
+        );
+        expect(anon.rows[0].can).toBe(false);
+        expect(await eraseAs(client, MEMBER_USER, ids.sourceProfile, ids.adminProfile)).toMatch(/Only church admins may erase/);
+        const untouched = await client.query(`select full_name from public.profiles where id = $1`, [ids.sourceProfile]);
+        expect(untouched.rows[0].full_name).not.toBe("[Erased]");
+
+        expect(await eraseAs(client, ADMIN_USER, ids.sourceProfile, ids.adminProfile)).toBeNull();
+        const erased = await client.query(`select full_name from public.profiles where id = $1`, [ids.sourceProfile]);
+        expect(erased.rows[0].full_name).toBe("[Erased]");
+        const audit = await client.query(
+          `select actor_id from public.audit_log where record_id = $1 and operation = 'ERASE' limit 1`,
+          [ids.sourceProfile],
+        );
+        // The audit records the login that erased it, not the argument.
+        expect(audit.rows[0].actor_id).toBe(ADMIN_USER);
+      });
+    });
+  });
 });
+

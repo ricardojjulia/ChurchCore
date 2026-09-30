@@ -3,10 +3,9 @@ import { redirect } from "next/navigation";
 import { createTenantServerClient } from "@/lib/supabase/tenant";
 
 /**
- * Server-side gate for /app/hq. The page itself is a client component that
- * fetches hq_tasks/hq_risks/hq_decisions/hq_sessions under RLS scoped to
- * current_user_role() — RLS already blocks "member" reads, but unauthenticated
- * or member-role requests should never reach the dashboard shell at all.
+ * Server-side gate for /hq, ChurchCore's internal project dashboard: platform
+ * admins only (S5, owner decision 2026-09-30). The hq_* tables' RLS allows only
+ * platform admins too; this keeps everyone else from reaching the shell.
  */
 export default async function HqLayout({
   children,
@@ -22,9 +21,9 @@ export default async function HqLayout({
     redirect("/sign-in");
   }
 
-  const { data: role, error } = await supabase.rpc("current_user_role");
+  const { data: isPlatformAdmin, error } = await supabase.rpc("is_platform_admin");
 
-  if (error || !role || role === "member") {
+  if (error || isPlatformAdmin !== true) {
     redirect("/app");
   }
 

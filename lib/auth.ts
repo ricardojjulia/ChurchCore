@@ -538,7 +538,7 @@ async function loadSupabaseAppDataFromLocalDb(userId: string) {
     }
   }
 
-  let memberships = normalizeMembershipRowsFromLocalDb(membershipsResult.rows);
+  const memberships = normalizeMembershipRowsFromLocalDb(membershipsResult.rows);
   const canAccessControl = platformAdminRows.length > 0;
   const profileRow = profileResult.rows[0];
   const hydratedProfile: HydratedProfileRecord | null = profileRow
@@ -569,22 +569,9 @@ async function loadSupabaseAppDataFromLocalDb(userId: string) {
       }
     : null;
 
-  const hydratedProfileRoleId =
-    hydratedProfile?.role ? mapSupabaseRole(hydratedProfile.role) : null;
-
-  if (
-    memberships.length === 0 &&
-    hydratedProfile?.church &&
-    hydratedProfileRoleId &&
-    isChurchRoleId(hydratedProfileRoleId)
-  ) {
-    memberships = [
-      {
-        church: hydratedProfile.church,
-        roleId: hydratedProfileRoleId,
-      },
-    ];
-  }
+  // Roles come only from church_memberships. A membership used to be
+  // made up from profiles.role when there was none, and a member could
+  // set their own profiles.role (S5, Council Review 21).
 
   const tenantViews = canAccessControl && tenantRows.length > 0
     ? tenantRows.map((row) => {
@@ -986,7 +973,7 @@ export async function getSession(
                 .maybeSingle(),
             ]);
 
-          let memberships = normalizeMembershipRows(membershipRows);
+          const memberships = normalizeMembershipRows(membershipRows);
           const canAccessControl = Boolean(platformAdmin);
           const hydratedProfile = normalizeHydratedProfileRow(profileRow);
           const allVisibleChurches =
@@ -1071,22 +1058,9 @@ export async function getSession(
                 },
               ];
             }) ?? [];
-          const hydratedProfileRoleId =
-            hydratedProfile?.role ? mapSupabaseRole(hydratedProfile.role) : null;
-
-          if (
-            memberships.length === 0 &&
-            hydratedProfile?.church &&
-            hydratedProfileRoleId &&
-            isChurchRoleId(hydratedProfileRoleId)
-          ) {
-            memberships = [
-              {
-                church: hydratedProfile.church,
-                roleId: hydratedProfileRoleId,
-              },
-            ];
-          }
+          // Roles come only from church_memberships. A membership used to be
+          // made up from profiles.role when there was none, and a member could
+          // set their own profiles.role (S5, Council Review 21).
 
           const tenantViews = canAccessControl
             ? allVisibleChurches
