@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PublicEventRegistrationPanel } from "@/components/portal/public-event-registration-panel";
 
@@ -85,5 +85,47 @@ describe("PublicEventRegistrationPanel", () => {
     expect(screen.getByText(/Complete \$35.00 through the secure Stripe payment step/)).toBeInTheDocument();
     expect(screen.getByText("Payment intent: pi_public_registration_1")).toBeInTheDocument();
     expect(screen.queryByText("public_client_secret_hidden")).not.toBeInTheDocument();
+  });
+
+  describe("demo payment (S4, PR #168 review)", () => {
+    async function openDemoCheckout() {
+      vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+      submitPublicEventRegistrationActionMock.mockResolvedValue({
+        ok: true,
+        status: "confirmed",
+        registrationId: "reg-public-1",
+        paymentIntentId: "pi_event_registration_stub_reg-public-1",
+        paymentClientSecret: null,
+      });
+      renderPanel();
+      fireEvent.click(screen.getByRole("button", { name: "Register" }));
+      fireEvent.change(screen.getByRole("textbox", { name: /Full name/i }), { target: { value: "Public Guest" } });
+      fireEvent.change(screen.getByRole("textbox", { name: /Email/i }), { target: { value: "guest@example.com" } });
+      fireEvent.click(screen.getByRole("button", { name: "Submit registration" }));
+      return screen.findByRole("button", { name: /Complete Demo Payment/ });
+    }
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    });
+
+    it("shows an error and keeps checkout open when the route refuses", async () => {
+      const fetchMock = vi.fn(async () => ({ ok: false, status: 404 }));
+      vi.stubGlobal("fetch", fetchMock);
+      fireEvent.click(await openDemoCheckout());
+
+      expect(await screen.findByText("The demo payment couldn't be completed.")).toBeInTheDocument();
+      expect(screen.getByText("Secure payment ready")).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledWith("/api/demo/complete-payment", expect.objectContaining({ method: "POST" }));
+    });
+
+    it("confirms and closes checkout when the route completes the payment", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200 })));
+      fireEvent.click(await openDemoCheckout());
+
+      expect(await screen.findByText("Demo payment complete. Registration confirmed.")).toBeInTheDocument();
+      expect(screen.queryByText("Secure payment ready")).not.toBeInTheDocument();
+    });
   });
 });

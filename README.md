@@ -41,7 +41,9 @@ The hosted demo is available at `https://church-core-ops.vercel.app`. No install
 | Ministry Leader | `leader@graceharbor.church` | Ministry Forge, volunteer scheduling, service plan |
 | Member / Volunteer | `member@graceharbor.church` | Member portal, giving history, groups, events |
 
-The demo church is **Grace Harbor Church** with pre-seeded data across all modules. For a full guided walkthrough — weekly readiness, children's ministry safety, GL posting, ShepherdAI workflows, and more — see [docs/setup/demo-install.md](docs/setup/demo-install.md).
+The demo church is **Grace Harbor Church** with pre-seeded data across all modules.
+
+> **Demo mode is for demos only.** A demo deploy runs with `NEXT_PUBLIC_DEMO_MODE=true`, which enables the demo-only routes (`/api/demo/*`, e.g. completing a stubbed event payment) and lets provider stubs report payments and messages as succeeded when Stripe or email/SMS keys are missing (`lib/stub-mode.ts`). A deploy that serves a real church must leave `NEXT_PUBLIC_DEMO_MODE` unset — see [docs/setup/production-deployment.md](docs/setup/production-deployment.md). For a full guided walkthrough — weekly readiness, children's ministry safety, GL posting, ShepherdAI workflows, and more — see [docs/setup/demo-install.md](docs/setup/demo-install.md).
 
 ## Technical Blueprint
 
@@ -196,7 +198,7 @@ Claude Code should run this through the `feature-factory` and `build-with-tests`
 - Data persistence tables: `ai_signals`, `ai_suggestions`, `workflows`, `workflow_actions`, `workflow_feedback`
 - Product boundary: Ops-only data and logic; no Academy or Care cross-product inference
 
-For recurring evaluation, configure `CRON_SECRET` and deploy `vercel.json` cron schedule.
+For recurring evaluation, configure `CRON_SECRET` and deploy `vercel.json` cron schedule. Every `/api/cron/*` route fails closed (S4, `lib/cron-auth.ts`): without `CRON_SECRET` it rejects every request on any built deploy (production, preview, demo), and only `next dev` runs it unauthenticated. Vercel Cron sends the secret as `Authorization: Bearer <CRON_SECRET>`; `x-cron-secret` also works for manual runs.
 The endpoint supports scoped runs with `tenantId` and bounded runs with `maxTenants`.
 Hosted rollout reference: [docs/setup/hosted-shepherdai-rollout.md](docs/setup/hosted-shepherdai-rollout.md).
 

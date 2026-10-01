@@ -2229,7 +2229,6 @@
       "untestedExports": {
         "createBudgetAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
         "deleteJournalDraftAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
-        "updateAccountAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
         "upsertBudgetLinesAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
       }
     },

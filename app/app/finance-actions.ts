@@ -450,12 +450,18 @@ export async function importFinanceRowsAction(input: ImportFinanceRowsInput): Pr
   if (importError || !impData) throw new Error(importError?.message ?? "Couldn't start the import.");
   const importId = (impData as { id: string }).id;
 
-  const markImportFailed = async (message: string) => {
-    await supabase
+  // Records the failure, then raises it. If even recording fails, both errors
+  // are raised, so an import never sits at "processing" unnoticed.
+  const failImport = async (message: string): Promise<never> => {
+    const { error: recordError } = await supabase
       .from("finance_imports")
       .update({ status: "failed", error_message: message })
       .eq("id", importId)
       .eq("church_id", churchId);
+    if (recordError) {
+      throw new Error(`${message} (and the import couldn't be marked failed: ${recordError.message})`);
+    }
+    throw new Error(message);
   };
 
   const { data: jData, error: journalError } = await supabase
@@ -464,8 +470,7 @@ export async function importFinanceRowsAction(input: ImportFinanceRowsInput): Pr
                status: "draft", created_by: profileId })
     .select("id").single();
   if (journalError || !jData) {
-    await markImportFailed(journalError?.message ?? "Couldn't create the journal.");
-    throw new Error(journalError?.message ?? "Couldn't create the journal.");
+    return failImport(journalError?.message ?? "Couldn't create the journal.");
   }
   const journalId = (jData as { id: string }).id;
 
@@ -487,15 +492,16 @@ export async function importFinanceRowsAction(input: ImportFinanceRowsInput): Pr
   }
   const { error: linesError } = await supabase.from("finance_journal_lines").insert(lineRows);
   if (linesError) {
-    await markImportFailed(linesError.message);
-    throw new Error(linesError.message);
+    return failImport(linesError.message);
   }
   const { error: completeError } = await supabase
     .from("finance_imports")
     .update({ status: "completed", imported_rows: validRows.length, journal_id: journalId })
     .eq("id", importId)
     .eq("church_id", churchId);
-  if (completeError) throw new Error(completeError.message);
+  if (completeError) {
+    return failImport(completeError.message);
+  }
 
   revalidatePath("/app/church-admin/finance/journals");
   revalidatePath("/app/church-admin/finance/import");
