@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
 import { resolveRegistrationLifecycle } from "@/lib/event-registration-lifecycle";
-import { createEventRegistrationPaymentIntent } from "@/lib/stripe/event-registrations";
+import { createEventRegistrationPaymentIntent, stubPaymentIntentId } from "@/lib/stripe/event-registrations";
 import {
   createTenantAdminClient,
   hasTenantBackendEnv,
@@ -672,7 +672,7 @@ export async function memberRegisterForEventAction(
         }
       }
 
-      const intentId = paymentIntent?.paymentIntentId ?? (demoMode ? `pi_demo_${registrationId.slice(-8)}` : null);
+      const intentId = paymentIntent?.paymentIntentId ?? (demoMode ? stubPaymentIntentId(registrationId) : null);
 
       await queryTenantLocalDb(
         `insert into public.event_registration_payments
@@ -862,7 +862,7 @@ export async function memberRegisterForEventAction(
       }
     }
 
-    const intentId = paymentIntent?.paymentIntentId ?? (demoMode ? `pi_demo_${data.id.slice(-8)}` : null);
+    const intentId = paymentIntent?.paymentIntentId ?? (demoMode ? stubPaymentIntentId(data.id) : null);
 
     // S8: the payments table is admin-only, so this upsert failed silently
     // and paid registrations had no payment record to reconcile against.

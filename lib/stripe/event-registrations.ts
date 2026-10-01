@@ -17,13 +17,22 @@ export type CreateEventRegistrationPaymentIntentResult = {
   isStub: boolean;
 };
 
+/**
+ * The payment id a registration gets when Stripe isn't charged: no Stripe
+ * keys, or demo mode. The demo "complete payment" route completes only this
+ * id (S4), so every stubbed path must use it.
+ */
+export function stubPaymentIntentId(registrationId: string): string {
+  return `pi_event_registration_stub_${registrationId}`;
+}
+
 export async function createEventRegistrationPaymentIntent(
   input: CreateEventRegistrationPaymentIntentInput,
 ): Promise<CreateEventRegistrationPaymentIntentResult> {
   if (!hasStripeConfig()) {
     return {
-      clientSecret: `pi_event_registration_stub_${input.registrationId}_secret_test`,
-      paymentIntentId: `pi_event_registration_stub_${input.registrationId}`,
+      clientSecret: `${stubPaymentIntentId(input.registrationId)}_secret_test`,
+      paymentIntentId: stubPaymentIntentId(input.registrationId),
       isStub: true,
     };
   }

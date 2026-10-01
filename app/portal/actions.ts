@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { resolveRegistrationLifecycle } from "@/lib/event-registration-lifecycle";
-import { createEventRegistrationPaymentIntent } from "@/lib/stripe/event-registrations";
+import { createEventRegistrationPaymentIntent, stubPaymentIntentId } from "@/lib/stripe/event-registrations";
 import { getRequestedPublicChurch } from "@/lib/public-portal-data";
 import {
   createTenantServerClient,
@@ -368,7 +368,9 @@ export async function submitPublicEventRegistrationAction(
       }
     }
 
-    const intentId = paymentIntent?.paymentIntentId ?? (demoMode ? `pi_demo_${data.id.slice(-8)}` : null);
+    // Demo mode records the stub id, the only one the demo payment route
+    // completes (S4); a different id left demo payments uncompletable.
+    const intentId = paymentIntent?.paymentIntentId ?? (demoMode ? stubPaymentIntentId(data.id) : null);
 
     await supabase.from("event_registration_payments").upsert(
       {

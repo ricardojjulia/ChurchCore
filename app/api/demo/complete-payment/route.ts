@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { stubPaymentIntentId } from "@/lib/stripe/event-registrations";
 import { createTenantAdminClient } from "@/lib/supabase/tenant";
 
 // Demo-only route: completes a registration's stubbed payment without
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
   // the stub checkout gives it (lib/stripe/event-registrations.ts). Before,
   // this marked any registration paid, so on a demo deploy with Stripe
   // configured anyone could mark a real, unpaid registration as paid.
-  const stubPaymentIntentId = `pi_event_registration_stub_${registrationId}`;
+  const stubIntentId = stubPaymentIntentId(registrationId);
   const { data: completed, error: paymentError } = await supabase
     .from("event_registration_payments")
     .update({
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
     })
     .eq("registration_id", registrationId)
     .eq("church_id", churchId)
-    .eq("payment_intent_id", stubPaymentIntentId)
+    .eq("payment_intent_id", stubIntentId)
     .eq("status", "pending")
     .select("id");
 

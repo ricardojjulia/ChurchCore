@@ -163,3 +163,50 @@ describe("submitPublicEventRegistrationAction", () => {
     );
   });
 });
+
+describe("demo-mode registration payment id", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    hasTenantBackendEnvMock.mockReturnValue(true);
+    hasTenantDbUrlMock.mockReturnValue(true);
+    shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+  });
+
+  it("records the stub payment id the demo payment route completes (not pi_demo_…)", async () => {
+    const upserts: Array<Record<string, unknown>> = [];
+    const chain = (result: unknown) => {
+      const builder: Record<string, unknown> = {};
+      for (const method of ["select", "eq", "ilike", "neq"]) builder[method] = () => builder;
+      builder.maybeSingle = async () => result;
+      builder.single = async () => result;
+      return builder;
+    };
+    createTenantServerClientMock.mockResolvedValue({
+      from: (table: string) => {
+        if (table === "event_registration_settings") {
+          return chain({
+            data: { registration_open: true, capacity: null, waitlist_enabled: false, approval_required: false, deadline: null, price_cents: 2500, currency: "usd" },
+          });
+        }
+        if (table === "event_registration_payments") {
+          return { upsert: async (row: Record<string, unknown>) => (upserts.push(row), { error: null }) };
+        }
+        // event_registrations: no existing registration, then the insert.
+        return { ...chain({ data: null }), insert: () => chain({ data: { id: "reg-123" }, error: null }) };
+      },
+    });
+
+    const result = await submitPublicEventRegistrationAction({
+      churchId: "church-1",
+      eventId: "event-1",
+      registrantName: "Guest",
+      registrantEmail: "guest@example.test",
+    });
+
+    expect(result).toMatchObject({ ok: true, registrationId: "reg-123", paymentIntentId: "pi_event_registration_stub_reg-123" });
+    expect(upserts[0]).toMatchObject({ payment_intent_id: "pi_event_registration_stub_reg-123" });
+    vi.unstubAllEnvs();
+  });
+});
+
