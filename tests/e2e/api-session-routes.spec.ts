@@ -55,34 +55,14 @@ test.describe("PATCH /api/control/demo-feedback/[id] — signed out", () => {
 });
 
 test.describe("GET /api/reports/custom — signed out", () => {
-  // KNOWN APP BUG (found while writing this contract test, not fixed here
-  // per this story's backend-builder scope — application code is out of
-  // bounds; see the handback report):
-  //
-  // requireChurchSession() -> requireSession() calls next/navigation's
-  // redirect(), which throws a NEXT_REDIRECT-digest error that must
-  // propagate to Next's request handling to actually produce a redirect
-  // response. Next's own docs (node_modules/next/dist/docs/01-app/
-  // 03-api-reference/04-functions/redirect.md, "Good to know") say:
-  // "In Server Actions and Route Handlers, redirect should be called
-  // OUTSIDE the try block when using try/catch statements."
-  //
-  // app/api/reports/custom/route.ts calls requireChurchSession() INSIDE a
-  // try block whose catch-all swallows the thrown redirect and returns a
-  // 500 JSON body instead — unlike the sibling route
-  // app/api/control/db-health/route.ts, which correctly special-cases and
-  // re-throws digests starting with "NEXT_REDIRECT" before its own
-  // catch-all. A signed-out request gets an unhandled-looking 500
-  // ("Failed to generate report") instead of a redirect to /sign-in.
-  //
-  // Pinned to the bug's exact current symptom (500 with the handler's generic
-  // error body), rather than test.fail(), so a different failure can't hide
-  // here. When the redirect is moved out of the try/catch this assertion
-  // fails; replace it with `307` + a /sign-in Location.
-  test("KNOWN BUG: -> 500 instead of a /sign-in redirect", async ({ request }) => {
+  // S3: requireChurchSession now runs outside the handler's try/catch, so its
+  // redirect reaches Next instead of being swallowed into a 500 (the bug this
+  // test used to pin; Next's redirect docs: call it outside try/catch in
+  // Route Handlers).
+  test("-> 307 redirect to /sign-in", async ({ request }) => {
     const response = await request.get("/api/reports/custom", { maxRedirects: 0 });
-    expect(response.status()).toBe(500);
-    expect(await response.json()).toEqual({ error: "Failed to generate report" });
+    expect(response.status()).toBe(307);
+    expect(response.headers()["location"]).toContain("/sign-in");
   });
 });
 
@@ -168,6 +148,23 @@ test.describe("GET /api/reports/custom — signed in as pastor", () => {
   test("an unknown entity -> 400", async ({ page }) => {
     const response = await page.request.get("/api/reports/custom?entity=nope");
     expect(response.status()).toBe(400);
+  });
+
+  // S3: these read through the pastor's own Supabase client (RLS). Events used
+  // to fail outright (it asked for start/"end" columns that don't exist).
+  test("events -> CSV with the real starts_at/ends_at columns", async ({ page }) => {
+    const response = await page.request.get("/api/reports/custom?entity=events");
+    expect(response.status()).toBe(200);
+    const [header, ...rows] = (await response.text()).trim().split("\n");
+    expect(header).toBe("id,title,description,starts_at,ends_at,category,created_at");
+    expect(rows.length).toBeGreaterThan(0);
+  });
+
+  test("giving -> CSV that labels anonymous gifts", async ({ page }) => {
+    const response = await page.request.get("/api/reports/custom?entity=giving");
+    expect(response.status()).toBe(200);
+    const header = (await response.text()).split("\n")[0];
+    expect(header).toContain("is_anonymous");
   });
 });
 

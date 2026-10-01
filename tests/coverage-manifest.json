@@ -1834,7 +1834,8 @@
       ],
       "auth": "session",
       "tests": [
-        "tests/e2e/api-session-routes.spec.ts"
+        "tests/e2e/api-session-routes.spec.ts",
+        "app/api/reports/custom/route.test.ts"
       ]
     },
     "/api/unsubscribe": {
