@@ -1,11 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
 import { resolveRegistrationLifecycle } from "@/lib/event-registration-lifecycle";
 import { createEventRegistrationPaymentIntent, stubPaymentIntentId } from "@/lib/stripe/event-registrations";
 import { getRequestedPublicChurch } from "@/lib/public-portal-data";
+import { isRateLimited } from "@/lib/rate-limit";
 import {
+  createTenantAdminClient,
   createTenantServerClient,
   hasTenantBackendEnv,
   queryTenantLocalDb,
@@ -117,6 +120,13 @@ export async function submitPublicEventRegistrationAction(
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registrantEmail)) {
     return { ok: false, error: "Enter a valid email address." };
+  }
+
+  // A public, unauthenticated write: limit how fast one address can submit.
+  const forwardedFor = (await headers()).get("x-forwarded-for") ?? "";
+  const ip = forwardedFor.split(",")[0]?.trim() || "unknown";
+  if (isRateLimited(`public-registration:${ip}`, 10, 60_000)) {
+    return { ok: false, error: "Too many registrations from this connection. Please wait a minute and try again." };
   }
 
   if (!hasTenantBackendEnv() && !hasTenantDbUrl()) {
@@ -275,14 +285,22 @@ export async function submitPublicEventRegistrationAction(
     };
   }
 
-  const supabase = await createTenantServerClient();
+  // The visitor is signed out, and since S10 anon can't insert into
+  // event_registrations (or read the settings, counts or form fields). This
+  // action is the only way in: it checks the event is public and open, the
+  // deadline, capacity and the waitlist, then writes with the admin client,
+  // scoped to the church whose public event this is (ADR 0022).
+  const supabase = createTenantAdminClient();
 
   const { data: settings } = await supabase
     .from("event_registration_settings")
-    .select("registration_open, capacity, waitlist_enabled, approval_required, deadline, price_cents, currency, events!inner(id, visibility)")
+    .select("registration_open, capacity, waitlist_enabled, approval_required, deadline, price_cents, currency, events!inner(id, visibility, church_id)")
     .eq("church_id", churchId)
     .eq("event_id", eventId)
     .eq("events.visibility", "public")
+    // The event must be this church's own (PR #171 review; the database
+    // guarantees it too since migration 20261002020000).
+    .eq("events.church_id", churchId)
     .maybeSingle();
 
   if (!settings || settings.registration_open === false) {
@@ -324,6 +342,31 @@ export async function submitPublicEventRegistrationAction(
     }
   }
 
+  // Keep only the custom fields this event defines, and require its required
+  // ones: the visitor's payload is otherwise stored as given.
+  const { data: fieldRows, error: fieldsError } = await supabase
+    .from("event_registration_form_fields")
+    .select("field_key, label, field_type, is_required")
+    .eq("church_id", churchId)
+    .eq("event_id", eventId);
+  if (fieldsError) {
+    console.error("[public-registration] Couldn't read form fields:", fieldsError.message);
+    return { ok: false, error: "Couldn't complete your registration. Please try again." };
+  }
+  const submitted = input.customFields ?? {};
+  const customFields: Record<string, unknown> = {};
+  for (const field of (fieldRows ?? []) as Array<{ field_key: string; label: string; field_type: string; is_required: boolean }>) {
+    const raw = submitted[field.field_key];
+    // A checkbox is checked only by a literal true: "false", 0 or an object
+    // must not satisfy a required waiver (PR #171 review).
+    const value = field.field_type === "checkbox" ? (raw === true ? true : undefined) : raw;
+    const empty = value === undefined || value === null || (typeof value === "string" && value.trim() === "");
+    if (field.is_required && empty) {
+      return { ok: false, error: `${field.label} is required.` };
+    }
+    if (!empty) customFields[field.field_key] = value;
+  }
+
   const { status, paymentStatus } = resolveRegistrationLifecycle({
     isWaitlisted,
     approvalRequired: settings.approval_required,
@@ -340,11 +383,13 @@ export async function submitPublicEventRegistrationAction(
     is_waitlisted: isWaitlisted,
     payment_status: paymentStatus,
     notes,
-    custom_fields: input.customFields ?? null,
+    custom_fields: Object.keys(customFields).length ? customFields : null,
   }).select("id").single();
 
-  if (error) {
-    return { ok: false, error: error.message };
+  if (error || !data) {
+    // Never show a visitor raw database text.
+    console.error("[public-registration] Insert failed:", error?.message);
+    return { ok: false, error: "Couldn't complete your registration. Please try again." };
   }
 
   if (paymentStatus === "pending" && data?.id) {
@@ -372,7 +417,7 @@ export async function submitPublicEventRegistrationAction(
     // completes (S4); a different id left demo payments uncompletable.
     const intentId = paymentIntent?.paymentIntentId ?? (demoMode ? stubPaymentIntentId(data.id) : null);
 
-    await supabase.from("event_registration_payments").upsert(
+    const { error: paymentRowError } = await supabase.from("event_registration_payments").upsert(
       {
         registration_id: data.id,
         event_id: eventId,
@@ -386,6 +431,13 @@ export async function submitPublicEventRegistrationAction(
       },
       { onConflict: "registration_id" },
     );
+    if (paymentRowError) {
+      // Without its payment row a paid registration could never be paid:
+      // undo it so the visitor can simply try again.
+      console.error("[public-registration] Payment row failed:", paymentRowError.message);
+      await supabase.from("event_registrations").delete().eq("id", data.id).eq("church_id", churchId);
+      return { ok: false, error: "Couldn't complete your registration. Please try again." };
+    }
 
     revalidatePath(`/portal/events/register?church=${encodeURIComponent(churchId)}`);
     return {

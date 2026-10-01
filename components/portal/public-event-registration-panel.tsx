@@ -5,6 +5,7 @@ import {
   Alert,
   Badge,
   Button,
+  Checkbox,
   Group,
   Modal,
   NumberInput,
@@ -29,8 +30,30 @@ import type {
 type Props = {
   churchId: string;
   churchName: string;
+  /** The church's IANA time zone; event times are shown in it, labelled. */
+  timeZone?: string | null;
   options: PublicEventRegistrationOption[];
 };
+
+// Event times in the church's own time zone, with the zone named, so a
+// visitor elsewhere doesn't read the church's 10 AM as their own (Council
+// Review 33). Falls back to the browser's zone if the church's is unusable.
+function formatEventTime(iso: string, timeZone: string | null | undefined): string {
+  // Explicit parts: dateStyle/timeStyle can't be combined with timeZoneName.
+  const options: Intl.DateTimeFormatOptions = {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  };
+  try {
+    return new Intl.DateTimeFormat(undefined, { ...options, timeZone: timeZone ?? undefined }).format(new Date(iso));
+  } catch {
+    return new Intl.DateTimeFormat(undefined, options).format(new Date(iso));
+  }
+}
 
 type PaymentCheckoutState = {
   registrationId: string;
@@ -38,7 +61,7 @@ type PaymentCheckoutState = {
   amountLabel: string;
 };
 
-export function PublicEventRegistrationPanel({ churchId, churchName, options }: Props) {
+export function PublicEventRegistrationPanel({ churchId, churchName, timeZone, options }: Props) {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [registrantName, setRegistrantName] = useState("");
   const [registrantEmail, setRegistrantEmail] = useState("");
@@ -227,7 +250,7 @@ export function PublicEventRegistrationPanel({ churchId, churchName, options }: 
                 <Stack gap={4}>
                   <Text fw={600}>{option.title}</Text>
                   <Text size="sm" c="dimmed">
-                    {new Date(option.startsAt).toLocaleString()}
+                    {formatEventTime(option.startsAt, timeZone)}
                   </Text>
                   <Group gap="xs">
                     <Badge variant="light" color="gray">{option.category}</Badge>
@@ -387,17 +410,19 @@ export function PublicEventRegistrationPanel({ churchId, churchName, options }: 
             }
 
             if (field.fieldType === "checkbox") {
+              // A real checkbox: announced as one, and marked when required
+              // (it was a toggle Button, Council Review 33).
               return (
-                <Button
+                <Checkbox
                   key={field.id}
-                  variant={Boolean(value) ? "filled" : "default"}
-                  onClick={() =>
-                    setFieldValues((prev) => ({ ...prev, [key]: !Boolean(prev[key]) }))
-                  }
-                  justify="flex-start"
-                >
-                  {field.label}
-                </Button>
+                  label={field.label}
+                  required={field.isRequired}
+                  checked={Boolean(value)}
+                  onChange={(event) => {
+                    const checked = event.currentTarget.checked;
+                    setFieldValues((prev) => ({ ...prev, [key]: checked }));
+                  }}
+                />
               );
             }
 

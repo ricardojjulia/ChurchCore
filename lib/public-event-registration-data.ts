@@ -1,7 +1,7 @@
 import "server-only";
 
 import {
-  createTenantServerClient,
+  createTenantAdminClient,
   hasTenantBackendEnv,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
@@ -216,28 +216,64 @@ export async function getPublicEventRegistrationOptions(
     }));
   }
 
-  const supabase = await createTenantServerClient();
+  // The visitor is signed out, and anon can read none of these tables, so the
+  // page always showed no events (S10). Read with the church-scoped admin
+  // client, and only what a visitor may see: this church's public events open
+  // for registration, their form fields, and registration counts.
+  const supabase = createTenantAdminClient();
 
   const settingsQuery = await supabase
     .from("event_registration_settings")
     .select(
-      "event_id, price_cents, currency, capacity, deadline, waitlist_enabled, approval_required, household_registration_enabled, events!inner(id, title, starts_at, ends_at, category, visibility)",
+      "event_id, price_cents, currency, capacity, deadline, waitlist_enabled, approval_required, household_registration_enabled, events!inner(id, title, starts_at, ends_at, category, visibility, church_id)",
     )
     .eq("church_id", churchId)
     .eq("registration_open", true)
-    .eq("events.visibility", "public");
+    .eq("events.visibility", "public")
+    // The event must be this church's own (PR #171 review; the database
+    // guarantees it too since migration 20261002020000).
+    .eq("events.church_id", churchId);
 
-  const registrationCountsQuery = await supabase
-    .from("event_registrations")
-    .select("event_id, is_waitlisted")
-    .eq("church_id", churchId)
-    .neq("status", "cancelled");
+  if (settingsQuery.error) {
+    throw new Error(settingsQuery.error.message);
+  }
+
+  const openEventIds = (settingsQuery.data ?? []).map((row) => (row as { event_id: string }).event_id);
+  if (openEventIds.length === 0) {
+    return [];
+  }
+
+  // Counted in the database, per event: fetching rows to count them in code
+  // was capped by PostgREST's row limit, so busy events showed low counts.
+  const countFor = async (eventId: string, waitlisted: boolean) => {
+    const { count, error } = await supabase
+      .from("event_registrations")
+      .select("id", { count: "exact", head: true })
+      .eq("church_id", churchId)
+      .eq("event_id", eventId)
+      .eq("is_waitlisted", waitlisted)
+      .neq("status", "cancelled");
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  };
+  const countsByEvent = new Map<string, { registrationCount: number; waitlistCount: number }>();
+  await Promise.all(
+    openEventIds.map(async (eventId) => {
+      const [registrationCount, waitlistCount] = await Promise.all([countFor(eventId, false), countFor(eventId, true)]);
+      countsByEvent.set(eventId, { registrationCount, waitlistCount });
+    }),
+  );
 
   const fieldsQuery = await supabase
     .from("event_registration_form_fields")
     .select("id, event_id, label, field_key, field_type, is_required, options, sort_order")
     .eq("church_id", churchId)
+    .in("event_id", openEventIds)
     .order("sort_order");
+
+  if (fieldsQuery.error) {
+    throw new Error(fieldsQuery.error.message);
+  }
 
   const settingsRows = (settingsQuery.data ?? []) as Array<{
     event_id: string;
@@ -253,11 +289,6 @@ export async function getPublicEventRegistrationOptions(
     events: PublicEmbeddedEvent | PublicEmbeddedEvent[] | null;
   }>;
 
-  const countRows = (registrationCountsQuery.data ?? []) as Array<{
-    event_id: string;
-    is_waitlisted: boolean;
-  }>;
-
   const fieldRows = (fieldsQuery.data ?? []) as Array<{
     id: string;
     event_id: string;
@@ -268,20 +299,6 @@ export async function getPublicEventRegistrationOptions(
     options: string[] | null;
     sort_order: number;
   }>;
-
-  const countsByEvent = countRows.reduce(
-    (map, row) => {
-      const existing = map.get(row.event_id) ?? { registrationCount: 0, waitlistCount: 0 };
-      if (row.is_waitlisted) {
-        existing.waitlistCount += 1;
-      } else {
-        existing.registrationCount += 1;
-      }
-      map.set(row.event_id, existing);
-      return map;
-    },
-    new Map<string, { registrationCount: number; waitlistCount: number }>(),
-  );
 
   const fieldsByEvent = fieldRows.reduce(
     (map, row) => {

@@ -497,6 +497,7 @@ Primary routes:
 - `/app/calendar` tenant-facing working calendar hub backed by Supabase event reads when configured
 - `/portal` public member-portal landing page with sign-in and request-access entry points
 - `/portal/register` public member portal request form
+- `/portal/events/register` public event registration: a church's public events open for registration, for signed-out visitors
 - `/app/church-admin/settings` church-admin setup profile — tenant church name, legal name, timezone, website, contact, mailing address, and public summary
 - `/app/church-admin/people` church-admin people-management — search, filter, household/account/request visibility, edit, role management, bulk update, add person (offline record), invite user (Supabase auth email), deactivate
 - `/app/church-admin/accounts` church-admin account-request approval queue
@@ -586,7 +587,8 @@ public/               Static assets
 - The church-admin events list now shows live roster counts in both direct SQL fallback mode and the normal Supabase tenant path.
 - Tenant write actions for calendar events, event rosters/check-ins, registration settings, and ministry membership now explicitly validate church ownership on incoming record IDs before writing, instead of relying on implicit downstream constraints alone.
 - Church leadership roles now also have `/app/reports`, `/app/reports/members`, `/app/reports/events`, and `/app/reports/giving`, a first reporting-suite foundation with graphical stewardship dashboards and preview-safe fallback behavior.
-- The churchgoer portal now has a public `/portal` landing page plus `/portal/register`, where prospective members can request portal access and be linked to an existing profile by email when possible.
+- The churchgoer portal now has a public `/portal` landing page plus `/portal/register`, where prospective members can request portal access and be linked to an existing profile by email when possible. Account requests go only through the `submit_account_request` database function (Council Review 33 dropped the direct anon insert).
+- Public event registration (`/portal/events/register`) runs on the server (S10): the page reads a church's own public events open for registration, and `submitPublicEventRegistrationAction` checks the event's church, visibility, deadline, capacity, waitlist and required custom fields (a required checkbox needs a real tick) before writing with the church-scoped admin client. Signed-out visitors can't write to `event_registrations` directly (the anon insert policy is gone), the database refuses a registration row whose church differs from its event's, and each address is limited to 10 submissions a minute. Event times are shown in the church's time zone. Members see only their own registrations' payments.
 - The member experience is now split further into dedicated directory and household routes, and the main member home now includes attendance history, upcoming serving assignments, and interest / contact-preference self-service.
 - The pastor role now resolves to a pastor-specific workspace backed by tenant profile, ministry, and follow-up data instead of the generic role shell.
 - The pastor experience now includes a dedicated people view with search, status filtering, household context, contact visibility, and last-attendance signals.
