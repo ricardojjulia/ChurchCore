@@ -1394,7 +1394,8 @@
       "controlPlane": false,
       "dynamicParams": null,
       "tests": [
-        "tests/e2e/page-role-sweep.spec.ts"
+        "tests/e2e/page-role-sweep.spec.ts",
+        "components/application/custom-reports-workspace.test.tsx"
       ]
     },
     "/app/reports/events": {
@@ -1834,7 +1835,8 @@
       ],
       "auth": "session",
       "tests": [
-        "tests/e2e/api-session-routes.spec.ts"
+        "tests/e2e/api-session-routes.spec.ts",
+        "app/api/reports/custom/route.test.ts"
       ]
     },
     "/api/unsubscribe": {

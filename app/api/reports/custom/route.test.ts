@@ -1,6 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { jsonToCsv, neutralizeFormulaInjection } from "@/app/api/reports/custom/route";
+const { requireChurchSessionMock, createTenantServerClientMock, logAuditEventMock } = vi.hoisted(() => ({
+  requireChurchSessionMock: vi.fn(),
+  createTenantServerClientMock: vi.fn(),
+  logAuditEventMock: vi.fn(),
+}));
+
+vi.mock("@/lib/auth", () => ({ requireChurchSession: requireChurchSessionMock }));
+vi.mock("@/lib/supabase/tenant", () => ({ createTenantServerClient: createTenantServerClientMock }));
+vi.mock("@/lib/actions/audit", () => ({ logAuditEvent: logAuditEventMock }));
+
+import { GET, jsonToCsv, neutralizeFormulaInjection } from "@/app/api/reports/custom/route";
 
 describe("neutralizeFormulaInjection", () => {
   it.each(["=CMD('/c calc')", "+1+1", "-1+1", "@SUM(A1:A2)", "\ttab", "\rcr"])(
@@ -32,5 +42,122 @@ describe("jsonToCsv", () => {
 
   it("returns an empty string for no rows", () => {
     expect(jsonToCsv([])).toBe("");
+  });
+});
+
+// S3 (Council Review 20): the export reads through the caller's own Supabase
+// client (RLS applies), pages past Supabase's 1,000-row cap, uses the real
+// events columns, and lets a signed-out caller's redirect through.
+describe("GET /api/reports/custom", () => {
+  type Call = { table: string; select: string; filters: Array<[string, string, unknown]>; range: [number, number] };
+
+  function fakeClient(pages: Record<string, Array<Record<string, unknown>[]>>) {
+    const calls: Call[] = [];
+    return {
+      calls,
+      client: {
+        from(table: string) {
+          const call: Call = { table, select: "", filters: [], range: [0, 0] };
+          const builder = {
+            select: (columns: string) => ((call.select = columns), builder),
+            eq: (column: string, value: unknown) => (call.filters.push(["eq", column, value]), builder),
+            is: (column: string, value: unknown) => (call.filters.push(["is", column, value]), builder),
+            order: () => builder,
+            range: async (from: number, to: number) => {
+              call.range = [from, to];
+              calls.push(call);
+              const page = pages[table]?.[from / 1000] ?? [];
+              return { data: page, error: null };
+            },
+          };
+          return builder;
+        },
+      },
+    };
+  }
+
+  function session(roleId: string) {
+    return { userId: "login-1", appContext: { roleId, church: { id: "church-1" } } };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("lets requireChurchSession's sign-in redirect through instead of turning it into a 500", async () => {
+    const redirect = Object.assign(new Error("NEXT_REDIRECT"), { digest: "NEXT_REDIRECT;replace;/sign-in;307;" });
+    requireChurchSessionMock.mockRejectedValue(redirect);
+    await expect(GET(new Request("http://localhost/api/reports/custom"))).rejects.toBe(redirect);
+  });
+
+  it.each(["secretary", "ministry-leader", "member"])("a %s gets 403 and nothing is read", async (roleId) => {
+    requireChurchSessionMock.mockResolvedValue(session(roleId));
+    const response = await GET(new Request("http://localhost/api/reports/custom?entity=people"));
+    expect(response.status).toBe(403);
+    expect(createTenantServerClientMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown entity before reading", async () => {
+    requireChurchSessionMock.mockResolvedValue(session("pastor"));
+    const response = await GET(new Request("http://localhost/api/reports/custom?entity=constructor"));
+    expect(response.status).toBe(400);
+    expect(createTenantServerClientMock).not.toHaveBeenCalled();
+  });
+
+  it("exports events with the real starts_at/ends_at columns, scoped to the caller's church", async () => {
+    requireChurchSessionMock.mockResolvedValue(session("church-admin"));
+    const fake = fakeClient({ events: [[{ id: "e1", title: "Sunday", starts_at: "2026-10-04T15:00:00Z" }]] });
+    createTenantServerClientMock.mockResolvedValue(fake.client);
+
+    const response = await GET(new Request("http://localhost/api/reports/custom?entity=events"));
+
+    expect(response.status).toBe(200);
+    expect(fake.calls[0].select).toContain("starts_at, ends_at");
+    expect(fake.calls[0].filters).toEqual([["eq", "church_id", "church-1"]]);
+    expect(await response.text()).toBe("id,title,starts_at\ne1,Sunday,2026-10-04T15:00:00Z");
+  });
+
+  it("pages past Supabase's 1,000-row cap and leaves merged duplicates out of people", async () => {
+    requireChurchSessionMock.mockResolvedValue(session("pastor"));
+    const page = (offset: number, n: number) =>
+      Array.from({ length: n }, (_, i) => ({ id: `p${offset + i}`, full_name: `Person ${offset + i}` }));
+    const fake = fakeClient({ profiles: [page(0, 1000), page(1000, 3)] });
+    createTenantServerClientMock.mockResolvedValue(fake.client);
+
+    const response = await GET(new Request("http://localhost/api/reports/custom?entity=people"));
+    const lines = (await response.text()).split("\n");
+
+    expect(lines).toHaveLength(1 + 1003);
+    expect(fake.calls.map((c) => c.range)).toEqual([
+      [0, 999],
+      [1000, 1999],
+    ]);
+    expect(fake.calls[0].filters).toContainEqual(["is", "merged_at", null]);
+    expect(logAuditEventMock).toHaveBeenCalledWith(expect.objectContaining({ newValues: { entity: "people", rowCount: 1003 } }));
+  });
+
+  it("shows an anonymous gift's donor as Anonymous, as the giving screens do (Council Review 30)", async () => {
+    requireChurchSessionMock.mockResolvedValue(session("church-admin"));
+    const fake = fakeClient({
+      donations: [[
+        { id: "d1", donor_name: "Ana Rivera", donor_email: "ana@example.test", is_anonymous: true, amount_cents: 5000 },
+        { id: "d2", donor_name: "Ben Cole", donor_email: "ben@example.test", is_anonymous: false, amount_cents: 2500 },
+      ]],
+    });
+    createTenantServerClientMock.mockResolvedValue(fake.client);
+
+    const csv = await (await GET(new Request("http://localhost/api/reports/custom?entity=giving"))).text();
+
+    expect(csv).not.toContain("Ana Rivera");
+    expect(csv).not.toContain("ana@example.test");
+    expect(csv).toContain("d1,Anonymous,,true,5000");
+    expect(csv).toContain("d2,Ben Cole,ben@example.test,false,2500");
+  });
+
+  it("writes the header row even when there is nothing to export", async () => {
+    requireChurchSessionMock.mockResolvedValue(session("pastor"));
+    createTenantServerClientMock.mockResolvedValue(fakeClient({ events: [[]] }).client);
+    const csv = await (await GET(new Request("http://localhost/api/reports/custom?entity=events"))).text();
+    expect(csv).toBe("id,title,description,starts_at,ends_at,category,created_at");
   });
 });
