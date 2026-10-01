@@ -28,9 +28,38 @@ openssl rand -hex 32
 
 When `RESEND_API_KEY` is absent the Resend adapter returns stub results — safe for local development. When both `RESEND_API_KEY` and `SENDGRID_API_KEY` are absent, all email sends return stub results.
 
+**Every webhook below fails closed (S2, Council Review 29, 2026-10-01).** While its secret or verification key is unset, the route rejects every request — in every environment, including production. This used to be backwards for three of the four: SendGrid, Twilio and Resend accepted an unsigned request as valid whenever their secret was unset ("verification is disabled"), and Stripe only checked a signature at all when a secret existed. A deploy that forgets to set a webhook secret doesn't get a quieter, unverified webhook anymore — it gets no working webhook at all, so confirm the relevant secret is set (and, for Stripe, that payments actually reconcile) right after any deploy. This is also owner action **O4** in `DEVELOPMENT_PLAN.md` §0.3.
+
 ---
 
 ## 2. Webhook Registration
+
+### Stripe
+
+1. Go to [Stripe Dashboard → Developers → Webhooks](https://dashboard.stripe.com/webhooks) and add an endpoint at `https://<your-domain>/api/webhooks/stripe`.
+2. Select `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `customer.subscription.deleted`.
+3. Copy the signing secret (`whsec_...`) into `STRIPE_WEBHOOK_SECRET`.
+4. Stripe signatures are checked against a **300-second (5-minute) replay window** — an event signed more than 5 minutes ago, or timestamped in the future, is rejected even with a valid signature. Don't replay an old "Send test webhook" payload expecting it to still verify.
+
+### SendGrid
+
+1. In SendGrid, go to **Settings → Mail Settings → Event Webhook** (the **signed** Event Webhook, not the legacy unsigned one).
+2. Set the HTTP POST URL to `https://<your-domain>/api/webhooks/sendgrid`.
+3. Enable the events the app consumes: Delivered, Bounced, Spam Report (Complaint), Unsubscribe, Dropped/Failed.
+4. Turn on **Signed Event Webhook Requests** and copy the **Verification Key** shown there — it's an **ECDSA (P-256) public key**, base64 DER by default (a PEM `-----BEGIN PUBLIC KEY-----` block also works). Set it as `SENDGRID_WEBHOOK_VERIFICATION_KEY`. This is a public key, not a shared secret — SendGrid signs each event with its matching private key, and `app/api/webhooks/sendgrid` verifies `timestamp + body` against it with `crypto.verify("sha256", ...)`.
+5. Without `SENDGRID_WEBHOOK_VERIFICATION_KEY` set, the route rejects every SendGrid event (fail-closed).
+
+### Twilio (SMS)
+
+1. Log in to [console.twilio.com](https://console.twilio.com).
+2. Navigate to **Phone Numbers** → **Manage** → your sending number.
+3. Under **Messaging** → **A Message Comes In** or **Status Callback URL**, set:
+   `https://<your-domain>/api/webhooks/twilio`
+4. Enable the following status callback events:
+   - `queued`, `failed`, `sent`, `delivered`, `undelivered`
+5. **`NEXT_PUBLIC_APP_URL` must be the exact public URL Twilio calls** (scheme, host, and path — e.g. `https://app.example.com`, no trailing slash). Twilio's HMAC-SHA1 signature is computed over that exact URL plus the sorted POST body; behind a proxy or load balancer, the request's own `Host` header usually isn't the public one, so the route resolves the signed URL from `NEXT_PUBLIC_APP_URL` instead. A wrong or unset value rejects every Twilio webhook even with a correct `TWILIO_AUTH_TOKEN`.
+6. ChurchCore's own outbound sends now set a `StatusCallback` pointing at `/api/webhooks/twilio` (needs `NEXT_PUBLIC_APP_URL` too) — without it, Twilio never calls back at all for that message: no delivery status, and no error code when the recipient has replied STOP.
+7. **Twilio error 21610** ("recipient has opted out") arrives as an `undelivered`/`failed` status callback with `ErrorCode=21610`. The route records this as an `unsubscribed` delivery event and writes an SMS suppression — the member won't receive another text until the suppression is removed (§3). Twilio itself already refuses to deliver to a number that replied STOP; this suppression is ChurchCore's own bookkeeping so it stops retrying and shows the reason to an admin. Twilio does **not** forward the inbound STOP message itself to ChurchCore today — there's no mapping from a sending number back to a church to route it to (tracked as a deferred item in `DEVELOPMENT_PLAN.md` §0.5).
 
 ### Resend
 
@@ -46,15 +75,6 @@ When `RESEND_API_KEY` is absent the Resend adapter returns stub results — safe
    - `email.opened`
    - `email.clicked`
 5. After saving, copy the **Signing Secret** (starts with `whsec_`) and set it as `RESEND_WEBHOOK_SECRET`.
-
-### Twilio (SMS)
-
-1. Log in to [console.twilio.com](https://console.twilio.com).
-2. Navigate to **Phone Numbers** → **Manage** → your sending number.
-3. Under **Messaging** → **A Message Comes In** or **Status Callback URL**, set:
-   `https://<your-domain>/api/webhooks/twilio`
-4. Enable the following status callback events:
-   - `queued`, `failed`, `sent`, `delivered`, `undelivered`
 
 ---
 
@@ -93,6 +113,8 @@ on conflict (church_id, channel, contact) do nothing;
 6. A consent log entry is written for the affected profile.
 
 ### Remove a suppression
+
+**There is no in-app way to remove a suppression yet** — tracked as `DEVELOPMENT_PLAN.md` row **S11** (a church-admin "remove suppression" action, audited, with a reason), sequenced before G5.1. Until S11 ships, this is a SQL-only operation. S2 (2026-10-01) made bounce and STOP suppressions real for the first time — before it, webhook writes silently failed, so this SOP had nothing to undo in practice.
 
 To un-suppress a contact (for example after a member confirms their email address is valid):
 
