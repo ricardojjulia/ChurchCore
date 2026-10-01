@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Button,
   Card,
@@ -99,6 +99,27 @@ export function CustomReportsWorkspace({ session }: { session: ChurchAppSession 
   const [selectedEntity, setSelectedEntity] = useState<EntityType>("people");
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const cardRefs = useRef<Array<HTMLDivElement | null>>([]);
+
+  // Radio-group keyboard contract: Tab reaches only the checked card, and
+  // the arrow keys move to and check the next or previous one.
+  const handleCardKeyDown = (event: React.KeyboardEvent, index: number) => {
+    const step =
+      event.key === "ArrowRight" || event.key === "ArrowDown"
+        ? 1
+        : event.key === "ArrowLeft" || event.key === "ArrowUp"
+          ? -1
+          : 0;
+    if (step !== 0) {
+      event.preventDefault();
+      const next = (index + step + ENTITIES.length) % ENTITIES.length;
+      setSelectedEntity(ENTITIES[next].id);
+      cardRefs.current[next]?.focus();
+    } else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setSelectedEntity(ENTITIES[index].id);
+    }
+  };
 
   const activeConfig = ENTITIES.find((e) => e.id === selectedEntity)!;
 
@@ -149,7 +170,7 @@ export function CustomReportsWorkspace({ session }: { session: ChurchAppSession 
       </div>
 
       <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md" role="radiogroup" aria-label="Data source">
-        {ENTITIES.map((entity) => {
+        {ENTITIES.map((entity, index) => {
           const isSelected = selectedEntity === entity.id;
           return (
             <Card
@@ -159,17 +180,15 @@ export function CustomReportsWorkspace({ session }: { session: ChurchAppSession 
               withBorder
               // A real radio choice for keyboard and screen-reader users, not
               // a mouse-only card (Council Review 30).
+              ref={(element: HTMLDivElement | null) => {
+                cardRefs.current[index] = element;
+              }}
               role="radio"
               aria-checked={isSelected}
               aria-label={entity.title}
-              tabIndex={0}
+              tabIndex={isSelected ? 0 : -1}
               onClick={() => setSelectedEntity(entity.id)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  setSelectedEntity(entity.id);
-                }
-              }}
+              onKeyDown={(event: React.KeyboardEvent) => handleCardKeyDown(event, index)}
               style={{
                 cursor: "pointer",
                 transition: "all 0.2s ease-in-out",

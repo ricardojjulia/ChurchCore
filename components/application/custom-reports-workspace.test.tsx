@@ -21,6 +21,18 @@ function renderWorkspace() {
   );
 }
 
+// jsdom has no URL.createObjectURL; stub a subclass rather than mutating the
+// real URL, so unstubAllGlobals() restores it untouched.
+function stubBlobUrls() {
+  const createObjectURL = vi.fn(() => "blob:export");
+  class StubURL extends URL {
+    static createObjectURL = createObjectURL;
+    static revokeObjectURL = vi.fn();
+  }
+  vi.stubGlobal("URL", StubURL);
+  return createObjectURL;
+}
+
 function stubFetch(response: { status: number; type?: ResponseType; contentType?: string; body?: string }) {
   const fetchMock = vi.fn(async () => ({
     ok: response.status >= 200 && response.status < 300,
@@ -41,8 +53,7 @@ describe("CustomReportsWorkspace export", () => {
 
   it("shows an error, and saves nothing, when the export fails", async () => {
     stubFetch({ status: 500, contentType: "application/json" });
-    const createObjectURL = vi.fn();
-    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }));
+    const createObjectURL = stubBlobUrls();
     renderWorkspace();
 
     fireEvent.click(screen.getByRole("button", { name: /export/i }));
@@ -60,8 +71,7 @@ describe("CustomReportsWorkspace export", () => {
 
   it("saves the CSV when the export succeeds", async () => {
     const fetchMock = stubFetch({ status: 200, contentType: "text/csv; charset=utf-8", body: "id\n1" });
-    const createObjectURL = vi.fn(() => "blob:export");
-    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }));
+    const createObjectURL = stubBlobUrls();
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     renderWorkspace();
 
@@ -72,16 +82,25 @@ describe("CustomReportsWorkspace export", () => {
     expect(screen.queryByText("Export failed")).not.toBeInTheDocument();
   });
 
-  it("lets a keyboard user choose the data source", async () => {
+  it("is a radio group: Tab reaches only the checked card, arrows move and check", async () => {
     const fetchMock = stubFetch({ status: 500 });
     renderWorkspace();
 
+    const people = screen.getByRole("radio", { name: "People Directory" });
     const giving = screen.getByRole("radio", { name: "Giving & Generosity" });
-    expect(giving).toHaveAttribute("tabindex", "0");
-    expect(giving).toHaveAttribute("aria-checked", "false");
-    fireEvent.keyDown(giving, { key: "Enter" });
-    expect(giving).toHaveAttribute("aria-checked", "true");
+    const events = screen.getByRole("radio", { name: "Events & Attendance" });
+    expect([people, giving, events].map((card) => card.getAttribute("tabindex"))).toEqual(["0", "-1", "-1"]);
 
+    fireEvent.keyDown(people, { key: "ArrowRight" });
+    expect(giving).toHaveAttribute("aria-checked", "true");
+    expect(giving).toHaveFocus();
+    expect([people, giving, events].map((card) => card.getAttribute("tabindex"))).toEqual(["-1", "0", "-1"]);
+
+    fireEvent.keyDown(people, { key: "ArrowLeft" });
+    expect(events).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.keyDown(events, { key: "ArrowDown" });
+    fireEvent.keyDown(people, { key: "ArrowRight" });
     fireEvent.click(screen.getByRole("button", { name: /export/i }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith("/api/reports/custom?entity=giving", { redirect: "manual" }),
