@@ -398,6 +398,20 @@ describe("validateManifest", () => {
     expect(errors.some((e) => e.includes("empty allowedRoles"))).toBe(false);
   });
 
+  it("accepts empty allowedRoles on a platformAdminOnly page (e.g. /hq), and only with the flag (S1)", () => {
+    writeTests();
+    const manifest = fullyFilledManifest();
+    manifest.pages["/church-admin"].allowedRoles = [];
+
+    manifest.pages["/church-admin"].platformAdminOnly = false;
+    expect(validateManifest(root, manifest).errors).toContainEqual(
+      expect.stringContaining("empty allowedRoles: page /church-admin"),
+    );
+
+    manifest.pages["/church-admin"].platformAdminOnly = true;
+    expect(validateManifest(root, manifest).errors.some((e) => e.includes("empty allowedRoles"))).toBe(false);
+  });
+
   it("fails on any leftover TODO marker", () => {
     const manifest = fullyFilledManifest();
     manifest.actions["app/my-actions.ts"].tests = ["TODO"];

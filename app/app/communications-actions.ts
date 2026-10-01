@@ -316,7 +316,7 @@ export async function suppressContactAction(input: {
   const {
     queryTenantLocalDb,
     shouldUseLocalTenantFallback,
-    createTenantServerClient,
+    createTenantAdminClient,
   } = await import("@/lib/supabase/tenant");
 
   let matchedProfileId: string | null = null;
@@ -353,7 +353,10 @@ export async function suppressContactAction(input: {
     );
     matchedProfileId = matchResult.rows[0]?.id ?? null;
   } else {
-    const supabase = await createTenantServerClient();
+    // Authenticated church admin, checked above; the admin client is scoped to
+    // their church (ADR 0022). authenticated has no insert or update policy on
+    // communication_suppressions (Council Review 28).
+    const supabase = createTenantAdminClient();
     const { error } = await supabase.from("communication_suppressions").upsert(
       {
         church_id: churchId,

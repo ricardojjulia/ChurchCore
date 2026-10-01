@@ -37,7 +37,7 @@ const dueLog = {
 };
 
 /** Admin client: due-row query, "sending" lock, then the close-out update (captured). */
-function mockAdmin() {
+function mockAdmin({ claimed = true }: { claimed?: boolean } = {}) {
   const closeOut: Array<Record<string, unknown>> = [];
   createTenantAdminClientMock.mockReturnValue({
     from: vi.fn(() => ({
@@ -46,7 +46,12 @@ function mockAdmin() {
       })),
       update: vi.fn((payload: Record<string, unknown>) => {
         if (payload.status !== "sending") closeOut.push(payload);
-        const chain = { eq: vi.fn(() => chain), then: (resolve: (v: unknown) => void) => resolve({ error: null }) };
+        const chain = {
+          eq: vi.fn(() => chain),
+          // The "sending" claim returns the rows it changed.
+          select: vi.fn(async () => ({ data: claimed ? [{ id: dueLog.id }] : [], error: null })),
+          then: (resolve: (v: unknown) => void) => resolve({ error: null }),
+        };
         return chain;
       }),
     })),
@@ -80,6 +85,19 @@ describe("GET /api/cron/communications-scheduled", () => {
 
     expect(response.status).toBe(200);
     expect(closeOut[0]).toMatchObject({ status: "sent" });
+  });
+
+  it("skips a message cancelled after the due-row fetch: the claim changed nothing (Council Review 28)", async () => {
+    const { closeOut } = mockAdmin({ claimed: false });
+    resolveRecipientsMock.mockResolvedValue([{ profileId: "p-1", name: "A", contact: "a@example.com" }]);
+
+    const response = await GET(cronRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ processed: 0 });
+    expect(resolveRecipientsMock).not.toHaveBeenCalled();
+    expect(sendWithSuppressionMock).not.toHaveBeenCalled();
+    expect(closeOut).toEqual([]);
   });
 
   it("marks the broadcast failed — not sent — when nobody matched", async () => {

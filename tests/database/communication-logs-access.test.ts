@@ -7,7 +7,9 @@ import { Pool, type PoolClient } from "pg";
 // church admins, pastors and secretaries. Before, a secretary saw nothing and
 // a ministry leader (denied by the app) could read every log, recipients'
 // contact details and the suppression list. Members read only the messages
-// sent to them. Each test is rolled back.
+// sent to them. No role writes these tables through the API: every writer is
+// server-side and uses the church-scoped admin client. Each test is rolled
+// back.
 
 const connectionString =
   process.env.TENANT_DB_URL ??
@@ -148,14 +150,13 @@ describe("communication_logs access by role (S1)", () => {
     }
   });
 
-  describe("inserts follow the same gate", () => {
+  describe("nobody inserts directly: every writer is server-side (Council Review 28, PR #165 review)", () => {
     for (const [table, sql] of Object.entries(INSERTS)) {
-      it(`${table}: the communications roles can insert; a ministry leader and a member can't`, async () => {
+      it(`${table}: no role can insert through the API`, async () => {
         await inRolledBackTransaction(async (client) => {
-          expect(await canInsert(client, USERS.church_admin, sql)).toBe(true);
-          expect(await canInsert(client, USERS.secretary, sql)).toBe(true);
-          expect(await canInsert(client, USERS.ministry_leader, sql)).toBe(false);
-          expect(await canInsert(client, USERS.member, sql)).toBe(false);
+          for (const userId of Object.values(USERS)) {
+            expect(await canInsert(client, userId, sql), userId).toBe(false);
+          }
         });
       });
     }

@@ -740,6 +740,43 @@ describe("CC-COMM-001: composeAndSendMessageAction (actions.test)", () => {
   });
 });
 
+describe("suppressContactAction on Supabase (Council Review 28)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+    hasTenantBackendEnvMock.mockReturnValue(true);
+  });
+
+  it("writes through the admin client, scoped to the admin's church, not the user's client", async () => {
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "church-admin", church: { id: "church-1" } },
+      churchProfileId: "profile-admin", profile: { id: "profile-admin-login" },
+      source: "supabase",
+      userId: "admin-1",
+    });
+    const upsert = vi.fn(async () => ({ error: null }));
+    const profileLookup = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      is: vi.fn().mockReturnThis(),
+      or: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+    };
+    createTenantAdminClientMock.mockReturnValueOnce({
+      from: vi.fn((table: string) => (table === "communication_suppressions" ? { upsert } : profileLookup)),
+    });
+
+    await suppressContactAction({ channel: "email", contact: " Member@Example.com ", reason: "manual" });
+
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ church_id: "church-1", contact: "member@example.com", suppressed_by: "profile-admin" }),
+      { onConflict: "church_id,channel,contact" },
+    );
+    expect(profileLookup.eq).toHaveBeenCalledWith("church_id", "church-1");
+    expect(createTenantServerClientMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("CC-COMM-001: cancelScheduledMessageAction (actions.test)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
