@@ -15,9 +15,8 @@
  *   not-found, never a crash. (Segments with a loading.tsx stream their
  *   response, so notFound() renders with a 200 status; the check is "no 5xx,
  *   no error UI", not "status 404".)
- * - The church-admin identity is the same person as super-admin (a real
- *   platform admin), so it is not asserted denied on /control pages; tenant-role
- *   denial there is covered by secretary, pastor, ministry-leader and member.
+ * - The church-admin identity (nora) is not a platform admin, so like every
+ *   other church role she is asserted denied on /control pages (S1).
  *
  * A seeded id that disappears makes its allowed-role check fail (render
  * checks assert Next's not-found UI is absent), so dynamic fixtures can't rot
@@ -211,7 +210,6 @@ for (const visitor of visitors) {
       // Public pages are checked signed out; signed-in visitors of public
       // pages are only redirected onward by design and add no signal.
       if (entry.public && visitor !== "signed-out") continue;
-      if (entry.controlPlane && visitor === "church-admin") continue;
 
       const { url, missingRecord } = resolvePath(entry, visitor);
       const requestedPath = url.split("?")[0];

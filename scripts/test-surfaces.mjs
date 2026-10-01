@@ -416,7 +416,7 @@ export function validateManifest(rootDir, manifest) {
   for (const [key, entry] of Object.entries(manifest.pages ?? {})) {
     if (entry?.public || entry?.controlPlane || entry?.platformAdminOnly) continue;
     if (!Array.isArray(entry?.allowedRoles) || entry.allowedRoles.length === 0) {
-      errors.push(`empty allowedRoles: page ${key} has no allowedRoles and is not marked public or controlPlane`);
+      errors.push(`empty allowedRoles: page ${key} has no allowedRoles and is not marked public, controlPlane or platformAdminOnly`);
     }
   }
 

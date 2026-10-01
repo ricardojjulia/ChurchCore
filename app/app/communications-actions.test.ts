@@ -12,6 +12,7 @@ const {
   retryEligibleCommunicationsMock,
   attemptRetryMock,
   resolveRecipientsMock,
+  createTenantAdminClientMock,
 } = vi.hoisted(() => {
   const revalidatePath = vi.fn();
   const requireChurchSession = vi.fn();
@@ -24,6 +25,7 @@ const {
   const retryEligibleCommunications = vi.fn();
   const attemptRetry = vi.fn();
   const resolveRecipients = vi.fn();
+  const createTenantAdminClient = vi.fn();
 
   return {
     revalidatePathMock: revalidatePath,
@@ -37,6 +39,7 @@ const {
     retryEligibleCommunicationsMock: retryEligibleCommunications,
     attemptRetryMock: attemptRetry,
     resolveRecipientsMock: resolveRecipients,
+    createTenantAdminClientMock: createTenantAdminClient,
   };
 });
 
@@ -53,7 +56,7 @@ vi.mock("@/lib/supabase/tenant", () => ({
   queryTenantLocalDb: queryTenantLocalDbMock,
   shouldUseLocalTenantFallback: shouldUseLocalTenantFallbackMock,
   createTenantServerClient: createTenantServerClientMock,
-  createTenantAdminClient: () => makeInsertClient(),
+  createTenantAdminClient: () => createTenantAdminClientMock() ?? makeInsertClient(),
 }));
 
 vi.mock("@/lib/consent-log", () => ({
@@ -751,14 +754,15 @@ describe("CC-COMM-001: cancelScheduledMessageAction (actions.test)", () => {
   });
 
   it("AC11: cancels a scheduled log → status becomes cancelled", async () => {
+    const chain = {
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn(async () => ({ data: [{ id: "log-1" }], error: null })),
+    };
+    createTenantAdminClientMock.mockReturnValueOnce({ from: vi.fn(() => chain) });
     createTenantServerClientMock.mockResolvedValue({
       from: vi.fn(() => ({
         select: vi.fn().mockReturnThis(),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            eq: vi.fn(async () => ({ error: null })),
-          })),
-        })),
         eq: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn(async () => ({
           data: { id: "log-1", status: "scheduled", church_id: "church-1" },
@@ -769,6 +773,8 @@ describe("CC-COMM-001: cancelScheduledMessageAction (actions.test)", () => {
 
     const result = await cancelScheduledMessageAction("log-1");
     expect(result.ok).toBe(true);
+    expect(chain.update).toHaveBeenCalledWith({ status: "cancelled" });
+    expect(chain.eq).toHaveBeenCalledWith("status", "scheduled");
   });
 
   it("AC11: fails on a sent log", async () => {

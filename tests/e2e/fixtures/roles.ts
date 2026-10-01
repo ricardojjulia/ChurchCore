@@ -21,23 +21,12 @@
  *   - super-admin (sarah) is a platform admin with NO stored selection ->
  *     resolveAppContext defaults platform admins to control context ->
  *     already lands on /control — no cookie needed either.
- *   - church-admin (sarah, in her *church* role) needs an explicit stored
- *     selection, because her default resolution is control (above). The
- *     app's only in-product path to that is `launchTenantViewAction`
- *     (app/control/actions.ts), a control-plane "view tenant" flow gated
- *     behind extra tenant-connection-status/audit-log plumbing that's
- *     awkward to drive from a test and irrelevant to what we're testing
- *     here. Instead this sets the exact cookie JSON
- *     `writeAppContextSelection` itself would write
- *     (`{kind:"church",churchId,roleId,source:"membership"}`) via
- *     `context.addCookies` — verified against `resolveAppContext`'s
- *     `storedSelection.source === "membership"` branch, which looks the
- *     `churchId` up in the signed-in user's own real `memberships` (sarah's
- *     `church_admin` row), not against impersonation/tenantViews. Per the
- *     Story A brief, this is an accepted alternative to a live UI action:
- *     "context.addCookies with the exact JSON the server writes is
- *     acceptable if resolveAppContext validates it against the user's real
- *     memberships."
+ *   - church-admin (nora) has one real `church_admin` membership and no
+ *     platform-admin row, so she also lands on her homePath with no cookie.
+ *     (Until S1 this identity was sarah in her church role, which needed a
+ *     stored selection — `{kind:"church",churchId,roleId,source:"membership"}`,
+ *     the JSON `writeAppContextSelection` writes — set with
+ *     `context.addCookies`; the mechanism below is kept for that case.)
  *   - The cookie is httpOnly (`writeAppContextSelection`), so a
  *     `page.evaluate(() => document.cookie = ...)` write is silently
  *     dropped by the browser once a same-named httpOnly cookie already

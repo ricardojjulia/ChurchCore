@@ -173,7 +173,7 @@ test.describe("GET /api/reports/custom — signed in as pastor", () => {
 
 // ── Control-plane routes reject tenant roles ─────────────────────────────────
 
-test.describe("control-plane routes — signed in as a tenant role (church-admin context excluded: it is a platform admin)", () => {
+test.describe("control-plane routes — signed in as a tenant role", () => {
   test.use({ storageState: authFilePath("pastor") });
 
   test("GET /api/control/db-health -> redirect to /sign-in (force) for a tenant role", async ({ page }) => {
