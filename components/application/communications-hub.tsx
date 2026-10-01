@@ -765,16 +765,19 @@ export function CommunicationsHub({
               <Text fw={600} size="sm">
                 {t("communicationsHub", "suppressedContacts")}
               </Text>
-              <Button
-                size="xs"
-                radius="xl"
-                variant="light"
-                color="grape"
-                leftSection={<ShieldBan size={12} />}
-                onClick={suppression.open}
-              >
-                {t("communicationsHub", "addSuppression")}
-              </Button>
+              {/* suppressContactAction is church-admin only (Council Review 28). */}
+              {session.appContext.roleId === "church-admin" ? (
+                <Button
+                  size="xs"
+                  radius="xl"
+                  variant="light"
+                  color="grape"
+                  leftSection={<ShieldBan size={12} />}
+                  onClick={suppression.open}
+                >
+                  {t("communicationsHub", "addSuppression")}
+                </Button>
+              ) : null}
             </Group>
 
             {suppressions.length === 0 ? (
