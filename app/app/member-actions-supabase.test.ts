@@ -15,7 +15,11 @@ const { requireChurchSessionMock, tableResults, calls } = vi.hoisted(() => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireChurchSession: requireChurchSessionMock }));
-vi.mock("@/lib/stripe/event-registrations", () => ({ createEventRegistrationPaymentIntent: vi.fn() }));
+vi.mock("@/lib/stripe/event-registrations", async (importOriginal) => ({
+  createEventRegistrationPaymentIntent: vi.fn(),
+  // The real helper: the demo payment route completes only this id.
+  stubPaymentIntentId: (await importOriginal<typeof import("@/lib/stripe/event-registrations")>()).stubPaymentIntentId,
+}));
 vi.mock("@/lib/supabase/tenant", () => {
   function next(table: string) {
     const queue = tableResults.get(table) ?? [];
@@ -183,6 +187,20 @@ describe("memberRegisterForEventAction (Supabase)", () => {
       error: "This event is full and does not have a waitlist.",
     });
     expect(inserts("event_registrations")).toHaveLength(0);
+  });
+
+  it("in demo mode, records the stub payment id the demo payment route completes (PR #170 review)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    queue("event_registration_settings", { data: settings("members", { price_cents: 2500 }), error: null });
+    queue("profiles", { data: me, error: null });
+    queue("event_registrations", { data: null, error: null }, { data: { id: "reg-9" }, error: null });
+
+    const result = await memberRegisterForEventAction({ eventId: "event-1" });
+
+    expect(result).toMatchObject({ ok: true, registrationId: "reg-9", paymentIntentId: "pi_event_registration_stub_reg-9" });
+    const paymentUpsert = calls.find((c) => c.table === "event_registration_payments" && c.method === "upsert");
+    expect(paymentUpsert?.args[0]).toMatchObject({ payment_intent_id: "pi_event_registration_stub_reg-9" });
+    vi.unstubAllEnvs();
   });
 
   it("never shows the member raw database text when the insert fails", async () => {
