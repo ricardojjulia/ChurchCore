@@ -1622,7 +1622,8 @@
       "controlPlane": false,
       "dynamicParams": null,
       "tests": [
-        "tests/e2e/page-role-sweep.spec.ts"
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/public-event-registration.spec.ts"
       ]
     },
     "/portal/register": {

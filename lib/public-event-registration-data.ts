@@ -1,7 +1,7 @@
 import "server-only";
 
 import {
-  createTenantServerClient,
+  createTenantAdminClient,
   hasTenantBackendEnv,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
@@ -216,7 +216,11 @@ export async function getPublicEventRegistrationOptions(
     }));
   }
 
-  const supabase = await createTenantServerClient();
+  // The visitor is signed out, and anon can read none of these tables, so the
+  // page always showed no events (S10). Read with the church-scoped admin
+  // client, and only what a visitor may see: public events open for
+  // registration, their form fields, and registration counts (no rows).
+  const supabase = createTenantAdminClient();
 
   const settingsQuery = await supabase
     .from("event_registration_settings")
@@ -227,17 +231,32 @@ export async function getPublicEventRegistrationOptions(
     .eq("registration_open", true)
     .eq("events.visibility", "public");
 
+  if (settingsQuery.error) {
+    throw new Error(settingsQuery.error.message);
+  }
+
+  const openEventIds = (settingsQuery.data ?? []).map((row) => (row as { event_id: string }).event_id);
+  if (openEventIds.length === 0) {
+    return [];
+  }
+
   const registrationCountsQuery = await supabase
     .from("event_registrations")
     .select("event_id, is_waitlisted")
     .eq("church_id", churchId)
+    .in("event_id", openEventIds)
     .neq("status", "cancelled");
 
   const fieldsQuery = await supabase
     .from("event_registration_form_fields")
     .select("id, event_id, label, field_key, field_type, is_required, options, sort_order")
     .eq("church_id", churchId)
+    .in("event_id", openEventIds)
     .order("sort_order");
+
+  if (registrationCountsQuery.error || fieldsQuery.error) {
+    throw new Error((registrationCountsQuery.error ?? fieldsQuery.error)!.message);
+  }
 
   const settingsRows = (settingsQuery.data ?? []) as Array<{
     event_id: string;
