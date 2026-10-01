@@ -16,7 +16,7 @@ vi.mock("@/lib/supabase/tenant", () => ({
   createTenantAdminClient: createTenantAdminClientMock,
 }));
 
-import { resolveRecipients } from "@/lib/communications/recipient-resolver";
+import { resolveRecipients, resolveRecipientsByIds } from "@/lib/communications/recipient-resolver";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -385,5 +385,74 @@ describe("resolveRecipients", () => {
     });
 
     await expect(resolveRecipients("church-1", "email", {})).rejects.toThrow("db error");
+  });
+});
+
+describe("resolveRecipientsByIds (S6, F6)", () => {
+  type Call = { filters: Array<[string, string, unknown]> };
+
+  function fakeAdmin(rows: Array<{ id: string; full_name: string | null; email: string | null; phone: string | null }>) {
+    const calls: Call[] = [];
+    createTenantAdminClientMock.mockReturnValue({
+      from: (table: string) => {
+        expect(table).toBe("profiles");
+        const call: Call = { filters: [] };
+        const builder = {
+          select: () => builder,
+          eq: (column: string, value: unknown) => (call.filters.push(["eq", column, value]), builder),
+          is: (column: string, value: unknown) => (call.filters.push(["is", column, value]), builder),
+          in: async (column: string, values: string[]) => {
+            call.filters.push(["in", column, values]);
+            calls.push(call);
+            return { data: rows.filter((row) => values.includes(row.id)), error: null };
+          },
+        };
+        return builder;
+      },
+    });
+    return calls;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("reads only the church's contactable, unmerged profiles, and the contact for the channel", async () => {
+    const calls = fakeAdmin([
+      { id: "p-1", full_name: "Ana", email: " ana@church.test ", phone: "+15550001" },
+      { id: "p-2", full_name: "Ben", email: null, phone: "+15550002" },
+    ]);
+
+    const email = await resolveRecipientsByIds("church-1", "email", ["p-1", "p-2"]);
+
+    expect(calls[0].filters).toEqual([
+      ["eq", "church_id", "church-1"],
+      ["eq", "contact_allowed", true],
+      ["is", "merged_into_profile_id", null],
+      ["in", "id", ["p-1", "p-2"]],
+    ]);
+    expect(email).toEqual([
+      { profileId: "p-1", name: "Ana", contact: "ana@church.test" },
+      { profileId: "p-2", name: "Ben", contact: null },
+    ]);
+
+    fakeAdmin([{ id: "p-2", full_name: "Ben", email: null, phone: "+15550002" }]);
+    expect(await resolveRecipientsByIds("church-1", "sms", ["p-2"])).toEqual([
+      { profileId: "p-2", name: "Ben", contact: "+15550002" },
+    ]);
+  });
+
+  it("de-duplicates ids, reads in chunks, and reads nothing for no ids", async () => {
+    const ids = Array.from({ length: 450 }, (_, i) => `p-${i}`);
+    const calls = fakeAdmin(ids.map((id) => ({ id, full_name: id, email: `${id}@church.test`, phone: null })));
+
+    const result = await resolveRecipientsByIds("church-1", "email", [...ids, "p-0"]);
+
+    expect(result).toHaveLength(450);
+    expect(calls.map((call) => (call.filters[3][2] as string[]).length)).toEqual([200, 200, 50]);
+
+    createTenantAdminClientMock.mockClear();
+    expect(await resolveRecipientsByIds("church-1", "email", [])).toEqual([]);
+    expect(createTenantAdminClientMock).not.toHaveBeenCalled();
   });
 });

@@ -172,3 +172,52 @@ export async function resolveRecipients(
 
   return results;
 }
+
+export type RecipientById = {
+  profileId: string;
+  name: string;
+  /** The profile's email or phone for the channel; null when it has none. */
+  contact: string | null;
+};
+
+// PostgREST puts `.in()` values in the URL; keep each request's list short.
+const ID_CHUNK = 200;
+
+/**
+ * Resolves hand-picked recipients by profile id, on the server (S6, F6):
+ * only profiles of `churchId` that aren't merged and allow contact, with the
+ * contact read from the profile, never from the caller. Ids that don't match
+ * (another church, merged, contact not allowed) are simply absent.
+ *
+ * `churchId` must come from the server-side session.
+ */
+export async function resolveRecipientsByIds(
+  churchId: string,
+  channel: CommunicationChannel,
+  profileIds: string[],
+): Promise<RecipientById[]> {
+  const ids = [...new Set(profileIds)];
+  if (ids.length === 0) return [];
+
+  const supabase = createTenantAdminClient();
+  const recipients: RecipientById[] = [];
+  for (let i = 0; i < ids.length; i += ID_CHUNK) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, full_name, email, phone")
+      .eq("church_id", churchId)
+      .eq("contact_allowed", true)
+      .is("merged_into_profile_id", null)
+      .in("id", ids.slice(i, i + ID_CHUNK));
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    for (const row of (data ?? []) as Array<{ id: string; full_name: string | null; email: string | null; phone: string | null }>) {
+      const contact = channel === "email" ? row.email?.trim() : row.phone?.trim();
+      recipients.push({ profileId: row.id, name: row.full_name ?? "", contact: contact || null });
+    }
+  }
+  return recipients;
+}

@@ -300,7 +300,8 @@ export function CommunicationsHub({
 
     startTransition(async () => {
       try {
-        const result = await broadcastMessageAction(recipients, {
+        // Only the chosen ids: contacts are read on the server (S6).
+        const result = await broadcastMessageAction({
           recipientIds: selectedIds,
           channel,
           subject: subject.trim() || undefined,
