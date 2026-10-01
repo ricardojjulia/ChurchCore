@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createPublicKey, verify, type KeyObject } from "node:crypto";
 
 import type {
   NormalizedProviderWebhookEvent,
@@ -9,8 +9,14 @@ import type {
 import { stubsAllowed } from "@/lib/stub-mode";
 import { PROVIDER_NOT_CONFIGURED } from "@/lib/communications/provider-adapter";
 
-function buildHmac(payload: string, secret: string): string {
-  return createHmac("sha256", secret).update(payload, "utf8").digest("hex");
+// SendGrid's Event Webhook signs timestamp + raw body with ECDSA (P-256,
+// SHA-256). The verification key in its settings is the base64 DER public
+// key; a PEM key is accepted too. The signature is base64 DER.
+// https://www.twilio.com/docs/sendgrid/for-developers/tracking-events/getting-started-event-webhook-security-features
+function sendgridPublicKey(key: string): KeyObject {
+  return key.includes("BEGIN PUBLIC KEY")
+    ? createPublicKey(key)
+    : createPublicKey({ key: Buffer.from(key.trim(), "base64"), format: "der", type: "spki" });
 }
 
 function parseJson(rawBody: string): unknown {
@@ -110,28 +116,26 @@ export const sendgridAdapter: ProviderAdapter = {
   verifyWebhookSignature(rawBody: string, headers: Record<string, string>): boolean {
     const verificationKey = process.env.SENDGRID_WEBHOOK_VERIFICATION_KEY;
     if (!verificationKey) {
-      return true;
+      console.error("[sendgrid] SENDGRID_WEBHOOK_VERIFICATION_KEY is not set — rejecting webhook (S2).");
+      return false;
     }
 
-    const signature =
-      headers["x-sendgrid-signature"] ??
-      headers["x-twilio-email-event-webhook-signature"] ??
-      "";
-    const timestamp =
-      headers["x-sendgrid-timestamp"] ??
-      headers["x-twilio-email-event-webhook-timestamp"] ??
-      "";
+    const signature = headers["x-twilio-email-event-webhook-signature"] ?? "";
+    const timestamp = headers["x-twilio-email-event-webhook-timestamp"] ?? "";
 
     if (!signature || !timestamp) {
       return false;
     }
 
-    const signedPayload = `${timestamp}.${rawBody}`;
-    const expected = buildHmac(signedPayload, verificationKey);
-
     try {
-      return timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(signature, "hex"));
+      return verify(
+        "sha256",
+        Buffer.from(timestamp + rawBody, "utf8"),
+        sendgridPublicKey(verificationKey),
+        Buffer.from(signature, "base64"),
+      );
     } catch {
+      // A malformed key or signature is a rejection, not a crash.
       return false;
     }
   },

@@ -1,3 +1,5 @@
+import { createHmac } from "node:crypto";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
@@ -31,18 +33,69 @@ vi.mock("@/lib/notifications/send-email", () => ({
 
 import { POST as stripeWebhookPost } from "@/app/api/webhooks/stripe/route";
 
+const TEST_SECRET = "whsec_route_test";
+
+// A request Stripe signed with TEST_SECRET just now (S2: unsigned events are
+// rejected, so the handler tests sign theirs).
+function stripeRequest(init: { method: string; body: string }, secret = TEST_SECRET, signedAt = Math.floor(Date.now() / 1000)) {
+  const v1 = createHmac("sha256", secret).update(`${signedAt}.${init.body}`, "utf8").digest("hex");
+  return new NextRequest("http://localhost/api/webhooks/stripe", {
+    ...init,
+    headers: { "stripe-signature": `t=${signedAt},v1=${v1}` },
+  });
+}
+
+describe("stripe webhook signature (S2: fail closed, replay window)", () => {
+  const body = JSON.stringify({ type: "payment_intent.succeeded", data: { object: { id: "pi_1", metadata: {} } } });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    shouldUseLocalTenantFallbackMock.mockReturnValue(true);
+    queryTenantLocalDbMock.mockResolvedValue({ rows: [] });
+  });
+
+  it("rejects every event when STRIPE_WEBHOOK_SECRET is unset, even a well-formed one", async () => {
+    getStripeWebhookSecretMock.mockReturnValue(null);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const response = await stripeWebhookPost(stripeRequest({ method: "POST", body }));
+    expect(response.status).toBe(401);
+    expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unsigned event and one signed with another secret", async () => {
+    getStripeWebhookSecretMock.mockReturnValue(TEST_SECRET);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const unsigned = await stripeWebhookPost(new NextRequest("http://localhost/api/webhooks/stripe", { method: "POST", body }));
+    expect(unsigned.status).toBe(401);
+    const wrong = await stripeWebhookPost(stripeRequest({ method: "POST", body }, "whsec_someone_else"));
+    expect(wrong.status).toBe(401);
+    expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a correctly signed event older than five minutes (a replay), accepts a fresh one", async () => {
+    getStripeWebhookSecretMock.mockReturnValue(TEST_SECRET);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const stale = await stripeWebhookPost(
+      stripeRequest({ method: "POST", body }, TEST_SECRET, Math.floor(Date.now() / 1000) - 301),
+    );
+    expect(stale.status).toBe(401);
+    const fresh = await stripeWebhookPost(stripeRequest({ method: "POST", body }));
+    expect(fresh.status).toBe(200);
+  });
+});
+
 describe("stripe webhook route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     shouldUseLocalTenantFallbackMock.mockReturnValue(true);
-    getStripeWebhookSecretMock.mockReturnValue(null);
+    getStripeWebhookSecretMock.mockReturnValue(TEST_SECRET);
     queryTenantLocalDbMock.mockResolvedValue({ rows: [] });
     sendEmailMock.mockResolvedValue(undefined);
   });
 
   it("reconciles event registration payment as paid on payment_intent.succeeded", async () => {
     const response = await stripeWebhookPost(
-      new NextRequest("http://localhost/api/webhooks/stripe", {
+      stripeRequest({
         method: "POST",
         body: JSON.stringify({
           type: "payment_intent.succeeded",
@@ -78,7 +131,7 @@ describe("stripe webhook route", () => {
       .mockResolvedValue({ rows: [] });
 
     const response = await stripeWebhookPost(
-      new NextRequest("http://localhost/api/webhooks/stripe", {
+      stripeRequest({
         method: "POST",
         body: JSON.stringify({
           type: "payment_intent.succeeded",
@@ -110,7 +163,7 @@ describe("stripe webhook route", () => {
 
   it("reconciles event registration payment as failed on payment_intent.payment_failed", async () => {
     const response = await stripeWebhookPost(
-      new NextRequest("http://localhost/api/webhooks/stripe", {
+      stripeRequest({
         method: "POST",
         body: JSON.stringify({
           type: "payment_intent.payment_failed",
@@ -148,7 +201,7 @@ describe("stripe webhook route", () => {
       .mockResolvedValue({ rows: [] });
 
     const response = await stripeWebhookPost(
-      new NextRequest("http://localhost/api/webhooks/stripe", {
+      stripeRequest({
         method: "POST",
         body: JSON.stringify({
           type: "payment_intent.payment_failed",
@@ -184,7 +237,7 @@ describe("stripe webhook route", () => {
     it("processes full charge.refunded and sets refunded status", async () => {
       // Default mock returns { rows: [] } — idempotency check finds nothing, updates succeed.
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "charge.refunded",
@@ -223,7 +276,7 @@ describe("stripe webhook route", () => {
 
     it("processes partial charge.refunded and sets partially_refunded status", async () => {
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "charge.refunded",
@@ -264,7 +317,7 @@ describe("stripe webhook route", () => {
       });
 
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "charge.refunded",
@@ -302,7 +355,7 @@ describe("stripe webhook route", () => {
 
     it("skips when no church_id in metadata", async () => {
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "charge.refunded",
@@ -329,7 +382,7 @@ describe("stripe webhook route", () => {
       // No event_registration_id in metadata; resolveRegistrationIdFromPaymentIntent
       // is called but returns null (default mock → empty rows).
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "charge.refunded",
@@ -375,7 +428,7 @@ describe("stripe webhook route", () => {
         .mockResolvedValue({ rows: [] }); // idempotency check + updates
 
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "charge.refunded",
@@ -453,7 +506,7 @@ describe("stripe webhook route", () => {
       createTenantAdminClientMock.mockReturnValue(chainProxy);
 
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "charge.refunded",
@@ -516,7 +569,7 @@ describe("stripe webhook route", () => {
       createTenantAdminClientMock.mockReturnValue(chainProxy);
 
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "charge.refunded",
@@ -586,7 +639,7 @@ describe("stripe webhook route", () => {
       createTenantAdminClientMock.mockReturnValue(chainProxy);
 
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "payment_intent.succeeded",
@@ -653,7 +706,7 @@ describe("stripe webhook route", () => {
       createTenantAdminClientMock.mockReturnValue(chainProxy);
 
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "payment_intent.succeeded",
@@ -707,7 +760,7 @@ describe("stripe webhook route", () => {
       createTenantAdminClientMock.mockReturnValue(chainProxy);
 
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "payment_intent.succeeded",
@@ -765,7 +818,7 @@ describe("stripe webhook route", () => {
       createTenantAdminClientMock.mockReturnValue(chainProxy);
 
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "payment_intent.payment_failed",
@@ -829,7 +882,7 @@ describe("stripe webhook route", () => {
       createTenantAdminClientMock.mockReturnValue(chainProxy);
 
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "payment_intent.payment_failed",
@@ -913,7 +966,7 @@ describe("stripe webhook route", () => {
       createTenantAdminClientMock.mockReturnValue(chainProxy);
 
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "payment_intent.succeeded",
@@ -963,7 +1016,7 @@ describe("stripe webhook route", () => {
       createTenantAdminClientMock.mockReturnValue(chainProxy);
 
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "payment_intent.succeeded",
@@ -1004,7 +1057,7 @@ describe("stripe webhook route", () => {
       createTenantAdminClientMock.mockReturnValue(chainProxy);
 
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "payment_intent.succeeded",
@@ -1048,7 +1101,7 @@ describe("stripe webhook route", () => {
       createTenantAdminClientMock.mockReturnValue(chainProxy);
 
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "charge.refunded",
@@ -1100,7 +1153,7 @@ describe("stripe webhook route", () => {
       createTenantAdminClientMock.mockReturnValue(chainProxy);
 
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "customer.subscription.deleted",
@@ -1126,7 +1179,7 @@ describe("stripe webhook route", () => {
 
     it("handleSubscriptionDeleted — Supabase: skips when no church_id in metadata", async () => {
       const response = await stripeWebhookPost(
-        new NextRequest("http://localhost/api/webhooks/stripe", {
+        stripeRequest({
           method: "POST",
           body: JSON.stringify({
             type: "customer.subscription.deleted",

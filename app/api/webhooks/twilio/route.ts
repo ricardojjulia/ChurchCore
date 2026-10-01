@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { appBaseUrl } from "@/lib/app-url";
 import { twilioAdapter } from "@/lib/communications/twilio-adapter";
 import { recordProviderWebhookEvent } from "@/lib/communications/webhook-events";
 
@@ -15,7 +16,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const rawBody = await request.text();
   const headers = normalizeHeaders(request.headers);
 
-  if (!twilioAdapter.verifyWebhookSignature(rawBody, headers)) {
+  // Twilio signs the public URL it called, which behind a proxy isn't
+  // request.url's host; the app's configured base URL is.
+  const base = appBaseUrl();
+  const signedUrl = base ? `${base}${request.nextUrl.pathname}${request.nextUrl.search}` : null;
+
+  if (!twilioAdapter.verifyWebhookSignature(rawBody, headers, signedUrl)) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 

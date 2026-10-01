@@ -51,7 +51,16 @@ export type ProviderAdapter = {
   provider: CommunicationProvider;
   channel: CommunicationProviderChannel;
   send(payload: ProviderSendPayload): Promise<ProviderSendResult>;
-  verifyWebhookSignature(rawBody: string, headers: Record<string, string>): boolean;
+  /**
+   * True only for a request the provider provably signed. Fails closed: an
+   * unset secret rejects every request, in every environment (S2).
+   * `requestUrl` is the public URL the provider called (Twilio signs it).
+   */
+  verifyWebhookSignature(
+    rawBody: string,
+    headers: Record<string, string>,
+    requestUrl?: string | null,
+  ): boolean;
   normalizeWebhookEvent(
     rawBody: string,
     headers: Record<string, string>,

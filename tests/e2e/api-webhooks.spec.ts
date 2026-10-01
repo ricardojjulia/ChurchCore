@@ -1,17 +1,23 @@
 import { expect, test } from "@playwright/test";
 
-import { signStripeWebhook, signTimestampedHmac } from "./fixtures/api";
-import { getWebhookSecret } from "./fixtures/env";
+import { Webhook } from "svix";
+
+import { queryTenantDb, signStripeWebhook, signTwilioWebhook } from "./fixtures/api";
+import { getAppUrl, getWebhookSecret } from "./fixtures/env";
 
 /**
- * Rejection-contract tests for the four provider webhook routes (see
- * tests/coverage-manifest.json -> routes -> auth: "webhook"). None of these
- * have a documented happy path in the Story A brief (AC8 only covers cron
- * and unsubscribe) — signature verification requires the corresponding
- * secret env var to be configured, which CI/local sets to a dummy value, so
- * "no signature" and "bad signature" both reject even without real
- * provider credentials.
+ * Contract tests for the four provider webhook routes (see
+ * tests/coverage-manifest.json -> routes -> auth: "webhook"). CI/local set
+ * each verification secret to a dummy value; every route rejects unsigned,
+ * badly signed and (Stripe) replayed requests. S2 adds happy paths for the
+ * schemes a test can sign — Stripe, Twilio and Resend (SendGrid's is an ECDSA
+ * key pair whose private half only SendGrid holds; its happy path is a unit
+ * test) — and checks that a signed bounce or STOP really writes a
+ * suppression (F4: those writes used to fail as anon).
  */
+
+// Seed church id — supabase/seed.sql, Grace Harbor Church.
+const CHURCH_ID = "11111111-0000-0000-0000-000000000001";
 
 const RAW_BODY = JSON.stringify({ type: "test.event", data: { object: {} } });
 
@@ -27,6 +33,20 @@ test.describe("POST /api/webhooks/stripe", () => {
       headers: { "stripe-signature": "t=1700000000,v1=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef" },
     });
     expect(response.status()).toBe(401);
+  });
+
+  test("correctly signed but more than five minutes old (a replay) -> 401; fresh -> 200", async ({ request }) => {
+    const secret = getWebhookSecret("stripe");
+    const stale = await request.post("/api/webhooks/stripe", {
+      data: RAW_BODY,
+      headers: { "stripe-signature": signStripeWebhook(RAW_BODY, secret, Math.floor(Date.now() / 1000) - 600) },
+    });
+    expect(stale.status()).toBe(401);
+    const fresh = await request.post("/api/webhooks/stripe", {
+      data: RAW_BODY,
+      headers: { "stripe-signature": signStripeWebhook(RAW_BODY, secret) },
+    });
+    expect(fresh.status()).toBe(200);
   });
 
   test("well-formed but wrong-secret signature -> 401", async ({ request }) => {
@@ -57,13 +77,14 @@ test.describe("POST /api/webhooks/sendgrid", () => {
     expect(response.status()).toBe(401);
   });
 
-  test("well-formed but wrong-secret signature -> 401", async ({ request }) => {
+  test("signature from another key -> 401", async ({ request }) => {
+    const { generateKeyPairSync, sign } = await import("node:crypto");
+    const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
     const timestamp = String(Math.floor(Date.now() / 1000));
-    const badSig = signTimestampedHmac("[]", "not-the-real-verification-key", timestamp);
     const response = await request.post("/api/webhooks/sendgrid", {
       data: "[]",
       headers: {
-        "x-twilio-email-event-webhook-signature": badSig,
+        "x-twilio-email-event-webhook-signature": sign("sha256", Buffer.from(timestamp + "[]"), privateKey).toString("base64"),
         "x-twilio-email-event-webhook-timestamp": timestamp,
       },
     });
@@ -73,35 +94,57 @@ test.describe("POST /api/webhooks/sendgrid", () => {
 
 test.describe("POST /api/webhooks/twilio", () => {
   const FORM_BODY = "MessageSid=SM123&MessageStatus=delivered";
+  const url = () => `${getAppUrl()}/api/webhooks/twilio`;
 
-  test("no signature headers -> 401", async ({ request }) => {
-    const response = await request.post("/api/webhooks/twilio", { data: FORM_BODY });
+  test("no signature header -> 401", async ({ request }) => {
+    const response = await request.post("/api/webhooks/twilio", {
+      data: FORM_BODY,
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+    });
     expect(response.status()).toBe(401);
   });
 
-  test("bad signature -> 401", async ({ request }) => {
-    const timestamp = String(Math.floor(Date.now() / 1000));
+  test("signed with another auth token -> 401", async ({ request }) => {
     const response = await request.post("/api/webhooks/twilio", {
       data: FORM_BODY,
       headers: {
-        "x-twilio-signature": Buffer.from("not-a-real-signature").toString("hex"),
-        "x-twilio-request-timestamp": timestamp,
+        "content-type": "application/x-www-form-urlencoded",
+        "x-twilio-signature": signTwilioWebhook(url(), FORM_BODY, "not-the-real-auth-token"),
       },
     });
     expect(response.status()).toBe(401);
   });
 
-  test("well-formed but wrong-secret signature -> 401", async ({ request }) => {
-    const timestamp = String(Math.floor(Date.now() / 1000));
-    const badSig = signTimestampedHmac(FORM_BODY, "not-the-real-auth-token", timestamp);
-    const response = await request.post("/api/webhooks/twilio", {
-      data: FORM_BODY,
-      headers: {
-        "x-twilio-signature": badSig,
-        "x-twilio-request-timestamp": timestamp,
-      },
-    });
-    expect(response.status()).toBe(401);
+  test("a signed 'replied STOP' (21610) callback writes an SMS suppression (S2, F4)", async ({ request }) => {
+    const sid = `SM-e2e-${Date.now()}`;
+    const phone = `+1555${String(Date.now()).slice(-7)}`;
+    const log = await queryTenantDb<{ id: string }>(
+      `insert into public.communication_logs (church_id, channel, subject, status, provider_message_id)
+       values ($1, 'sms', 'S2 e2e', 'sent', $2) returning id`,
+      [CHURCH_ID, sid],
+    );
+    try {
+      const body = new URLSearchParams({ MessageSid: sid, MessageStatus: "undelivered", ErrorCode: "21610", To: phone }).toString();
+      const response = await request.post("/api/webhooks/twilio", {
+        data: body,
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          "x-twilio-signature": signTwilioWebhook(url(), body, getWebhookSecret("twilio")),
+        },
+      });
+      expect(response.status()).toBe(200);
+      expect(await response.json()).toEqual({ ok: true, recorded: true });
+
+      const suppression = await queryTenantDb(
+        `select reason from public.communication_suppressions where church_id = $1 and channel = 'sms' and contact = $2`,
+        [CHURCH_ID, phone],
+      );
+      expect(suppression.rows).toEqual([{ reason: "unsubscribe" }]);
+    } finally {
+      await queryTenantDb(`delete from public.communication_suppressions where church_id = $1 and contact = $2`, [CHURCH_ID, phone]);
+      await queryTenantDb(`delete from public.communication_delivery_events where communication_log_id = $1`, [log.rows[0].id]);
+      await queryTenantDb(`delete from public.communication_logs where id = $1`, [log.rows[0].id]);
+    }
   });
 });
 
@@ -121,6 +164,54 @@ test.describe("POST /api/webhooks/resend", () => {
       },
     });
     expect(response.status()).toBe(401);
+  });
+});
+
+test.describe("POST /api/webhooks/resend — signed bounce (S2, F4)", () => {
+  test("a signed bounce for a sent email writes the delivery event and an email suppression", async ({ request }) => {
+    const emailId = `re-e2e-${Date.now()}`;
+    const address = `bounce-${Date.now()}@example.test`;
+    const log = await queryTenantDb<{ id: string }>(
+      `insert into public.communication_logs (church_id, channel, subject, status, provider_message_id)
+       values ($1, 'email', 'S2 e2e', 'sent', $2) returning id`,
+      [CHURCH_ID, emailId],
+    );
+    try {
+      const payload = JSON.stringify({
+        type: "email.bounced",
+        created_at: new Date().toISOString(),
+        data: { email_id: emailId, to: [address], bounce: { message: "Mailbox does not exist" } },
+      });
+      const msgId = `msg_${Date.now()}`;
+      const timestamp = new Date();
+      const signature = new Webhook(getWebhookSecret("resend")).sign(msgId, timestamp, payload);
+      const response = await request.post("/api/webhooks/resend", {
+        data: payload,
+        headers: {
+          "content-type": "application/json",
+          "svix-id": msgId,
+          "svix-timestamp": String(Math.floor(timestamp.getTime() / 1000)),
+          "svix-signature": signature,
+        },
+      });
+      expect(response.status()).toBe(200);
+      expect(await response.json()).toEqual({ ok: true, recorded: true });
+
+      const suppression = await queryTenantDb(
+        `select reason from public.communication_suppressions where church_id = $1 and channel = 'email' and contact = $2`,
+        [CHURCH_ID, address],
+      );
+      expect(suppression.rows).toEqual([{ reason: "bounce" }]);
+      const events = await queryTenantDb(
+        `select status from public.communication_delivery_events where communication_log_id = $1`,
+        [log.rows[0].id],
+      );
+      expect(events.rows).toEqual([{ status: "bounced" }]);
+    } finally {
+      await queryTenantDb(`delete from public.communication_suppressions where church_id = $1 and contact = $2`, [CHURCH_ID, address]);
+      await queryTenantDb(`delete from public.communication_delivery_events where communication_log_id = $1`, [log.rows[0].id]);
+      await queryTenantDb(`delete from public.communication_logs where id = $1`, [log.rows[0].id]);
+    }
   });
 });
 

@@ -65,8 +65,8 @@ describe("sendgridAdapter", () => {
     process.env.SENDGRID_WEBHOOK_VERIFICATION_KEY = "secret";
 
     const ok = sendgridAdapter.verifyWebhookSignature("{}", {
-      "x-sendgrid-signature": "deadbeef",
-      "x-sendgrid-timestamp": "1716900000",
+      "x-twilio-email-event-webhook-signature": "deadbeef",
+      "x-twilio-email-event-webhook-timestamp": "1716900000",
     });
 
     expect(ok).toBe(false);

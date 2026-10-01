@@ -81,8 +81,8 @@ export const resendAdapter: ProviderAdapter = {
   verifyWebhookSignature(rawBody: string, headers: Record<string, string>): boolean {
     const secret = process.env.RESEND_WEBHOOK_SECRET;
     if (!secret) {
-      console.warn("[resend] RESEND_WEBHOOK_SECRET is not set — webhook signature verification is disabled. Set this in production.");
-      return true;
+      console.error("[resend] RESEND_WEBHOOK_SECRET is not set — rejecting webhook (S2).");
+      return false;
     }
 
     const svixId = headers["svix-id"] ?? "";

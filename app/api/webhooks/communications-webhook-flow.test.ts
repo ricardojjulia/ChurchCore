@@ -125,6 +125,25 @@ describe("communications webhook routes", () => {
     expect(recordProviderWebhookEventMock).toHaveBeenCalledTimes(1);
   });
 
+  it("verifies a Twilio signature against the app's public URL, not the proxied request host (S2)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://app.example");
+    twilioVerifyMock.mockReturnValue(false);
+
+    await twilioWebhookPost(
+      new NextRequest("http://internal-host:3000/api/webhooks/twilio?x=1", {
+        method: "POST",
+        body: "MessageSid=SM123&MessageStatus=delivered",
+      }),
+    );
+
+    expect(twilioVerifyMock).toHaveBeenCalledWith(
+      "MessageSid=SM123&MessageStatus=delivered",
+      expect.any(Object),
+      "https://app.example/api/webhooks/twilio?x=1",
+    );
+    vi.unstubAllEnvs();
+  });
+
   it("rejects Resend webhook when signature is invalid", async () => {
     resendVerifyMock.mockReturnValue(false);
 

@@ -73,7 +73,7 @@ jobs:
       STRIPE_WEBHOOK_SECRET: whsec_ci_dummy_stripe
       SENDGRID_WEBHOOK_VERIFICATION_KEY: ci-dummy-sendgrid-verification-key
       TWILIO_AUTH_TOKEN: ci-dummy-twilio-auth-token
-      RESEND_WEBHOOK_SECRET: whsec_ci_dummy_resend
+      RESEND_WEBHOOK_SECRET: whsec_Y2ktZHVtbXktcmVzZW5kLXdlYmhvb2stc2VjcmV0
 
     steps:
       - name: Check out repository
