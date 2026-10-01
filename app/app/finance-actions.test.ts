@@ -228,7 +228,8 @@ describe("finance actions", () => {
 
       const importsSingleMock = vi.fn().mockResolvedValue({ data: { id: "import-1" } });
       const importsInsertMock = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: importsSingleMock }) });
-      const importsUpdateEqMock = vi.fn().mockResolvedValue({});
+      const importsUpdateEqMock = vi.fn();
+      importsUpdateEqMock.mockReturnValue({ eq: importsUpdateEqMock, then: (resolve: (v: unknown) => void) => resolve({ error: null }) });
       const importsUpdateMock = vi.fn().mockReturnValue({ eq: importsUpdateEqMock });
 
       const journalsSingleMock = vi.fn().mockResolvedValue({ data: { id: "journal-1" } });
@@ -261,8 +262,47 @@ describe("finance actions", () => {
       ]);
       expect(importsUpdateMock).toHaveBeenCalledWith({ status: "completed", imported_rows: 1, journal_id: "journal-1" });
       expect(importsUpdateEqMock).toHaveBeenCalledWith("id", "import-1");
+      expect(importsUpdateEqMock).toHaveBeenCalledWith("church_id", "church-1");
       expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/finance/journals");
       expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/finance/import");
+    });
+
+    it("marks the import failed, not completed, and raises when the journal lines can't be written (Council Review 31)", async () => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+      const importUpdates: Array<Record<string, unknown>> = [];
+      const updateChain = { eq: vi.fn(), then: (resolve: (v: unknown) => void) => resolve({ error: null }) };
+      updateChain.eq.mockReturnValue(updateChain);
+      const fromMock = vi.fn((table: string) => {
+        if (table === "finance_imports") {
+          return {
+            insert: () => ({ select: () => ({ single: async () => ({ data: { id: "import-1" }, error: null }) }) }),
+            update: (values: Record<string, unknown>) => (importUpdates.push(values), updateChain),
+          };
+        }
+        if (table === "finance_journals") {
+          return { insert: () => ({ select: () => ({ single: async () => ({ data: { id: "journal-1" }, error: null }) }) }) };
+        }
+        if (table === "finance_journal_lines") {
+          return { insert: async () => ({ error: { message: "insert or update on table violates foreign key constraint" } }) };
+        }
+        throw new Error(`unexpected table ${table}`);
+      });
+      createTenantServerClientMock.mockResolvedValue({ from: fromMock });
+
+      await expect(
+        importFinanceRowsAction({
+          filename: "import.csv",
+          format: "csv",
+          rows: [validRow],
+          defaultDebitAccountId: "acct-cash",
+          defaultCreditAccountId: "acct-giving",
+        }),
+      ).rejects.toThrow("foreign key");
+
+      expect(importUpdates).toEqual([
+        { status: "failed", error_message: "insert or update on table violates foreign key constraint" },
+      ]);
+      expect(revalidatePathMock).not.toHaveBeenCalled();
     });
 
     it("resolves mapped debit/credit account codes before posting on the Supabase path", async () => {
@@ -270,7 +310,9 @@ describe("finance actions", () => {
 
       const importsSingleMock = vi.fn().mockResolvedValue({ data: { id: "import-1" } });
       const importsInsertMock = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: importsSingleMock }) });
-      const importsUpdateMock = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({}) });
+      const importsUpdateEq = vi.fn();
+      importsUpdateEq.mockReturnValue({ eq: importsUpdateEq, then: (resolve: (v: unknown) => void) => resolve({ error: null }) });
+      const importsUpdateMock = vi.fn().mockReturnValue({ eq: importsUpdateEq });
 
       const journalsSingleMock = vi.fn().mockResolvedValue({ data: { id: "journal-1" } });
       const journalsInsertMock = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: journalsSingleMock }) });
