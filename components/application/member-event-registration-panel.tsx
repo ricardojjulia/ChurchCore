@@ -107,11 +107,15 @@ export function MemberEventRegistrationPanel({ churchId, options, familyMembers 
     if (!paymentCheckout) return;
     setDemoPaymentLoading(true);
     try {
-      await fetch("/api/demo/complete-payment", {
+      const response = await fetch("/api/demo/complete-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ registrationId: paymentCheckout.registrationId, churchId }),
       });
+      if (!response.ok) {
+        setMessage({ type: "error", text: "The demo payment couldn't be completed." });
+        return;
+      }
       setPaymentCheckout(null);
       setMessage({ type: "success", text: "Demo payment complete. Registration confirmed." });
     } finally {

@@ -112,16 +112,18 @@ async function handlePaymentIntentSucceeded(pi: {
     (await resolveRegistrationIdFromPaymentIntent(pi.id, churchId));
 
   if (resolvedRegistrationId) {
-    await supabase
+    // event_registrations has no updated_at column: writing one failed this
+    // update, unchecked, so a paid registration never became paid (S4).
+    const { error: registrationError } = await supabase
       .from("event_registrations")
       .update({
         payment_status: "paid",
         stripe_payment_intent_id: pi.id,
         amount_paid_cents: pi.amount,
-        updated_at: new Date().toISOString(),
       })
       .eq("id", resolvedRegistrationId)
       .eq("church_id", churchId);
+    if (registrationError) throw new Error(registrationError.message);
 
     await supabase
       .from("event_registration_payments")
@@ -248,14 +250,12 @@ async function handlePaymentIntentFailed(pi: {
     (await resolveRegistrationIdFromPaymentIntent(pi.id, churchId));
 
   if (resolvedRegistrationId) {
-    await supabase
+    const { error: registrationError } = await supabase
       .from("event_registrations")
-      .update({
-        payment_status: "failed",
-        updated_at: new Date().toISOString(),
-      })
+      .update({ payment_status: "failed" })
       .eq("id", resolvedRegistrationId)
       .eq("church_id", churchId);
+    if (registrationError) throw new Error(registrationError.message);
 
     await supabase
       .from("event_registration_payments")
@@ -402,14 +402,12 @@ async function handleChargeRefunded(charge: {
     .maybeSingle();
   if (existingRefund) return;
 
-  await supabase
+  const { error: registrationError } = await supabase
     .from("event_registrations")
-    .update({
-      payment_status: status,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ payment_status: status })
     .eq("id", registrationId)
     .eq("church_id", churchId);
+  if (registrationError) throw new Error(registrationError.message);
 
   await supabase
     .from("event_registration_payments")

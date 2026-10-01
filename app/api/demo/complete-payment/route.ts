@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createTenantAdminClient } from "@/lib/supabase/tenant";
 
-// Demo-only route: marks an event registration as paid without touching Stripe.
-// Returns 403 in any non-demo environment.
+// Demo-only route: completes a registration's stubbed payment without
+// touching Stripe. Returns 403 in any non-demo environment.
 
 export async function POST(req: NextRequest) {
   if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
@@ -19,22 +19,40 @@ export async function POST(req: NextRequest) {
 
   const supabase = createTenantAdminClient();
 
-  await supabase
-    .from("event_registrations")
-    .update({ payment_status: "paid", updated_at: new Date().toISOString() })
-    .eq("id", registrationId)
-    .eq("church_id", churchId);
-
-  await supabase
+  // Only a still-pending *stub* payment can be completed here (S4): the id
+  // the stub checkout gives it (lib/stripe/event-registrations.ts). Before,
+  // this marked any registration paid, so on a demo deploy with Stripe
+  // configured anyone could mark a real, unpaid registration as paid.
+  const stubPaymentIntentId = `pi_event_registration_stub_${registrationId}`;
+  const { data: completed, error: paymentError } = await supabase
     .from("event_registration_payments")
     .update({
       status: "succeeded",
-      payment_intent_id: `pi_demo_${registrationId.slice(-8)}`,
       reconciled_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq("registration_id", registrationId)
+    .eq("church_id", churchId)
+    .eq("payment_intent_id", stubPaymentIntentId)
+    .eq("status", "pending")
+    .select("id");
+
+  if (paymentError) {
+    return NextResponse.json({ error: "Couldn't complete the demo payment." }, { status: 500 });
+  }
+  if (!completed || completed.length === 0) {
+    return NextResponse.json({ error: "No pending demo payment for this registration." }, { status: 404 });
+  }
+
+  const { error: registrationError } = await supabase
+    .from("event_registrations")
+    .update({ payment_status: "paid" })
+    .eq("id", registrationId)
     .eq("church_id", churchId);
+
+  if (registrationError) {
+    return NextResponse.json({ error: "Couldn't complete the demo payment." }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true });
 }
