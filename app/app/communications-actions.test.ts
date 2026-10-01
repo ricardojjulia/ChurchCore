@@ -12,6 +12,7 @@ const {
   retryEligibleCommunicationsMock,
   attemptRetryMock,
   resolveRecipientsMock,
+  resolveRecipientsByIdsMock,
   createTenantAdminClientMock,
 } = vi.hoisted(() => {
   const revalidatePath = vi.fn();
@@ -25,6 +26,7 @@ const {
   const retryEligibleCommunications = vi.fn();
   const attemptRetry = vi.fn();
   const resolveRecipients = vi.fn();
+  const resolveRecipientsByIds = vi.fn();
   const createTenantAdminClient = vi.fn();
 
   return {
@@ -39,6 +41,7 @@ const {
     retryEligibleCommunicationsMock: retryEligibleCommunications,
     attemptRetryMock: attemptRetry,
     resolveRecipientsMock: resolveRecipients,
+    resolveRecipientsByIdsMock: resolveRecipientsByIds,
     createTenantAdminClientMock: createTenantAdminClient,
   };
 });
@@ -74,6 +77,7 @@ vi.mock("@/lib/communications/retry-eligible", () => ({
 
 vi.mock("@/lib/communications/recipient-resolver", () => ({
   resolveRecipients: resolveRecipientsMock,
+  resolveRecipientsByIds: resolveRecipientsByIdsMock,
 }));
 
 import {
@@ -384,22 +388,16 @@ describe("communications actions", () => {
       source: "supabase",
       userId: "sec-1",
     });
-    const member = (id: string) => ({
-      profileId: id,
-      name: id,
-      email: `${id}@example.com`,
-      phone: null,
-      role: "member",
-      ministries: [],
-      emailOptIn: true,
-      smsOptIn: false,
-    });
+    resolveRecipientsByIdsMock.mockResolvedValue([
+      { profileId: "p-1", name: "p-1", contact: "p-1@example.com" },
+      { profileId: "p-2", name: "p-2", contact: "p-2@example.com" },
+    ]);
     sendWithSuppressionMock
       .mockRejectedValueOnce(new Error("Failed to read notification preferences"))
       .mockResolvedValueOnce({ sent: true, skipped: false });
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const result = await broadcastMessageAction([member("p-1"), member("p-2")], {
+    const result = await broadcastMessageAction({
       recipientIds: ["p-1", "p-2"],
       channel: "email",
       subject: "Hello",
@@ -421,18 +419,6 @@ describe("communications actions", () => {
 
     await expect(
       broadcastMessageAction(
-        [
-          {
-            profileId: "profile-2",
-            name: "Member",
-            email: "member@example.com",
-            phone: null,
-            role: "member",
-            ministries: [],
-            emailOptIn: true,
-            smsOptIn: false,
-          },
-        ],
         {
           recipientIds: ["profile-2"],
           channel: "email",
@@ -455,18 +441,6 @@ describe("communications actions", () => {
 
     await expect(
       broadcastMessageAction(
-        [
-          {
-            profileId: "profile-2",
-            name: "Member",
-            email: "member@example.com",
-            phone: null,
-            role: "member",
-            ministries: [],
-            emailOptIn: true,
-            smsOptIn: false,
-          },
-        ],
         {
           recipientIds: ["profile-2"],
           channel: "email",
@@ -489,22 +463,13 @@ describe("communications actions", () => {
     });
 
     sendWithSuppressionMock.mockResolvedValue({ sent: true, skipped: false });
+    resolveRecipientsByIdsMock.mockResolvedValue([
+      { profileId: "profile-2", name: "Member", contact: "member@example.com" },
+    ]);
 
     const future = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const result = await broadcastMessageAction(
-      [
         {
-          profileId: "profile-2",
-          name: "Member",
-          email: "member@example.com",
-          phone: null,
-          role: "member",
-          ministries: [],
-          emailOptIn: true,
-          smsOptIn: false,
-        },
-      ],
-      {
         recipientIds: ["profile-2"],
         channel: "email",
         subject: "  Reminder  ",
@@ -522,6 +487,72 @@ describe("communications actions", () => {
         scheduledFor: expect.stringMatching(/Z$/),
       }),
     );
+  });
+});
+
+describe("broadcastMessageAction resolves recipients on the server (S6, F6)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "pastor", church: { id: "church-1" } },
+      churchProfileId: "profile-pastor", profile: { id: "profile-pastor-login" },
+      source: "supabase",
+      userId: "pastor-1",
+    });
+    sendWithSuppressionMock.mockResolvedValue({ sent: true, skipped: false });
+  });
+
+  const input = (recipientIds: string[]) => ({
+    recipientIds,
+    channel: "email" as const,
+    subject: "Hello",
+    body: "Hello church",
+  });
+
+  it("sends to the contact on the member's profile, looked up in the sender's church", async () => {
+    resolveRecipientsByIdsMock.mockResolvedValue([{ profileId: "p-1", name: "Ana", contact: "ana@church.test" }]);
+
+    const result = await broadcastMessageAction(input(["p-1"]));
+
+    expect(resolveRecipientsByIdsMock).toHaveBeenCalledWith("church-1", "email", ["p-1"]);
+    expect(sendWithSuppressionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientProfileId: "p-1", recipientContact: "ana@church.test" }),
+    );
+    expect(result).toEqual({ sent: 1, skipped: 0, errors: 0 });
+  });
+
+  it("ignores contact details a caller tries to pass in: only ids are read", async () => {
+    resolveRecipientsByIdsMock.mockResolvedValue([{ profileId: "p-1", name: "Ana", contact: "ana@church.test" }]);
+    const forged = {
+      ...input(["p-1"]),
+      recipients: [{ profileId: "p-1", email: "attacker@evil.test" }],
+    } as unknown as Parameters<typeof broadcastMessageAction>[0];
+
+    await broadcastMessageAction(forged);
+
+    expect(sendWithSuppressionMock).toHaveBeenCalledTimes(1);
+    expect(sendWithSuppressionMock).toHaveBeenCalledWith(expect.objectContaining({ recipientContact: "ana@church.test" }));
+  });
+
+  it("skips ids that don't resolve here (another church, merged, contact not allowed) and members without a contact", async () => {
+    resolveRecipientsByIdsMock.mockResolvedValue([
+      { profileId: "p-1", name: "Ana", contact: "ana@church.test" },
+      { profileId: "p-2", name: "Ben", contact: null },
+    ]);
+
+    const result = await broadcastMessageAction(input(["p-1", "p-2", "other-church-profile"]));
+
+    expect(sendWithSuppressionMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ sent: 1, skipped: 2, errors: 0 });
+  });
+
+  it("sends once to an id listed twice", async () => {
+    resolveRecipientsByIdsMock.mockResolvedValue([{ profileId: "p-1", name: "Ana", contact: "ana@church.test" }]);
+
+    const result = await broadcastMessageAction(input(["p-1", "p-1"]));
+
+    expect(resolveRecipientsByIdsMock).toHaveBeenCalledWith("church-1", "email", ["p-1"]);
+    expect(result).toEqual({ sent: 1, skipped: 0, errors: 0 });
   });
 });
 

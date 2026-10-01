@@ -23,22 +23,10 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-vi.mock("@/app/app/communications-actions", () => ({
-  broadcastMessageAction: vi.fn(),
-  retryCommunicationAction: vi.fn(),
-  suppressContactAction: vi.fn(),
-  getCommunicationDeliveryEventsAction: vi.fn(),
-}));
-
 import { CcmDashboardView } from "@/components/application/ccm-dashboard";
-import { CommunicationsHub } from "@/components/application/communications-hub";
 import { FinanceJournalWorkspace } from "@/components/application/finance-journal-workspace";
 import { ReportsOverviewDashboard } from "@/components/application/reports-dashboards";
 import type { ChurchAppSession } from "@/lib/auth";
-import type {
-  CommunicationLogEntry,
-  CommunicationsHubData,
-} from "@/lib/communications-data";
 import type { FinanceJournal } from "@/lib/finance-types";
 import type {
   EventReportsData,
@@ -72,24 +60,6 @@ function journal(overrides: Partial<FinanceJournal> = {}): FinanceJournal {
     createdBy: null,
     createdAt: "2026-05-27T10:00:00.000Z",
     updatedAt: "2026-05-27T10:00:00.000Z",
-    ...overrides,
-  };
-}
-
-function log(overrides: Partial<CommunicationLogEntry> = {}): CommunicationLogEntry {
-  return {
-    id: "log-1",
-    sentByName: "Admin",
-    recipientName: "Member",
-    channel: "email",
-    subject: "Sunday",
-    bodyPreview: "Join us",
-    status: "failed",
-    scheduledFor: null,
-    sentAt: null,
-    createdAt: "2026-05-27T10:00:00.000Z",
-    retryCount: 0,
-    errorCode: null,
     ...overrides,
   };
 }
@@ -185,38 +155,6 @@ describe("sensitive readiness target states", () => {
 
     expect(screen.getByTestId("readiness-target-state-validation-error")).toBeInTheDocument();
     expect(screen.getByText("Draft journals need finance review")).toBeInTheDocument();
-  });
-
-  it("shows validation state for communications delivery and consent gaps", () => {
-    const data: CommunicationsHubData = {
-      recentLogs: [log()],
-      recipients: [
-        {
-          profileId: "profile-1",
-          name: "No Contact",
-          email: null,
-          phone: null,
-          role: "member",
-          ministries: [],
-          emailOptIn: false,
-          smsOptIn: false,
-        },
-      ],
-      deliveryEvents: [],
-      suppressions: [],
-    };
-
-    renderWithMantine(
-      <CommunicationsHub
-        session={session}
-        data={data}
-        readinessView
-        dataSource="live"
-      />,
-    );
-
-    expect(screen.getByTestId("readiness-target-state-validation-error")).toBeInTheDocument();
-    expect(screen.getByText("Communications readiness needs attention")).toBeInTheDocument();
   });
 
   it("shows validation state for missing report inputs", () => {

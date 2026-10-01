@@ -525,7 +525,7 @@ Primary routes:
 - `/app/elders/discernment` Elders Discernment Room — pastor-only private session and notes workspace
 - `/app/elders/discernment/[sessionId]` per-session prayer wall, elder notes, and AI Wisdom Prompt
 - `/app/council/forge` Pastor Council Forge — versioned collaborative notes for pastor and church-admin
-- `/app/communications` Communications Hub — consent-aware email/SMS broadcast for pastor and church-admin
+- `/app/communications` communications for pastor, church-admin and secretary — redirects to `history` (message log, cancel, retry); `compose` sends email/SMS to a segment (role, ministry, membership status, recent attendance) with per-recipient consent and suppression checks; `templates` manages reusable messages
 - `/app/member/giving` member donor portal — giving history, active recurring, Give drawer (voluntary, anonymous option)
 - `/app/member/data-rights` member data rights — GDPR/CCPA export and deletion request
 - `/app/giving` giving reporting dashboard for pastors and church-admins (fund breakdown, totals, recurring count)
@@ -604,7 +604,7 @@ public/               Static assets
 - Ministry Forge (Phases 1–3) adds per-ministry health scoring, vision boards, scriptural anchors, kingdom impact logging, and a rule-based AI Volunteer Matcher with human-gated approve/reject and a Burnout Guardian.
 - The Elders Discernment Room at `/app/elders/discernment` is a pastor-only workspace with open/prayer/voting session tracking, a per-session prayer wall with "I Prayed" acknowledgements, elder notes with confidentiality controls, and a theological guardrail AI Wisdom Prompt that surfaces Scripture and reflection questions only — never decisions.
 - The Pastor Council Forge at `/app/council/forge` provides versioned collaborative notes (auto-incrementing version on each save) across five note types: general, sermon outline, series plan, council minutes, and sabbath reflection.
-- The Communications Hub at `/app/communications` enables pastors and church-admins to compose and broadcast email or SMS to congregation members, with per-member consent checking via `notification_preferences`, full `communication_logs` audit trail, and graceful local-dev stubs when SendGrid/Twilio are not configured.
+- Communications at `/app/communications` (pastor, church-admin, secretary) has three pages: `history`, `compose` (by segment, with per-recipient consent and suppression checks via `notification_preferences` and `communication_suppressions`) and `templates`, with a full `communication_logs` audit trail. Hand-picked recipients aren't in the UI yet (tracker row S15); the server action for them, `broadcastMessageAction`, reads each recipient's contact on the server from their id (S6). A suppressions page is tracker row S11.
 - The member portal bottom nav now includes a Ministries tab alongside Home, Calendar, Directory, and Family, with all five routes pre-cached by the service worker for offline access.
 - The voluntary donations system at `/app/member/giving` lets members give one-time or recurring gifts with fund designation and anonymous option. ChurchCore takes no platform fee — 100% goes to the church. Receipt emails sent via SendGrid.
 - Members can download a full JSON export of their personal data or request account deletion with a 30-day grace period from `/app/member/data-rights` (GDPR/CCPA aligned).

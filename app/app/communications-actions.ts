@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { requireChurchSession } from "@/lib/auth";
 import {
   type CommunicationDeliveryEvent,
-  type CommunicationRecipient,
   getCommunicationDeliveryEvents,
 } from "@/lib/communications-data";
 import type {
@@ -17,7 +16,7 @@ import type {
   RecipientPreviewResult,
   SegmentFilter,
 } from "@/lib/communications-types";
-import { resolveRecipients } from "@/lib/communications/recipient-resolver";
+import { resolveRecipients, resolveRecipientsByIds } from "@/lib/communications/recipient-resolver";
 import { shouldRetryDelivery } from "@/lib/communications/provider-adapter";
 import {
   attemptRetry,
@@ -63,11 +62,16 @@ function normalizeScheduledFor(value?: string): string | undefined {
 }
 
 /**
- * Sends a message to one or more recipients.
+ * Sends a message to the hand-picked recipients in `input.recipientIds`.
  * Each recipient is checked for consent and suppression individually.
+ *
+ * Recipients' contact details are read on the server from their profiles,
+ * scoped to the sender's church (S6, F6). Before, the browser sent each
+ * recipient's email or phone along with its id, and the action sent to
+ * whatever it was given: a sender could message any address, logged against
+ * any member.
  */
 export async function broadcastMessageAction(
-  recipients: CommunicationRecipient[],
   input: BroadcastMessageInput,
 ): Promise<{ sent: number; skipped: number; errors: number }> {
   const session = await requireChurchSession("/app/pastor");
@@ -92,10 +96,14 @@ export async function broadcastMessageAction(
   let skipped = 0;
   let errors = 0;
 
-  const selected = recipients.filter((r) => input.recipientIds.includes(r.profileId));
+  const requestedIds = [...new Set(input.recipientIds)];
+  const resolved = await resolveRecipientsByIds(session.appContext.church.id, input.channel, requestedIds);
+  // Requested ids with no matching profile here (another church, merged, or
+  // contact not allowed) are skipped, not sent.
+  skipped += requestedIds.length - resolved.length;
 
-  for (const recipient of selected) {
-    const contact = input.channel === "email" ? recipient.email : recipient.phone;
+  for (const recipient of resolved) {
+    const contact = recipient.contact;
     if (!contact) {
       skipped++;
       continue;
