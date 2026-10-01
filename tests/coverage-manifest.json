@@ -1769,7 +1769,8 @@
       ],
       "auth": "cron",
       "tests": [
-        "tests/e2e/api-cron.spec.ts"
+        "tests/e2e/api-cron.spec.ts",
+        "lib/cron-auth.test.ts"
       ]
     },
     "/api/cron/communications-scheduled": {
@@ -1780,7 +1781,8 @@
       ],
       "auth": "cron",
       "tests": [
-        "tests/e2e/api-cron.spec.ts"
+        "tests/e2e/api-cron.spec.ts",
+        "lib/cron-auth.test.ts"
       ]
     },
     "/api/cron/shepherd-ai": {
@@ -1791,7 +1793,8 @@
       ],
       "auth": "cron",
       "tests": [
-        "tests/e2e/api-cron.spec.ts"
+        "tests/e2e/api-cron.spec.ts",
+        "lib/cron-auth.test.ts"
       ]
     },
     "/api/demo/complete-payment": {
@@ -1802,7 +1805,8 @@
       ],
       "auth": "public",
       "tests": [
-        "tests/e2e/api-demo.spec.ts"
+        "tests/e2e/api-demo.spec.ts",
+        "app/api/demo/complete-payment/route.test.ts"
       ]
     },
     "/api/demo/feedback": {
@@ -2225,7 +2229,6 @@
       "untestedExports": {
         "createBudgetAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
         "deleteJournalDraftAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
-        "updateAccountAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
         "upsertBudgetLinesAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
       }
     },

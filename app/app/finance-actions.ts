@@ -91,7 +91,8 @@ export async function updateAccountAction(
     if (input.description !== undefined) patch.description = input.description;
     if (input.accountType !== undefined) patch.account_type = input.accountType;
     if (input.isActive !== undefined) patch.is_active = input.isActive;
-    await supabase.from("finance_accounts").update(patch).eq("id", accountId).eq("church_id", churchId);
+    const { error } = await supabase.from("finance_accounts").update(patch).eq("id", accountId).eq("church_id", churchId);
+    if (error) throw new Error(error.message);
   }
 
   revalidatePath("/app/church-admin/finance/accounts");
@@ -439,18 +440,38 @@ export async function importFinanceRowsAction(input: ImportFinanceRowsInput): Pr
 
   const supabase = await createTenantServerClient();
 
-  const { data: impData } = await supabase
+  // Every write's error is checked: before (S4, Council Review 31) a failed
+  // journal-lines insert still marked the import "completed".
+  const { data: impData, error: importError } = await supabase
     .from("finance_imports")
     .insert({ church_id: churchId, filename: input.filename, format: input.format,
                status: "processing", total_rows: validRows.length, imported_by: profileId })
     .select("id").single();
+  if (importError || !impData) throw new Error(importError?.message ?? "Couldn't start the import.");
   const importId = (impData as { id: string }).id;
 
-  const { data: jData } = await supabase
+  // Records the failure, then raises it. If even recording fails, both errors
+  // are raised, so an import never sits at "processing" unnoticed.
+  const failImport = async (message: string): Promise<never> => {
+    const { error: recordError } = await supabase
+      .from("finance_imports")
+      .update({ status: "failed", error_message: message })
+      .eq("id", importId)
+      .eq("church_id", churchId);
+    if (recordError) {
+      throw new Error(`${message} (and the import couldn't be marked failed: ${recordError.message})`);
+    }
+    throw new Error(message);
+  };
+
+  const { data: jData, error: journalError } = await supabase
     .from("finance_journals")
     .insert({ church_id: churchId, journal_date: journalDate, description, journal_type: "import",
                status: "draft", created_by: profileId })
     .select("id").single();
+  if (journalError || !jData) {
+    return failImport(journalError?.message ?? "Couldn't create the journal.");
+  }
   const journalId = (jData as { id: string }).id;
 
   const lineRows: Record<string, unknown>[] = [];
@@ -469,8 +490,18 @@ export async function importFinanceRowsAction(input: ImportFinanceRowsInput): Pr
         side: "credit", amount_cents: row.amountCents, memo: row.description, sort_order: i * 2 + 1 },
     );
   }
-  await supabase.from("finance_journal_lines").insert(lineRows);
-  await supabase.from("finance_imports").update({ status: "completed", imported_rows: validRows.length, journal_id: journalId }).eq("id", importId);
+  const { error: linesError } = await supabase.from("finance_journal_lines").insert(lineRows);
+  if (linesError) {
+    return failImport(linesError.message);
+  }
+  const { error: completeError } = await supabase
+    .from("finance_imports")
+    .update({ status: "completed", imported_rows: validRows.length, journal_id: journalId })
+    .eq("id", importId)
+    .eq("church_id", churchId);
+  if (completeError) {
+    return failImport(completeError.message);
+  }
 
   revalidatePath("/app/church-admin/finance/journals");
   revalidatePath("/app/church-admin/finance/import");

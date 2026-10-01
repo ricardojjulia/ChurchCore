@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   revalidatePathMock,
@@ -419,6 +419,64 @@ describe("app actions", () => {
           // emergencyContactConsentVerified is omitted/false
         })
       ).rejects.toThrow("Consent verification is required to save emergency contact details.");
+    });
+  });
+
+  describe("updateMemberProfileAction in demo mode (S4 column sweep)", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("writes emergency contacts to profile_sensitive_fields, never to profiles (which has no such columns)", async () => {
+      vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+      hasTenantAdminBackendEnvMock.mockReturnValue(true);
+      requireChurchSessionMock.mockResolvedValue({
+        source: "supabase",
+        userId: "member-login",
+        churchProfileId: "admin-1",
+        profile: { id: "member-login" },
+        appContext: { roleId: "member", church: { id: "church-1" } },
+      });
+      const writes: Array<{ table: string; op: string; values: Record<string, unknown> }> = [];
+      createTenantAdminClientMock.mockReturnValue({
+        from: (table: string) => {
+          const builder = {
+            update: (values: Record<string, unknown>) => (writes.push({ table, op: "update", values }), builder),
+            upsert: async (values: Record<string, unknown>) => (writes.push({ table, op: "upsert", values }), { error: null }),
+            eq: () => builder,
+            select: async () => ({ data: [{ id: "admin-1" }], error: null }),
+          };
+          return builder;
+        },
+      });
+
+      const result = await updateMemberProfileAction({
+        fullName: "Ada Lovelace",
+        phone: "555-0100",
+        address: "123 Main",
+        preferredContactMethod: "email",
+        interests: [],
+        emergencyContactName: "Grace Hopper",
+        emergencyContactPhone: "555-0101",
+        directoryVisible: true,
+        contactAllowed: true,
+        emergencyContactConsentVerified: true,
+      });
+
+      expect(result).toEqual({ status: "saved" });
+      expect(writes[0].table).toBe("profiles");
+      expect(writes[0].values).not.toHaveProperty("emergency_contact_name");
+      expect(writes[0].values).not.toHaveProperty("emergency_contact_phone");
+      expect(writes[1]).toEqual({
+        table: "profile_sensitive_fields",
+        op: "upsert",
+        values: {
+          profile_id: "admin-1",
+          church_id: "church-1",
+          emergency_contact_name: "Grace Hopper",
+          emergency_contact_phone: "555-0101",
+        },
+      });
     });
   });
 

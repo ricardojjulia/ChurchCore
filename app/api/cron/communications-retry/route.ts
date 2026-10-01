@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { isAuthorizedCronRequest } from "@/lib/cron-auth";
 import {
   hasTenantAdminBackendEnv,
   hasTenantBackendEnv,
@@ -8,21 +9,6 @@ import {
 import { retryEligibleCommunications } from "@/lib/communications/retry-eligible";
 
 export const dynamic = "force-dynamic";
-
-function isAuthorizedCronRequest(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    return process.env.NODE_ENV !== "production";
-  }
-
-  const authHeader = request.headers.get("authorization") ?? "";
-  const providedBearer = authHeader.startsWith("Bearer ")
-    ? authHeader.slice("Bearer ".length).trim()
-    : "";
-  const providedHeader = request.headers.get("x-cron-secret") ?? "";
-
-  return providedBearer === cronSecret || providedHeader === cronSecret;
-}
 
 export async function GET(request: NextRequest) {
   if (!isAuthorizedCronRequest(request)) {

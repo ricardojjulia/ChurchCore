@@ -890,14 +890,28 @@ export async function updateMemberProfileAction(
       address,
       preferred_contact_method: input.preferredContactMethod ?? null,
       interests,
-      emergency_contact_name: emergencyContactName,
-      emergency_contact_phone: emergencyContactPhone,
       directory_visible: input.directoryVisible,
       contact_allowed: input.contactAllowed,
     }).eq("id", activeProfileId).eq("church_id", session.appContext.church.id).select("id");
     // A demo save that matched nothing mustn't report "saved" (S9).
     if (updateError || !updatedRows || updatedRows.length === 0) {
       // Returned, not thrown: a production build hides a thrown message.
+      return { status: "error", message: "Couldn't save your profile. Please try again." };
+    }
+
+    // Emergency contacts live in profile_sensitive_fields, not profiles: this
+    // save used to write them to profiles, which has no such columns, so
+    // every demo profile save failed (S4 column sweep).
+    const { error: sensitiveError } = await adminSupabase.from("profile_sensitive_fields").upsert(
+      {
+        profile_id: activeProfileId,
+        church_id: session.appContext.church.id,
+        emergency_contact_name: emergencyContactName,
+        emergency_contact_phone: emergencyContactPhone,
+      },
+      { onConflict: "profile_id" },
+    );
+    if (sensitiveError) {
       return { status: "error", message: "Couldn't save your profile. Please try again." };
     }
 

@@ -59,6 +59,57 @@ test.describe("POST /api/webhooks/stripe", () => {
   });
 });
 
+test.describe("POST /api/webhooks/stripe — a signed payment marks the registration paid (S4)", () => {
+  // The Supabase path wrote updated_at, a column event_registrations doesn't
+  // have, and ignored the error: a real paid registration never became paid.
+  test("payment_intent.succeeded -> registration paid, payment succeeded", async ({ request }) => {
+    const EVENT_ID = "77777777-0000-0000-0000-000000000001";
+    const paymentIntentId = `pi_e2e_${Date.now()}`;
+    const registration = await queryTenantDb<{ id: string }>(
+      `insert into public.event_registrations (event_id, church_id, registrant_name, payment_status)
+       values ($1, $2, 'S4 Stripe e2e', 'pending') returning id`,
+      [EVENT_ID, CHURCH_ID],
+    );
+    const registrationId = registration.rows[0].id;
+    await queryTenantDb(
+      `insert into public.event_registration_payments (registration_id, event_id, church_id, status, payment_intent_id, amount_cents)
+       values ($1, $2, $3, 'pending', $4, 2500)`,
+      [registrationId, EVENT_ID, CHURCH_ID, paymentIntentId],
+    );
+    try {
+      const body = JSON.stringify({
+        type: "payment_intent.succeeded",
+        data: {
+          object: {
+            id: paymentIntentId,
+            amount: 2500,
+            currency: "usd",
+            metadata: { church_id: CHURCH_ID, event_registration_id: registrationId, purpose: "event_registration" },
+          },
+        },
+      });
+      const response = await request.post("/api/webhooks/stripe", {
+        data: body,
+        headers: { "content-type": "application/json", "stripe-signature": signStripeWebhook(body, getWebhookSecret("stripe")) },
+      });
+      expect(response.status()).toBe(200);
+      expect(await response.json()).toEqual({ received: true });
+
+      const { rows } = await queryTenantDb<{ payment_status: string; amount_paid_cents: number; status: string }>(
+        `select r.payment_status, r.amount_paid_cents, p.status
+           from public.event_registrations r
+           join public.event_registration_payments p on p.registration_id = r.id
+          where r.id = $1`,
+        [registrationId],
+      );
+      expect(rows).toEqual([{ payment_status: "paid", amount_paid_cents: 2500, status: "succeeded" }]);
+    } finally {
+      await queryTenantDb("delete from public.event_registration_payments where registration_id = $1", [registrationId]);
+      await queryTenantDb("delete from public.event_registrations where id = $1", [registrationId]);
+    }
+  });
+});
+
 test.describe("POST /api/webhooks/sendgrid", () => {
   test("no signature headers -> 401", async ({ request }) => {
     const response = await request.post("/api/webhooks/sendgrid", { data: "[]" });
