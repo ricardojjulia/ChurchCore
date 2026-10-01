@@ -83,8 +83,9 @@ npx supabase db reset
 
 | Email | Role |
 |-------|------|
-| `sarah@churchcoreops.app` | Church Admin |
+| `sarah@churchcoreops.app` | Church Admin + Platform Admin |
 | `david@graceharbor.church` | Member |
+| `nora@graceharbor.church` | Church Admin only (not a platform admin) |
 
 The password is either:
 
@@ -98,6 +99,7 @@ The generated file also includes:
 - `CHURCHCORE_OPS_DEMO_SECRETARY_EMAIL`
 - `CHURCHCORE_OPS_DEMO_PASTOR_EMAIL`
 - `CHURCHCORE_OPS_DEMO_MINISTRY_LEADER_EMAIL`
+- `CHURCHCORE_OPS_DEMO_CHURCH_ADMIN_EMAIL` (nora, church-admin only — S1)
 
 Sarah can access:
 - `/app` — Church admin workspace
@@ -115,6 +117,9 @@ Miriam can access:
 
 Robert can access:
 - `/app/ministry-leader` — Ministry Leader portal
+
+Nora can access:
+- `/app/church-admin` — Church admin workspace (church-admin role only, not a platform admin — used so the e2e suite's church-admin checks don't pass through the platform-admin RLS bypass sarah's dual identity would otherwise give them, S1/Council Review 28)
 
 ---
 
@@ -139,7 +144,7 @@ The seed creates **Grace Harbor Church** with the following:
 
 ### Profiles
 
-The seed creates 23 demo profiles across members, visitors, inactive members, transferred members, volunteers, ministry leaders, pastoral users, and account-request cases. Sarah Mitchell, David Chen, Olivia Reed, Miriam Cole, and Robert James are backed by local Supabase Auth users; the remaining profiles are directory and operations data for ministry workflows.
+The seed creates 23 demo profiles across members, visitors, inactive members, transferred members, volunteers, ministry leaders, pastoral users, and account-request cases. Sarah Mitchell, David Chen, Olivia Reed, Miriam Cole, and Robert James are backed by local Supabase Auth users; the remaining profiles are directory and operations data for ministry workflows. **Nora Bennett** (`nora@graceharbor.church`) is a sixth auth-backed account, added by `create-dev-users.sh`/`seed.sql` (S1) as a church admin with no `platform_admins` row — separate from this batch of 23, since her profile is the one her own sign-up creates, then the seed updates in place.
 
 | Name | Email | Role | Status |
 |------|-------|------|--------|

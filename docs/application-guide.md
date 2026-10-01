@@ -35,7 +35,8 @@ The local setup script creates demo credentials in `.demo-credentials.local`. Th
 
 | User | Role | Main Surface |
 | --- | --- | --- |
-| `sarah@churchcoreops.app` | Church Admin | `/app` |
+| `sarah@churchcoreops.app` | Church Admin + Platform Admin | `/app` |
+| `nora@graceharbor.church` | Church Admin only (not a platform admin) | `/app/church-admin` |
 | `olivia@graceharbor.church` | Secretary / Office Admin | `/app/secretary` |
 | `miriam@graceharbor.church` | Pastor / Elder | `/app/pastor` |
 | `robert@graceharbor.church` | Ministry Leader | `/app/ministry-leader` |
