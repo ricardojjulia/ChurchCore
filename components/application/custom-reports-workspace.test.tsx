@@ -71,7 +71,7 @@ describe("CustomReportsWorkspace export", () => {
 
   it("saves the CSV when the export succeeds", async () => {
     const fetchMock = stubFetch({ status: 200, contentType: "text/csv; charset=utf-8", body: "id\n1" });
-    const createObjectURL = stubBlobUrls();
+    stubBlobUrls();
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     renderWorkspace();
 
