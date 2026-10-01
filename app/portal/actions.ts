@@ -294,10 +294,13 @@ export async function submitPublicEventRegistrationAction(
 
   const { data: settings } = await supabase
     .from("event_registration_settings")
-    .select("registration_open, capacity, waitlist_enabled, approval_required, deadline, price_cents, currency, events!inner(id, visibility)")
+    .select("registration_open, capacity, waitlist_enabled, approval_required, deadline, price_cents, currency, events!inner(id, visibility, church_id)")
     .eq("church_id", churchId)
     .eq("event_id", eventId)
     .eq("events.visibility", "public")
+    // The event must be this church's own (PR #171 review; the database
+    // guarantees it too since migration 20261002020000).
+    .eq("events.church_id", churchId)
     .maybeSingle();
 
   if (!settings || settings.registration_open === false) {
@@ -343,7 +346,7 @@ export async function submitPublicEventRegistrationAction(
   // ones: the visitor's payload is otherwise stored as given.
   const { data: fieldRows, error: fieldsError } = await supabase
     .from("event_registration_form_fields")
-    .select("field_key, label, is_required")
+    .select("field_key, label, field_type, is_required")
     .eq("church_id", churchId)
     .eq("event_id", eventId);
   if (fieldsError) {
@@ -352,11 +355,12 @@ export async function submitPublicEventRegistrationAction(
   }
   const submitted = input.customFields ?? {};
   const customFields: Record<string, unknown> = {};
-  for (const field of (fieldRows ?? []) as Array<{ field_key: string; label: string; is_required: boolean }>) {
-    const value = submitted[field.field_key];
-    // An unchecked checkbox arrives as false: a required one must be checked.
-    const empty =
-      value === undefined || value === null || value === false || (typeof value === "string" && value.trim() === "");
+  for (const field of (fieldRows ?? []) as Array<{ field_key: string; label: string; field_type: string; is_required: boolean }>) {
+    const raw = submitted[field.field_key];
+    // A checkbox is checked only by a literal true: "false", 0 or an object
+    // must not satisfy a required waiver (PR #171 review).
+    const value = field.field_type === "checkbox" ? (raw === true ? true : undefined) : raw;
+    const empty = value === undefined || value === null || (typeof value === "string" && value.trim() === "");
     if (field.is_required && empty) {
       return { ok: false, error: `${field.label} is required.` };
     }

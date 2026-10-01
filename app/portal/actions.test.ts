@@ -180,7 +180,7 @@ describe("submitPublicEventRegistrationAction", () => {
 // settings, its form fields, no existing registration, and the insert.
 function publicRegistrationClient(options: {
   settings?: Record<string, unknown> | null;
-  fields?: Array<{ field_key: string; label: string; is_required: boolean }>;
+  fields?: Array<{ field_key: string; label: string; field_type?: string; is_required: boolean }>;
   count?: number;
   insertError?: { message: string } | null;
   paymentError?: { message: string } | null;
@@ -188,6 +188,7 @@ function publicRegistrationClient(options: {
   const inserts: Array<Record<string, unknown>> = [];
   const upserts: Array<Record<string, unknown>> = [];
   const deletes: string[] = [];
+  const settingsFilters: Array<[string, unknown]> = [];
   const settings =
     options.settings === null
       ? null
@@ -211,7 +212,11 @@ function publicRegistrationClient(options: {
   };
   const client = {
     from: (table: string) => {
-      if (table === "event_registration_settings") return chain({ data: settings, error: null });
+      if (table === "event_registration_settings") {
+        const builder = chain({ data: settings, error: null }) as Record<string, unknown>;
+        builder.eq = (column: string, value: unknown) => (settingsFilters.push([column, value]), builder);
+        return builder;
+      }
       if (table === "event_registration_form_fields") return chain({ data: options.fields ?? [], error: null });
       if (table === "event_registration_payments") {
         return {
@@ -233,7 +238,7 @@ function publicRegistrationClient(options: {
       };
     },
   };
-  return { client, inserts, upserts, deletes };
+  return { client, inserts, upserts, deletes, settingsFilters };
 }
 
 describe("demo-mode registration payment id", () => {
@@ -313,8 +318,8 @@ describe("submitPublicEventRegistrationAction on Supabase (S10)", () => {
 
   it("keeps only the event's own custom fields, and requires its required ones", async () => {
     const fields = [
-      { field_key: "tshirt", label: "T-shirt size", is_required: true },
-      { field_key: "diet", label: "Dietary needs", is_required: false },
+      { field_key: "tshirt", label: "T-shirt size", field_type: "select", is_required: true },
+      { field_key: "diet", label: "Dietary needs", field_type: "text", is_required: false },
     ];
     let fake = publicRegistrationClient({ fields });
     createTenantAdminClientMock.mockReturnValue(fake.client);
@@ -327,12 +332,30 @@ describe("submitPublicEventRegistrationAction on Supabase (S10)", () => {
     expect(fake.inserts[0].custom_fields).toEqual({ tshirt: "M" });
   });
 
-  it("treats an unchecked required checkbox as missing (Council Review 33)", async () => {
-    const fake = publicRegistrationClient({ fields: [{ field_key: "waiver", label: "I accept the waiver", is_required: true }] });
-    createTenantAdminClientMock.mockReturnValue(fake.client);
+  it("requires a literal true for a required checkbox: false, \"false\", 0 or an object don't count (PR #171 review)", async () => {
+    const fields = [{ field_key: "waiver", label: "I accept the waiver", field_type: "checkbox", is_required: true }];
+    for (const forged of [false, "false", 0, { checked: true }, "true"]) {
+      const fake = publicRegistrationClient({ fields });
+      createTenantAdminClientMock.mockReturnValue(fake.client);
+      expect(await register({ waiver: forged }), JSON.stringify(forged)).toEqual({
+        ok: false,
+        error: "I accept the waiver is required.",
+      });
+      expect(fake.inserts).toEqual([]);
+    }
 
-    expect(await register({ waiver: false })).toEqual({ ok: false, error: "I accept the waiver is required." });
-    expect(fake.inserts).toEqual([]);
+    const fake = publicRegistrationClient({ fields });
+    createTenantAdminClientMock.mockReturnValue(fake.client);
+    expect((await register({ waiver: true })).ok).toBe(true);
+    expect(fake.inserts[0].custom_fields).toEqual({ waiver: true });
+  });
+
+  it("looks the event up only as this church's own event (PR #171 review)", async () => {
+    const fake = publicRegistrationClient();
+    createTenantAdminClientMock.mockReturnValue(fake.client);
+    await register();
+    expect(fake.settingsFilters).toContainEqual(["events.church_id", "church-1"]);
+    expect(fake.settingsFilters).toContainEqual(["events.visibility", "public"]);
   });
 
   it("never shows a visitor raw database text", async () => {

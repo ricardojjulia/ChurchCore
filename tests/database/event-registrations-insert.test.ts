@@ -170,5 +170,34 @@ describe("event_registrations: no public inserts (S10)", () => {
       });
     });
   });
+
+  it("an event's registration rows must belong to its own church (PR #171 review, migration 20261002020000)", async () => {
+    await inRolledBackTransaction(async (client) => {
+      const OTHER_CHURCH = "00000000-0000-0000-0000-0000000000a9";
+      await client.query(`insert into public.churches (id, name, slug) values ($1, 'Other Church', 'other-church-' || $2)`, [
+        OTHER_CHURCH,
+        Date.now(),
+      ]);
+      await client.query("savepoint mismatch");
+      const mismatch = await client
+        .query(`insert into public.event_registration_settings (event_id, church_id, registration_open) values ($1, $2, true)`, [
+          EVENT,
+          OTHER_CHURCH,
+        ])
+        .then(() => null)
+        .catch((error: Error) => error.message);
+      await client.query("rollback to savepoint mismatch");
+      expect(mismatch).toMatch(/event_registration_settings_event_church_fkey/);
+
+      const matching = await client
+        .query(`insert into public.event_registration_settings (event_id, church_id, registration_open) values ($1, $2, true)`, [
+          EVENT,
+          CHURCH,
+        ])
+        .then(() => null)
+        .catch((error: Error) => error.message);
+      expect(matching).toBeNull();
+    });
+  });
 });
 
