@@ -128,4 +128,49 @@ describe("PublicEventRegistrationPanel", () => {
       expect(screen.queryByText("Secure payment ready")).not.toBeInTheDocument();
     });
   });
+
+  describe("Council Review 33", () => {
+    it("shows event times in the church's time zone, with the zone named", () => {
+      render(
+        <MantineProvider>
+          <PublicEventRegistrationPanel
+            churchId="church-1"
+            churchName="Grace Harbor"
+            timeZone="America/Los_Angeles"
+            options={[{ ...baseOptions[0], startsAt: "2099-08-01T17:00:00.000Z" }] as never}
+          />
+        </MantineProvider>,
+      );
+      // 17:00 UTC is 10:00 AM Pacific (daylight time in August).
+      expect(screen.getByText(/10:00\sAM\sPDT/)).toBeInTheDocument();
+    });
+
+    it("renders a checkbox field as a real, required checkbox", () => {
+      render(
+        <MantineProvider>
+          <PublicEventRegistrationPanel
+            churchId="church-1"
+            churchName="Grace Harbor"
+            options={[
+              {
+                ...baseOptions[0],
+                priceCents: 0,
+                fields: [
+                  { id: "f-1", eventId: "event-1", label: "I accept the waiver", fieldKey: "waiver", fieldType: "checkbox", isRequired: true, options: [], sortOrder: 0 },
+                ],
+              },
+            ] as never}
+          />
+        </MantineProvider>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Register" }));
+
+      const waiver = screen.getByRole("checkbox", { name: /I accept the waiver/ });
+      expect(waiver).toBeRequired();
+      expect(waiver).not.toBeChecked();
+      fireEvent.click(waiver);
+      expect(waiver).toBeChecked();
+    });
+  });
 });
+

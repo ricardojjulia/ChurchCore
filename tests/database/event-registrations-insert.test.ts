@@ -100,4 +100,75 @@ describe("event_registrations: no public inserts (S10)", () => {
       expect(await tryInsert(client, "authenticated", ADMIN)).toBeNull();
     });
   });
+
+  describe("next to it (Council Review 33, migration 20261002010000)", () => {
+    const OTHER = "00000000-0000-0000-0000-0000000000a5";
+
+    async function as(client: PoolClient, role: "anon" | "authenticated", userId: string | null, sql: string, values: unknown[] = []) {
+      await client.query("savepoint attempt");
+      try {
+        await client.query(`set local role ${role}`);
+        if (userId) {
+          await client.query(`select set_config('request.jwt.claims', $1, true)`, [
+            JSON.stringify({ sub: userId, role: "authenticated" }),
+          ]);
+        }
+        const result = await client.query(sql, values);
+        return { rows: result.rows, error: null as string | null };
+      } catch (error) {
+        return { rows: [], error: (error as Error).message };
+      } finally {
+        await client.query("rollback to savepoint attempt");
+        await client.query("reset role");
+      }
+    }
+
+    it("a member reads only the payments for their own registrations", async () => {
+      await inRolledBackTransaction(async (client) => {
+        await client.query(`insert into auth.users (id, email) values ($1, 'reg-other@example.test')`, [OTHER]);
+        await client.query(`insert into public.church_memberships (church_id, user_id, role) values ($1, $2, 'member')`, [
+          CHURCH,
+          OTHER,
+        ]);
+        await client.query(`update public.profiles set church_id = $1 where user_id = any($2::uuid[])`, [CHURCH, [MEMBER, OTHER]]);
+        for (const userId of [MEMBER, OTHER]) {
+          const registration = await client.query<{ id: string }>(
+            `insert into public.event_registrations (event_id, church_id, profile_id, registrant_name, payment_status)
+             values ($1, $2, (select id from public.profiles where user_id = $3), 'Reg', 'paid') returning id`,
+            [EVENT, CHURCH, userId],
+          );
+          await client.query(
+            `insert into public.event_registration_payments (registration_id, event_id, church_id, status, amount_cents)
+             values ($1, $2, $3, 'succeeded', 2500)`,
+            [registration.rows[0].id, EVENT, CHURCH],
+          );
+        }
+
+        const seen = await as(client, "authenticated", MEMBER, `select count(*)::int as n from public.event_registration_payments where church_id = $1`, [CHURCH]);
+        expect(seen.rows[0].n).toBe(1);
+        const staff = await as(client, "authenticated", ADMIN, `select count(*)::int as n from public.event_registration_payments where church_id = $1`, [CHURCH]);
+        expect(staff.rows[0].n).toBe(2);
+      });
+    });
+
+    it("the anon key can't insert an account request directly; submit_account_request still works", async () => {
+      await inRolledBackTransaction(async (client) => {
+        const direct = await as(
+          client,
+          "anon",
+          null,
+          `insert into public.account_requests (church_id, email, first_name, last_name, status)
+           values ($1, 'spam@example.test', 'Spam', 'Bot', 'pending')`,
+          [CHURCH],
+        );
+        expect(direct.error).toMatch(/row-level security/);
+
+        const viaFunction = await as(client, "anon", null, `select public.submit_account_request($1, 'new@example.test', 'New', 'Person', null)`, [
+          CHURCH,
+        ]);
+        expect(viaFunction.error).toBeNull();
+      });
+    });
+  });
 });
+

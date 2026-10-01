@@ -97,6 +97,7 @@ export default async function PublicEventRegistrationPage({
             <PublicEventRegistrationPanel
               churchId={selectedChurch.id}
               churchName={selectedChurch.name}
+              timeZone={selectedChurch.timezone}
               options={options}
             />
           )}

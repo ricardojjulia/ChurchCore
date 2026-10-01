@@ -327,6 +327,14 @@ describe("submitPublicEventRegistrationAction on Supabase (S10)", () => {
     expect(fake.inserts[0].custom_fields).toEqual({ tshirt: "M" });
   });
 
+  it("treats an unchecked required checkbox as missing (Council Review 33)", async () => {
+    const fake = publicRegistrationClient({ fields: [{ field_key: "waiver", label: "I accept the waiver", is_required: true }] });
+    createTenantAdminClientMock.mockReturnValue(fake.client);
+
+    expect(await register({ waiver: false })).toEqual({ ok: false, error: "I accept the waiver is required." });
+    expect(fake.inserts).toEqual([]);
+  });
+
   it("never shows a visitor raw database text", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     createTenantAdminClientMock.mockReturnValue(

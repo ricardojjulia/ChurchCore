@@ -354,7 +354,9 @@ export async function submitPublicEventRegistrationAction(
   const customFields: Record<string, unknown> = {};
   for (const field of (fieldRows ?? []) as Array<{ field_key: string; label: string; is_required: boolean }>) {
     const value = submitted[field.field_key];
-    const empty = value === undefined || value === null || (typeof value === "string" && value.trim() === "");
+    // An unchecked checkbox arrives as false: a required one must be checked.
+    const empty =
+      value === undefined || value === null || value === false || (typeof value === "string" && value.trim() === "");
     if (field.is_required && empty) {
       return { ok: false, error: `${field.label} is required.` };
     }
