@@ -142,6 +142,7 @@ If these are not set, push notification dispatch is skipped gracefully and all o
 |---|---|
 | `TENANT_DB_URL` | Setting this activates `shouldUseLocalTenantDbFallback()` — the local PostgreSQL code path. Do NOT set it in production. The Supabase client path is used when this variable is absent. |
 | `CONTROL_PLANE_DB_URL` | Same as above for the control plane. Setting this bypasses the Supabase control plane client. Do NOT set in production. |
+| `NEXT_PUBLIC_DEMO_MODE` | **Leave unset (or `false`) for any real church's deploy.** With it `true`, `lib/stub-mode.ts`'s `stubsAllowed()` permits every provider stub (Stripe, SendGrid, Twilio, Resend) to report a fake "succeeded" payment or send even with real provider keys configured, and `/api/demo/*` (including `/api/demo/complete-payment`, which marks a stubbed event-registration payment paid) is open to anyone. It exists for the sales/evaluation demo deployment only (S4, Council Review 31, owner action O5) — check it's actually unset on a real church's Vercel project before onboarding them. |
 
 ---
 
