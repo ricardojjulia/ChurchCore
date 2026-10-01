@@ -30,3 +30,15 @@ A1's "Stripe metadata church_id" finding was right about the code but overstated
 ## Readiness
 
 75 → **76/100**: unsigned webhooks are closed, and suppressions are actually recorded. The larger lift waits for G5.1 (real sends) and S6.
+
+## PR #166 review (2026-10-01)
+
+GitHub's automated review raised three real issues; all are fixed in `7de95c3`. Each was a latent bug that S2 activated: until this branch, no webhook write ever succeeded, so none could misbehave.
+
+1. **Partial failures.** The delivery-event row was written first. If the suppression or consent write then failed, the provider's retry hit the duplicate key and stopped, leaving a bounce or STOP unsuppressed. The event row now marks completion and is written last; every earlier step is safe to repeat, and the consent row is written only for a newly created suppression. A transactional RPC was considered and judged unnecessary at this size.
+2. **Twilio retries.** The idempotency key included the receipt time, because Twilio callbacks carry no event time, so each retry inserted duplicates. The key is now SID, status and error code. e2e: the same signed callback twice yields one row.
+3. **SendGrid batches.** Only the first event in a batch was recorded. Every event is recorded now.
+
+**CI:** `gitleaks` flagged the committed base64 Resend test secret. CI now generates it per run, and the local script derives it. The two findings on `26db13c` are in `.gitleaksignore` with the reason.
+
+None of the four Council agents caught these; GitHub's review did. That is the fourth time GitHub's review has found real bugs after a Council round.
