@@ -92,6 +92,15 @@ function isRetryEligible(log: CommunicationLogEntry): boolean {
   return shouldRetryDelivery(log.status, log.errorCode ?? undefined);
 }
 
+// Reason codes from communication_suppressions, shown in words (Council
+// Review 29): "complaint" alone didn't say a recipient marked mail as spam.
+const SUPPRESSION_REASON_KEYS: Record<string, "suppressionReasonManual" | "suppressionReasonUnsubscribe" | "suppressionReasonBounce" | "suppressionReasonComplaint"> = {
+  manual: "suppressionReasonManual",
+  unsubscribe: "suppressionReasonUnsubscribe",
+  bounce: "suppressionReasonBounce",
+  complaint: "suppressionReasonComplaint",
+};
+
 export function CommunicationsHub({
   session,
   data,
@@ -812,7 +821,9 @@ export function CommunicationsHub({
                         </Table.Td>
                         <Table.Td>
                           <Badge size="xs" variant="dot" color="grape">
-                            {suppressionRow.reason}
+                            {SUPPRESSION_REASON_KEYS[suppressionRow.reason]
+                              ? t("communicationsHub", SUPPRESSION_REASON_KEYS[suppressionRow.reason])
+                              : suppressionRow.reason}
                           </Badge>
                         </Table.Td>
                         <Table.Td>

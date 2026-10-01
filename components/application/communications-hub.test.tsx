@@ -34,13 +34,13 @@ const data: CommunicationsHubData = {
   suppressions: [],
 };
 
-function renderAs(roleId: string) {
+function renderAs(roleId: string, hubData: CommunicationsHubData = data) {
   const session = {
     appContext: { roleId, church: { id: "church-1", name: "Grace Church" } },
   } as unknown as ChurchAppSession;
   render(
     <MantineProvider>
-      <CommunicationsHub session={session} data={data} />
+      <CommunicationsHub session={session} data={hubData} />
     </MantineProvider>,
   );
   // No i18n provider here, so labels render as their translation keys.
@@ -58,5 +58,29 @@ describe("CommunicationsHub suppressions tab", () => {
   it.each(["secretary", "pastor"])("hides Add Suppression from a %s", (roleId) => {
     renderAs(roleId);
     expect(screen.queryByText("addSuppression")).not.toBeInTheDocument();
+  });
+
+  it("shows each suppression reason in words, not as a raw code (Council Review 29)", () => {
+    renderAs("church-admin", {
+      ...data,
+      suppressions: (["bounce", "unsubscribe", "complaint", "manual"] as const).map((reason, index) => ({
+        id: `s-${index}`,
+        channel: "email" as const,
+        contact: `${reason}@example.test`,
+        reason,
+        notes: null,
+        suppressedByName: null,
+        createdAt: "2026-10-01T00:00:00.000Z",
+      })),
+    });
+    for (const key of [
+      "suppressionReasonBounce",
+      "suppressionReasonUnsubscribe",
+      "suppressionReasonComplaint",
+      "suppressionReasonManual",
+    ]) {
+      expect(screen.getByText(key)).toBeInTheDocument();
+    }
+    expect(screen.queryByText("complaint")).not.toBeInTheDocument();
   });
 });
