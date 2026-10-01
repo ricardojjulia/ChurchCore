@@ -305,7 +305,8 @@ function sortManifest(manifest) {
 //   1. a missing entry (a scanned surface has no manifest entry)
 //   2. a stale entry (the manifest entry's source file is gone)
 //   3. a missing test file (a tests[] path that doesn't exist on disk)
-//   5. a page with empty allowedRoles unless public or controlPlane is set
+//   5. a page with empty allowedRoles unless public, controlPlane or
+//      platformAdminOnly is set
 //   6. any leftover TODO marker anywhere in the manifest
 //   7. a page's optional `sweepMode` set to something other than
 //      "render" | "redirect" | "invalid-token"
@@ -410,11 +411,12 @@ export function validateManifest(rootDir, manifest) {
     actions: Object.keys(manifest.actions ?? {}).length,
   };
 
-  // 5. Pages with empty allowedRoles unless public or controlPlane.
+  // 5. Pages with empty allowedRoles unless public, controlPlane, or
+  //    platformAdminOnly (no church role renders it; e.g. /hq, S5/S1).
   for (const [key, entry] of Object.entries(manifest.pages ?? {})) {
-    if (entry?.public || entry?.controlPlane) continue;
+    if (entry?.public || entry?.controlPlane || entry?.platformAdminOnly) continue;
     if (!Array.isArray(entry?.allowedRoles) || entry.allowedRoles.length === 0) {
-      errors.push(`empty allowedRoles: page ${key} has no allowedRoles and is not marked public or controlPlane`);
+      errors.push(`empty allowedRoles: page ${key} has no allowedRoles and is not marked public, controlPlane or platformAdminOnly`);
     }
   }
 

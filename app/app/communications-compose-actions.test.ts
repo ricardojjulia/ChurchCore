@@ -428,26 +428,69 @@ describe("cancelScheduledMessageAction", () => {
     requireChurchSessionMock.mockResolvedValue(makeSession("church-admin"));
   });
 
-  it("cancels a scheduled message successfully", async () => {
-    createTenantServerClientMock.mockResolvedValue({
+  function scheduledLogReader() {
+    return {
       from: vi.fn(() => ({
         select: vi.fn().mockReturnThis(),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            eq: vi.fn(async () => ({ error: null })),
-          })),
-        })),
         eq: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn(async () => ({
           data: { id: "log-1", status: "scheduled", church_id: "church-1" },
           error: null,
         })),
       })),
-    });
+    };
+  }
+
+  // The admin client's conditional update: records each .eq() filter and
+  // returns `rows` from .select().
+  function cancellingAdmin(rows: Array<{ id: string }>) {
+    const filters: Array<[string, unknown]> = [];
+    const update = vi.fn();
+    const chain = {
+      update: vi.fn((values: unknown) => {
+        update(values);
+        return chain;
+      }),
+      eq: vi.fn((column: string, value: unknown) => {
+        filters.push([column, value]);
+        return chain;
+      }),
+      select: vi.fn(async () => ({ data: rows, error: null })),
+    };
+    return { client: { from: vi.fn(() => chain) }, update, filters };
+  }
+
+  it("cancels a scheduled message through the church-scoped admin client (Council Review 28)", async () => {
+    createTenantServerClientMock.mockResolvedValue(scheduledLogReader());
+    const admin = cancellingAdmin([{ id: "log-1" }]);
+    createTenantAdminClientMock.mockReturnValue(admin.client);
 
     const result = await cancelScheduledMessageAction("log-1");
     expect(result.ok).toBe(true);
+    expect(admin.update).toHaveBeenCalledWith({ status: "cancelled" });
+    expect(admin.filters).toEqual([
+      ["id", "log-1"],
+      ["church_id", "church-1"],
+      ["status", "scheduled"],
+    ]);
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/communications/history");
+  });
+
+  it("fails, instead of reporting success, when no row was cancelled (the cron got there first)", async () => {
+    createTenantServerClientMock.mockResolvedValue(scheduledLogReader());
+    createTenantAdminClientMock.mockReturnValue(cancellingAdmin([]).client);
+
+    const result = await cancelScheduledMessageAction("log-1");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("can no longer be cancelled");
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("a ministry leader can't cancel and the admin client is never created", async () => {
+    requireChurchSessionMock.mockResolvedValue(makeSession("ministry-leader"));
+    const result = await cancelScheduledMessageAction("log-1");
+    expect(result.ok).toBe(false);
+    expect(createTenantAdminClientMock).not.toHaveBeenCalled();
   });
 
   it("returns error if message status is not scheduled", async () => {

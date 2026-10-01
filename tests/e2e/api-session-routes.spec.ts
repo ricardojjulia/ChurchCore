@@ -173,7 +173,7 @@ test.describe("GET /api/reports/custom — signed in as pastor", () => {
 
 // ── Control-plane routes reject tenant roles ─────────────────────────────────
 
-test.describe("control-plane routes — signed in as a tenant role (church-admin context excluded: it is a platform admin)", () => {
+test.describe("control-plane routes — signed in as a tenant role", () => {
   test.use({ storageState: authFilePath("pastor") });
 
   test("GET /api/control/db-health -> redirect to /sign-in (force) for a tenant role", async ({ page }) => {
@@ -190,17 +190,5 @@ test.describe("control-plane routes — signed in as a tenant role (church-admin
     });
     expect(response.status()).toBe(307);
     expect(response.headers()["location"]).toContain("force=1");
-  });
-});
-
-// The sweep's church-admin identity (sarah) is also a platform admin, so she
-// reaches the HQ advisor; without ANTHROPIC_API_KEY it degrades gracefully.
-test.describe("session routes — signed in as a platform admin", () => {
-  test.use({ storageState: authFilePath("church-admin") });
-
-  test("POST /api/ai without ANTHROPIC_API_KEY -> 500 with a clear message, no crash", async ({ page }) => {
-    const response = await page.request.post("/api/ai", { data: { prompt: "hello" } });
-    expect(response.status()).toBe(500);
-    expect(await response.json()).toEqual({ error: "AI features are not configured in this environment." });
   });
 });

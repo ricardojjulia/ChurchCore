@@ -5,10 +5,10 @@
  * depends on this one — see playwright.config.ts) and other specs to load
  * via `test.use({ storageState: authFilePath(id) })`.
  *
- * sarah@churchcoreops.app is both a control-plane platform admin and a real
- * church_admin at Grace Harbor, so she produces two identities:
- * "super-admin" (control context) and "church-admin" (church context) — see
- * fixtures/roles.ts for how each identity's app context is resolved/seeded.
+ * "super-admin" is sarah@churchcoreops.app, a control-plane platform admin.
+ * "church-admin" is nora@graceharbor.church, a church_admin at Grace Harbor
+ * with no platform-admin row, so church-admin checks see exactly what a real
+ * church admin sees (S1). See fixtures/roles.ts.
  */
 import { test as setup } from "@playwright/test";
 import { mkdirSync } from "node:fs";

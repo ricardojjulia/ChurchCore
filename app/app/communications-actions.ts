@@ -316,7 +316,7 @@ export async function suppressContactAction(input: {
   const {
     queryTenantLocalDb,
     shouldUseLocalTenantFallback,
-    createTenantServerClient,
+    createTenantAdminClient,
   } = await import("@/lib/supabase/tenant");
 
   let matchedProfileId: string | null = null;
@@ -353,7 +353,10 @@ export async function suppressContactAction(input: {
     );
     matchedProfileId = matchResult.rows[0]?.id ?? null;
   } else {
-    const supabase = await createTenantServerClient();
+    // Authenticated church admin, checked above; the admin client is scoped to
+    // their church (ADR 0022). authenticated has no insert or update policy on
+    // communication_suppressions (Council Review 28).
+    const supabase = createTenantAdminClient();
     const { error } = await supabase.from("communication_suppressions").upsert(
       {
         church_id: churchId,
@@ -834,14 +837,27 @@ export async function cancelScheduledMessageAction(
     return { ok: false as const, error: "Only scheduled messages can be cancelled." };
   }
 
-  const { error: updateError } = await supabase
+  // communication_logs has no UPDATE policy, so the user's client matched 0
+  // rows and the cron sent the "cancelled" message anyway (Council Review 28).
+  // The caller is authenticated and authorized above; the admin client is
+  // scoped to their church (ADR 0022). The status condition makes a cancel
+  // that loses the race with the cron fail instead of reporting success.
+  const { createTenantAdminClient } = await import("@/lib/supabase/tenant");
+  const admin = createTenantAdminClient();
+  const { data: cancelled, error: updateError } = await admin
     .from("communication_logs")
     .update({ status: "cancelled" })
     .eq("id", logId)
-    .eq("church_id", churchId);
+    .eq("church_id", churchId)
+    .eq("status", "scheduled")
+    .select("id");
 
   if (updateError) {
     return { ok: false as const, error: updateError.message };
+  }
+
+  if (!cancelled || cancelled.length === 0) {
+    return { ok: false as const, error: "This message is already being sent and can no longer be cancelled." };
   }
 
   revalidatePath("/app/communications/history");

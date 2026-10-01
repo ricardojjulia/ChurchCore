@@ -109,6 +109,7 @@ create_user "david@graceharbor.church"
 create_user "olivia@graceharbor.church"
 create_user "miriam@graceharbor.church"
 create_user "robert@graceharbor.church"
+create_user "nora@graceharbor.church"
 
 echo ""
 echo "Running seed..."
@@ -127,6 +128,7 @@ CHURCHCORE_OPS_DEMO_MEMBER_EMAIL=david@graceharbor.church
 CHURCHCORE_OPS_DEMO_SECRETARY_EMAIL=olivia@graceharbor.church
 CHURCHCORE_OPS_DEMO_PASTOR_EMAIL=miriam@graceharbor.church
 CHURCHCORE_OPS_DEMO_MINISTRY_LEADER_EMAIL=robert@graceharbor.church
+CHURCHCORE_OPS_DEMO_CHURCH_ADMIN_EMAIL=nora@graceharbor.church
 EOF
 chmod 600 "${CREDENTIALS_FILE}"
 
@@ -137,6 +139,7 @@ echo "  david@graceharbor.church    / ${DEFAULT_PASSWORD}  (member)"
 echo "  olivia@graceharbor.church   / ${DEFAULT_PASSWORD}  (secretary / office admin)"
 echo "  miriam@graceharbor.church   / ${DEFAULT_PASSWORD}  (pastor / elder)"
 echo "  robert@graceharbor.church   / ${DEFAULT_PASSWORD}  (ministry leader)"
+echo "  nora@graceharbor.church     / ${DEFAULT_PASSWORD}  (church-admin only, not a platform admin)"
 echo ""
 echo "Saved local demo credentials to:"
 echo "  ${CREDENTIALS_FILE}"

@@ -85,15 +85,23 @@ export async function GET(request: NextRequest) {
     let processed = 0;
 
     for (const log of logs) {
-      // Mark as sending BEFORE dispatching to prevent double-send on overlap runs
-      const { error: markError } = await supabase
+      // Claim the row (scheduled → sending) before dispatching. If nothing
+      // changed, it was cancelled after the fetch above or another run claimed
+      // it: skip it. Unchecked, the claim matched 0 rows silently and the
+      // message went out anyway (Council Review 28).
+      const { data: claimed, error: markError } = await supabase
         .from("communication_logs")
         .update({ status: "sending" })
         .eq("id", log.id)
-        .eq("status", "scheduled"); // optimistic lock — skip if already changed
+        .eq("status", "scheduled")
+        .select("id");
 
       if (markError) {
         console.error(`[comm-scheduled] Failed to mark ${log.id} as sending:`, markError.message);
+        continue;
+      }
+
+      if (!claimed || claimed.length === 0) {
         continue;
       }
 
