@@ -136,11 +136,28 @@ describe("GET /api/reports/custom", () => {
     expect(logAuditEventMock).toHaveBeenCalledWith(expect.objectContaining({ newValues: { entity: "people", rowCount: 1003 } }));
   });
 
-  it("labels anonymous gifts in the giving export", async () => {
+  it("shows an anonymous gift's donor as Anonymous, as the giving screens do (Council Review 30)", async () => {
     requireChurchSessionMock.mockResolvedValue(session("church-admin"));
-    const fake = fakeClient({ donations: [[]] });
+    const fake = fakeClient({
+      donations: [[
+        { id: "d1", donor_name: "Ana Rivera", donor_email: "ana@example.test", is_anonymous: true, amount_cents: 5000 },
+        { id: "d2", donor_name: "Ben Cole", donor_email: "ben@example.test", is_anonymous: false, amount_cents: 2500 },
+      ]],
+    });
     createTenantServerClientMock.mockResolvedValue(fake.client);
-    await GET(new Request("http://localhost/api/reports/custom?entity=giving"));
-    expect(fake.calls[0].select).toContain("is_anonymous");
+
+    const csv = await (await GET(new Request("http://localhost/api/reports/custom?entity=giving"))).text();
+
+    expect(csv).not.toContain("Ana Rivera");
+    expect(csv).not.toContain("ana@example.test");
+    expect(csv).toContain("d1,Anonymous,,true,5000");
+    expect(csv).toContain("d2,Ben Cole,ben@example.test,false,2500");
+  });
+
+  it("writes the header row even when there is nothing to export", async () => {
+    requireChurchSessionMock.mockResolvedValue(session("pastor"));
+    createTenantServerClientMock.mockResolvedValue(fakeClient({ events: [[]] }).client);
+    const csv = await (await GET(new Request("http://localhost/api/reports/custom?entity=events"))).text();
+    expect(csv).toBe("id,title,description,starts_at,ends_at,category,created_at");
   });
 });

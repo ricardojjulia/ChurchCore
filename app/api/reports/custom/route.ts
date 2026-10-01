@@ -15,8 +15,10 @@ export function neutralizeFormulaInjection(value: string): string {
   return FORMULA_INJECTION_PREFIX.test(value) ? `'${value}` : value;
 }
 
-export function jsonToCsv(rows: Record<string, unknown>[]): string {
-  if (rows.length === 0) return "";
+// `columns` gives the header row when there are no rows, so an empty export
+// is still a valid CSV with its headers rather than a 0-byte file.
+export function jsonToCsv(rows: Record<string, unknown>[], columns?: string[]): string {
+  if (rows.length === 0) return columns?.length ? columns.join(",") : "";
   const headers = Object.keys(rows[0]);
   const headerLine = headers.join(",");
   const rowLines = rows.map((row) =>
@@ -48,7 +50,14 @@ type ExportEntity = "people" | "giving" | "events";
 // doesn't have, and asked for events columns that don't exist.
 const EXPORTS: Record<
   ExportEntity,
-  { table: string; columns: string; orderBy: string; ascending: boolean; skipMerged?: boolean }
+  {
+    table: string;
+    columns: string;
+    orderBy: string;
+    ascending: boolean;
+    skipMerged?: boolean;
+    mask?: (row: Record<string, unknown>) => Record<string, unknown>;
+  }
 > = {
   people: {
     table: "profiles",
@@ -63,6 +72,10 @@ const EXPORTS: Record<
     columns: "id, donor_name, donor_email, is_anonymous, amount_cents, currency, fund_designation, status, created_at",
     orderBy: "created_at",
     ascending: false,
+    // Every giving screen shows an anonymous gift's donor as "Anonymous",
+    // even to church admins; the export does the same (Council Review 30,
+    // owner decision 2026-10-01).
+    mask: (row) => (row.is_anonymous ? { ...row, donor_name: "Anonymous", donor_email: null } : row),
   },
   events: {
     table: "events",
@@ -122,7 +135,8 @@ export async function GET(request: Request) {
       if (page.length < PAGE_SIZE) break;
     }
 
-    const csvData = jsonToCsv(rows);
+    const exported = spec.mask ? rows.map(spec.mask) : rows;
+    const csvData = jsonToCsv(exported, spec.columns.split(", "));
 
     // Audit log the export action
     try {

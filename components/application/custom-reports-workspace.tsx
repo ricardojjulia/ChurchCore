@@ -58,7 +58,7 @@ const ENTITIES: EntityConfig[] = [
   {
     id: "giving",
     title: "Giving & Generosity",
-    description: "Donations history, currencies, status, and fund designations.",
+    description: "Donations history, currencies, status, and fund designations. Anonymous gifts show the donor as Anonymous.",
     icon: Coins,
     tone: "grape",
     bg: "linear-gradient(180deg, rgba(250,245,255,1) 0%, rgba(255,255,255,1) 100%)",
@@ -66,6 +66,7 @@ const ENTITIES: EntityConfig[] = [
       "Donation ID",
       "Donor Name",
       "Donor Email",
+      "Anonymous",
       "Amount Cents",
       "Currency",
       "Fund Designation",
@@ -97,27 +98,42 @@ const ENTITIES: EntityConfig[] = [
 export function CustomReportsWorkspace({ session }: { session: ChurchAppSession }) {
   const [selectedEntity, setSelectedEntity] = useState<EntityType>("people");
   const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const activeConfig = ENTITIES.find((e) => e.id === selectedEntity)!;
 
+  // Fetch first, then save: a bare <a download> link saved whatever came back
+  // (an error body or the sign-in page) as the CSV, and showed no error
+  // (Council Review 30).
   const handleExport = async () => {
     setIsExporting(true);
+    setExportError(null);
     try {
-      // Create a native link download invocation
-      const url = `/api/reports/custom?entity=${selectedEntity}`;
+      const response = await fetch(`/api/reports/custom?entity=${selectedEntity}`, { redirect: "manual" });
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!response.ok || !contentType.includes("text/csv")) {
+        setExportError(
+          response.status === 403
+            ? "You don't have access to this export."
+            : response.type === "opaqueredirect" || response.status === 0
+              ? "Your session has ended. Sign in again to export."
+              : "The export couldn't be generated. Try again in a moment.",
+        );
+        return;
+      }
+      const url = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");
       link.href = url;
       link.setAttribute("download", `custom-${selectedEntity}-report.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Export download failed:", error);
+      setExportError("The export couldn't be generated. Check your connection and try again.");
     } finally {
-      // Briefly show loading/success micro-animation state
-      setTimeout(() => {
-        setIsExporting(false);
-      }, 1500);
+      setIsExporting(false);
     }
   };
 
@@ -132,7 +148,7 @@ export function CustomReportsWorkspace({ session }: { session: ChurchAppSession 
         </Text>
       </div>
 
-      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
+      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md" role="radiogroup" aria-label="Data source">
         {ENTITIES.map((entity) => {
           const isSelected = selectedEntity === entity.id;
           return (
@@ -141,7 +157,19 @@ export function CustomReportsWorkspace({ session }: { session: ChurchAppSession 
               padding="lg"
               radius="xl"
               withBorder
+              // A real radio choice for keyboard and screen-reader users, not
+              // a mouse-only card (Council Review 30).
+              role="radio"
+              aria-checked={isSelected}
+              aria-label={entity.title}
+              tabIndex={0}
               onClick={() => setSelectedEntity(entity.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setSelectedEntity(entity.id);
+                }
+              }}
               style={{
                 cursor: "pointer",
                 transition: "all 0.2s ease-in-out",
@@ -245,6 +273,12 @@ export function CustomReportsWorkspace({ session }: { session: ChurchAppSession 
               </Text>
             </Stack>
           </Alert>
+
+          {exportError ? (
+            <Alert color="red" radius="lg" variant="light" role="alert" title="Export failed">
+              {exportError}
+            </Alert>
+          ) : null}
 
           <Group justify="flex-end" mt="md">
             <Button

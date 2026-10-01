@@ -160,11 +160,21 @@ test.describe("GET /api/reports/custom — signed in as pastor", () => {
     expect(rows.length).toBeGreaterThan(0);
   });
 
-  test("giving -> CSV that labels anonymous gifts", async ({ page }) => {
+  test("giving -> CSV that shows an anonymous gift's donor as Anonymous (Council Review 30)", async ({ page }) => {
+    const { rows } = await queryTenantDb<{ id: string }>(
+      "select id from public.donations where church_id = $1 and is_anonymous and donor_name is not null limit 1",
+      [SEED_CHURCH_ID],
+    );
+    expect(rows).toHaveLength(1);
+
     const response = await page.request.get("/api/reports/custom?entity=giving");
     expect(response.status()).toBe(200);
-    const header = (await response.text()).split("\n")[0];
-    expect(header).toContain("is_anonymous");
+    const lines = (await response.text()).split("\n");
+    expect(lines[0]).toContain("is_anonymous");
+    const anonymousLine = lines.find((line) => line.startsWith(`${rows[0].id},`));
+    // Name shown as Anonymous, email blank, on this gift (the same donor's
+    // non-anonymous gifts, if any, legitimately keep their name).
+    expect(anonymousLine).toMatch(new RegExp(`^${rows[0].id},Anonymous,,true,`));
   });
 });
 
