@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHmac, timingSafeEqual } from "crypto";
 
 import {
   createTenantAdminClient,
@@ -7,41 +6,10 @@ import {
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
 import { getStripeWebhookSecret } from "@/lib/stripe/client";
+import { verifyStripeSignature } from "@/lib/stripe/webhook-signature";
 import { reverseGlEntryForRefund } from "@/lib/stripe/event-registrations";
 import { postDonationToGl, sendDonationReceipt } from "@/lib/stripe/donation-completion";
 
-// ── Signature verification ────────────────────────────────────
-
-function verifyStripeSignature(
-  payload: string,
-  sigHeader: string,
-  secret: string,
-): boolean {
-  // Stripe-Signature: t=timestamp,v1=hash[,v1=hash...]
-  const parts = sigHeader.split(",");
-  const tPart = parts.find((p) => p.startsWith("t="));
-  const v1Parts = parts.filter((p) => p.startsWith("v1="));
-
-  if (!tPart || v1Parts.length === 0) return false;
-
-  const timestamp = tPart.slice(2);
-  const signedPayload = `${timestamp}.${payload}`;
-  const expected = createHmac("sha256", secret)
-    .update(signedPayload, "utf8")
-    .digest("hex");
-
-  return v1Parts.some((v) => {
-    const received = v.slice(3);
-    try {
-      return timingSafeEqual(
-        Buffer.from(expected, "hex"),
-        Buffer.from(received, "hex"),
-      );
-    } catch {
-      return false;
-    }
-  });
-}
 
 // ── Core donation-succeeded handler ──────────────────────────
 
@@ -542,12 +510,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const rawBody = await req.text();
   const sigHeader = req.headers.get("stripe-signature") ?? "";
 
-  // Verify signature when secret is configured
-  if (webhookSecret) {
-    if (!verifyStripeSignature(rawBody, sigHeader, webhookSecret)) {
-      console.warn("[stripe-webhook] Invalid signature — rejected");
-      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-    }
+  // Fail closed: with no secret every event is rejected, in every
+  // environment. Before S2 an unset secret accepted anything, so anyone could
+  // post a "payment succeeded" event.
+  if (!webhookSecret) {
+    console.error("[stripe-webhook] STRIPE_WEBHOOK_SECRET is not set — rejecting webhook (S2).");
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  }
+  if (!verifyStripeSignature(rawBody, sigHeader, webhookSecret)) {
+    console.warn("[stripe-webhook] Invalid or expired signature — rejected");
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
   let event: { type: string; data: { object: Record<string, unknown> } };

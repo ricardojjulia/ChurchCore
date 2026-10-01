@@ -61,10 +61,11 @@ describe("twilioAdapter", () => {
   it("rejects webhook when signature is invalid", () => {
     process.env.TWILIO_AUTH_TOKEN = "secret";
 
-    const ok = twilioAdapter.verifyWebhookSignature("foo=bar", {
-      "x-twilio-signature": "deadbeef",
-      "x-twilio-request-timestamp": "1716900000",
-    });
+    const ok = twilioAdapter.verifyWebhookSignature(
+      "foo=bar",
+      { "x-twilio-signature": "deadbeef" },
+      "https://app.example/api/webhooks/twilio",
+    );
 
     expect(ok).toBe(false);
   });
@@ -82,5 +83,44 @@ describe("twilioAdapter", () => {
       status: "delivered",
       recipient: "+15555550101",
     });
+  });
+
+  it("records a send refused because the recipient replied STOP (error 21610) as an unsubscribe (S2)", () => {
+    const event = twilioAdapter.normalizeWebhookEvent(
+      "MessageSid=SM9&MessageStatus=undelivered&ErrorCode=21610&To=%2B15555550101",
+      {},
+    );
+    expect(event).toMatchObject({ status: "unsubscribed", recipient: "+15555550101", providerMessageId: "SM9" });
+
+    const otherFailure = twilioAdapter.normalizeWebhookEvent(
+      "MessageSid=SM10&MessageStatus=undelivered&ErrorCode=30003",
+      {},
+    );
+    expect(otherFailure?.status).toBe("failed");
+  });
+
+  it("asks Twilio for status callbacks at the app's webhook, so STOPs and deliveries come back (S2)", async () => {
+    process.env.TWILIO_ACCOUNT_SID = "AC123";
+    process.env.TWILIO_AUTH_TOKEN = "token";
+    process.env.TWILIO_FROM_NUMBER = "+15555550100";
+    process.env.NEXT_PUBLIC_APP_URL = "https://app.example/";
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ sid: "SM1" }), { status: 201 }));
+    global.fetch = fetchMock as typeof fetch;
+
+    await twilioAdapter.send({ to: "+15555550101", body: "Hello" });
+
+    const body = new URLSearchParams(fetchMock.mock.calls[0][1].body as string);
+    expect(body.get("StatusCallback")).toBe("https://app.example/api/webhooks/twilio");
+  });
+
+  it("gives a retried callback the same idempotency key, though Twilio sends no event time (PR #166 review)", async () => {
+    const { buildProviderWebhookIdempotencyKey } = await import("@/lib/communications/provider-adapter");
+    const body = "MessageSid=SM9&MessageStatus=undelivered&ErrorCode=21610&To=%2B15555550101";
+    const first = twilioAdapter.normalizeWebhookEvent(body, {})!;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const retry = twilioAdapter.normalizeWebhookEvent(body, {})!;
+
+    expect(buildProviderWebhookIdempotencyKey(retry)).toBe(buildProviderWebhookIdempotencyKey(first));
+    expect(buildProviderWebhookIdempotencyKey(first)).toBe("twilio:SM9:undelivered:21610");
   });
 });

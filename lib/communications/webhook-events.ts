@@ -2,12 +2,20 @@ import {
   buildProviderWebhookIdempotencyKey,
   type NormalizedProviderWebhookEvent,
 } from "@/lib/communications/provider-adapter";
+import "server-only";
+
 import {
-  createTenantServerClient,
+  createTenantAdminClient,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
 import { insertConsentLogEntries } from "@/lib/consent-log";
+
+// Webhooks carry no user session, so the request client was anon: every
+// delivery-event, log and suppression write here failed (F4). Writes now use
+// the admin client (ADR 0022), scoped to the church of the log the provider's
+// message id resolves to — never to anything else in the payload. The routes
+// only call this after verifying the provider's signature (S2).
 
 type ResolvedLog = {
   id: string;
@@ -22,6 +30,15 @@ function mapSuppressionReason(status: NormalizedProviderWebhookEvent["status"]):
   if (status === "unsubscribed") return "unsubscribe";
   if (status === "suppressed") return "complaint";
   return null;
+}
+
+// Twilio posts form fields, the email providers JSON; store either as JSON.
+function rawPayloadJson(rawBody: string): unknown {
+  try {
+    return JSON.parse(rawBody) as unknown;
+  } catch {
+    return Object.fromEntries(new URLSearchParams(rawBody));
+  }
 }
 
 function normalizeSuppressionContact(channel: "email" | "sms", recipient: string): string {
@@ -52,20 +69,27 @@ async function resolveCommunicationLog(
     return result.rows[0] ?? null;
   }
 
-  const supabase = await createTenantServerClient();
-  const { data, error } = await supabase
-    .from("communication_logs")
-    .select("id, church_id, recipient_id")
-    .or(`provider_message_id.eq.${providerMessageId},external_id.eq.${providerMessageId}`)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Two exact-match lookups, not an .or() filter string: the message id
+  // comes from the request body and must not be able to add filters.
+  const supabase = createTenantAdminClient();
+  for (const column of ["provider_message_id", "external_id"] as const) {
+    const { data, error } = await supabase
+      .from("communication_logs")
+      .select("id, church_id, recipient_id")
+      .eq(column, providerMessageId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  if (error) {
-    throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
+    if (data) {
+      return data as ResolvedLog;
+    }
   }
 
-  return (data as ResolvedLog | null) ?? null;
+  return null;
 }
 
 export async function recordProviderWebhookEvent(input: {
@@ -77,11 +101,7 @@ export async function recordProviderWebhookEvent(input: {
     return { recorded: false };
   }
 
-  const idempotencyKey = buildProviderWebhookIdempotencyKey({
-    provider: input.event.provider,
-    eventId: input.event.eventId,
-    occurredAtIso: input.event.occurredAtIso,
-  });
+  const idempotencyKey = buildProviderWebhookIdempotencyKey(input.event);
   const suppressionReason = mapSuppressionReason(input.event.status);
   const normalizedRecipient = input.event.recipient
     ? normalizeSuppressionContact(input.event.channel, input.event.recipient)
@@ -110,7 +130,7 @@ export async function recordProviderWebhookEvent(input: {
         input.event.recipient ?? null,
         input.event.reason ?? null,
         idempotencyKey,
-        input.rawBody,
+        JSON.stringify(rawPayloadJson(input.rawBody)),
         input.event.occurredAtIso,
       ],
     );
@@ -175,37 +195,25 @@ export async function recordProviderWebhookEvent(input: {
     return { recorded: true, churchId: resolvedLog.church_id, communicationLogId: resolvedLog.id };
   }
 
-  const supabase = await createTenantServerClient();
+  const supabase = createTenantAdminClient();
+  const notRecorded = { recorded: false, churchId: resolvedLog.church_id, communicationLogId: resolvedLog.id };
 
-  const { data: inserted, error: insertError } = await supabase
+  // The delivery-event row marks an event as processed, so it is written last
+  // (PR #166 review). If a step below fails, the provider retries, finds no
+  // event row, and the steps run again; each is safe to repeat. Before, the
+  // event row came first, and a retry after a failed suppression stopped at
+  // the duplicate key, leaving a bounce or STOP unsuppressed.
+  const { data: existing, error: existingError } = await supabase
     .from("communication_delivery_events")
-    .insert({
-      church_id: resolvedLog.church_id,
-      communication_log_id: resolvedLog.id,
-      provider: input.event.provider,
-      channel: input.event.channel,
-      event_type: input.event.eventId,
-      status: input.event.status,
-      provider_event_id: input.event.eventId,
-      provider_message_id: input.event.providerMessageId,
-      recipient_contact: input.event.recipient,
-      reason: input.event.reason,
-      idempotency_key: idempotencyKey,
-      raw_payload: JSON.parse(input.rawBody),
-      occurred_at: input.event.occurredAtIso,
-    })
     .select("id")
+    .eq("idempotency_key", idempotencyKey)
     .maybeSingle();
 
-  if (insertError) {
-    if (insertError.code === "23505") {
-      return { recorded: false, churchId: resolvedLog.church_id, communicationLogId: resolvedLog.id };
-    }
-    throw new Error(insertError.message);
+  if (existingError) {
+    throw new Error(existingError.message);
   }
-
-  if (!inserted) {
-    return { recorded: false, churchId: resolvedLog.church_id, communicationLogId: resolvedLog.id };
+  if (existing) {
+    return notRecorded;
   }
 
   const updatePayload: Record<string, unknown> = {
@@ -244,7 +252,9 @@ export async function recordProviderWebhookEvent(input: {
   }
 
   if (suppressionReason && normalizedRecipient) {
-    const { error: suppressionError } = await supabase
+    // Returns only a row it actually inserted (an existing suppression is
+    // left alone), so the consent row below is written once per suppression.
+    const { data: newSuppressions, error: suppressionError } = await supabase
       .from("communication_suppressions")
       .upsert(
         {
@@ -260,23 +270,51 @@ export async function recordProviderWebhookEvent(input: {
           onConflict: "church_id,channel,contact",
           ignoreDuplicates: true,
         },
-      );
+      )
+      .select("id");
 
     if (suppressionError) {
       throw new Error(suppressionError.message);
     }
 
-    if (resolvedLog.recipient_id) {
-      await insertConsentLogEntries([
-        {
-          churchId: resolvedLog.church_id,
-          profileId: resolvedLog.recipient_id,
-          consentType: "communication_suppression",
-          consented: false,
-          communicationType: input.event.channel,
-        },
-      ]);
+    if (resolvedLog.recipient_id && (newSuppressions?.length ?? 0) > 0) {
+      // insertConsentLogEntries uses the request client, anon here.
+      const { error: consentError } = await supabase.from("consent_logs").insert({
+        church_id: resolvedLog.church_id,
+        profile_id: resolvedLog.recipient_id,
+        consent_type: "communication_suppression",
+        consented: false,
+        communication_type: input.event.channel,
+      });
+      if (consentError) {
+        throw new Error(consentError.message);
+      }
     }
+  }
+
+  const { error: insertError } = await supabase.from("communication_delivery_events").insert({
+    church_id: resolvedLog.church_id,
+    communication_log_id: resolvedLog.id,
+    provider: input.event.provider,
+    channel: input.event.channel,
+    event_type: input.event.eventId,
+    status: input.event.status,
+    provider_event_id: input.event.eventId,
+    provider_message_id: input.event.providerMessageId,
+    recipient_contact: input.event.recipient,
+    reason: input.event.reason,
+    idempotency_key: idempotencyKey,
+    raw_payload: rawPayloadJson(input.rawBody),
+    occurred_at: input.event.occurredAtIso,
+  });
+
+  if (insertError) {
+    // A concurrent delivery of the same event got here first; its effects
+    // are the same as ours.
+    if (insertError.code === "23505") {
+      return notRecorded;
+    }
+    throw new Error(insertError.message);
   }
 
   return { recorded: true, churchId: resolvedLog.church_id, communicationLogId: resolvedLog.id };

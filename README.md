@@ -465,13 +465,16 @@ For voluntary donations (Sprint 7+), also supply:
 - `STRIPE_WEBHOOK_SECRET` — webhook signing secret (`whsec_…`) for payment confirmation
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` — for Stripe Elements on the frontend
 - When absent, donation actions return stub results **outside production** (or with `NEXT_PUBLIC_DEMO_MODE=true`), so local dev is unaffected — a production deploy without these keys refuses to give, rather than recording gifts that were never actually charged (Council Review 22, S8). Even with keys configured, online card giving isn't live yet: there's a Stripe PaymentIntent but no card-entry form (`DEVELOPMENT_PLAN.md` row G3.0). ChurchCore takes **no platform fees** — 100% of every donation goes directly to the church.
+- `/api/webhooks/stripe` fails closed: with `STRIPE_WEBHOOK_SECRET` unset, every event is rejected, in every environment, and a signature older (or newer) than 5 minutes is rejected as a replay (S2, Council Review 29). Set the secret on every deploy that takes Stripe payments — without it, donations stop reconciling, silently.
 
 For Communications Hub (Phase 6), also supply:
 
 - `SENDGRID_API_KEY` and `SENDGRID_FROM_EMAIL` — outbound email via SendGrid
+- `SENDGRID_WEBHOOK_VERIFICATION_KEY` — the Event Webhook's ECDSA public key, for verifying delivery/bounce/complaint webhooks
 - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM_NUMBER` — outbound SMS via Twilio
-- `RESEND_API_KEY` and `RESEND_FROM_EMAIL` — outbound email via Resend (ADR 0006's designated primary provider; not yet wired into the send path — `DEVELOPMENT_PLAN.md` row G5.1)
+- `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `RESEND_WEBHOOK_SECRET` — outbound email via Resend (ADR 0006's designated primary provider; not yet wired into the send path — `DEVELOPMENT_PLAN.md` row G5.1)
 - When these vars are absent, the adapters return a stub "sent" result **outside production** (or with `NEXT_PUBLIC_DEMO_MODE=true`), so local dev and demos are unaffected — a production deploy without them returns `provider_not_configured` instead of reporting a message as delivered that never was (Council Reviews 22 and 23; `lib/stub-mode.ts`). Volunteer assignment notifications (`DEVELOPMENT_PLAN.md` row G1.5) and the giving flow (row S8) both depend on this rule. Outbound links (e.g. a volunteer's confirm link) use `NEXT_PUBLIC_APP_URL`; in production without it, the send is skipped rather than mailing a dead `localhost` link.
+- **Every delivery webhook fails closed too** (`/api/webhooks/sendgrid`, `/api/webhooks/twilio`, `/api/webhooks/resend`): with its secret unset, the route rejects every request rather than accepting it unverified. SendGrid and Twilio verify the providers' real signature schemes — ECDSA P-256 for SendGrid, HMAC-SHA1 over the exact called URL for Twilio. Twilio's signature check needs `NEXT_PUBLIC_APP_URL` to be the exact public URL Twilio calls; set it before relying on SMS bounce/STOP handling in production (S2, Council Review 29; see `docs/runbooks/communications.md`).
 
 Architectural note:
 

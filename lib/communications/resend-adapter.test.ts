@@ -96,9 +96,9 @@ describe("resendAdapter", () => {
 
   // ── verifyWebhookSignature ─────────────────────────────────────────────────
 
-  it("returns true (stub-pass) when RESEND_WEBHOOK_SECRET is absent", () => {
+  it("rejects every request when RESEND_WEBHOOK_SECRET is absent (S2: fail closed)", () => {
     delete process.env.RESEND_WEBHOOK_SECRET;
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const ok = resendAdapter.verifyWebhookSignature("{}", {
       "svix-id": "id",
@@ -106,10 +106,9 @@ describe("resendAdapter", () => {
       "svix-signature": "sig",
     });
 
-    expect(ok).toBe(true);
-    expect(warnSpy).toHaveBeenCalledWith(
-      "[resend] RESEND_WEBHOOK_SECRET is not set — webhook signature verification is disabled. Set this in production.",
-    );
+    expect(ok).toBe(false);
+    expect(verifyMock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith("[resend] RESEND_WEBHOOK_SECRET is not set — rejecting webhook (S2).");
   });
 
   it("returns false when svix-id header is missing", () => {

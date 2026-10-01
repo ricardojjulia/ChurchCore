@@ -6,12 +6,26 @@ import type {
   ProviderSendPayload,
   ProviderSendResult,
 } from "@/lib/communications/provider-adapter";
+import { appBaseUrl } from "@/lib/app-url";
 import { stubsAllowed } from "@/lib/stub-mode";
 import { PROVIDER_NOT_CONFIGURED } from "@/lib/communications/provider-adapter";
 
-function buildHmac(payload: string, secret: string): string {
-  return createHmac("sha256", secret).update(payload, "utf8").digest("hex");
+// Twilio's request signature: HMAC-SHA1 of the full URL Twilio called, then
+// each POST parameter sorted by name, appended as name + value; base64.
+// https://www.twilio.com/docs/usage/security#validating-requests
+export function twilioSignature(authToken: string, url: string, rawBody: string): string {
+  const params = new URLSearchParams(rawBody);
+  let data = url;
+  for (const key of [...new Set(params.keys())].sort()) {
+    for (const value of params.getAll(key).sort()) {
+      data += key + value;
+    }
+  }
+  return createHmac("sha1", authToken).update(data, "utf8").digest("base64");
 }
+
+// Twilio error 21610: the recipient replied STOP, so Twilio refused the send.
+const TWILIO_UNSUBSCRIBED_ERROR = "21610";
 
 function normalizeTwilioStatus(status: string): NormalizedProviderWebhookEvent["status"] {
   const normalized = status.toLowerCase();
@@ -72,6 +86,9 @@ export const twilioAdapter: ProviderAdapter = {
           To: payload.to,
           From: fromNumber,
           Body: payload.body,
+          // Without a callback Twilio reports nothing back: no delivery
+          // status, and no 21610 when the recipient has replied STOP.
+          ...(appBaseUrl() ? { StatusCallback: `${appBaseUrl()}/api/webhooks/twilio` } : {}),
         }).toString(),
       },
     );
@@ -92,27 +109,29 @@ export const twilioAdapter: ProviderAdapter = {
     };
   },
 
-  verifyWebhookSignature(rawBody: string, headers: Record<string, string>): boolean {
+  verifyWebhookSignature(
+    rawBody: string,
+    headers: Record<string, string>,
+    requestUrl?: string | null,
+  ): boolean {
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     if (!authToken) {
-      return true;
+      console.error("[twilio] TWILIO_AUTH_TOKEN is not set — rejecting webhook (S2).");
+      return false;
+    }
+    if (!requestUrl) {
+      console.error("[twilio] No public app URL to verify the signature against — rejecting webhook.");
+      return false;
     }
 
     const signature = headers["x-twilio-signature"] ?? "";
-    const timestamp = headers["x-twilio-request-timestamp"] ?? "";
-
-    if (!signature || !timestamp) {
+    if (!signature) {
       return false;
     }
 
-    const signedPayload = `${timestamp}.${rawBody}`;
-    const expected = buildHmac(signedPayload, authToken);
-
-    try {
-      return timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(signature, "hex"));
-    } catch {
-      return false;
-    }
+    const expected = Buffer.from(twilioSignature(authToken, requestUrl, rawBody));
+    const received = Buffer.from(signature);
+    return expected.length === received.length && timingSafeEqual(expected, received);
   },
 
   normalizeWebhookEvent(
@@ -128,12 +147,20 @@ export const twilioAdapter: ProviderAdapter = {
       return null;
     }
 
+    // A send to someone who replied STOP comes back undelivered with 21610;
+    // record it as an unsubscribe so a suppression is written (S2, F4).
+    const errorCode = payload.get("ErrorCode") ?? "";
+    const unsubscribed = errorCode === TWILIO_UNSUBSCRIBED_ERROR;
+
     return {
       provider: "twilio",
       channel: "sms",
-      eventId: `${sid}:${status}`,
+      // Twilio's status callbacks carry no event time; this id is stable
+      // across its retries of the same callback.
+      eventId: errorCode ? `${sid}:${status}:${errorCode}` : `${sid}:${status}`,
+      occurredAtIsReceiptTime: true,
       providerMessageId: sid,
-      status: normalizeTwilioStatus(status),
+      status: unsubscribed ? "unsubscribed" : normalizeTwilioStatus(status),
       occurredAtIso: new Date().toISOString(),
       recipient: payload.get("To") ?? undefined,
       reason: payload.get("ErrorMessage") ?? undefined,

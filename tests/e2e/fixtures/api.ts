@@ -61,9 +61,19 @@ export function signStripeWebhook(payload: string, secret: string, timestamp = M
   return `t=${timestamp},v1=${v1}`;
 }
 
-/** Signs the shared HMAC scheme used by the SendGrid and Twilio adapters (see buildHmac in each adapter). */
-export function signTimestampedHmac(payload: string, secret: string, timestamp: string) {
-  return createHmac("sha256", secret).update(`${timestamp}.${payload}`, "utf8").digest("hex");
+/**
+ * Signs an X-Twilio-Signature the way Twilio does: HMAC-SHA1 of the URL it
+ * called plus each form field sorted by name (name + value), base64. Mirrors
+ * twilioSignature in lib/communications/twilio-adapter.ts, written out again
+ * here so the spec doesn't import app code.
+ */
+export function signTwilioWebhook(url: string, formBody: string, authToken: string) {
+  const params = new URLSearchParams(formBody);
+  let data = url;
+  for (const key of [...new Set(params.keys())].sort()) {
+    for (const value of params.getAll(key).sort()) data += key + value;
+  }
+  return createHmac("sha1", authToken).update(data, "utf8").digest("base64");
 }
 
 /**

@@ -180,6 +180,8 @@ If these are not set, push notification dispatch is skipped gracefully and all o
 
 ## 8. Communications Webhooks
 
+**All four webhooks in this section fail closed:** while its secret or verification key is unset, the route rejects every request, in every environment — there is no "unverified but accepted" mode (S2, Council Review 29, 2026-10-01). Set the relevant variable before relying on that provider in production. See `docs/runbooks/communications.md` §2 for the full registration steps and verification details.
+
 ### Resend
 
 1. In the Resend dashboard, go to **Webhooks**.
@@ -198,7 +200,7 @@ If these are not set, push notification dispatch is skipped gracefully and all o
    https://<your-production-domain>/api/webhooks/sendgrid
    ```
 3. Enable: Delivered, Bounced, Spam Report, Unsubscribe, Failed.
-4. Enable **Event Webhook Signature Verification** and copy the verification key to `SENDGRID_WEBHOOK_VERIFICATION_KEY`.
+4. Enable **Event Webhook Signature Verification** and copy the verification key to `SENDGRID_WEBHOOK_VERIFICATION_KEY` — it's an ECDSA (P-256) public key (base64 DER or PEM), not a shared secret.
 
 ### Twilio (if using)
 
@@ -208,7 +210,7 @@ If these are not set, push notification dispatch is skipped gracefully and all o
    https://<your-production-domain>/api/webhooks/twilio
    ```
 3. Set method to `HTTP POST`.
-4. Twilio uses HMAC-SHA1 with `TWILIO_AUTH_TOKEN` for signature verification — no additional configuration needed beyond having `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` set.
+4. Twilio uses HMAC-SHA1 with `TWILIO_AUTH_TOKEN` for signature verification, computed over the exact URL Twilio called plus the sorted POST body. **`NEXT_PUBLIC_APP_URL` must be set to that exact public URL** (scheme, host, no trailing slash) — behind Vercel's proxy the request's own host isn't it, and a wrong or unset value rejects every Twilio webhook regardless of `TWILIO_AUTH_TOKEN`. Outbound SMS sends also need it to set their `StatusCallback`, or Twilio never reports delivery status or error codes (including 21610, a STOP reply) back at all.
 
 ---
 

@@ -19,7 +19,10 @@ const {
   recordProviderWebhookEventMock: vi.fn(),
 }));
 
-vi.mock("@/lib/communications/sendgrid-adapter", () => ({
+vi.mock("@/lib/communications/sendgrid-adapter", async (importOriginal) => ({
+  // The batch normalizer is pure: use the real one.
+  normalizeSendgridEvents: (await importOriginal<typeof import("@/lib/communications/sendgrid-adapter")>())
+    .normalizeSendgridEvents,
   sendgridAdapter: {
     verifyWebhookSignature: sendgridVerifyMock,
     normalizeWebhookEvent: sendgridNormalizeMock,
@@ -66,27 +69,29 @@ describe("communications webhook routes", () => {
     expect(response.status).toBe(401);
   });
 
-  it("records normalized sendgrid events", async () => {
+  it("records every event in a SendGrid batch, not only the first (PR #166 review)", async () => {
     sendgridVerifyMock.mockReturnValue(true);
-    sendgridNormalizeMock.mockReturnValue({
-      provider: "sendgrid",
-      channel: "email",
-      eventId: "evt-1",
-      providerMessageId: "msg-1",
-      status: "delivered",
-      occurredAtIso: "2026-05-28T00:00:00.000Z",
-    });
     recordProviderWebhookEventMock.mockResolvedValue({ recorded: true });
+    const batch = [
+      { event: "delivered", sg_event_id: "evt-1", sg_message_id: "msg-1", email: "a@example.test", timestamp: 1716900000 },
+      { event: "bounce", sg_event_id: "evt-2", sg_message_id: "msg-2", email: "b@example.test", timestamp: 1716900001 },
+      null,
+    ];
 
     const response = await sendgridWebhookPost(
       new NextRequest("http://localhost/api/webhooks/sendgrid", {
         method: "POST",
-        body: JSON.stringify([{ event: "delivered" }]),
+        body: JSON.stringify(batch),
       }),
     );
 
     expect(response.status).toBe(200);
-    expect(recordProviderWebhookEventMock).toHaveBeenCalledTimes(1);
+    expect(await response.json()).toMatchObject({ recordedCount: 2, received: 2 });
+    expect(recordProviderWebhookEventMock).toHaveBeenCalledTimes(2);
+    expect(recordProviderWebhookEventMock.mock.calls[1][0]).toMatchObject({
+      event: { status: "bounced", eventId: "evt-2" },
+      rawBody: JSON.stringify(batch[1]),
+    });
   });
 
   it("rejects invalid twilio signatures", async () => {
@@ -123,6 +128,25 @@ describe("communications webhook routes", () => {
 
     expect(response.status).toBe(200);
     expect(recordProviderWebhookEventMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("verifies a Twilio signature against the app's public URL, not the proxied request host (S2)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://app.example");
+    twilioVerifyMock.mockReturnValue(false);
+
+    await twilioWebhookPost(
+      new NextRequest("http://internal-host:3000/api/webhooks/twilio?x=1", {
+        method: "POST",
+        body: "MessageSid=SM123&MessageStatus=delivered",
+      }),
+    );
+
+    expect(twilioVerifyMock).toHaveBeenCalledWith(
+      "MessageSid=SM123&MessageStatus=delivered",
+      expect.any(Object),
+      "https://app.example/api/webhooks/twilio?x=1",
+    );
+    vi.unstubAllEnvs();
   });
 
   it("rejects Resend webhook when signature is invalid", async () => {

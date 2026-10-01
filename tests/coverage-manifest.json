@@ -1856,7 +1856,10 @@
       ],
       "auth": "webhook",
       "tests": [
-        "tests/e2e/api-webhooks.spec.ts"
+        "tests/e2e/api-webhooks.spec.ts",
+        "app/api/webhooks/communications-webhook-flow.test.ts",
+        "lib/communications/resend-adapter.test.ts",
+        "lib/communications/webhook-events.test.ts"
       ]
     },
     "/api/webhooks/sendgrid": {
@@ -1867,7 +1870,10 @@
       ],
       "auth": "webhook",
       "tests": [
-        "tests/e2e/api-webhooks.spec.ts"
+        "tests/e2e/api-webhooks.spec.ts",
+        "app/api/webhooks/communications-webhook-flow.test.ts",
+        "lib/communications/webhook-signature-verification.test.ts",
+        "lib/communications/webhook-events.test.ts"
       ]
     },
     "/api/webhooks/stripe": {
@@ -1878,7 +1884,8 @@
       ],
       "auth": "webhook",
       "tests": [
-        "tests/e2e/api-webhooks.spec.ts"
+        "tests/e2e/api-webhooks.spec.ts",
+        "app/api/webhooks/stripe/route.test.ts"
       ]
     },
     "/api/webhooks/twilio": {
@@ -1889,7 +1896,11 @@
       ],
       "auth": "webhook",
       "tests": [
-        "tests/e2e/api-webhooks.spec.ts"
+        "tests/e2e/api-webhooks.spec.ts",
+        "app/api/webhooks/communications-webhook-flow.test.ts",
+        "lib/communications/webhook-signature-verification.test.ts",
+        "lib/communications/twilio-adapter.test.ts",
+        "lib/communications/webhook-events.test.ts"
       ]
     }
   },

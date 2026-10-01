@@ -45,13 +45,28 @@ export type NormalizedProviderWebhookEvent = {
   occurredAtIso: string;
   recipient?: string;
   reason?: string;
+  /**
+   * True when the provider sent no event time, so occurredAtIso is when we
+   * received it. Such events are deduplicated on eventId alone: a provider
+   * retry must not look like a new event (PR #166 review).
+   */
+  occurredAtIsReceiptTime?: boolean;
 };
 
 export type ProviderAdapter = {
   provider: CommunicationProvider;
   channel: CommunicationProviderChannel;
   send(payload: ProviderSendPayload): Promise<ProviderSendResult>;
-  verifyWebhookSignature(rawBody: string, headers: Record<string, string>): boolean;
+  /**
+   * True only for a request the provider provably signed. Fails closed: an
+   * unset secret rejects every request, in every environment (S2).
+   * `requestUrl` is the public URL the provider called (Twilio signs it).
+   */
+  verifyWebhookSignature(
+    rawBody: string,
+    headers: Record<string, string>,
+    requestUrl?: string | null,
+  ): boolean;
   normalizeWebhookEvent(
     rawBody: string,
     headers: Record<string, string>,
@@ -82,7 +97,9 @@ export function shouldRetryDelivery(
 }
 
 export function buildProviderWebhookIdempotencyKey(
-  event: Pick<NormalizedProviderWebhookEvent, "provider" | "eventId" | "occurredAtIso">,
+  event: Pick<NormalizedProviderWebhookEvent, "provider" | "eventId" | "occurredAtIso" | "occurredAtIsReceiptTime">,
 ): string {
-  return `${event.provider}:${event.eventId}:${event.occurredAtIso}`;
+  return event.occurredAtIsReceiptTime
+    ? `${event.provider}:${event.eventId}`
+    : `${event.provider}:${event.eventId}:${event.occurredAtIso}`;
 }

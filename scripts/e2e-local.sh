@@ -24,7 +24,9 @@ export UNSUBSCRIBE_SECRET=local-e2e-unsubscribe-secret
 export STRIPE_WEBHOOK_SECRET=whsec_local_e2e_stripe
 export SENDGRID_WEBHOOK_VERIFICATION_KEY=local-e2e-sendgrid-verification-key
 export TWILIO_AUTH_TOKEN=local-e2e-twilio-auth-token
-export RESEND_WEBHOOK_SECRET=whsec_local_e2e_resend
+# svix needs a base64 secret; derived here rather than committed (secret scanners).
+RESEND_WEBHOOK_SECRET="whsec_$(printf '%s' local-e2e-resend | base64)"
+export RESEND_WEBHOOK_SECRET
 # setup-e2e.sh resolves PASTORAL_ENCRYPTION_KEY (from .e2e-pastoral-key.local,
 # created on first run) and exports it into the env file sourced below.
 

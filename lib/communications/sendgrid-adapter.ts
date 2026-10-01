@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createPublicKey, verify, type KeyObject } from "node:crypto";
 
 import type {
   NormalizedProviderWebhookEvent,
@@ -9,8 +9,14 @@ import type {
 import { stubsAllowed } from "@/lib/stub-mode";
 import { PROVIDER_NOT_CONFIGURED } from "@/lib/communications/provider-adapter";
 
-function buildHmac(payload: string, secret: string): string {
-  return createHmac("sha256", secret).update(payload, "utf8").digest("hex");
+// SendGrid's Event Webhook signs timestamp + raw body with ECDSA (P-256,
+// SHA-256). The verification key in its settings is the base64 DER public
+// key; a PEM key is accepted too. The signature is base64 DER.
+// https://www.twilio.com/docs/sendgrid/for-developers/tracking-events/getting-started-event-webhook-security-features
+function sendgridPublicKey(key: string): KeyObject {
+  return key.includes("BEGIN PUBLIC KEY")
+    ? createPublicKey(key)
+    : createPublicKey({ key: Buffer.from(key.trim(), "base64"), format: "der", type: "spki" });
 }
 
 function parseJson(rawBody: string): unknown {
@@ -26,7 +32,8 @@ function normalizeSendgridEvent(
 ): NormalizedProviderWebhookEvent | null {
   const eventName = String(event.event ?? "").toLowerCase();
   const timestamp = Number(event.timestamp ?? 0);
-  const occurredAtIso = timestamp > 0 ? new Date(timestamp * 1000).toISOString() : new Date().toISOString();
+  const hasTimestamp = timestamp > 0;
+  const occurredAtIso = hasTimestamp ? new Date(timestamp * 1000).toISOString() : new Date().toISOString();
   const eventId =
     (typeof event.sg_event_id === "string" && event.sg_event_id) ||
     (typeof event.sg_message_id === "string" && event.sg_message_id) ||
@@ -48,6 +55,7 @@ function normalizeSendgridEvent(
   const status = statusMap[eventName] ?? "failed";
 
   return {
+    occurredAtIsReceiptTime: !hasTimestamp,
     provider: "sendgrid",
     channel: "email",
     eventId,
@@ -110,28 +118,26 @@ export const sendgridAdapter: ProviderAdapter = {
   verifyWebhookSignature(rawBody: string, headers: Record<string, string>): boolean {
     const verificationKey = process.env.SENDGRID_WEBHOOK_VERIFICATION_KEY;
     if (!verificationKey) {
-      return true;
+      console.error("[sendgrid] SENDGRID_WEBHOOK_VERIFICATION_KEY is not set — rejecting webhook (S2).");
+      return false;
     }
 
-    const signature =
-      headers["x-sendgrid-signature"] ??
-      headers["x-twilio-email-event-webhook-signature"] ??
-      "";
-    const timestamp =
-      headers["x-sendgrid-timestamp"] ??
-      headers["x-twilio-email-event-webhook-timestamp"] ??
-      "";
+    const signature = headers["x-twilio-email-event-webhook-signature"] ?? "";
+    const timestamp = headers["x-twilio-email-event-webhook-timestamp"] ?? "";
 
     if (!signature || !timestamp) {
       return false;
     }
 
-    const signedPayload = `${timestamp}.${rawBody}`;
-    const expected = buildHmac(signedPayload, verificationKey);
-
     try {
-      return timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(signature, "hex"));
+      return verify(
+        "sha256",
+        Buffer.from(timestamp + rawBody, "utf8"),
+        sendgridPublicKey(verificationKey),
+        Buffer.from(signature, "base64"),
+      );
     } catch {
+      // A malformed key or signature is a rejection, not a crash.
       return false;
     }
   },
@@ -141,17 +147,26 @@ export const sendgridAdapter: ProviderAdapter = {
     _headers: Record<string, string>,
   ): NormalizedProviderWebhookEvent | null {
     void _headers;
-    const payload = parseJson(rawBody);
-
-    if (!Array.isArray(payload) || payload.length === 0) {
-      return null;
-    }
-
-    const [first] = payload;
-    if (!first || typeof first !== "object") {
-      return null;
-    }
-
-    return normalizeSendgridEvent(first as Record<string, unknown>);
+    return normalizeSendgridEvents(rawBody)[0]?.event ?? null;
   },
 };
+
+/**
+ * SendGrid batches events: one signed POST can carry many. Every supported
+ * event is returned with its own JSON, so the route records all of them, not
+ * just the first (PR #166 review).
+ */
+export function normalizeSendgridEvents(
+  rawBody: string,
+): Array<{ event: NormalizedProviderWebhookEvent; rawEvent: string }> {
+  const payload = parseJson(rawBody);
+  if (!Array.isArray(payload)) {
+    return [];
+  }
+
+  return payload.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const event = normalizeSendgridEvent(item as Record<string, unknown>);
+    return event ? [{ event, rawEvent: JSON.stringify(item) }] : [];
+  });
+}
