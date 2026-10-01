@@ -18,6 +18,7 @@ declare
   v_olivia_auth_id uuid;
   v_miriam_auth_id uuid;
   v_robert_auth_id uuid;
+  v_nora_auth_id   uuid;
   -- profiles IDs (looked up after upsert)
   v_sarah_id    uuid;
   v_david_id    uuid;
@@ -107,6 +108,13 @@ begin
   select id into v_robert_auth_id
   from auth.users
   where email = 'robert@graceharbor.church'
+  limit 1;
+
+  -- A church admin who is NOT a platform admin (S1), so tests of church-admin
+  -- access don't pass through the platform-admin RLS bypass the way sarah does.
+  select id into v_nora_auth_id
+  from auth.users
+  where email = 'nora@graceharbor.church'
   limit 1;
 
   -- Skip seed if accounts don't exist yet
@@ -364,6 +372,23 @@ begin
   if v_robert_auth_id is not null then
     insert into public.church_memberships (user_id, church_id, role, is_active)
     values (v_robert_auth_id, v_church_id, 'ministry_leader', true)
+    on conflict (church_id, user_id, role) do update set is_active = excluded.is_active;
+  end if;
+
+  -- Nora: church admin only (S1). Her profile is the one sign-up created.
+  if v_nora_auth_id is not null then
+    update public.profiles
+    set church_id = v_church_id,
+        full_name = 'Nora Bennett',
+        email = 'nora@graceharbor.church',
+        role = 'church_admin',
+        display_title = 'Church Administrator',
+        membership_status = 'active',
+        account_status = 'active'
+    where user_id = v_nora_auth_id;
+
+    insert into public.church_memberships (user_id, church_id, role, is_active)
+    values (v_nora_auth_id, v_church_id, 'church_admin', true)
     on conflict (church_id, user_id, role) do update set is_active = excluded.is_active;
   end if;
 

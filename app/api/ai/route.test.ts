@@ -27,6 +27,16 @@ describe("POST /api/ai gate (S5, Council Review 27)", () => {
     expect((await POST(request())).status).toBe(403);
     expect(rpcMock).toHaveBeenCalledWith("is_platform_admin");
   });
+
+  it("lets a platform admin through: without ANTHROPIC_API_KEY it says AI isn't configured", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    getUserMock.mockResolvedValue({ data: { user: { id: "platform-1" } }, error: null });
+    rpcMock.mockResolvedValue({ data: true, error: null });
+    const response = await POST(request());
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "AI features are not configured in this environment." });
+    vi.unstubAllEnvs();
+  });
 });
 
 describe("scrubPII", () => {

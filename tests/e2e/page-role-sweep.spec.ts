@@ -72,12 +72,6 @@ const INLINE_DENIAL: Record<string, { message: string; absentHeading: string }> 
  * the test fails, and the entry must be removed.
  */
 const KNOWN_BUGS: Record<string, { reason: string; landing?: string; text?: string }> = {
-  "secretary /app/communications/history/[logId]": {
-    reason:
-      "The page's gate admits secretary, but communication_logs RLS (can_manage_church) excludes her, so the log " +
-      "renders as not found. Council Review 17 F7 / Review 18 follow-up 1.",
-    text: "This page could not be found",
-  },
 };
 
 /**

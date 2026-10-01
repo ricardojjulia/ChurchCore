@@ -1,9 +1,12 @@
 /**
- * Per-identity fixtures for the Playwright suite: the 5 demo users, plus a
- * second identity (`church-admin`) for sarah@churchcoreops.app, who is both
- * a control-plane platform admin AND a real `church_memberships` row at
- * Grace Harbor (see supabase/seed.sql, `church_admin` role) — Story A brief
- * AC1.
+ * Per-identity fixtures for the Playwright suite: six demo users. `super-admin`
+ * is sarah@churchcoreops.app, a control-plane platform admin. `church-admin` is
+ * nora@graceharbor.church, a church admin who is NOT a platform admin (S1).
+ * Until S1, sarah played church-admin too (through the stored app-context
+ * selection described below), so every church-admin test passed through the
+ * platform-admin RLS bypass. The cookie mechanism below is kept for any
+ * identity whose default context resolution doesn't land on its homePath;
+ * none needs it today.
  *
  * Deliberately does not import `lib/auth.ts` (Playwright specs stay outside
  * the app's module graph) — `appContextCookieName` and the
@@ -86,17 +89,14 @@ export const roles: Record<IdentityId, RoleFixture> = {
     homePath: "/control",
     controlPlane: true,
   },
+  // A church admin who is not a platform admin (S1): sarah used to play this
+  // role too, so every church-admin test passed through the platform-admin
+  // RLS bypass and couldn't catch a gap a real church admin would hit.
   "church-admin": {
     id: "church-admin",
-    emailEnvVar: "CHURCHCORE_OPS_DEMO_ADMIN_EMAIL", // sarah@churchcoreops.app, same login, church context
+    emailEnvVar: "CHURCHCORE_OPS_DEMO_CHURCH_ADMIN_EMAIL", // nora@graceharbor.church
     homePath: "/app/church-admin",
     controlPlane: false,
-    appContextSelection: {
-      kind: "church",
-      churchId: SEED_CHURCH_ID,
-      roleId: "church-admin",
-      source: "membership",
-    },
   },
   secretary: {
     id: "secretary",

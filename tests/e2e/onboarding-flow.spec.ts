@@ -9,7 +9,8 @@ import { roles, seedAppContextCookie, signInThroughUi } from "./fixtures/roles";
 // load one identity's storageState — it signs in live at each step, same as
 // before, but now through the shared fixtures instead of a duplicated
 // inline copy.
-const adminEmail = process.env.CHURCHCORE_OPS_DEMO_ADMIN_EMAIL;
+// A church admin who isn't a platform admin (S1), approving as a real one would.
+const adminEmail = process.env.CHURCHCORE_OPS_DEMO_CHURCH_ADMIN_EMAIL;
 const demoPassword = process.env.CHURCHCORE_OPS_DEV_PASSWORD;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -131,7 +132,9 @@ test.describe("Portal onboarding browser flow", () => {
     await page.context().clearCookies();
 
     const churchAdmin = roles["church-admin"];
-    await seedAppContextCookie(page.context(), getAppUrl(), churchAdmin.appContextSelection!);
+    if (churchAdmin.appContextSelection) {
+      await seedAppContextCookie(page.context(), getAppUrl(), churchAdmin.appContextSelection);
+    }
     await signInThroughUi(page, {
       email: adminEmail ?? "",
       password: demoPassword ?? "",

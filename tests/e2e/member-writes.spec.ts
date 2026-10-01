@@ -79,9 +79,14 @@ test.describe("Member writes (S8)", () => {
     const me = await member();
     const title = `${MARK} potluck`;
     const event = await queryTenantDb<{ id: string }>(
+      // Noon on the church's own today: the calendar shows the church's month,
+      // and UTC's today is already tomorrow in a New York evening (G1.6).
       `insert into public.events (church_id, title, starts_at, ends_at, category, visibility, rsvp_enabled)
-       values ($1, $2, date_trunc('day', now()) + interval '12 hours', date_trunc('day', now()) + interval '14 hours',
-               'general', 'members', true)
+       select c.id, $2,
+              ((now() at time zone c.timezone)::date + time '12:00') at time zone c.timezone,
+              ((now() at time zone c.timezone)::date + time '14:00') at time zone c.timezone,
+              'general', 'members', true
+       from public.churches c where c.id = $1
        returning id`,
       [me.church_id, title],
     );
