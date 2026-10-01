@@ -112,4 +112,15 @@ describe("twilioAdapter", () => {
     const body = new URLSearchParams(fetchMock.mock.calls[0][1].body as string);
     expect(body.get("StatusCallback")).toBe("https://app.example/api/webhooks/twilio");
   });
+
+  it("gives a retried callback the same idempotency key, though Twilio sends no event time (PR #166 review)", async () => {
+    const { buildProviderWebhookIdempotencyKey } = await import("@/lib/communications/provider-adapter");
+    const body = "MessageSid=SM9&MessageStatus=undelivered&ErrorCode=21610&To=%2B15555550101";
+    const first = twilioAdapter.normalizeWebhookEvent(body, {})!;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const retry = twilioAdapter.normalizeWebhookEvent(body, {})!;
+
+    expect(buildProviderWebhookIdempotencyKey(retry)).toBe(buildProviderWebhookIdempotencyKey(first));
+    expect(buildProviderWebhookIdempotencyKey(first)).toBe("twilio:SM9:undelivered:21610");
+  });
 });

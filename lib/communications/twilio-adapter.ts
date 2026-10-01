@@ -149,12 +149,16 @@ export const twilioAdapter: ProviderAdapter = {
 
     // A send to someone who replied STOP comes back undelivered with 21610;
     // record it as an unsubscribe so a suppression is written (S2, F4).
-    const unsubscribed = payload.get("ErrorCode") === TWILIO_UNSUBSCRIBED_ERROR;
+    const errorCode = payload.get("ErrorCode") ?? "";
+    const unsubscribed = errorCode === TWILIO_UNSUBSCRIBED_ERROR;
 
     return {
       provider: "twilio",
       channel: "sms",
-      eventId: `${sid}:${status}`,
+      // Twilio's status callbacks carry no event time; this id is stable
+      // across its retries of the same callback.
+      eventId: errorCode ? `${sid}:${status}:${errorCode}` : `${sid}:${status}`,
+      occurredAtIsReceiptTime: true,
       providerMessageId: sid,
       status: unsubscribed ? "unsubscribed" : normalizeTwilioStatus(status),
       occurredAtIso: new Date().toISOString(),

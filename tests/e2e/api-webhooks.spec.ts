@@ -125,15 +125,26 @@ test.describe("POST /api/webhooks/twilio", () => {
     );
     try {
       const body = new URLSearchParams({ MessageSid: sid, MessageStatus: "undelivered", ErrorCode: "21610", To: phone }).toString();
-      const response = await request.post("/api/webhooks/twilio", {
-        data: body,
-        headers: {
-          "content-type": "application/x-www-form-urlencoded",
-          "x-twilio-signature": signTwilioWebhook(url(), body, getWebhookSecret("twilio")),
-        },
-      });
+      const post = () =>
+        request.post("/api/webhooks/twilio", {
+          data: body,
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            "x-twilio-signature": signTwilioWebhook(url(), body, getWebhookSecret("twilio")),
+          },
+        });
+      const response = await post();
       expect(response.status()).toBe(200);
       expect(await response.json()).toEqual({ ok: true, recorded: true });
+
+      // Twilio retries the same callback: recognised, not recorded twice.
+      const retry = await post();
+      expect(await retry.json()).toEqual({ ok: true, recorded: false });
+      const events = await queryTenantDb(
+        `select count(*)::int as n from public.communication_delivery_events where communication_log_id = $1`,
+        [log.rows[0].id],
+      );
+      expect(events.rows[0].n).toBe(1);
 
       const suppression = await queryTenantDb(
         `select reason from public.communication_suppressions where church_id = $1 and channel = 'sms' and contact = $2`,

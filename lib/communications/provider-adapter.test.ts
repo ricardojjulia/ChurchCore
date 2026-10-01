@@ -35,4 +35,15 @@ describe("provider adapter helpers", () => {
 
     expect(key).toBe("sendgrid:event-123:2026-05-27T20:00:00.000Z");
   });
+
+  it("leaves the receipt time out of the key when the provider sent no event time", () => {
+    const key = buildProviderWebhookIdempotencyKey({
+      provider: "twilio",
+      eventId: "SM1:delivered",
+      occurredAtIso: "2026-10-01T12:00:00.000Z",
+      occurredAtIsReceiptTime: true,
+    });
+
+    expect(key).toBe("twilio:SM1:delivered");
+  });
 });

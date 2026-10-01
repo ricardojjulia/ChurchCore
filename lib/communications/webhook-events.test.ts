@@ -113,7 +113,11 @@ describe("recordProviderWebhookEvent", () => {
 // scoped to the church of the log the message id resolves to.
 type Call = { table: string; op: string; args: unknown[] };
 
-function fakeAdmin(log: { id: string; church_id: string; recipient_id: string | null } | null, logColumn = "provider_message_id") {
+function fakeAdmin(
+  log: { id: string; church_id: string; recipient_id: string | null } | null,
+  logColumn = "provider_message_id",
+  options: { eventExists?: boolean; suppressionExists?: boolean; failSuppression?: boolean } = {},
+) {
   const calls: Call[] = [];
   const client = {
     from(table: string) {
@@ -124,9 +128,15 @@ function fakeAdmin(log: { id: string; church_id: string; recipient_id: string | 
         select: vi.fn(() => builder),
         insert: vi.fn((value: unknown) => ((op = "insert"), (payload = value), builder)),
         update: vi.fn((value: unknown) => ((op = "update"), (payload = value), builder)),
-        upsert: vi.fn((value: unknown, options: unknown) => {
-          calls.push({ table, op: "upsert", args: [value, options] });
-          return Promise.resolve({ error: null });
+        upsert: vi.fn((value: unknown, upsertOptions: unknown) => {
+          calls.push({ table, op: "upsert", args: [value, upsertOptions] });
+          return {
+            select: vi.fn(async () =>
+              options.failSuppression
+                ? { data: null, error: { message: "suppression write failed" } }
+                : { data: options.suppressionExists ? [] : [{ id: "suppression-1" }], error: null },
+            ),
+          };
         }),
         eq: vi.fn((column: string, value: unknown) => (filters.push([column, value]), builder)),
         or: vi.fn(() => {
@@ -136,10 +146,11 @@ function fakeAdmin(log: { id: string; church_id: string; recipient_id: string | 
         limit: vi.fn(() => builder),
         maybeSingle: vi.fn(async () => {
           calls.push({ table, op, args: [payload, filters] });
-          if (table === "communication_logs" && op === "select") {
+          if (table === "communication_logs") {
             return { data: filters[0]?.[0] === logColumn ? log : null, error: null };
           }
-          return { data: { id: "delivery-1" }, error: null };
+          // communication_delivery_events: has this event been processed?
+          return { data: options.eventExists ? { id: "delivery-1" } : null, error: null };
         }),
         then(resolve: (value: unknown) => void) {
           calls.push({ table, op, args: [payload, filters] });
@@ -182,7 +193,7 @@ describe("recordProviderWebhookEvent on Supabase (S2, F4)", () => {
     const lookup = admin.calls.find((c) => c.table === "communication_logs" && c.op === "select");
     expect(lookup?.args[1]).toEqual([["provider_message_id", "msg-1"]]);
 
-    const event = admin.calls.find((c) => c.table === "communication_delivery_events");
+    const event = admin.calls.find((c) => c.table === "communication_delivery_events" && c.op === "insert");
     expect(event?.args[0]).toMatchObject({ church_id: "church-1", communication_log_id: "log-1", status: "bounced" });
 
     const logUpdate = admin.calls.find((c) => c.table === "communication_logs" && c.op === "update");
@@ -215,7 +226,7 @@ describe("recordProviderWebhookEvent on Supabase (S2, F4)", () => {
       rawBody: "MessageSid=SM1&MessageStatus=undelivered&ErrorCode=21610&To=%2B15555550101",
     });
 
-    const event = admin.calls.find((c) => c.table === "communication_delivery_events");
+    const event = admin.calls.find((c) => c.table === "communication_delivery_events" && c.op === "insert");
     expect((event?.args[0] as { raw_payload: unknown }).raw_payload).toEqual({
       MessageSid: "SM1",
       MessageStatus: "undelivered",
@@ -224,5 +235,37 @@ describe("recordProviderWebhookEvent on Supabase (S2, F4)", () => {
     });
     const suppression = admin.calls.find((c) => c.table === "communication_suppressions");
     expect(suppression?.args[0]).toMatchObject({ channel: "sms", contact: "+15555550101", reason: "unsubscribe" });
+  });
+
+  it("writes the delivery-event row last, so a retry after a failed suppression resumes instead of stopping (PR #166 review)", async () => {
+    const failing = fakeAdmin({ id: "log-1", church_id: "church-1", recipient_id: "profile-1" }, "provider_message_id", {
+      failSuppression: true,
+    });
+    createTenantAdminClientMock.mockReturnValue(failing.client);
+    await expect(recordProviderWebhookEvent({ event: bounce, rawBody: "{}" })).rejects.toThrow("suppression write failed");
+    expect(failing.calls.some((c) => c.table === "communication_delivery_events" && c.op === "insert")).toBe(false);
+
+    // The provider retries: no event row exists yet, so every step runs again.
+    const retry = fakeAdmin({ id: "log-1", church_id: "church-1", recipient_id: "profile-1" });
+    createTenantAdminClientMock.mockReturnValue(retry.client);
+    expect((await recordProviderWebhookEvent({ event: bounce, rawBody: "{}" })).recorded).toBe(true);
+    const order = retry.calls.filter((c) => c.op !== "select").map((c) => c.table);
+    expect(order).toEqual(["communication_logs", "communication_suppressions", "consent_logs", "communication_delivery_events"]);
+  });
+
+  it("skips an event already processed, and writes no second consent row for an existing suppression", async () => {
+    const processed = fakeAdmin({ id: "log-1", church_id: "church-1", recipient_id: "profile-1" }, "provider_message_id", {
+      eventExists: true,
+    });
+    createTenantAdminClientMock.mockReturnValue(processed.client);
+    expect((await recordProviderWebhookEvent({ event: bounce, rawBody: "{}" })).recorded).toBe(false);
+    expect(processed.calls.filter((c) => c.op !== "select")).toEqual([]);
+
+    const alreadySuppressed = fakeAdmin({ id: "log-1", church_id: "church-1", recipient_id: "profile-1" }, "provider_message_id", {
+      suppressionExists: true,
+    });
+    createTenantAdminClientMock.mockReturnValue(alreadySuppressed.client);
+    await recordProviderWebhookEvent({ event: bounce, rawBody: "{}" });
+    expect(alreadySuppressed.calls.some((c) => c.table === "consent_logs")).toBe(false);
   });
 });

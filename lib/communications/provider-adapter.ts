@@ -45,6 +45,12 @@ export type NormalizedProviderWebhookEvent = {
   occurredAtIso: string;
   recipient?: string;
   reason?: string;
+  /**
+   * True when the provider sent no event time, so occurredAtIso is when we
+   * received it. Such events are deduplicated on eventId alone: a provider
+   * retry must not look like a new event (PR #166 review).
+   */
+  occurredAtIsReceiptTime?: boolean;
 };
 
 export type ProviderAdapter = {
@@ -91,7 +97,9 @@ export function shouldRetryDelivery(
 }
 
 export function buildProviderWebhookIdempotencyKey(
-  event: Pick<NormalizedProviderWebhookEvent, "provider" | "eventId" | "occurredAtIso">,
+  event: Pick<NormalizedProviderWebhookEvent, "provider" | "eventId" | "occurredAtIso" | "occurredAtIsReceiptTime">,
 ): string {
-  return `${event.provider}:${event.eventId}:${event.occurredAtIso}`;
+  return event.occurredAtIsReceiptTime
+    ? `${event.provider}:${event.eventId}`
+    : `${event.provider}:${event.eventId}:${event.occurredAtIso}`;
 }

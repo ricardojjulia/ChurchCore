@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { sendgridAdapter } from "@/lib/communications/sendgrid-adapter";
+import { normalizeSendgridEvents, sendgridAdapter } from "@/lib/communications/sendgrid-adapter";
 import { recordProviderWebhookEvent } from "@/lib/communications/webhook-events";
 
 function normalizeHeaders(headers: Headers): Record<string, string> {
@@ -19,15 +19,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  const event = sendgridAdapter.normalizeWebhookEvent(rawBody, headers);
-  if (!event) {
+  const events = normalizeSendgridEvents(rawBody);
+  if (events.length === 0) {
     return NextResponse.json({ error: "No supported event payload provided" }, { status: 400 });
   }
 
-  const result = await recordProviderWebhookEvent({
-    event,
-    rawBody,
-  });
+  // Record every event in the batch. A failure throws (500), so SendGrid
+  // retries the batch; events already recorded are skipped by idempotency.
+  let recorded = 0;
+  for (const { event, rawEvent } of events) {
+    const result = await recordProviderWebhookEvent({ event, rawBody: rawEvent });
+    if (result.recorded) recorded++;
+  }
 
-  return NextResponse.json({ ok: true, recorded: result.recorded });
+  return NextResponse.json({ ok: true, recorded: recorded > 0, recordedCount: recorded, received: events.length });
 }

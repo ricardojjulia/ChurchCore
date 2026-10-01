@@ -3,3 +3,10 @@
 # in ephemeral CI databases and is no longer used anywhere: CI now generates a
 # random key per run and local runs keep their own key in a gitignored cache.
 e63809dae44677e5c233fe8757d02a79b31aae8b:.github/workflows/ci.yml:generic-api-key:74
+
+# A throwaway base64 Resend webhook secret, committed briefly on
+# fix/webhooks-fail-closed-s2 (S2) for the CI and local e2e runs. It never
+# signed anything outside ephemeral test servers; CI now generates one per run
+# and the local script derives it at run time.
+26db13c54036d486cdc79150b55f25dadef2ab5c:.github/workflows/ci.yml:generic-api-key:76
+26db13c54036d486cdc79150b55f25dadef2ab5c:scripts/e2e-local.sh:generic-api-key:27
