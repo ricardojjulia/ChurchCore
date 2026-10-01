@@ -12,6 +12,7 @@ const {
   createOrGetStripeCustomerMock,
   cancelStripeSubscriptionMock,
   retrievePaymentIntentStatusMock,
+  cancelPaymentIntentMock,
   onlineGivingNoticeMock,
   postDonationToGlMock,
   sendDonationReceiptMock,
@@ -27,6 +28,7 @@ const {
     createOrGetStripeCustomerMock: vi.fn(),
     cancelStripeSubscriptionMock: vi.fn(),
     retrievePaymentIntentStatusMock: vi.fn(),
+    cancelPaymentIntentMock: vi.fn(),
     onlineGivingNoticeMock: vi.fn(),
     postDonationToGlMock: vi.fn(),
     sendDonationReceiptMock: vi.fn(),
@@ -42,6 +44,7 @@ vi.mock("@/lib/stripe/donations", () => ({
   createOrGetStripeCustomer: createOrGetStripeCustomerMock,
   cancelStripeSubscription: cancelStripeSubscriptionMock,
   retrievePaymentIntentStatus: retrievePaymentIntentStatusMock,
+  cancelPaymentIntent: cancelPaymentIntentMock,
   onlineGivingNotice: onlineGivingNoticeMock,
 }));
 vi.mock("@/lib/stripe/donation-completion", () => ({
@@ -70,6 +73,7 @@ vi.mock("@/lib/supabase/tenant", () => {
 });
 
 import {
+  cancelPendingDonationAction,
   cancelRecurringDonationAction,
   confirmDonationAction,
   initiateDonationAction,
@@ -238,6 +242,50 @@ describe("donations actions", () => {
       // The webhook won the update, so it posted and receipted; this call must not.
       expect(postDonationToGlMock).not.toHaveBeenCalled();
       expect(sendDonationReceiptMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("cancelPendingDonationAction (G3.0: a gift abandoned at the card step)", () => {
+    it("cancels the PaymentIntent at Stripe, then the pending gift, matched by both ids in this church", async () => {
+      queue("donations", { data: { id: "don-1" }, error: null }, { data: null, error: null });
+      cancelPaymentIntentMock.mockResolvedValue("canceled");
+
+      expect(await cancelPendingDonationAction("don-1", "pi_123")).toEqual({ ok: true, cancelled: true });
+      expect(cancelPaymentIntentMock).toHaveBeenCalledWith("pi_123");
+      const lookup = calls.filter((c) => c.method === "eq").slice(0, 4).map((c) => c.args);
+      expect(lookup).toEqual([
+        ["id", "don-1"],
+        ["church_id", "church-1"],
+        ["stripe_payment_intent_id", "pi_123"],
+        ["status", "pending"],
+      ]);
+      expect(methodCalls("update")[0].args[0]).toMatchObject({ status: "cancelled" });
+    });
+
+    it("does nothing, and never calls Stripe, when the ids don't match a pending gift here", async () => {
+      queue("donations", { data: null, error: null });
+
+      expect(await cancelPendingDonationAction("don-1", "pi_other")).toEqual({ ok: true, cancelled: false });
+      expect(cancelPaymentIntentMock).not.toHaveBeenCalled();
+      expect(methodCalls("update")).toHaveLength(0);
+    });
+
+    it("leaves the gift for the webhook when Stripe says it was paid after all", async () => {
+      queue("donations", { data: { id: "don-1" }, error: null });
+      cancelPaymentIntentMock.mockResolvedValue("succeeded");
+
+      expect(await cancelPendingDonationAction("don-1", "pi_123")).toEqual({ ok: true, cancelled: false });
+      expect(methodCalls("update")).toHaveLength(0);
+    });
+
+    it("returns an error, not a throw, when Stripe can't be reached", async () => {
+      queue("donations", { data: { id: "don-1" }, error: null });
+      cancelPaymentIntentMock.mockRejectedValue(new Error("network"));
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      expect(await cancelPendingDonationAction("don-1", "pi_123")).toMatchObject({ ok: false, cancelled: false });
+      expect(methodCalls("update")).toHaveLength(0);
+      errorSpy.mockRestore();
     });
   });
 

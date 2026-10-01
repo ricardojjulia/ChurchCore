@@ -9,11 +9,13 @@ import {
   createPaymentIntent,
   onlineGivingMode,
   onlineGivingNotice,
+  cancelPaymentIntent,
   retrievePaymentIntentStatus,
 } from "@/lib/stripe/donations";
 
-function setEnv({ key, nodeEnv, demo }: { key?: string; nodeEnv: string; demo?: string }) {
+function setEnv({ key, publishable, nodeEnv, demo }: { key?: string; publishable?: string; nodeEnv: string; demo?: string }) {
   vi.stubEnv("STRIPE_SECRET_KEY", key ?? "");
+  vi.stubEnv("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", publishable ?? "");
   vi.stubEnv("NODE_ENV", nodeEnv);
   vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", demo ?? "");
 }
@@ -46,9 +48,45 @@ describe("online giving mode", () => {
     await expect(createOrGetStripeCustomer({ email: "a@example.org", churchId: "c" })).rejects.toThrow(/not configured/);
   });
 
-  it("is unavailable with keys until the card form ships (G3.0)", () => {
+  it("is unavailable when the secret key is set but the card form's publishable key isn't", () => {
     setEnv({ key: "sk_test_123", nodeEnv: "production" });
     expect(onlineGivingMode()).toBe("unavailable");
-    expect(onlineGivingNotice()).toMatch(/card giving isn't available yet/);
+    expect(onlineGivingNotice()).toMatch(/isn't fully set up/);
+  });
+
+  it("is live with both keys: the member pays with the card form (G3.0)", () => {
+    setEnv({ key: "sk_test_123", publishable: "pk_test_123", nodeEnv: "production" });
+    expect(onlineGivingMode()).toBe("live");
+    expect(onlineGivingNotice()).toBeNull();
   });
 });
+
+describe("cancelPaymentIntent (G3.0)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("cancels an abandoned PaymentIntent at Stripe", async () => {
+    setEnv({ key: "sk_test_123", nodeEnv: "production" });
+    const fetchMock = vi.fn(async (url: string) => new Response(JSON.stringify({ status: "canceled", url }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await cancelPaymentIntent("pi_123")).toBe("canceled");
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.stripe.com/v1/payment_intents/pi_123/cancel");
+  });
+
+  it("reports the real status when Stripe refuses (it already succeeded)", async () => {
+    setEnv({ key: "sk_test_123", nodeEnv: "production" });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "You cannot cancel this PaymentIntent because it has a status of succeeded." } }), { status: 400 }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ status: "succeeded" }), { status: 200 })),
+    );
+
+    expect(await cancelPaymentIntent("pi_123")).toBe("succeeded");
+  });
+});
+

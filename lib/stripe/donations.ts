@@ -25,11 +25,18 @@ import { stripeRequest, hasStripeConfig } from "./client";
  *   and the demo only.
  * - `"unconfigured"`: no Stripe keys in production. Online giving is off;
  *   nothing may be recorded as paid.
- * - `"unavailable"`: Stripe is configured, but the card form (G3.0, Stripe
- *   Elements) isn't built, so a PaymentIntent could never be paid. No row or
- *   PaymentIntent is created. G3.0 adds a `"live"` mode here.
+ * - `"unavailable"`: the Stripe secret key is set but the publishable key
+ *   (NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) isn't, so the card form can't load
+ *   and a PaymentIntent could never be paid. No row or PaymentIntent is made.
+ * - `"live"`: both keys are set. The member pays with the card form (Stripe
+ *   Elements, G3.0); the webhook is the source of truth.
  */
-export type OnlineGivingMode = "stub" | "unconfigured" | "unavailable";
+export type OnlineGivingMode = "stub" | "unconfigured" | "unavailable" | "live";
+
+/** The key the browser's card form loads Stripe with, or null when unset. */
+export function stripePublishableKey(): string | null {
+  return process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() || null;
+}
 
 /** Stubbed payments are allowed only outside production, or in demo mode. */
 export function stubPaymentsAllowed(): boolean {
@@ -37,7 +44,7 @@ export function stubPaymentsAllowed(): boolean {
 }
 
 export function onlineGivingMode(): OnlineGivingMode {
-  if (hasStripeConfig()) return "unavailable";
+  if (hasStripeConfig()) return stripePublishableKey() ? "live" : "unavailable";
   return stubPaymentsAllowed() ? "stub" : "unconfigured";
 }
 
@@ -50,7 +57,7 @@ export function onlineGivingNotice(mode: OnlineGivingMode = onlineGivingMode()):
     return "Online giving isn't set up for this church yet. Please give in person or contact the church office.";
   }
   if (mode === "unavailable") {
-    return "Online card giving isn't available yet. Please give in person or contact the church office.";
+    return "Online card giving isn't fully set up for this church yet. Please give in person or contact the church office.";
   }
   return null;
 }
@@ -173,3 +180,24 @@ export async function retrievePaymentIntentStatus(paymentIntentId: string): Prom
   return pi.status;
 }
 
+/**
+ * Cancels a PaymentIntent a member abandoned before paying (G3.0), so it isn't
+ * left open at Stripe. Returns the PaymentIntent's status afterwards: if it
+ * already succeeded or is processing, Stripe refuses to cancel and the gift
+ * must not be marked cancelled.
+ */
+export async function cancelPaymentIntent(paymentIntentId: string): Promise<string> {
+  if (!hasStripeConfig()) return "canceled";
+  try {
+    const pi = await stripeRequest<{ status: string }>(
+      "POST",
+      `/payment_intents/${encodeURIComponent(paymentIntentId)}/cancel`,
+      { cancellation_reason: "abandoned" },
+    );
+    return pi.status;
+  } catch {
+    // Not cancellable (already succeeded, processing, or canceled): report
+    // its real status instead.
+    return retrievePaymentIntentStatus(paymentIntentId);
+  }
+}
