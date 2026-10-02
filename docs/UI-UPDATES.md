@@ -2,6 +2,21 @@
 
 This document records active UI direction changes for ChurchCore.
 
+## 2026-10-02: ChurchCore Design System (ADR 0026) — supersedes the direction below
+
+The owner adopted the **ChurchCore Design System & UI/UX Specification**, written for sister apps ChurchCore LMS and Orthos, as the ecosystem visual standard. ChurchCore reaches it through the Mantine theme, not a stack rewrite — see [ADR 0026](adr/0026-churchcore-design-system-parity.md) for the full decision and [`DEVELOPMENT_PLAN.md` §0, row D1](../DEVELOPMENT_PLAN.md#0-mvp-roadmap-to-november-6-2026-tracker) for status.
+
+**This reverses the 2026-04-11 entry's light-first, blue-neutral direction below, and its "dark mode deferred" status.** ChurchCore is now dark-first:
+
+- Canvas `slate-950`, surfaces `slate-900`, borders `slate-800`/`700` — not the old `#F6F7F9`/`#FFFFFF`/`#D9E0E7`.
+- Indigo primary (`indigo-600` buttons, `indigo-500` ring), not the old `#2563EB` blue. `churchBlue`, the old primary's name, is kept as an alias of indigo so existing uses follow the new primary automatically.
+- Inter type, replacing Manrope.
+- `rounded-2xl` containers, `rounded-xl` controls.
+
+**The one rule that carries forward unchanged, now enforced by CI:** colours come from the theme (`components/theme-provider.tsx`) or a CSS variable (`app/globals.css`) — never a new hard-coded colour literal. `components/theme-provider.test.ts` is a ratchet: the count of colour literals in `app/` and `components/` may only go down from its recorded baseline, and the pre-ADR-0026 light theme's own palette (the colours in the 2026-04-11 entry below) is banned outright, so a copied light-theme snippet fails CI instead of rendering unreadable.
+
+**Known gap in this document, flagged separately rather than fixed here:** the entries below stop at 2026-05-22 and were never updated for later UI direction changes that are now the actual shipped state — notably the 2026-09-19/20 "Sacred Clarity" landing-page redesign (see the `project_landing_page_direction` memory) and the Mantine 9 NavLink active-state fix (`feedback_mantine9_css_vars` memory). Treat this file's pre-2026-10-02 entries as a historical record of *direction changes*, not a reliable statement of the current landing page or shell, independent of this round's dark-theme update.
+
 ## 2026-04-11: Blue-Neutral Minimal System
 
 ChurchCore is moving to a minimalist, high-contrast, adaptive UI system built for operational clarity rather than trend-driven decoration.
