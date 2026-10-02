@@ -1,6 +1,6 @@
 # ADR 0025 — Online Payments Run on Each Church's Own Stripe Account (Connect Standard, Direct Charges)
 
-**Status:** Accepted
+**Status:** Accepted (Council Review 35, 2026-10-02 — every decision below checked against the shipped code; none overclaim)
 **Date:** 2026-10-02
 **Authors:** G3.0b, Council Review 34 (owner decisions 2026-10-02)
 
@@ -34,3 +34,12 @@ ChurchCore's promise is that a gift goes straight to the church, with no platfor
 - **Express accounts:** a branded onboarding, but ChurchCore takes on support and some liability. Rejected by the owner.
 - **Destination charges from a platform account:** ChurchCore would be merchant of record and handle disputes. Rejected.
 - **Keep the single account as a fallback for one-church deploys:** two payment paths to maintain and test, and money could land in the wrong account if misconfigured. Rejected (decision 3).
+
+## Implementation notes (added 2026-10-02, Council Review 35)
+
+Checked against the shipped code (`f45b7e8`); every decision above is met as written.
+
+- **`donations.stripe_account_id` and `event_registration_payments.stripe_account_id`** (migration `20261003000000`, nullable) record the account each payment was actually charged on, read back by `churchAccount()` (`lib/stripe/donations.ts`) so a later confirm, cancel, refund or subscription cancel reaches the same account even if the church later disconnects and reconnects a different one. Null on a pre-Connect or stubbed (keyless) row; confirming or cancelling such a row throws before calling Stripe (no money moves on a null account).
+- **`church_payment_accounts.stripe_account_id` is `unique`** — one Stripe account can't be linked to two churches; the primary key (`church_id`) enforces the other direction, one account per church.
+- **`stripeRequest` (`lib/stripe/client.ts`) now handles two Stripe error shapes.** The regular API nests errors (`{ error: { message } }`); Connect OAuth returns them flat (`{ error: "invalid_client", error_description }`). Before this fix (found by the orchestrator while building, not by the Council), every OAuth failure read as a generic "Stripe 401", which meant disconnecting an account the church had already revoked at Stripe could never succeed — the real error (`invalid_client`) never surfaced for the disconnect action's tolerated-error check to match. The tolerated-error match itself was narrowed from `/invalid/` (which would have also matched "Invalid API Key" and wrongly marked a still-connected church disconnected) to Stripe's exact "is not connected to stripe account" message.
+- **Residual risk (tracked as owner action O7, `DEVELOPMENT_PLAN.md` §0.3):** no test — unit, DB or e2e — exercises real Stripe. Every Stripe call in the test suite is mocked or stubbed, and CI has no Stripe keys, so the OAuth handshake, a live direct charge, and the Connect webhook's signature and `event.account` scoping have never run against Stripe itself. Before live giving is announced, the platform needs its own Connect setup (`STRIPE_CONNECT_CLIENT_ID`, the OAuth redirect registered at Stripe, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, a Connect webhook endpoint and its `STRIPE_CONNECT_WEBHOOK_SECRET`) and one test-mode run with a real connected account.
