@@ -134,6 +134,29 @@ export async function initiateDonationAction(
 }
 
 /**
+ * Whether the signed-in person may confirm this gift: it's in their church
+ * and, when it names a giver, that's them (Council Review 34). An anonymous
+ * gift stores no profile, so knowing both its ids is the proof. A gift that
+ * no longer matches (already confirmed, or not this church's) passes here and
+ * is then a no-op in the conditional update.
+ */
+async function ownsPendingGift(
+  session: Awaited<ReturnType<typeof requireChurchSession>>,
+  donationId: string,
+  paymentIntentId: string,
+): Promise<boolean> {
+  const { data } = await createTenantAdminClient()
+    .from("donations")
+    .select("profile_id")
+    .eq("id", donationId)
+    .eq("church_id", session.appContext.church.id)
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .maybeSingle();
+  const giver = (data as { profile_id: string | null } | null)?.profile_id ?? null;
+  return !giver || giver === session.churchProfileId;
+}
+
+/**
  * confirmDonationAction
  *
  * Called after Stripe Elements confirms payment (or right away in stub mode).
@@ -147,6 +170,10 @@ export async function confirmDonationAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await requireChurchSession("/app/member");
   const churchId = session.appContext.church.id;
+
+  if (!(await ownsPendingGift(session, donationId, paymentIntentId))) {
+    return { ok: false, error: "This gift isn't yours to confirm." };
+  }
 
   let status: string;
   try {
@@ -220,7 +247,7 @@ export async function cancelPendingDonationAction(
 
   const { data: pending, error: readError } = await supabase
     .from("donations")
-    .select("id")
+    .select("id, profile_id")
     .eq("id", donationId)
     .eq("church_id", churchId)
     .eq("stripe_payment_intent_id", paymentIntentId)
@@ -231,6 +258,12 @@ export async function cancelPendingDonationAction(
     return { ok: false, cancelled: false, error: "Couldn't cancel the gift. Please try again." };
   }
   if (!pending) return { ok: true, cancelled: false };
+  // A named gift is cancelled only by its giver (Council Review 34); an
+  // anonymous one stores no profile, so the two ids are the proof.
+  const giver = (pending as { profile_id: string | null }).profile_id;
+  if (giver && giver !== session.churchProfileId) {
+    return { ok: false, cancelled: false, error: "This gift isn't yours to cancel." };
+  }
 
   let stripeStatus: string;
   try {

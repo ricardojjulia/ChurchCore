@@ -166,12 +166,16 @@ async function handlePaymentIntentSucceeded(pi: {
 
   const recipientEmail = d.donor_email ?? pi.receipt_email;
   if (recipientEmail) {
+    // Same receipt as the member-side confirm, which names the church
+    // (Council Review 34).
+    const { data: church } = await supabase.from("churches").select("name").eq("id", churchId).maybeSingle();
     await sendDonationReceipt({
       to: recipientEmail,
       donorName: d.donor_name,
       amountCents: d.amount_cents,
       fundDesignation: d.fund_designation,
       donationId: d.id,
+      churchName: (church as { name: string } | null)?.name ?? null,
     });
     await supabase
       .from("donations")

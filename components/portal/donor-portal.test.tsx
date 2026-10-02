@@ -21,10 +21,21 @@ vi.mock("@/app/app/donations-actions", () => ({
 // The card step itself is tested in donation-card-step.test.tsx; here it's a
 // stand-in that reports a payment or a cancel.
 vi.mock("@/components/portal/donation-card-step", () => ({
-  DonationCardStep: ({ onPaid, onCancel, amountLabel }: { onPaid: (s: string) => void; onCancel: () => void; amountLabel: string }) => (
+  DonationCardStep: ({
+    onPaid,
+    onBack,
+    onCancel,
+    amountLabel,
+  }: {
+    onPaid: (s: string) => void;
+    onBack: () => void;
+    onCancel: () => void;
+    amountLabel: string;
+  }) => (
     <div>
       <span>Card step for {amountLabel}</span>
       <button onClick={() => onPaid("succeeded")}>Stripe paid</button>
+      <button onClick={onBack}>Back to amount</button>
       <button onClick={onCancel}>Leave card step</button>
     </div>
   ),
@@ -93,6 +104,15 @@ describe("DonorPortal", () => {
       await waitFor(() => expect(confirmDonationActionMock).toHaveBeenCalledWith("don-1", "pi_123"));
       await waitFor(() => expect(showMock).toHaveBeenCalledWith(expect.objectContaining({ title: "Thank you for your gift" })));
       expect(cancelPendingDonationActionMock).not.toHaveBeenCalled();
+    });
+
+    it("goes back to the amount and fund (kept), cancelling the old pending gift (Council Review 34)", async () => {
+      cancelPendingDonationActionMock.mockResolvedValue({ ok: true, cancelled: true });
+      await startGift();
+
+      fireEvent.click(screen.getByRole("button", { name: "Back to amount" }));
+      await waitFor(() => expect(cancelPendingDonationActionMock).toHaveBeenCalledWith("don-1", "pi_123"));
+      expect(await screen.findByRole("button", { name: /^Give \$25\.00/ })).toBeInTheDocument();
     });
 
     it("cancels the pending gift when the member leaves the card step without paying", async () => {

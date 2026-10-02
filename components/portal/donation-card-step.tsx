@@ -2,13 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { Alert, Button, Group, Stack, Text } from "@mantine/core";
-import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
+import {
+  Elements,
+  PaymentElement,
+  useElements,
+  useStripe,
+} from "@stripe/react-stripe-js";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 
 // One Stripe.js load per publishable key for the page's lifetime.
 const stripeByKey = new Map<string, Promise<Stripe | null>>();
 function stripeFor(publishableKey: string) {
-  if (!stripeByKey.has(publishableKey)) stripeByKey.set(publishableKey, loadStripe(publishableKey));
+  if (!stripeByKey.has(publishableKey))
+    stripeByKey.set(publishableKey, loadStripe(publishableKey));
   return stripeByKey.get(publishableKey)!;
 }
 
@@ -18,6 +24,8 @@ type Props = {
   amountLabel: string;
   /** Stripe accepted the payment: its PaymentIntent status ("succeeded" or "processing"). */
   onPaid: (status: string) => void;
+  /** Back to the amount and fund; the pending gift is cancelled. */
+  onBack: () => void;
   onCancel: () => void;
 };
 
@@ -28,8 +36,15 @@ type Props = {
  * Stripe itself before recording anything (confirmDonationAction), and the
  * webhook stays the source of truth.
  */
-export function DonationCardStep({ publishableKey, clientSecret, ...rest }: Props) {
-  const stripePromise = useMemo(() => stripeFor(publishableKey), [publishableKey]);
+export function DonationCardStep({
+  publishableKey,
+  clientSecret,
+  ...rest
+}: Props) {
+  const stripePromise = useMemo(
+    () => stripeFor(publishableKey),
+    [publishableKey],
+  );
   return (
     <Elements stripe={stripePromise} options={{ clientSecret }}>
       <CardForm {...rest} />
@@ -37,7 +52,12 @@ export function DonationCardStep({ publishableKey, clientSecret, ...rest }: Prop
   );
 }
 
-function CardForm({ amountLabel, onPaid, onCancel }: Omit<Props, "publishableKey" | "clientSecret">) {
+function CardForm({
+  amountLabel,
+  onPaid,
+  onBack,
+  onCancel,
+}: Omit<Props, "publishableKey" | "clientSecret">) {
   const stripe = useStripe();
   const elements = useElements();
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +77,10 @@ function CardForm({ amountLabel, onPaid, onCancel }: Omit<Props, "publishableKey
     if (stripeError) {
       // A declined card, wrong CVC, expired card… Stripe's own wording; the
       // member can fix it and try again, and nothing was charged.
-      setError(stripeError.message ?? "Your card couldn't be charged. Nothing was taken; please try again.");
+      setError(
+        stripeError.message ??
+          "Your card couldn't be charged. Nothing was taken; please try again.",
+      );
       return;
     }
     onPaid(paymentIntent?.status ?? "processing");
@@ -70,17 +93,38 @@ function CardForm({ amountLabel, onPaid, onCancel }: Omit<Props, "publishableKey
       </Text>
       <PaymentElement />
       {error ? (
-        <Alert color="red" variant="light" radius="md" title="Payment didn't go through">
+        <Alert
+          color="red"
+          variant="light"
+          radius="md"
+          title="Payment didn't go through"
+        >
           {error}
         </Alert>
       ) : null}
-      <Group justify="flex-end" gap="sm">
-        <Button variant="default" radius="xl" onClick={onCancel} disabled={paying}>
-          Cancel
+      <Group justify="space-between" gap="sm">
+        <Button variant="subtle" radius="xl" onClick={onBack} disabled={paying}>
+          Back
         </Button>
-        <Button color="teal" radius="xl" loading={paying} disabled={!stripe || !elements} onClick={pay}>
-          Pay {amountLabel}
-        </Button>
+        <Group gap="sm">
+          <Button
+            variant="default"
+            radius="xl"
+            onClick={onCancel}
+            disabled={paying}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="teal"
+            radius="xl"
+            loading={paying}
+            disabled={!stripe || !elements}
+            onClick={pay}
+          >
+            Pay {amountLabel}
+          </Button>
+        </Group>
       </Group>
     </Stack>
   );

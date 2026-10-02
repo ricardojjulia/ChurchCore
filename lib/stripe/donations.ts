@@ -99,7 +99,12 @@ export async function createPaymentIntent(
   const body: Record<string, unknown> = {
     amount: input.amountCents,
     currency: input.currency ?? "usd",
-    automatic_payment_methods: "enabled",
+    // Cards only (Apple Pay and Google Pay are cards): every one completes on
+    // the page, so no redirect return is needed. The old
+    // `automatic_payment_methods: "enabled"` form-encoded as a bare string
+    // Stripe rejects (it wants automatic_payment_methods[enabled]=true), so
+    // live PaymentIntents never got created (Council Review 34).
+    "payment_method_types[]": "card",
     "metadata[church_id]": input.churchId,
     "metadata[fund_designation]": input.fundDesignation ?? "General",
     "metadata[voluntary]": "true",

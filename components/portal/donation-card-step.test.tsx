@@ -20,13 +20,21 @@ import { DonationCardStep } from "@/components/portal/donation-card-step";
 
 function renderStep() {
   const onPaid = vi.fn();
+  const onBack = vi.fn();
   const onCancel = vi.fn();
   render(
     <MantineProvider>
-      <DonationCardStep publishableKey="pk_test_123" clientSecret="pi_123_secret" amountLabel="$25.00" onPaid={onPaid} onCancel={onCancel} />
+      <DonationCardStep
+        publishableKey="pk_test_123"
+        clientSecret="pi_123_secret"
+        amountLabel="$25.00"
+        onPaid={onPaid}
+        onBack={onBack}
+        onCancel={onCancel}
+      />
     </MantineProvider>,
   );
-  return { onPaid, onCancel };
+  return { onPaid, onBack, onCancel };
 }
 
 describe("DonationCardStep", () => {

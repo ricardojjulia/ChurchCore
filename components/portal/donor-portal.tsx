@@ -104,6 +104,16 @@ export function DonorPortal({
     }
   }
 
+  // Back to the amount and fund (kept as entered): this PaymentIntent is for
+  // the old amount, so it's cancelled and a new one made on Give.
+  function backToForm() {
+    const abandoned = checkout;
+    setCheckout(null);
+    if (abandoned) {
+      void cancelPendingDonationAction(abandoned.donationId, abandoned.paymentIntentId);
+    }
+  }
+
   function handlePaid(status: string) {
     const paid = checkout;
     if (!paid) return;
@@ -372,6 +382,7 @@ export function DonorPortal({
               clientSecret={checkout.clientSecret}
               amountLabel={formatCents(checkout.cents)}
               onPaid={handlePaid}
+              onBack={backToForm}
               onCancel={closeGive}
             />
           </Stack>

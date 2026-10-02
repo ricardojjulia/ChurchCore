@@ -90,3 +90,25 @@ describe("cancelPaymentIntent (G3.0)", () => {
   });
 });
 
+describe("createPaymentIntent's request to Stripe (Council Review 34)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("asks for card payments in a form Stripe accepts, never the malformed automatic_payment_methods=enabled", async () => {
+    setEnv({ key: "sk_test_123", nodeEnv: "production" });
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) =>
+      new Response(JSON.stringify({ id: "pi_1", client_secret: "pi_1_secret", body: String(init?.body) }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createPaymentIntent({ amountCents: 2500, churchId: "church-1", donationId: "don-1" });
+
+    const body = new URLSearchParams(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body.getAll("payment_method_types[]")).toEqual(["card"]);
+    expect(body.has("automatic_payment_methods")).toBe(false);
+    expect(body.get("metadata[donation_id]")).toBe("don-1");
+  });
+});
+

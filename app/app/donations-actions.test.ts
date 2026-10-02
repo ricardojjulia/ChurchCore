@@ -196,6 +196,7 @@ describe("donations actions", () => {
     it("marks the gift succeeded only when Stripe says so, only from pending, then posts it to the GL and sends the receipt", async () => {
       queue(
         "donations",
+        { data: { profile_id: "profile-1" }, error: null },
         { data: [{ donor_email: "maya@example.org", donor_name: "Maya", amount_cents: 2500, fund_designation: "General" }], error: null },
         { error: null },
       );
@@ -237,7 +238,7 @@ describe("donations actions", () => {
     });
 
     it("does nothing more when the webhook already confirmed it", async () => {
-      queue("donations", { data: [], error: null });
+      queue("donations", { data: { profile_id: "profile-1" }, error: null }, { data: [], error: null });
       expect(await confirmDonationAction("don-1", "pi_123")).toEqual({ ok: true });
       // The webhook won the update, so it posted and receipted; this call must not.
       expect(postDonationToGlMock).not.toHaveBeenCalled();
@@ -245,9 +246,31 @@ describe("donations actions", () => {
     });
   });
 
+  describe("only the giver confirms or cancels a named gift (Council Review 34)", () => {
+    it("refuses to confirm another member's gift, without asking Stripe", async () => {
+      queue("donations", { data: { profile_id: "someone-else" }, error: null });
+
+      expect(await confirmDonationAction("don-1", "pi_123")).toEqual({ ok: false, error: "This gift isn't yours to confirm." });
+      expect(retrievePaymentIntentStatusMock).not.toHaveBeenCalled();
+      expect(methodCalls("update")).toHaveLength(0);
+    });
+
+    it("refuses to cancel another member's gift, without touching Stripe", async () => {
+      queue("donations", { data: { id: "don-1", profile_id: "someone-else" }, error: null });
+
+      expect(await cancelPendingDonationAction("don-1", "pi_123")).toMatchObject({ ok: false, cancelled: false });
+      expect(cancelPaymentIntentMock).not.toHaveBeenCalled();
+    });
+
+    it("lets an anonymous gift (no profile) be confirmed by whoever holds both ids", async () => {
+      queue("donations", { data: { profile_id: null }, error: null }, { data: [], error: null });
+      expect(await confirmDonationAction("don-1", "pi_123")).toEqual({ ok: true });
+    });
+  });
+
   describe("cancelPendingDonationAction (G3.0: a gift abandoned at the card step)", () => {
     it("cancels the PaymentIntent at Stripe, then the pending gift, matched by both ids in this church", async () => {
-      queue("donations", { data: { id: "don-1" }, error: null }, { data: null, error: null });
+      queue("donations", { data: { id: "don-1", profile_id: "profile-1" }, error: null }, { data: null, error: null });
       cancelPaymentIntentMock.mockResolvedValue("canceled");
 
       expect(await cancelPendingDonationAction("don-1", "pi_123")).toEqual({ ok: true, cancelled: true });
