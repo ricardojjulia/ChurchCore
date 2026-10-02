@@ -84,8 +84,10 @@ Set all of the following in Vercel under **Project → Settings → Environment 
 | Variable | Description |
 |---|---|
 | `STRIPE_SECRET_KEY` | Stripe secret key (`sk_live_...`) |
-| `STRIPE_PUBLISHABLE_KEY` | Stripe publishable key (`pk_live_...`) |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key (`pk_live_...`) — the card form (Stripe Elements) loads with this. Online card giving needs **both** this and `STRIPE_SECRET_KEY` set; with only the secret key, the giving page says online giving isn't fully set up (G3.0, Council Review 34). |
 | `STRIPE_WEBHOOK_SECRET` | Webhook signing secret from Stripe (see step 6) |
+
+**Every church's gifts currently go to the single Stripe account above — per-church payment routing (Stripe Connect) is tracked as `DEVELOPMENT_PLAN.md` row G3.0b, not yet built.**
 
 ### Communications
 
