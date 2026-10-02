@@ -75,7 +75,7 @@ function MetricCard({
   tone?: string;
 }) {
   return (
-    <Paper withBorder radius="xl" p="lg" bg="#fbfcfe">
+    <Paper withBorder radius="xl" p="lg" bg="#0f172a">
       <Stack gap={8}>
         <Text size="xs" fw={700} tt="uppercase" c="dimmed">
           {label}
@@ -143,8 +143,8 @@ function TrendCard({
                         ? "linear-gradient(180deg, rgba(20,184,166,0.95), rgba(13,148,136,0.65))"
                         : tone === "grape"
                           ? "linear-gradient(180deg, rgba(168,85,247,0.95), rgba(126,34,206,0.65))"
-                          : "linear-gradient(180deg, rgba(37,99,235,0.95), rgba(29,78,216,0.65))",
-                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.28)",
+                          : "linear-gradient(180deg, rgba(99,102,241,0.95), rgba(79,70,229,0.65))",
+                    boxShadow: "inset 0 1px 0 #1e293b",
                   }}
                 />
               </div>
@@ -421,10 +421,10 @@ export function ReportsOverviewDashboard({
               color: "inherit",
               background:
                 card.tone === "teal"
-                  ? "linear-gradient(180deg, rgba(240,253,250,1), rgba(255,255,255,1))"
+                  ? "linear-gradient(180deg, rgba(20,184,166,0.14), #0f172a)"
                   : card.tone === "grape"
-                    ? "linear-gradient(180deg, rgba(250,245,255,1), rgba(255,255,255,1))"
-                    : "linear-gradient(180deg, rgba(239,246,255,1), rgba(255,255,255,1))",
+                    ? "linear-gradient(180deg, rgba(168,85,247,0.14), #0f172a)"
+                    : "linear-gradient(180deg, rgba(99,102,241,0.16), #0f172a)",
             }}
           >
             <Stack gap="md">

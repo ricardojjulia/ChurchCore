@@ -53,7 +53,7 @@ export function CcmBadgePreview({ result, serviceLabel }: BadgeProps) {
       <Box
         className="print-badge"
         style={{
-          border: "2px solid #333",
+          border: "2px solid #1e293b",
           borderRadius: 8,
           padding: 16,
           maxWidth: 340,

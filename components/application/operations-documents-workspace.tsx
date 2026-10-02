@@ -72,7 +72,7 @@ export function OperationsDocumentsWorkspace({
     >
       <Stack gap="lg">
         <Group justify="space-between" align="center">
-          <Title order={2} fw={700} c="#101827">
+          <Title order={2} fw={700} c="#f8fafc">
             Church Documents
           </Title>
           <Button
@@ -96,12 +96,12 @@ export function OperationsDocumentsWorkspace({
             radius="md"
             p="xl"
             style={{
-              border: "1px dashed rgba(20, 33, 61, 0.15)",
+              border: "1px dashed #1e293b",
               textAlign: "center",
             }}
           >
             <FileText size={40} color="#9ca3af" style={{ margin: "0 auto 12px" }} />
-            <Text c="#617184" size="sm">
+            <Text c="#94a3b8" size="sm">
               No documents yet. Create your first document.
             </Text>
           </Paper>
@@ -139,12 +139,12 @@ export function OperationsDocumentsWorkspace({
                       </Group>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm" c="#617184">
+                      <Text size="sm" c="#94a3b8">
                         {DOC_TYPE_LABELS[doc.docType]}
                       </Text>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm" c="#617184">
+                      <Text size="sm" c="#94a3b8">
                         {formatDate(doc.updatedAt)}
                       </Text>
                     </Table.Td>

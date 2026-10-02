@@ -184,7 +184,7 @@ export function OperationsOnboardingTemplateFormClient({
       ]}
     >
       <Stack gap="lg" maw={760}>
-        <Title order={2} fw={700} c="#101827">
+        <Title order={2} fw={700} c="#f8fafc">
           {pageTitle}
         </Title>
 
@@ -209,7 +209,7 @@ export function OperationsOnboardingTemplateFormClient({
 
             <Stack gap="sm">
               <Group justify="space-between" align="center">
-                <Text fw={700} size="sm" c="#101827">
+                <Text fw={700} size="sm" c="#f8fafc">
                   Steps
                 </Text>
                 <Button
@@ -234,7 +234,7 @@ export function OperationsOnboardingTemplateFormClient({
                 <Paper key={step.id} radius="md" p="md" withBorder>
                   <Stack gap="sm">
                     <Group justify="space-between" align="center">
-                      <Text size="xs" fw={700} c="#617184" tt="uppercase">
+                      <Text size="xs" fw={700} c="#94a3b8" tt="uppercase">
                         Step {idx + 1}
                       </Text>
                       <Group gap={4}>

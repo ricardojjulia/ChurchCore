@@ -75,7 +75,7 @@ export function VolunteerConfirmClient({
         </Title>
       </div>
 
-      <Paper withBorder p="md" radius="md" bg="#fdfdfd">
+      <Paper withBorder p="md" radius="md" bg="#0f172a">
         <Stack gap="xs">
           <Group gap="sm" wrap="nowrap">
             <User size={18} className="text-gray-400" />

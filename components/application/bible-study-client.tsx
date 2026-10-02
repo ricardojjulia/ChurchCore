@@ -110,7 +110,7 @@ export function BibleStudyClient({
     <Stack gap="lg">
       {/* Header */}
       <Stack gap={4}>
-        <Text fw={700} fz="xl" c="#101827">
+        <Text fw={700} fz="xl" c="#f8fafc">
           Bible Study Q&amp;A
         </Text>
         <Text fz="sm" c="dimmed">

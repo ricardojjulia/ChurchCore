@@ -131,7 +131,7 @@ export function CcmCheckoutKiosk({ session, activeService, activeSessions }: Pro
               </Alert>
             )}
 
-            <Paper withBorder p="sm" radius="sm" mb="md" bg="gray.0">
+            <Paper withBorder p="sm" radius="sm" mb="md" bg="dark.6">
               <Text fw={600}>{selectedSession.childName}</Text>
               <Text size="sm" c="dimmed">{selectedSession.currentRoomName ?? selectedSession.roomName}</Text>
               {selectedSession.guardianName && (

@@ -177,8 +177,8 @@ export function WorkspaceLivePanels({
               key={item.title}
               radius="xl"
               p="md"
-              bg="rgba(255,255,255,0.05)"
-              style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+              bg="rgba(15, 23, 42, 0.6)"
+              style={{ border: "1px solid #1e293b" }}
             >
               <Group align="flex-start" gap="sm" wrap="nowrap">
                 <ThemeIcon color="teal" variant="light" radius="xl">

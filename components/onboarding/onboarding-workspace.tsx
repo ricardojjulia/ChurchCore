@@ -163,7 +163,7 @@ export function OnboardingWorkspace({
       </Paper>
 
       {isSandbox && (
-        <Card withBorder padding="xl" radius="xl" bg="#fafbfc">
+        <Card withBorder padding="xl" radius="xl" bg="#0f172a">
           <Stack gap="md">
             <Group gap="sm">
               <ThemeIcon color="yellow" variant="light" radius="xl" size="lg">

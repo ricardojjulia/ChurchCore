@@ -74,7 +74,7 @@ function ConfirmDeleteModal({
 }) {
   return (
     <Modal opened={opened} onClose={onClose} title="Delete template?" centered size="sm">
-      <Text size="sm" c="#617184" mb="lg">
+      <Text size="sm" c="#94a3b8" mb="lg">
         Are you sure you want to delete &quot;{templateName}&quot;? This cannot be undone.
       </Text>
       <Group justify="flex-end" gap="sm">
@@ -137,7 +137,7 @@ export function CommunicationsTemplatesWorkspace({
     >
       <Stack gap="lg">
         <Group justify="space-between" align="center">
-          <Title order={2} fw={700} c="#101827">
+          <Title order={2} fw={700} c="#f8fafc">
             Message Templates
           </Title>
           <Button

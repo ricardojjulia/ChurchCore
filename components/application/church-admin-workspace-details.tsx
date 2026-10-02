@@ -326,9 +326,9 @@ export function ChurchAdminWorkspaceDetails({
         radius="lg"
         p="xl"
         style={{
-          background: "#ffffff",
-          border: "1px solid rgba(16, 24, 39, 0.1)",
-          boxShadow: "0 18px 48px rgba(16, 24, 39, 0.08)",
+          background: "#0f172a",
+          border: "1px solid #1e293b",
+          boxShadow: "0 18px 48px #1e293b",
         }}
       >
         <Group justify="space-between" align="center" mb="xl">
@@ -336,7 +336,7 @@ export function ChurchAdminWorkspaceDetails({
             <Badge color="dark" variant="light" radius="sm" mb="sm">
               {translateOps("operations")}
             </Badge>
-            <Title order={2} c="#101827">{translateOps("churchAdmin")}</Title>
+            <Title order={2} c="#f8fafc">{translateOps("churchAdmin")}</Title>
           </div>
           <SegmentedControl
             value={activeSection}
@@ -353,8 +353,8 @@ export function ChurchAdminWorkspaceDetails({
           p="xl"
           style={{
             background:
-              "linear-gradient(180deg, rgba(248, 251, 255, 0.96), rgba(255, 255, 255, 1))",
-            border: "1px solid rgba(16, 24, 39, 0.08)",
+              "linear-gradient(180deg, rgba(15, 23, 42, 0.95), #0f172a)",
+            border: "1px solid #1e293b",
           }}
         >
           <Group gap="sm" mb="lg">
@@ -378,7 +378,7 @@ export function ChurchAdminWorkspaceDetails({
             {activeSection === "care" && liveCareItems
               ? liveCareItems.length > 0
                 ? liveCareItems.map((item) => (
-                    <Paper key={item.id} radius="md" p="md" bg="white" withBorder>
+                    <Paper key={item.id} radius="md" p="md" bg="dark.6" withBorder>
                       <Group justify="space-between" align="flex-start" gap="md">
                         <div>
                           <Text fw={600}>{item.title}</Text>
@@ -419,7 +419,7 @@ export function ChurchAdminWorkspaceDetails({
                     </Paper>
                   ))
                 : (
-                    <Paper radius="md" p="md" bg="white" withBorder>
+                    <Paper radius="md" p="md" bg="dark.6" withBorder>
                       <Text fw={600}>{translateOps("noCareActions")}</Text>
                       <Text c="dimmed" size="sm" mt="xs">
                         {translateOps("noCareActionsDescription")}
@@ -430,7 +430,7 @@ export function ChurchAdminWorkspaceDetails({
 
             {activeSection === "care" && !liveCareItems
               ? careItems.map((item) => (
-                  <Paper key={item.id} radius="md" p="md" bg="white" withBorder>
+                  <Paper key={item.id} radius="md" p="md" bg="dark.6" withBorder>
                     <Group justify="space-between" align="flex-start" gap="md">
                       <div>
                         <Group gap="sm">
@@ -471,7 +471,7 @@ export function ChurchAdminWorkspaceDetails({
             {activeSection === "weekend" && liveWeekendItems
               ? liveWeekendItems.length > 0
                 ? liveWeekendItems.map((item) => (
-                    <Paper key={item.id} radius="md" p="md" bg="white" withBorder>
+                    <Paper key={item.id} radius="md" p="md" bg="dark.6" withBorder>
                       <Group justify="space-between" align="flex-start" gap="md">
                         <div>
                           <Text fw={600}>{item.title}</Text>
@@ -512,7 +512,7 @@ export function ChurchAdminWorkspaceDetails({
                     </Paper>
                   ))
                 : (
-                    <Paper radius="md" p="md" bg="white" withBorder>
+                    <Paper radius="md" p="md" bg="dark.6" withBorder>
                       <Text fw={600}>{translateOps("noEventActions")}</Text>
                       <Text c="dimmed" size="sm" mt="xs">
                         {translateOps("noEventActionsDescription")}
@@ -523,7 +523,7 @@ export function ChurchAdminWorkspaceDetails({
 
             {activeSection === "weekend" && !liveWeekendItems
               ? weekendItems.map((item) => (
-                  <Paper key={item.id} radius="md" p="md" bg="white" withBorder>
+                  <Paper key={item.id} radius="md" p="md" bg="dark.6" withBorder>
                     <Group justify="space-between" align="flex-start" gap="md">
                       <div>
                         <Text fw={600}>{item.title}</Text>
@@ -560,7 +560,7 @@ export function ChurchAdminWorkspaceDetails({
             {activeSection === "comms" && liveCommunicationItems
               ? liveCommunicationItems.length > 0
                 ? liveCommunicationItems.map((item) => (
-                    <Paper key={item.id} radius="md" p="md" bg="white" withBorder>
+                    <Paper key={item.id} radius="md" p="md" bg="dark.6" withBorder>
                       <Group justify="space-between" align="flex-start" gap="md">
                         <div>
                           <Text fw={600}>{item.title}</Text>
@@ -601,7 +601,7 @@ export function ChurchAdminWorkspaceDetails({
                     </Paper>
                   ))
                 : (
-                    <Paper radius="md" p="md" bg="white" withBorder>
+                    <Paper radius="md" p="md" bg="dark.6" withBorder>
                       <Text fw={600}>{translateOps("noCommunicationActions")}</Text>
                       <Text c="dimmed" size="sm" mt="xs">
                         {translateOps("noCommunicationActionsDescription")}
@@ -612,7 +612,7 @@ export function ChurchAdminWorkspaceDetails({
 
             {activeSection === "comms" && !liveCommunicationItems
               ? communicationsItems.map((item) => (
-                  <Paper key={item.id} radius="md" p="md" bg="white" withBorder>
+                  <Paper key={item.id} radius="md" p="md" bg="dark.6" withBorder>
                     <Group justify="space-between" align="flex-start" gap="md">
                       <div>
                         <Text fw={600}>
@@ -642,7 +642,7 @@ export function ChurchAdminWorkspaceDetails({
             {activeSection === "giving" && liveGivingItems
               ? liveGivingItems.length > 0
                 ? liveGivingItems.map((item) => (
-                    <Paper key={item.id} radius="md" p="md" bg="white" withBorder>
+                    <Paper key={item.id} radius="md" p="md" bg="dark.6" withBorder>
                       <Group justify="space-between" align="flex-start" gap="md">
                         <div>
                           <Text fw={600}>{item.title}</Text>
@@ -683,7 +683,7 @@ export function ChurchAdminWorkspaceDetails({
                     </Paper>
                   ))
                 : (
-                    <Paper radius="md" p="md" bg="white" withBorder>
+                    <Paper radius="md" p="md" bg="dark.6" withBorder>
                       <Text fw={600}>{translateOps("noGivingActions")}</Text>
                       <Text c="dimmed" size="sm" mt="xs">
                         {translateOps("noGivingActionsDescription")}
@@ -694,7 +694,7 @@ export function ChurchAdminWorkspaceDetails({
 
             {activeSection === "giving" && !liveGivingItems
               ? givingItems.map((item) => (
-                  <Paper key={item.id} radius="md" p="md" bg="white" withBorder>
+                  <Paper key={item.id} radius="md" p="md" bg="dark.6" withBorder>
                     <Group justify="space-between" align="flex-start" gap="md">
                       <div>
                         <Text fw={600}>{item.label}</Text>

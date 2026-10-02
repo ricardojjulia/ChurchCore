@@ -92,7 +92,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at top right, rgba(43, 156, 144, 0.14), transparent 26%), linear-gradient(180deg, #f7f9fc 0%, #eef3f8 100%)",
+          "radial-gradient(circle at top right, rgba(43, 156, 144, 0.14), transparent 26%), linear-gradient(180deg, #0f172a 0%, #0f172a 100%)",
       }}
     >
       <Container size="sm" py={64}>

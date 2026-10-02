@@ -150,7 +150,7 @@ export function CcmDashboardView({
 
         {readinessView ? (
           <>
-            <Paper withBorder radius="lg" p="md" bg="#f8fbff">
+            <Paper withBorder radius="lg" p="md" bg="#0f172a">
               <Group justify="space-between" gap="md" align="flex-start">
                 <div>
                   <Text fw={700} size="sm">

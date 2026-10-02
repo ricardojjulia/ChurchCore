@@ -74,7 +74,7 @@ export function MissionsTrackPanel({ data }: { data: MissionsTrackData }) {
         {data.partners.length ? (
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
             {data.partners.map((partner) => (
-              <Paper key={partner.id} withBorder radius="lg" p="md" bg="#f8fafc">
+              <Paper key={partner.id} withBorder radius="lg" p="md" bg="#0f172a">
                 <Group justify="space-between" align="flex-start">
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <Text fw={600} truncate>{partner.name}</Text>
@@ -123,7 +123,7 @@ export function MissionsTrackPanel({ data }: { data: MissionsTrackData }) {
         {data.trips.length ? (
           <Stack gap="sm">
             {data.trips.map((trip) => (
-              <Paper key={trip.id} withBorder radius="lg" p="md" bg="#f8fafc">
+              <Paper key={trip.id} withBorder radius="lg" p="md" bg="#0f172a">
                 <Group justify="space-between" align="flex-start">
                   <div style={{ flex: 1 }}>
                     <Group gap="sm" align="center">

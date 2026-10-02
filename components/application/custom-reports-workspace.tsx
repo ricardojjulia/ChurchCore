@@ -43,7 +43,7 @@ const ENTITIES: EntityConfig[] = [
     description: "Profiles, roles, membership status, and registration details.",
     icon: UsersRound,
     tone: "churchBlue",
-    bg: "linear-gradient(180deg, rgba(239,246,255,1) 0%, rgba(255,255,255,1) 100%)",
+    bg: "linear-gradient(180deg, #0f172a 0%, #0f172a 100%)",
     fields: [
       "Profile ID",
       "Full Name",
@@ -61,7 +61,7 @@ const ENTITIES: EntityConfig[] = [
     description: "Donations history, currencies, status, and fund designations. Anonymous gifts show the donor as Anonymous.",
     icon: Coins,
     tone: "grape",
-    bg: "linear-gradient(180deg, rgba(250,245,255,1) 0%, rgba(255,255,255,1) 100%)",
+    bg: "linear-gradient(180deg, #0f172a 0%, #0f172a 100%)",
     fields: [
       "Donation ID",
       "Donor Name",
@@ -81,7 +81,7 @@ const ENTITIES: EntityConfig[] = [
     description: "Historical church events, timing, categories, and setup data.",
     icon: CalendarRange,
     tone: "teal",
-    bg: "linear-gradient(180deg, rgba(240,253,250,1) 0%, rgba(255,255,255,1) 100%)",
+    bg: "linear-gradient(180deg, #0f172a 0%, #0f172a 100%)",
     fields: [
       "Event ID",
       "Title",
@@ -264,7 +264,7 @@ export function CustomReportsWorkspace({ session }: { session: ChurchAppSession 
                     backgroundColor: "white",
                     display: "flex",
                     alignItems: "center",
-                    boxShadow: "0 2px 4px rgba(0,0,0,0.01)",
+                    boxShadow: "0 2px 4px rgba(30, 41, 59, 0.6)",
                   }}
                 >
                   <Text size="xs" fw={600}>

@@ -32,7 +32,7 @@ export function WorshipTrackPanel({ data }: { data: WorshipTrackData }) {
         {data.rehearsals.length ? (
           <Stack gap="sm">
             {data.rehearsals.map((r) => (
-              <Paper key={r.id} withBorder radius="lg" p="md" bg="#f8fafc">
+              <Paper key={r.id} withBorder radius="lg" p="md" bg="#0f172a">
                 <Group justify="space-between" align="flex-start">
                   <div>
                     <Text fw={600}>{formatDate(r.scheduledAt)}</Text>
@@ -71,7 +71,7 @@ export function WorshipTrackPanel({ data }: { data: WorshipTrackData }) {
               const weeks = song.lastUsedAt ? weeksAgo(song.lastUsedAt) : null;
               const overused = weeks !== null && weeks < 2;
               return (
-                <Paper key={song.id} withBorder radius="lg" p="md" bg="#f8fafc">
+                <Paper key={song.id} withBorder radius="lg" p="md" bg="#0f172a">
                   <Group justify="space-between" align="flex-start" gap="xs">
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <Text fw={600} truncate>{song.title}</Text>

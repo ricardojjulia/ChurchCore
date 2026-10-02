@@ -87,9 +87,9 @@ export function ChurchAdminDashboardSummaryCards({
       p={{ base: "lg", md: "xl" }}
       style={{
         background:
-          "linear-gradient(135deg, #101827 0%, #172033 58%, #0f766e 145%)",
-        border: "1px solid rgba(255, 255, 255, 0.12)",
-        boxShadow: "0 24px 70px rgba(16, 24, 39, 0.18)",
+          "linear-gradient(135deg, #0f172a 0%, #172033 58%, #312e81 145%)",
+        border: "1px solid #1e293b",
+        boxShadow: "0 24px 70px #1e293b",
         overflow: "hidden",
         position: "relative",
       }}
@@ -100,7 +100,7 @@ export function ChurchAdminDashboardSummaryCards({
           position: "absolute",
           inset: 0,
           background:
-            "linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px)",
+            "linear-gradient(rgba(15, 23, 42, 0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(30, 41, 59, 0.6) 1px, transparent 1px)",
           backgroundSize: "42px 42px",
           maskImage: "linear-gradient(90deg, black, transparent 72%)",
         }}
@@ -151,8 +151,8 @@ export function ChurchAdminDashboardSummaryCards({
               p="lg"
               style={{
                 background:
-                  "linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 252, 0.92))",
-                borderColor: "rgba(255, 255, 255, 0.34)",
+                  "linear-gradient(180deg, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.92))",
+                borderColor: "#1e293b",
                 boxShadow: `0 18px 40px ${card.glow}`,
                 color: "inherit",
                 overflow: "hidden",
@@ -179,12 +179,12 @@ export function ChurchAdminDashboardSummaryCards({
                   <ThemeIcon
                     variant="light"
                     radius="md"
-                    style={{ background: card.glow, color: "#101827" }}
+                    style={{ background: card.glow, color: "#f8fafc" }}
                   >
                     <Icon size={16} />
                   </ThemeIcon>
                 </Group>
-                <Title order={3} size={32} c="#101827">
+                <Title order={3} size={32} c="#f8fafc">
                   {card.value}
                 </Title>
                 <Text size="sm" c="dimmed">

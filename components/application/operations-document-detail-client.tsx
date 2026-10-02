@@ -90,7 +90,7 @@ export function OperationsDocumentDetailClient({
         <Group justify="space-between" align="flex-start">
           <Stack gap={4}>
             <Group gap="sm" align="center">
-              <Title order={2} fw={700} c="#101827">
+              <Title order={2} fw={700} c="#f8fafc">
                 {document.title}
               </Title>
               {document.docType === "elder_council_notes" ? (
@@ -137,7 +137,7 @@ export function OperationsDocumentDetailClient({
         <Paper radius="md" p="lg" withBorder>
           <Text
             size="sm"
-            style={{ whiteSpace: "pre-wrap", lineHeight: 1.7, color: "#374151" }}
+            style={{ whiteSpace: "pre-wrap", lineHeight: 1.7, color: "#94a3b8" }}
           >
             {document.body}
           </Text>

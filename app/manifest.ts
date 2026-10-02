@@ -9,8 +9,8 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/portal",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#fbfcfe",
-    theme_color: "#1a56db",
+    background_color: "#020617",
+    theme_color: "#020617",
     icons: [
       {
         src: "/favicon.ico",

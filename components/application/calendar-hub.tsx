@@ -197,7 +197,7 @@ export function CalendarHub({
             <Stack gap="sm" mt="lg">
               {data.pendingApprovals.length ? (
                 data.pendingApprovals.map((event) => (
-                  <Paper key={event.id} p="md" bg="gray.0">
+                  <Paper key={event.id} p="md" bg="dark.6">
                     <Text fw={600}>{event.title}</Text>
                     <Text size="sm" c="dimmed" mt={6}>
                       {formatCategory(event.category)}

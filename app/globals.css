@@ -2,21 +2,29 @@
 
 @import "tailwindcss";
 
+/*
+ * The ChurchCore design system's tokens (ADR 0026): dark-first slate
+ * surfaces and an indigo primary. Mantine's theme (components/theme-provider.tsx)
+ * carries the same values; these serve Tailwind utilities and plain CSS.
+ */
 :root {
-  --background: #f6f7f9;
-  --foreground: #14213d;
-  --card: #ffffff;
-  --card-foreground: #14213d;
-  --muted: #eef2f6;
-  --muted-foreground: #5c6b7a;
-  --border: rgba(20, 33, 61, 0.12);
-  --input: rgba(20, 33, 61, 0.14);
-  --ring: #2563eb;
-  --primary: #2563eb;
-  --primary-foreground: #f8fbff;
-  --accent: rgba(37, 99, 235, 0.08);
-  --accent-foreground: #14213d;
-  --radius: 1.25rem;
+  color-scheme: dark;
+  --background: #020617; /* slate-950: canvas */
+  --foreground: #f8fafc; /* slate-50 */
+  --card: #0f172a; /* slate-900: surfaces */
+  --card-foreground: #f8fafc;
+  --muted: #1e293b; /* slate-800 */
+  --muted-foreground: #94a3b8; /* slate-400 */
+  --border: #1e293b; /* slate-800 */
+  --input: #334155; /* slate-700 */
+  --ring: #6366f1; /* indigo-500 */
+  --primary: #4f46e5; /* indigo-600 */
+  --primary-hover: #6366f1; /* indigo-500 */
+  --primary-foreground: #ffffff;
+  --accent: rgba(99, 102, 241, 0.1); /* indigo-500/10 */
+  --accent-foreground: #a5b4fc; /* indigo-300 */
+  --accent-border: rgba(99, 102, 241, 0.2); /* indigo-500/20 */
+  --radius: 1rem; /* rounded-2xl */
 }
 
 @theme inline {
@@ -33,7 +41,7 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
-  --font-sans: var(--font-manrope);
+  --font-sans: var(--font-inter);
   --font-serif: var(--font-fraunces);
   --radius-sm: calc(var(--radius) - 8px);
   --radius-md: calc(var(--radius) - 4px);
@@ -46,24 +54,23 @@
 }
 
 html {
-  background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.1), transparent 24%),
-    radial-gradient(circle at top right, rgba(148, 163, 184, 0.12), transparent 22%),
-    var(--background);
+  background: var(--background);
 }
 
 .portal-page-bg {
-  background: linear-gradient(180deg, rgba(37, 99, 235, 0.06) 0%, rgba(255, 255, 255, 1) 60%);
+  background:
+    radial-gradient(circle at top, rgba(99, 102, 241, 0.12), transparent 45%),
+    var(--background);
 }
 
 .portal-register-bg {
   background:
-    radial-gradient(circle at top, rgba(37, 99, 235, 0.10), transparent 40%),
-    #f6f7f9;
+    radial-gradient(circle at top, rgba(99, 102, 241, 0.12), transparent 40%),
+    var(--background);
 }
 
 .hero-icon-shadow {
-  filter: drop-shadow(0 4px 12px rgba(37, 99, 235, 0.15));
+  filter: drop-shadow(0 4px 16px rgba(99, 102, 241, 0.35));
 }
 
 .public-home-shell {
@@ -73,8 +80,8 @@ html {
 
 .public-home-shell::before {
   background:
-    linear-gradient(rgba(16, 24, 39, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(16, 24, 39, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
   background-size: 56px 56px;
   content: "";
   inset: 0;
@@ -93,10 +100,10 @@ html {
   background:
     radial-gradient(circle at 22% 18%, rgba(94, 234, 212, 0.22), transparent 28%),
     radial-gradient(circle at 82% 12%, rgba(244, 201, 93, 0.18), transparent 24%),
-    linear-gradient(145deg, #101827 0%, #172033 54%, #0d1320 100%);
-  border: 1px solid rgba(16, 24, 39, 0.2);
-  border-radius: 18px;
-  box-shadow: 0 34px 80px rgba(16, 24, 39, 0.3);
+    linear-gradient(145deg, #0f172a 0%, #172033 54%, #020617 100%);
+  border: 1px solid #1e293b;
+  border-radius: 16px;
+  box-shadow: 0 34px 80px rgba(0, 0, 0, 0.45);
   min-height: 520px;
   overflow: hidden;
   padding: clamp(1.25rem, 3vw, 2.25rem);
@@ -180,35 +187,41 @@ html {
   padding: 16px;
 }
 
+/*
+ * Shell navigation. Mantine 9's NavLink colour variables override
+ * class-level colour on active links, so the label, description and section
+ * rules need !important, and the active link a solid, high-contrast
+ * background (see memory: Mantine 9 NavLink active state).
+ */
 .app-shell-nav-link {
   border: 1px solid transparent;
-  color: #2d3f55;
+  color: #cbd5e1; /* slate-300 */
   min-height: 54px;
 }
 
 .app-shell-nav-link:hover {
-  background: rgba(20, 33, 61, 0.06);
-  border-color: rgba(20, 33, 61, 0.08);
+  background: rgba(30, 41, 59, 0.6); /* slate-800/60 */
+  border-color: #1e293b;
 }
 
 .app-shell-nav-link[data-active] {
-  background: linear-gradient(135deg, #0d9488, #0e7490);
-  border-color: #0d9488;
-  box-shadow: inset 3px 0 0 #14b8a6;
+  background: #4f46e5; /* indigo-600 */
+  border-color: #6366f1;
+  box-shadow: 0 6px 18px -6px rgba(79, 70, 229, 0.6);
   color: #ffffff !important;
 }
 
 .app-shell-nav-link .mantine-NavLink-label {
   color: inherit !important;
-  font-weight: 750;
+  font-weight: 650;
 }
 
 .app-shell-nav-link .mantine-NavLink-description {
-  color: #617184;
+  color: #94a3b8 !important; /* slate-400 */
 }
 
 .app-shell-nav-link[data-active] .mantine-NavLink-description {
-  color: rgba(255, 255, 255, 0.8) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
 }
 
 .app-shell-nav-link .mantine-NavLink-section {
@@ -216,9 +229,19 @@ html {
 }
 
 .app-shell-language .mantine-Input-input {
-  background: rgba(20, 33, 61, 0.04);
-  border-color: rgba(20, 33, 61, 0.12);
-  color: #2d3f55;
+  background: #020617;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+/* Filled buttons get the spec's soft glow, in their own colour. */
+.mantine-Button-root[data-variant="filled"]:not(:disabled):not([data-disabled]) {
+  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--button-bg, #4f46e5) 55%, transparent);
+}
+
+/* Light badges get a matching border, as the spec's state pills do. */
+.mantine-Badge-root[data-variant="light"] {
+  border: 1px solid color-mix(in srgb, var(--badge-color, #818cf8) 30%, transparent);
 }
 
 @media (max-width: 48em) {
@@ -230,16 +253,16 @@ html {
 
 body {
   min-height: 100vh;
+  /* The canvas: slate-950, with a soft indigo glow (ADR 0026). */
   background:
-    radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.8), transparent 18%),
-    radial-gradient(circle at 85% 0%, rgba(37, 99, 235, 0.08), transparent 20%),
-    linear-gradient(180deg, #fbfcfe 0%, #f6f7f9 100%);
-  color: var(--foreground);
-  font-family: var(--font-manrope), sans-serif;
+    radial-gradient(circle at 85% 0%, rgba(99, 102, 241, 0.1), transparent 30%),
+    var(--background);
+  color: #e2e8f0; /* slate-200 body text */
+  font-family: var(--font-inter), sans-serif;
 }
 
 ::selection {
-  background: rgba(37, 99, 235, 0.2);
+  background: rgba(99, 102, 241, 0.35);
 }
 
 a,
@@ -247,7 +270,27 @@ button {
   cursor: pointer;
 }
 
+/*
+ * Paper is light: printing (statements, reports, badges) switches the
+ * dark-first theme's core colours back to dark ink on white (ADR 0026).
+ */
 @media print {
+  :root,
+  [data-mantine-color-scheme="dark"] {
+    color-scheme: light;
+    --background: #ffffff;
+    --foreground: #111827;
+    --mantine-color-body: #ffffff;
+    --mantine-color-text: #111827;
+    --mantine-color-dimmed: #4b5563;
+    --mantine-color-default-border: #d1d5db;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+
   .ai-disclaimer-badge {
     display: block !important;
     font-style: italic !important;

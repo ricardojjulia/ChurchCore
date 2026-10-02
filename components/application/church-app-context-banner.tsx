@@ -17,17 +17,17 @@ export function ChurchAppContextBanner({ session }: { session: AuthSession }) {
       p="md"
       style={{
         background:
-          "linear-gradient(135deg, rgba(255,255,255,0.9), rgba(238,247,246,0.78))",
-        border: "1px solid rgba(16, 24, 39, 0.08)",
-        boxShadow: "0 12px 34px rgba(16, 24, 39, 0.06)",
+          "linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.78))",
+        border: "1px solid #1e293b",
+        boxShadow: "0 12px 34px #1e293b",
       }}
     >
       <Group justify="space-between" align="center" gap="md">
         <Group gap="sm" wrap="wrap">
-          <Badge color="teal" variant="filled" radius="sm" leftSection={<Building2 size={12} />}>
+          <Badge color="indigo" variant="light" radius="xl" leftSection={<Building2 size={12} />}>
             {session.appContext.church.name}
           </Badge>
-          <Text size="sm" c="#617184">
+          <Text size="sm" c="#94a3b8">
             {session.appContext.source === "impersonation"
               ? `Tenant view · ${session.appContext.roleId}`
               : `Role · ${session.appContext.roleId}`}

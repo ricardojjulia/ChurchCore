@@ -119,7 +119,7 @@ export function CommunicationsMessageDetailClient({
           {/* Metadata */}
           <Paper withBorder p="xl" radius="lg">
             <Stack gap="md">
-              <Title order={3} fw={700} c="#101827">
+              <Title order={3} fw={700} c="#f8fafc">
                 {log.subject ?? "SMS Message"}
               </Title>
 
@@ -204,7 +204,7 @@ export function CommunicationsMessageDetailClient({
           {/* Analytics */}
           <Paper withBorder p="xl" radius="lg">
             <Stack gap="md">
-              <Title order={3} fw={700} c="#101827">
+              <Title order={3} fw={700} c="#f8fafc">
                 Delivery Analytics
               </Title>
 
@@ -213,7 +213,7 @@ export function CommunicationsMessageDetailClient({
                   <Text size="xs" c="dimmed" fw={600}>
                     Sent
                   </Text>
-                  <Text size="xl" fw={700} c="#101827">
+                  <Text size="xl" fw={700} c="#f8fafc">
                     {analytics.sentCount}
                   </Text>
                 </Paper>
@@ -234,7 +234,7 @@ export function CommunicationsMessageDetailClient({
                   <Text
                     size="xl"
                     fw={700}
-                    c={analytics.bouncedCount + analytics.failedCount > 0 ? "red" : "#101827"}
+                    c={analytics.bouncedCount + analytics.failedCount > 0 ? "red" : "#f8fafc"}
                   >
                     {analytics.bouncedCount + analytics.failedCount}
                   </Text>
@@ -244,7 +244,7 @@ export function CommunicationsMessageDetailClient({
                   <Text size="xs" c="dimmed" fw={600}>
                     Open Rate
                   </Text>
-                  <Text size="xl" fw={700} c="#101827">
+                  <Text size="xl" fw={700} c="#f8fafc">
                     {log.channel === "email" && analytics.openRate !== null
                       ? formatPercent(analytics.openRate)
                       : "N/A"}
@@ -255,7 +255,7 @@ export function CommunicationsMessageDetailClient({
                   <Text size="xs" c="dimmed" fw={600}>
                     Suppressed
                   </Text>
-                  <Text size="xl" fw={700} c="#101827">
+                  <Text size="xl" fw={700} c="#f8fafc">
                     {analytics.suppressedCount}
                   </Text>
                 </Paper>

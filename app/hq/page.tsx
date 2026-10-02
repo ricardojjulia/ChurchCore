@@ -621,7 +621,7 @@ export default function ProjectHQPage() {
     >
       {/* ── Dashboard Cards Header ── */}
       <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-        <Card withBorder radius="lg" p="md" style={{ background: "linear-gradient(135deg, rgba(20, 184, 166, 0.05), rgba(37, 99, 235, 0.05))" }}>
+        <Card withBorder radius="lg" p="md" style={{ background: "linear-gradient(135deg, rgba(20, 184, 166, 0.05), rgba(99, 102, 241, 0.07))" }}>
           <Group justify="space-between">
             <Text size="xs" tt="uppercase" fw={800} c="dimmed">Active Backlog Tasks</Text>
             <CheckSquare size={16} color="teal" />
@@ -643,7 +643,7 @@ export default function ProjectHQPage() {
           </Group>
         </Card>
 
-        <Card withBorder radius="lg" p="md" style={{ background: "linear-gradient(135deg, rgba(168, 85, 247, 0.05), rgba(59, 130, 246, 0.05))" }}>
+        <Card withBorder radius="lg" p="md" style={{ background: "linear-gradient(135deg, rgba(168, 85, 247, 0.05), rgba(99, 102, 241, 0.07))" }}>
           <Group justify="space-between">
             <Text size="xs" tt="uppercase" fw={800} c="dimmed">Accepted ADRs</Text>
             <Gavel size={16} color="purple" />
@@ -1046,7 +1046,7 @@ export default function ProjectHQPage() {
                         </Group>
                         
                         {selectedHistorySession && (
-                          <Paper p="xs" withBorder style={{ background: "rgba(20, 33, 61, 0.02)" }}>
+                          <Paper p="xs" withBorder style={{ background: "rgba(30, 41, 59, 0.6)" }}>
                             <Text size="xs" fw={700} c="dimmed">Scrubbed Prompt Request:</Text>
                             <Text size="sm" style={{ fontStyle: "italic" }}>
                               {selectedHistorySession.prompt}
@@ -1058,7 +1058,7 @@ export default function ProjectHQPage() {
                           {selectedHistorySession ? selectedHistorySession.response : aiResponse}
                         </Text>
                         
-                        <Text size="xs" c="dimmed" mt="md" style={{ borderTop: "1px solid rgba(20, 33, 61, 0.08)", paddingTop: "8px" }}>
+                        <Text size="xs" c="dimmed" mt="md" style={{ borderTop: "1px solid #1e293b", paddingTop: "8px" }}>
                           Disclaimer: Verify references against standard criteria before implementation. No PII is stored.
                         </Text>
                       </Stack>

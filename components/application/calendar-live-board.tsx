@@ -367,7 +367,7 @@ export function CalendarLiveBoard({
           style={{
             minHeight: 100,
             padding: "6px 7px",
-            border: "1px solid #e5e7eb",
+            border: "1px solid #1e293b",
             backgroundColor: isToday ? "#eff6ff" : "#fff",
             cursor: "pointer",
             overflow: "hidden",
@@ -377,14 +377,14 @@ export function CalendarLiveBoard({
             {isToday ? (
               <div style={{
                 width: 26, height: 26, borderRadius: "50%",
-                backgroundColor: "#2563eb", color: "#fff",
+                backgroundColor: "#4f46e5", color: "#fff",
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
                 fontSize: 12, fontWeight: 700, lineHeight: 1,
               }}>
                 {day}
               </div>
             ) : (
-              <Text size="xs" fw={500} c="dark">{day}</Text>
+              <Text size="xs" fw={500} c="white">{day}</Text>
             )}
           </div>
           <Stack gap={2}>
@@ -456,7 +456,7 @@ export function CalendarLiveBoard({
                 gridRow: 1,
                 textAlign: "center",
                 padding: "4px 0",
-                borderBottom: "1px solid #e5e7eb",
+                borderBottom: "1px solid #1e293b",
                 cursor: "pointer",
               }}
               onClick={() => openDate(date)}
@@ -481,8 +481,8 @@ export function CalendarLiveBoard({
               style={{
                 gridColumn: 1,
                 gridRow: i + 2,
-                borderRight: "1px solid #e5e7eb",
-                borderBottom: "1px solid #f3f4f6",
+                borderRight: "1px solid #1e293b",
+                borderBottom: "1px solid #1e293b",
                 paddingRight: 4,
                 display: "flex",
                 alignItems: "flex-start",
@@ -504,8 +504,8 @@ export function CalendarLiveBoard({
                 style={{
                   gridColumn: dayIndex + 2,
                   gridRow: rowIndex + 2,
-                  borderRight: "1px solid #f3f4f6",
-                  borderBottom: "1px solid #f3f4f6",
+                  borderRight: "1px solid #1e293b",
+                  borderBottom: "1px solid #1e293b",
                   cursor: "pointer",
                 }}
                 onClick={() => openDate(date)}
@@ -704,10 +704,10 @@ export function CalendarLiveBoard({
                   style={{
                     textAlign: "center",
                     padding: "6px 0",
-                    backgroundColor: "#f9fafb",
-                    borderTop: "1px solid #e5e7eb",
-                    borderRight: "1px solid #e5e7eb",
-                    borderBottom: "2px solid #e5e7eb",
+                    backgroundColor: "#0f172a",
+                    borderTop: "1px solid #1e293b",
+                    borderRight: "1px solid #1e293b",
+                    borderBottom: "2px solid #1e293b",
                   }}
                 >
                   <Text fw={600} size="xs" c="dimmed" tt="uppercase" style={{ letterSpacing: "0.05em" }}>{day}</Text>

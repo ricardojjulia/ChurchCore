@@ -391,7 +391,7 @@ export function ServicePlansWorkspace({
       {msg && <Alert color="red" onClose={() => setMsg(null)} withCloseButton>{msg}</Alert>}
 
       {view === "unassigned" && (
-        <Paper withBorder radius="lg" p="md" bg="#f8fbff">
+        <Paper withBorder radius="lg" p="md" bg="#0f172a">
           <Group justify="space-between" gap="md">
             <div>
               <Text fw={700} size="sm">Readiness view: plans needing volunteer coverage.</Text>

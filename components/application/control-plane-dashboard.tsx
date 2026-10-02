@@ -365,14 +365,14 @@ export function ControlPlaneDashboard({
             <Table variant="unstyled" style={{ color: "#f8fafc" }}>
               <Table.Thead style={{ borderBottom: "1px solid #1e293b" }}>
                 <Table.Tr>
-                  <Table.Th style={{ color: "#64748b", fontWeight: 700, fontSize: "12px", textTransform: "uppercase" }}>Tenant</Table.Th>
-                  <Table.Th style={{ color: "#64748b", fontWeight: 700, fontSize: "12px", textTransform: "uppercase" }}>Status</Table.Th>
-                  <Table.Th style={{ color: "#64748b", fontWeight: 700, fontSize: "12px", textTransform: "uppercase" }}>Plan</Table.Th>
-                  <Table.Th style={{ color: "#64748b", fontWeight: 700, fontSize: "12px", textTransform: "uppercase" }}>Users</Table.Th>
-                  <Table.Th style={{ color: "#64748b", fontWeight: 700, fontSize: "12px", textTransform: "uppercase" }}>Courses</Table.Th>
-                  <Table.Th style={{ color: "#64748b", fontWeight: 700, fontSize: "12px", textTransform: "uppercase" }}>Health</Table.Th>
-                  <Table.Th style={{ color: "#64748b", fontWeight: 700, fontSize: "12px", textTransform: "uppercase" }}>Trial Ends</Table.Th>
-                  <Table.Th style={{ color: "#64748b", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", textAlign: "right" }}>Actions</Table.Th>
+                  <Table.Th style={{ color: "#94a3b8", fontWeight: 700, fontSize: "12px", textTransform: "uppercase" }}>Tenant</Table.Th>
+                  <Table.Th style={{ color: "#94a3b8", fontWeight: 700, fontSize: "12px", textTransform: "uppercase" }}>Status</Table.Th>
+                  <Table.Th style={{ color: "#94a3b8", fontWeight: 700, fontSize: "12px", textTransform: "uppercase" }}>Plan</Table.Th>
+                  <Table.Th style={{ color: "#94a3b8", fontWeight: 700, fontSize: "12px", textTransform: "uppercase" }}>Users</Table.Th>
+                  <Table.Th style={{ color: "#94a3b8", fontWeight: 700, fontSize: "12px", textTransform: "uppercase" }}>Courses</Table.Th>
+                  <Table.Th style={{ color: "#94a3b8", fontWeight: 700, fontSize: "12px", textTransform: "uppercase" }}>Health</Table.Th>
+                  <Table.Th style={{ color: "#94a3b8", fontWeight: 700, fontSize: "12px", textTransform: "uppercase" }}>Trial Ends</Table.Th>
+                  <Table.Th style={{ color: "#94a3b8", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", textAlign: "right" }}>Actions</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -380,7 +380,7 @@ export function ControlPlaneDashboard({
                   <Table.Tr key={tenant.id} style={{ borderBottom: "1px solid #1e293b" }}>
                     <Table.Td style={{ padding: "16px 12px" }}>
                       <Text fw={700} style={{ color: "#f8fafc" }}>{tenant.name}</Text>
-                      <Text size="xs" style={{ color: "#64748b" }}>{tenant.slug}</Text>
+                      <Text size="xs" style={{ color: "#94a3b8" }}>{tenant.slug}</Text>
                     </Table.Td>
                     <Table.Td style={{ padding: "16px 12px" }}>
                       <Badge color="green" variant="filled" size="sm" radius="xs" style={{ textTransform: "lowercase", backgroundColor: "#166534", color: "#4ade80" }}>
@@ -399,7 +399,7 @@ export function ControlPlaneDashboard({
                         {tenant.health}
                       </span>
                     </Table.Td>
-                    <Table.Td style={{ padding: "16px 12px", color: "#64748b" }}>{tenant.trialEnds ?? "—"}</Table.Td>
+                    <Table.Td style={{ padding: "16px 12px", color: "#94a3b8" }}>{tenant.trialEnds ?? "—"}</Table.Td>
                     <Table.Td style={{ padding: "16px 12px", textAlign: "right" }}>
                       <Group gap="sm" justify="flex-end">
                         <Text
@@ -508,8 +508,8 @@ export function ControlPlaneDashboard({
               withBorder
               radius="xl"
               p="md"
-              bg="#f8fbff"
-              style={{ borderLeft: "4px solid #2563eb" }}
+              bg="#0f172a"
+              style={{ borderLeft: "4px solid #4f46e5" }}
             >
               <Text size="xs" tt="uppercase" fw={700} c="dimmed">{metric.label}</Text>
               <Title order={3} mt="sm">{metric.value}</Title>
@@ -552,7 +552,7 @@ export function ControlPlaneDashboard({
 
           <Stack gap="sm">
             {(isOverview ? dashboardData.tenantItems : queueItems).map((item) => (
-              <Paper key={JSON.stringify(item)} radius="xl" p="md" bg="#f8fafc" withBorder>
+              <Paper key={JSON.stringify(item)} radius="xl" p="md" bg="#0f172a" withBorder>
                 {"church" in item ? (
                   <>
                     <Group justify="space-between" align="flex-start">
@@ -609,7 +609,7 @@ export function ControlPlaneDashboard({
           </Group>
           <Stack gap="sm">
             {session.tenantViews.map((tenant) => (
-              <Paper key={tenant.id} radius="xl" p="md" bg="#f8fafc" withBorder>
+              <Paper key={tenant.id} radius="xl" p="md" bg="#0f172a" withBorder>
                 <Group justify="space-between" align="center" gap="md">
                   <div>
                     <Text fw={600}>{tenant.name}</Text>
@@ -639,7 +639,7 @@ export function ControlPlaneDashboard({
         {dashboardData.auditItems.length ? (
           <Stack gap="sm">
             {dashboardData.auditItems.map((item) => (
-              <Paper key={item.id} radius="xl" p="md" bg="#f8fafc" withBorder>
+              <Paper key={item.id} radius="xl" p="md" bg="#0f172a" withBorder>
                 <Group justify="space-between" align="flex-start" gap="md">
                   <div>
                     <Text fw={600}>{item.church}</Text>
