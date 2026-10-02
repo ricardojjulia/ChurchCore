@@ -80,4 +80,24 @@ describe("DonationCardStep", () => {
     fireEvent.click(screen.getByRole("button", { name: "Pay $25.00" }));
     await waitFor(() => expect(onPaid).toHaveBeenCalledWith("processing"));
   });
+
+  it("for a registration: no Back, and a cancel that says what it cancels (G3.0c)", () => {
+    const onCancel = vi.fn();
+    render(
+      <MantineProvider>
+        <DonationCardStep
+          publishableKey="pk_test_123"
+          stripeAccount="acct_church1"
+          clientSecret="pi_123_secret"
+          amountLabel="$15.00"
+          onPaid={vi.fn()}
+          onCancel={onCancel}
+          cancelLabel="Cancel registration"
+        />
+      </MantineProvider>,
+    );
+    expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel registration" }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
 });

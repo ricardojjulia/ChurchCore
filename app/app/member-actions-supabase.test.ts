@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The Supabase path of the member check-in and registration actions (S8,
 // Council Review 22). member-actions.test.ts covers the local-SQL branch;
@@ -7,8 +7,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // no raw database text reaching the member. The login id is never the church
 // profile id here (S7).
 
-const { requireChurchSessionMock, tableResults, calls } = vi.hoisted(() => ({
+const { requireChurchSessionMock, createPaymentIntentMock, tableResults, calls } = vi.hoisted(() => ({
   requireChurchSessionMock: vi.fn(),
+  createPaymentIntentMock: vi.fn(),
   tableResults: new Map<string, Array<{ data?: unknown; error?: unknown; count?: number }>>(),
   calls: [] as Array<{ table: string; method: string; args: unknown[] }>,
 }));
@@ -16,7 +17,7 @@ const { requireChurchSessionMock, tableResults, calls } = vi.hoisted(() => ({
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireChurchSession: requireChurchSessionMock }));
 vi.mock("@/lib/stripe/event-registrations", async (importOriginal) => ({
-  createEventRegistrationPaymentIntent: vi.fn(),
+  createEventRegistrationPaymentIntent: createPaymentIntentMock,
   // The real helper: the demo payment route completes only this id.
   stubPaymentIntentId: (await importOriginal<typeof import("@/lib/stripe/event-registrations")>()).stubPaymentIntentId,
 }));
@@ -27,7 +28,7 @@ vi.mock("@/lib/supabase/tenant", () => {
   }
   function builder(table: string) {
     const chain: Record<string, unknown> = {};
-    for (const method of ["select", "eq", "neq", "in", "is", "insert", "upsert"]) {
+    for (const method of ["select", "eq", "neq", "in", "is", "insert", "upsert", "update", "delete"]) {
       chain[method] = (...args: unknown[]) => {
         calls.push({ table, method, args });
         return chain;
@@ -46,7 +47,11 @@ vi.mock("@/lib/supabase/tenant", () => {
   };
 });
 
-import { memberMobileCheckInAction, memberRegisterForEventAction } from "@/app/app/member-actions";
+import {
+  cancelUnpaidMemberRegistrationAction,
+  memberMobileCheckInAction,
+  memberRegisterForEventAction,
+} from "@/app/app/member-actions";
 
 const SESSION = {
   userId: "login-1",
@@ -203,6 +208,84 @@ describe("memberRegisterForEventAction (Supabase)", () => {
     vi.unstubAllEnvs();
   });
 
+  describe("paid events: Stripe's card form on the church's account (G3.0c)", () => {
+    function goLive() {
+      vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "");
+      vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_platform");
+      vi.stubEnv("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", "pk_test_platform");
+      vi.stubEnv("STRIPE_CONNECT_CLIENT_ID", "ca_platform");
+    }
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("returns the card form's details for a connected church", async () => {
+      goLive();
+      queue("church_payment_accounts", {
+        data: { stripe_account_id: "acct_church1", charges_enabled: true, details_submitted: true },
+        error: null,
+      });
+      queue("event_registration_settings", { data: settings("members", { price_cents: 2500 }), error: null });
+      queue("profiles", { data: me, error: null });
+      queue("event_registrations", { data: null, error: null }, { data: { id: "reg-9" }, error: null });
+      createPaymentIntentMock.mockResolvedValue({
+        clientSecret: "pi_9_secret",
+        paymentIntentId: "pi_9",
+        isStub: false,
+        stripeAccount: "acct_church1",
+      });
+
+      expect(await memberRegisterForEventAction({ eventId: "event-1" })).toMatchObject({
+        ok: true,
+        registrationId: "reg-9",
+        paymentIntentId: "pi_9",
+        checkout: { clientSecret: "pi_9_secret", publishableKey: "pk_test_platform", stripeAccount: "acct_church1" },
+      });
+      const paymentUpsert = calls.find((c) => c.table === "event_registration_payments" && c.method === "upsert");
+      expect(paymentUpsert?.args[0]).toMatchObject({ payment_intent_id: "pi_9", stripe_account_id: "acct_church1" });
+    });
+
+    it("refuses a paid registration, writing nothing, when the church hasn't connected Stripe (Council Review 35)", async () => {
+      goLive();
+      queue("church_payment_accounts", { data: null, error: null });
+      queue("event_registration_settings", { data: settings("members", { price_cents: 2500 }), error: null });
+      queue("profiles", { data: me, error: null });
+      queue("event_registrations", { data: null, error: null });
+
+      expect(await memberRegisterForEventAction({ eventId: "event-1" })).toEqual({
+        ok: false,
+        error: "This event takes payment online, but online payment isn't set up for this church yet. Please contact the church office to register.",
+      });
+      expect(inserts("event_registrations")).toHaveLength(0);
+      expect(createPaymentIntentMock).not.toHaveBeenCalled();
+    });
+
+    it("undoes the registration, instead of leaving one nobody can pay, when Stripe fails", async () => {
+      goLive();
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      queue("church_payment_accounts", {
+        data: { stripe_account_id: "acct_church1", charges_enabled: true, details_submitted: true },
+        error: null,
+      });
+      queue("event_registration_settings", { data: settings("members", { price_cents: 2500 }), error: null });
+      queue("profiles", { data: me, error: null });
+      queue("event_registrations", { data: null, error: null }, { data: { id: "reg-9" }, error: null });
+      createPaymentIntentMock.mockRejectedValue(new Error("stripe down"));
+
+      expect(await memberRegisterForEventAction({ eventId: "event-1" })).toEqual({
+        ok: false,
+        error: "Couldn't start the payment for this registration. Please try again.",
+      });
+      expect(calls).toEqual(
+        expect.arrayContaining([
+          { table: "event_registrations", method: "delete", args: [] },
+          { table: "event_registrations", method: "eq", args: ["id", "reg-9"] },
+        ]),
+      );
+      errorSpy.mockRestore();
+    });
+  });
+
   it("never shows the member raw database text when the insert fails", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     queue("event_registration_settings", { data: settings("members"), error: null });
@@ -214,5 +297,19 @@ describe("memberRegisterForEventAction (Supabase)", () => {
       error: "Couldn't complete your registration. Please try again.",
     });
     errorSpy.mockRestore();
+  });
+});
+
+describe("cancelUnpaidMemberRegistrationAction (G3.0c)", () => {
+  it("cancels only within the member's own church", async () => {
+    queue("event_registration_payments", { data: null, error: null });
+    expect(await cancelUnpaidMemberRegistrationAction("reg-1", "pi_1")).toEqual({ ok: true, cancelled: false });
+    expect(calls).toContainEqual({ table: "event_registration_payments", method: "eq", args: ["church_id", "church-1"] });
+  });
+
+  it("is for members only", async () => {
+    requireChurchSessionMock.mockResolvedValue({ ...SESSION, appContext: { ...SESSION.appContext, roleId: "pastor" } });
+    expect(await cancelUnpaidMemberRegistrationAction("reg-1", "pi_1")).toMatchObject({ ok: false, cancelled: false });
+    expect(calls).toHaveLength(0);
   });
 });

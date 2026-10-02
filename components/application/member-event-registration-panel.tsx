@@ -17,9 +17,16 @@ import {
   Textarea,
   Title,
 } from "@mantine/core";
-import { FlaskConical } from "lucide-react";
-
-import { memberRegisterForEventAction } from "@/app/app/member-actions";
+import {
+  cancelUnpaidMemberRegistrationAction,
+  memberRegisterForEventAction,
+} from "@/app/app/member-actions";
+import {
+  RegistrationPaymentStep,
+  cancelOutcome,
+  paidMessage,
+  type RegistrationPaymentState,
+} from "@/components/portal/registration-payment-step";
 import type { MemberPortalFamilyMember } from "@/lib/member-portal-data";
 import type {
   MemberEventRegistrationField,
@@ -30,12 +37,6 @@ type Props = {
   churchId: string;
   options: MemberEventRegistrationOption[];
   familyMembers: MemberPortalFamilyMember[];
-};
-
-type PaymentCheckoutState = {
-  registrationId: string;
-  paymentIntentId: string;
-  amountLabel: string;
 };
 
 function getStatusLabel(status: MemberEventRegistrationOption["memberRegistrationStatus"]) {
@@ -52,9 +53,12 @@ export function MemberEventRegistrationPanel({ churchId, options, familyMembers 
   const [notes, setNotes] = useState("");
   const [fieldValues, setFieldValues] = useState<Record<string, string | number | boolean>>({});
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [paymentCheckout, setPaymentCheckout] = useState<PaymentCheckoutState | null>(null);
-  const [demoPaymentLoading, setDemoPaymentLoading] = useState(false);
+  const [paymentCheckout, setPaymentCheckout] = useState<RegistrationPaymentState | null>(null);
   const [isPending, startTransition] = useTransition();
+  // A registration or cancel is in flight. Tracked apart from isPending,
+  // which stays true while the action's revalidation refreshes the page,
+  // well after its result is shown, and would swallow a close meanwhile.
+  const [busy, setBusy] = useState(false);
 
   const selectedEvent = useMemo(
     () => options.find((option) => option.eventId === selectedEventId) ?? null,
@@ -71,6 +75,20 @@ export function MemberEventRegistrationPanel({ churchId, options, familyMembers 
   }
 
   function closeModal() {
+    // Not while a registration or a cancel is in flight: its result would land
+    // in a closed dialog and the checkout would be lost (PR #175 review).
+    if (busy) return;
+    // Leaving without paying cancels the unpaid registration, freeing its
+    // place (G3.0c). The dialog closes only once that has worked; a failure
+    // keeps it open, with the error, so the registrant can retry.
+    if (paymentCheckout) {
+      cancelUnpaid(true);
+      return;
+    }
+    resetAndClose();
+  }
+
+  function resetAndClose() {
     setSelectedEventId(null);
     setNotes("");
     setFieldValues({});
@@ -103,24 +121,36 @@ export function MemberEventRegistrationPanel({ churchId, options, familyMembers 
     return String(value ?? "").trim().length > 0;
   }
 
-  async function completeDemoPayment() {
+  function handlePaid(status: string) {
+    const awaitingApproval = paymentCheckout?.awaitingApproval ?? false;
+    setPaymentCheckout(null);
+    setMessage(paidMessage(status, awaitingApproval));
+  }
+
+  function cancelUnpaid(closeAfter = false) {
     if (!paymentCheckout) return;
-    setDemoPaymentLoading(true);
-    try {
-      const response = await fetch("/api/demo/complete-payment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ registrationId: paymentCheckout.registrationId, churchId }),
-      });
-      if (!response.ok) {
-        setMessage({ type: "error", text: "The demo payment couldn't be completed." });
+    const { registrationId, paymentIntentId, awaitingApproval } = paymentCheckout;
+    setBusy(true);
+    startTransition(async () => {
+      let result: Awaited<ReturnType<typeof cancelUnpaidMemberRegistrationAction>>;
+      try {
+        result = await cancelUnpaidMemberRegistrationAction(registrationId, paymentIntentId);
+      } catch {
+        result = { ok: false, cancelled: false, error: "Couldn't cancel the registration. Please try again." };
+      }
+      setBusy(false);
+      const outcome = cancelOutcome(result, awaitingApproval);
+      if (!outcome.close) {
+        setMessage(outcome.message);
+        return;
+      }
+      if (closeAfter) {
+        resetAndClose();
         return;
       }
       setPaymentCheckout(null);
-      setMessage({ type: "success", text: "Demo payment complete. Registration confirmed." });
-    } finally {
-      setDemoPaymentLoading(false);
-    }
+      setMessage(outcome.message);
+    });
   }
 
   function handleSubmit() {
@@ -137,6 +167,7 @@ export function MemberEventRegistrationPanel({ churchId, options, familyMembers 
       return;
     }
 
+    setBusy(true);
     startTransition(async () => {
       const customFields = selectedEvent.fields.reduce<Record<string, unknown>>((acc, field) => {
         const value = fieldValues[field.fieldKey];
@@ -153,7 +184,7 @@ export function MemberEventRegistrationPanel({ churchId, options, familyMembers 
         targetProfileId: targetProfileId ?? undefined,
         notes: notes || null,
         customFields,
-      });
+      }).finally(() => setBusy(false));
 
       if (!result.ok) {
         setMessage({ type: "error", text: result.error ?? "Registration failed." });
@@ -178,22 +209,21 @@ export function MemberEventRegistrationPanel({ churchId, options, familyMembers 
         : result.status === "waitlisted"
           ? "Registration submitted to waitlist."
           : "Registration confirmed.";
-      setMessage({
-        type: "success",
-        text: result.paymentClientSecret
-          ? `${statusText} Secure payment is ready.`
-          : statusText,
-      });
-      setPaymentCheckout(
-        result.paymentIntentId && result.registrationId &&
-        (result.paymentClientSecret || process.env.NEXT_PUBLIC_DEMO_MODE === "true")
+      const payment =
+        result.paymentIntentId && result.registrationId
           ? {
               registrationId: result.registrationId,
               paymentIntentId: result.paymentIntentId,
               amountLabel: formatAmount(selectedEvent.priceCents, selectedEvent.currency),
+              checkout: result.checkout ?? null,
+              awaitingApproval: result.status === "pending_approval",
             }
-          : null,
-      );
+          : null;
+      setMessage({
+        type: "success",
+        text: payment ? `${statusText} Pay below to finish.` : statusText,
+      });
+      setPaymentCheckout(payment);
     });
   }
 
@@ -263,6 +293,8 @@ export function MemberEventRegistrationPanel({ churchId, options, familyMembers 
       <Modal
         opened={Boolean(selectedEvent)}
         onClose={closeModal}
+        closeOnEscape={!busy}
+        closeOnClickOutside={!busy}
         title={selectedEvent ? `Register for ${selectedEvent.title}` : "Register"}
         size="lg"
         withinPortal={false}
@@ -277,151 +309,111 @@ export function MemberEventRegistrationPanel({ churchId, options, familyMembers 
           {selectedEvent && selectedEvent.priceCents > 0 && !paymentCheckout ? (
             <Alert color="grape" variant="light">
               Payment required: {formatAmount(selectedEvent.priceCents, selectedEvent.currency)}.
-              A secure Stripe payment step will be prepared after registration.
+              You&apos;ll pay by card right after registering.
             </Alert>
           ) : null}
 
           {paymentCheckout ? (
-            <Paper withBorder radius="md" p="md">
-              <Stack gap={6}>
-                <Text fw={700}>Secure payment ready</Text>
-                <Text size="sm">
-                  Complete {paymentCheckout.amountLabel} through the secure Stripe payment step for this registration.
-                </Text>
-                <Text size="xs" c="dimmed">
-                  Payment intent: {paymentCheckout.paymentIntentId}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  No card details are stored in ChurchCore.
-                </Text>
-                {process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? (
-                  <>
-                    <Paper p="sm" radius="md" mt={4} style={{ background: "rgba(20,184,166,0.06)", border: "1px solid rgba(20,184,166,0.25)" }}>
-                      <Group gap="xs" mb="xs">
-                        <FlaskConical size={14} color="#0d9488" />
-                        <Text size="xs" fw={700} c="teal.7" tt="uppercase">Demo Mode — Test Payment</Text>
-                      </Group>
-                      <Stack gap={6}>
-                        <Group gap="xs">
-                          <Text size="xs" c="dimmed" w={80}>Card</Text>
-                          <Text size="xs" ff="monospace" fw={600}>4242 4242 4242 4242</Text>
-                        </Group>
-                        <Group gap="xs">
-                          <Text size="xs" c="dimmed" w={80}>Expiry</Text>
-                          <Text size="xs" ff="monospace" fw={600}>12 / 29</Text>
-                        </Group>
-                        <Group gap="xs">
-                          <Text size="xs" c="dimmed" w={80}>CVC</Text>
-                          <Text size="xs" ff="monospace" fw={600}>123</Text>
-                        </Group>
-                      </Stack>
-                      <Text size="xs" c="dimmed" mt="xs">No real charge will be made.</Text>
-                    </Paper>
-                    <Button
-                      color="teal"
-                      fullWidth
-                      loading={demoPaymentLoading}
-                      onClick={completeDemoPayment}
-                      leftSection={<FlaskConical size={14} />}
-                    >
-                      Complete Demo Payment — {paymentCheckout.amountLabel}
-                    </Button>
-                  </>
-                ) : null}
-              </Stack>
-            </Paper>
-          ) : null}
-
-          {selectedEvent?.householdRegistrationEnabled && familyMembers.length > 1 ? (
-            <Select
-              label="Register household member"
-              data={familyMembers.map((member) => ({ value: member.id, label: member.fullName }))}
-              value={targetProfileId}
-              onChange={setTargetProfileId}
+            <RegistrationPaymentStep
+              payment={paymentCheckout}
+              churchId={churchId}
+              onPaid={handlePaid}
+              onCancel={() => cancelUnpaid()}
             />
-          ) : null}
-
-          {selectedEvent?.fields.map((field) => {
-            const key = field.fieldKey;
-            const value = fieldValues[key];
-
-            if (field.fieldType === "textarea") {
-              return (
-                <Textarea
-                  key={field.id}
-                  label={field.label}
-                  required={field.isRequired}
-                  value={String(value ?? "")}
-                  onChange={(event) =>
-                    setFieldValues((prev) => ({ ...prev, [key]: event.currentTarget.value }))
-                  }
-                />
-              );
-            }
-
-            if (field.fieldType === "select") {
-              return (
+          ) : (
+            <>
+              {selectedEvent?.householdRegistrationEnabled && familyMembers.length > 1 ? (
                 <Select
-                  key={field.id}
-                  label={field.label}
-                  required={field.isRequired}
-                  data={field.options.map((option) => ({ value: option, label: option }))}
-                  value={typeof value === "string" ? value : null}
-                  onChange={(next) => setFieldValues((prev) => ({ ...prev, [key]: next ?? "" }))}
+                  label="Register household member"
+                  data={familyMembers.map((member) => ({ value: member.id, label: member.fullName }))}
+                  value={targetProfileId}
+                  onChange={setTargetProfileId}
                 />
-              );
-            }
+              ) : null}
 
-            if (field.fieldType === "checkbox") {
-              return (
-                <Switch
-                  key={field.id}
-                  label={field.label}
-                  checked={Boolean(value)}
-                  onChange={(event) =>
-                    setFieldValues((prev) => ({ ...prev, [key]: event.currentTarget.checked }))
-                  }
-                />
-              );
-            }
+              {selectedEvent?.fields.map((field) => {
+                const key = field.fieldKey;
+                const value = fieldValues[key];
 
-            if (field.fieldType === "number") {
-              return (
-                <NumberInput
-                  key={field.id}
-                  label={field.label}
-                  required={field.isRequired}
-                  value={typeof value === "number" ? value : undefined}
-                  onChange={(next) =>
-                    setFieldValues((prev) => ({ ...prev, [key]: typeof next === "number" ? next : "" }))
-                  }
-                />
-              );
-            }
-
-            return (
-              <TextInput
-                key={field.id}
-                label={field.label}
-                required={field.isRequired}
-                value={String(value ?? "")}
-                onChange={(event) =>
-                  setFieldValues((prev) => ({ ...prev, [key]: event.currentTarget.value }))
+                if (field.fieldType === "textarea") {
+                  return (
+                    <Textarea
+                      key={field.id}
+                      label={field.label}
+                      required={field.isRequired}
+                      value={String(value ?? "")}
+                      onChange={(event) =>
+                        setFieldValues((prev) => ({ ...prev, [key]: event.currentTarget.value }))
+                      }
+                    />
+                  );
                 }
+
+                if (field.fieldType === "select") {
+                  return (
+                    <Select
+                      key={field.id}
+                      label={field.label}
+                      required={field.isRequired}
+                      data={field.options.map((option) => ({ value: option, label: option }))}
+                      value={typeof value === "string" ? value : null}
+                      onChange={(next) => setFieldValues((prev) => ({ ...prev, [key]: next ?? "" }))}
+                    />
+                  );
+                }
+
+                if (field.fieldType === "checkbox") {
+                  return (
+                    <Switch
+                      key={field.id}
+                      label={field.label}
+                      checked={Boolean(value)}
+                      onChange={(event) =>
+                        setFieldValues((prev) => ({ ...prev, [key]: event.currentTarget.checked }))
+                      }
+                    />
+                  );
+                }
+
+                if (field.fieldType === "number") {
+                  return (
+                    <NumberInput
+                      key={field.id}
+                      label={field.label}
+                      required={field.isRequired}
+                      value={typeof value === "number" ? value : undefined}
+                      onChange={(next) =>
+                        setFieldValues((prev) => ({ ...prev, [key]: typeof next === "number" ? next : "" }))
+                      }
+                    />
+                  );
+                }
+
+                return (
+                  <TextInput
+                    key={field.id}
+                    label={field.label}
+                    required={field.isRequired}
+                    value={String(value ?? "")}
+                    onChange={(event) =>
+                      setFieldValues((prev) => ({ ...prev, [key]: event.currentTarget.value }))
+                    }
+                  />
+                );
+              })}
+
+              <Textarea
+                label="Notes (optional)"
+                value={notes}
+                onChange={(event) => setNotes(event.currentTarget.value)}
               />
-            );
-          })}
 
-          <Textarea
-            label="Notes (optional)"
-            value={notes}
-            onChange={(event) => setNotes(event.currentTarget.value)}
-          />
-
-          <Group justify="flex-end">
-            <Button variant="default" onClick={closeModal}>Cancel</Button>
-            <Button onClick={handleSubmit} loading={isPending}>Submit registration</Button>
-          </Group>
+              <Group justify="flex-end">
+                <Button variant="default" onClick={closeModal} disabled={busy}>Cancel</Button>
+                <Button onClick={handleSubmit} loading={isPending}>Submit registration</Button>
+              </Group>
+            </>
+          )}
         </Stack>
       </Modal>
     </Paper>

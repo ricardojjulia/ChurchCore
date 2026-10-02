@@ -4,7 +4,16 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
 import { resolveRegistrationLifecycle } from "@/lib/event-registration-lifecycle";
-import { createEventRegistrationPaymentIntent, stubPaymentIntentId } from "@/lib/stripe/event-registrations";
+import {
+  EVENT_PAYMENT_START_FAILED,
+  cancelUnpaidRegistration,
+  eventPaymentReadiness,
+  removeUnstartedRegistration,
+  startRegistrationPayment,
+  type CancelUnpaidRegistrationResult,
+  type RegistrationCheckout,
+} from "@/lib/event-registration-payment";
+import { createEventRegistrationPaymentIntent } from "@/lib/stripe/event-registrations";
 import { getRequestedPublicChurch } from "@/lib/public-portal-data";
 import { isRateLimited } from "@/lib/rate-limit";
 import {
@@ -42,6 +51,8 @@ export type SubmitPublicEventRegistrationResult = {
   registrationId?: string | null;
   paymentIntentId?: string | null;
   paymentClientSecret?: string | null;
+  /** Stripe's card form for a live paid registration (G3.0c). */
+  checkout?: RegistrationCheckout | null;
   error?: string;
 };
 
@@ -373,6 +384,14 @@ export async function submitPublicEventRegistrationAction(
     priceCents: settings.price_cents ?? 0,
   });
 
+  // A paid registration is taken only when the church can take the payment
+  // (G3.0c, Council Review 35): nobody is left registered owing a payment
+  // they have no way to make.
+  if (paymentStatus === "pending") {
+    const readiness = await eventPaymentReadiness(churchId);
+    if (!readiness.ok) return { ok: false, error: readiness.error };
+  }
+
   const { data, error } = await supabase.from("event_registrations").insert({
     church_id: churchId,
     event_id: eventId,
@@ -393,52 +412,26 @@ export async function submitPublicEventRegistrationAction(
   }
 
   if (paymentStatus === "pending" && data?.id) {
-    const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
-    let paymentIntent:
-      | Awaited<ReturnType<typeof createEventRegistrationPaymentIntent>>
-      | null = null;
-    if (!demoMode) {
-      try {
-        paymentIntent = await createEventRegistrationPaymentIntent({
-          amountCents: settings.price_cents ?? 0,
-          currency: settings.currency,
-          churchId,
-          eventId,
-          registrationId: data.id,
-          registrantEmail,
-          registrantName,
-        });
-      } catch {
-        paymentIntent = null;
-      }
-    }
-
-    // Demo mode records the stub id, the only one the demo payment route
-    // completes (S4); a different id left demo payments uncompletable.
-    const intentId = paymentIntent?.paymentIntentId ?? (demoMode ? stubPaymentIntentId(data.id) : null);
-
-    const { error: paymentRowError } = await supabase.from("event_registration_payments").upsert(
-      {
-        registration_id: data.id,
-        event_id: eventId,
-        church_id: churchId,
-        provider: "stripe",
-        status: "pending",
-        amount_cents: settings.price_cents ?? 0,
-        currency: settings.currency ?? "usd",
-        payment_intent_id: intentId,
-        // The church account it's charged on, for refunds (ADR 0025).
-        stripe_account_id: paymentIntent?.stripeAccount ?? null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "registration_id" },
-    );
-    if (paymentRowError) {
-      // Without its payment row a paid registration could never be paid:
-      // undo it so the visitor can simply try again.
-      console.error("[public-registration] Payment row failed:", paymentRowError.message);
-      await supabase.from("event_registrations").delete().eq("id", data.id).eq("church_id", churchId);
-      return { ok: false, error: "Couldn't complete your registration. Please try again." };
+    let payment: Awaited<ReturnType<typeof startRegistrationPayment>>;
+    try {
+      payment = await startRegistrationPayment(supabase, {
+        churchId,
+        eventId,
+        registrationId: data.id,
+        amountCents: settings.price_cents ?? 0,
+        currency: settings.currency,
+        registrantEmail,
+        registrantName,
+      });
+    } catch (paymentError) {
+      // Stripe or the payment row failed: undo the registration so the
+      // visitor can simply try again, rather than leave one nobody can pay.
+      console.error(
+        "[public-registration] Starting the payment failed:",
+        paymentError instanceof Error ? paymentError.message : paymentError,
+      );
+      await removeUnstartedRegistration(supabase, churchId, data.id);
+      return { ok: false, error: EVENT_PAYMENT_START_FAILED };
     }
 
     revalidatePath(`/portal/events/register?church=${encodeURIComponent(churchId)}`);
@@ -446,11 +439,26 @@ export async function submitPublicEventRegistrationAction(
       ok: true,
       status,
       registrationId: data.id,
-      ...(intentId ? { paymentIntentId: intentId } : {}),
-      ...(paymentIntent ? { paymentClientSecret: paymentIntent.clientSecret } : {}),
+      paymentIntentId: payment.paymentIntentId,
+      ...(payment.checkout ? { paymentClientSecret: payment.checkout.clientSecret, checkout: payment.checkout } : {}),
     };
   }
 
   revalidatePath(`/portal/events/register?church=${encodeURIComponent(churchId)}`);
   return { ok: true, status, registrationId: data.id };
+}
+
+/**
+ * The visitor left the card step without paying (G3.0c): cancel the
+ * PaymentIntent and the registration, freeing its place. The visitor is
+ * signed out, so the proof is holding both the registration id and its
+ * PaymentIntent id, which only the registrant's browser was given; and it
+ * acts only while that registration's payment is still pending.
+ */
+export async function cancelUnpaidPublicRegistrationAction(
+  registrationId: string,
+  paymentIntentId: string,
+): Promise<CancelUnpaidRegistrationResult> {
+  if (!registrationId || !paymentIntentId) return { ok: true, cancelled: false };
+  return cancelUnpaidRegistration(createTenantAdminClient(), { registrationId, paymentIntentId });
 }

@@ -2301,6 +2301,7 @@
     "app/app/member-actions.ts": {
       "module": "app/app/member-actions.ts",
       "exports": [
+        "cancelUnpaidMemberRegistrationAction",
         "memberMobileCheckInAction",
         "memberRegisterForEventAction"
       ],
@@ -2433,6 +2434,7 @@
     "app/portal/actions.ts": {
       "module": "app/portal/actions.ts",
       "exports": [
+        "cancelUnpaidPublicRegistrationAction",
         "submitPortalAccountRequestAction",
         "submitPublicEventRegistrationAction"
       ],

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   revalidatePathMock,
@@ -59,7 +59,7 @@ vi.mock("@/lib/supabase/tenant", () => ({
   shouldUseLocalTenantFallback: shouldUseLocalTenantFallbackMock,
 }));
 
-import { submitPublicEventRegistrationAction } from "@/app/portal/actions";
+import { cancelUnpaidPublicRegistrationAction, submitPublicEventRegistrationAction } from "@/app/portal/actions";
 
 describe("submitPublicEventRegistrationAction", () => {
   beforeEach(() => {
@@ -204,7 +204,7 @@ function publicRegistrationClient(options: {
         };
   const chain = (result: unknown) => {
     const builder: Record<string, unknown> = {};
-    for (const method of ["select", "eq", "ilike", "neq", "in"]) builder[method] = () => builder;
+    for (const method of ["select", "eq", "ilike", "neq", "in", "is"]) builder[method] = () => builder;
     builder.maybeSingle = async () => result;
     builder.single = async () => result;
     builder.then = (resolve: (value: unknown) => void) => resolve(result);
@@ -368,14 +368,61 @@ describe("submitPublicEventRegistrationAction on Supabase (S10)", () => {
     errorSpy.mockRestore();
   });
 
-  it("undoes a paid registration whose payment row couldn't be written", async () => {
+  it("undoes a paid registration whose payment couldn't be started", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const fake = publicRegistrationClient({ settings: { price_cents: 2500 }, paymentError: { message: "insert failed" } });
     createTenantAdminClientMock.mockReturnValue(fake.client);
 
-    expect(await register()).toEqual({ ok: false, error: "Couldn't complete your registration. Please try again." });
+    expect(await register()).toEqual({
+      ok: false,
+      error: "Couldn't start the payment for this registration. Please try again.",
+    });
     expect(fake.deletes).toEqual(["id=reg-123", "church_id=church-1"]);
     errorSpy.mockRestore();
+  });
+
+  describe("a paid event at a church that can't take payments (G3.0c, Council Review 35)", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("refuses before writing anything when the church hasn't connected Stripe", async () => {
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "");
+      vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_platform");
+      vi.stubEnv("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", "pk_test_platform");
+      vi.stubEnv("STRIPE_CONNECT_CLIENT_ID", "ca_platform");
+      // The fake has no church_payment_accounts row: not connected.
+      const fake = publicRegistrationClient({ settings: { price_cents: 2500 } });
+      createTenantAdminClientMock.mockReturnValue(fake.client);
+
+      expect(await register()).toEqual({
+        ok: false,
+        error: "This event takes payment online, but online payment isn't set up for this church yet. Please contact the church office to register.",
+      });
+      expect(fake.inserts).toHaveLength(0);
+      expect(fake.upserts).toHaveLength(0);
+    });
+
+    it("refuses in production without Stripe keys, where payments can't be stubbed", async () => {
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "");
+      vi.stubEnv("STRIPE_SECRET_KEY", "");
+      const fake = publicRegistrationClient({ settings: { price_cents: 2500 } });
+      createTenantAdminClientMock.mockReturnValue(fake.client);
+
+      expect(await register()).toMatchObject({ ok: false });
+      expect(fake.inserts).toHaveLength(0);
+    });
+
+    it("still takes a free registration there", async () => {
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv("STRIPE_SECRET_KEY", "");
+      const fake = publicRegistrationClient();
+      createTenantAdminClientMock.mockReturnValue(fake.client);
+
+      expect(await register()).toMatchObject({ ok: true, status: "confirmed" });
+    });
   });
 
   it("limits how fast one address can register", async () => {
@@ -393,3 +440,33 @@ describe("submitPublicEventRegistrationAction on Supabase (S10)", () => {
   });
 });
 
+
+describe("cancelUnpaidPublicRegistrationAction (G3.0c)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("acts only on the registration and PaymentIntent pair, through the admin client, while the payment is unpaid", async () => {
+    const calls: Array<[string, unknown[]]> = [];
+    const builder: Record<string, unknown> = {};
+    for (const method of ["select", "eq", "neq", "in"]) {
+      builder[method] = (...args: unknown[]) => (calls.push([method, args]), builder);
+    }
+    builder.maybeSingle = async () => ({ data: null, error: null });
+    createTenantAdminClientMock.mockReturnValue({ from: () => builder });
+
+    expect(await cancelUnpaidPublicRegistrationAction("reg-1", "pi_1")).toEqual({ ok: true, cancelled: false });
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        ["eq", ["registration_id", "reg-1"]],
+        ["eq", ["payment_intent_id", "pi_1"]],
+        ["in", ["event_registrations.payment_status", ["pending", "failed"]]],
+      ]),
+    );
+  });
+
+  it("does nothing without both ids", async () => {
+    expect(await cancelUnpaidPublicRegistrationAction("reg-1", "")).toEqual({ ok: true, cancelled: false });
+    expect(createTenantAdminClientMock).not.toHaveBeenCalled();
+  });
+});
