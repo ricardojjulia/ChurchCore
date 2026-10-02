@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Alert, Button, Group, Paper, Stack, Text } from "@mantine/core";
+import { useEffect, useRef, useState } from "react";
+import { Alert, Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import { FlaskConical } from "lucide-react";
 
 import { DonationCardStep } from "@/components/portal/donation-card-step";
@@ -37,6 +37,13 @@ export function RegistrationPaymentStep({
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoError, setDemoError] = useState<string | null>(null);
   const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  // The registration form was just replaced by this step: move focus here so
+  // keyboard and screen reader users land on it (Council Review 36).
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
 
   async function completeDemoPayment() {
     setDemoLoading(true);
@@ -60,7 +67,15 @@ export function RegistrationPaymentStep({
   return (
     <Paper withBorder radius="md" p="md">
       <Stack gap="sm">
-        <Text fw={700}>Pay {payment.amountLabel} to complete your registration</Text>
+        <Title order={3} size="h5" ref={headingRef} tabIndex={-1}>
+          Pay {payment.amountLabel} to complete your registration
+        </Title>
+        <Text size="sm" c="dimmed">
+          Your place is held while you pay.{" "}
+          {payment.checkout
+            ? "Closing this window, or choosing Cancel registration, cancels the registration; you won't be charged."
+            : "Closing this window cancels the registration."}
+        </Text>
         {payment.checkout ? (
           <DonationCardStep
             publishableKey={payment.checkout.publishableKey}
@@ -69,6 +84,7 @@ export function RegistrationPaymentStep({
             amountLabel={payment.amountLabel}
             onPaid={onPaid}
             onCancel={onCancel}
+            cancelLabel="Cancel registration"
           />
         ) : demoMode ? (
           <>

@@ -118,8 +118,11 @@ describe("startRegistrationPayment", () => {
       isStub: false,
       stripeAccount: "acct_church1",
     });
+    mocks.cancelPaymentIntent.mockResolvedValue("canceled");
     const admin = fakeAdmin({ event_registration_payments: [{ error: { message: "boom" } }] });
     await expect(startRegistrationPayment(admin.client, INPUT)).rejects.toThrow(/boom/);
+    // Nobody was given that PaymentIntent: it's cancelled, not left open (Council Review 36).
+    expect(mocks.cancelPaymentIntent).toHaveBeenCalledWith("pi_1", "acct_church1");
   });
 
   it("has no card form for a stubbed payment (no Stripe keys)", async () => {

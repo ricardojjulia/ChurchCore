@@ -92,6 +92,9 @@ describe("PublicEventRegistrationPanel", () => {
     it("says payment comes next, then shows the card form on the church's account in place of the form", async () => {
       renderPanel();
       fireEvent.click(screen.getByRole("button", { name: "Register" }));
+      // Let the modal's own focus trap settle (it focuses on open, in a
+      // timeout), as it has long before anyone finishes typing.
+      await new Promise((resolve) => setTimeout(resolve, 0));
       expect(screen.getByText(/Payment required: \$35.00/)).toBeInTheDocument();
       expect(screen.getByText(/pay by card right after registering/)).toBeInTheDocument();
       fireEvent.change(screen.getByRole("textbox", { name: /Full name/i }), { target: { value: "Public Guest" } });
@@ -114,9 +117,15 @@ describe("PublicEventRegistrationPanel", () => {
       expect(cardStepProps).toHaveBeenCalledWith(
         expect.objectContaining({ publishableKey: "pk_test_1", stripeAccount: "acct_church1", clientSecret: "pi_public_1_secret" }),
       );
-      // No Back from a registration's card step; and the registration form
-      // is gone, so it can't be submitted twice.
+      // No Back from a registration's card step; its cancel says what it
+      // cancels; and the registration form is gone, so it can't be submitted
+      // twice.
       expect(cardStepProps.mock.calls[0][0].onBack).toBeUndefined();
+      expect(cardStepProps.mock.calls[0][0]).toMatchObject({ cancelLabel: "Cancel registration" });
+      // Before choosing, the registrant is told what closing or cancelling does,
+      // and focus lands on the step that replaced the form (Council Review 36).
+      expect(screen.getByText(/Closing this window, or choosing Cancel registration, cancels the registration/)).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Pay $35.00 to complete your registration" })).toHaveFocus();
       expect(screen.queryByRole("button", { name: "Submit registration" })).toBeNull();
     });
 

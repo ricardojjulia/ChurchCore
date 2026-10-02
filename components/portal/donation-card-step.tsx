@@ -32,6 +32,8 @@ type Props = {
   /** Back to the previous step (giving: the amount and fund). Hidden when absent. */
   onBack?: () => void;
   onCancel: () => void;
+  /** The cancel button's label (a registration's says what it cancels). */
+  cancelLabel?: string;
 };
 
 /**
@@ -64,6 +66,7 @@ function CardForm({
   onPaid,
   onBack,
   onCancel,
+  cancelLabel = "Cancel",
 }: Omit<Props, "publishableKey" | "stripeAccount" | "clientSecret">) {
   const stripe = useStripe();
   const elements = useElements();
@@ -122,7 +125,7 @@ function CardForm({
             onClick={onCancel}
             disabled={paying}
           >
-            Cancel
+            {cancelLabel}
           </Button>
           <Button
             color="teal"

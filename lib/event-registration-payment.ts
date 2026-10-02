@@ -83,7 +83,14 @@ export async function startRegistrationPayment(
     },
     { onConflict: "registration_id" },
   );
-  if (error) throw new Error(`Payment row failed: ${error.message}`);
+  if (error) {
+    // The PaymentIntent was never given to anyone; cancel it at Stripe so
+    // nothing is left open there (Council Review 36). Best effort.
+    if (paymentIntent && !paymentIntent.isStub) {
+      await cancelPaymentIntent(paymentIntent.paymentIntentId, paymentIntent.stripeAccount).catch(() => undefined);
+    }
+    throw new Error(`Payment row failed: ${error.message}`);
+  }
 
   const publishableKey = stripePublishableKey();
   const checkout =
