@@ -49,9 +49,16 @@ describe("StripeConnectCard", () => {
     expect(screen.getByText("Connected · setup unfinished")).toBeInTheDocument();
   });
 
-  it("shows the result the connect flow came back with", () => {
+  it("shows the result the connect flow came back with, once: a refresh doesn't show it again (Council Review 35)", () => {
+    window.history.replaceState(null, "", "/app/church-admin/giving?stripe=invalid&tab=gifts");
     renderCard(NOT_CONNECTED, "invalid");
     expect(screen.getByText(/wasn't valid for this church/)).toBeInTheDocument();
+    expect(window.location.pathname + window.location.search).toBe("/app/church-admin/giving?tab=gifts");
+  });
+
+  it("says Stripe's own processing fees still apply", () => {
+    renderCard(NOT_CONNECTED);
+    expect(screen.getByText(/takes no fee; Stripe's standard processing fees apply/)).toBeInTheDocument();
   });
 
   it("asks before disconnecting, and disconnects only on confirm", async () => {

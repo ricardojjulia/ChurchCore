@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Alert, Badge, Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import { CreditCard } from "lucide-react";
 
@@ -36,6 +36,17 @@ export function StripeConnectCard({
   const [isPending, startTransition] = useTransition();
   const message = result ? RESULT_MESSAGES[result] : undefined;
 
+  // The result arrives once, as ?stripe=…; drop it from the address so a
+  // refresh doesn't show a stale banner beside the live status (Council
+  // Review 35).
+  useEffect(() => {
+    if (!result) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("stripe")) return;
+    url.searchParams.delete("stripe");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+  }, [result]);
+
   function disconnect() {
     setError(null);
     startTransition(async () => {
@@ -67,7 +78,7 @@ export function StripeConnectCard({
         </Group>
         <Text fz="sm" c="dimmed">
           Gifts and event payments go straight to your church&apos;s own Stripe account. ChurchCore never holds the
-          money and takes no fee.
+          money and takes no fee; Stripe&apos;s standard processing fees apply.
           {connection.accountHint ? ` Account ${connection.accountHint}.` : ""}
         </Text>
         {message ? (
