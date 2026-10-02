@@ -83,11 +83,15 @@ Set all of the following in Vercel under **Project → Settings → Environment 
 
 | Variable | Description |
 |---|---|
-| `STRIPE_SECRET_KEY` | Stripe secret key (`sk_live_...`) |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key (`pk_live_...`) — the card form (Stripe Elements) loads with this. Online card giving needs **both** this and `STRIPE_SECRET_KEY` set; with only the secret key, the giving page says online giving isn't fully set up (G3.0, Council Review 34). |
-| `STRIPE_WEBHOOK_SECRET` | Webhook signing secret from Stripe (see step 6) |
+| `STRIPE_SECRET_KEY` | Stripe **platform** secret key (`sk_live_...`). It authenticates ChurchCore to Stripe for the OAuth handshake and reading a connected account's status; it never receives a church's money (G3.0b, ADR 0025). |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key (`pk_live_...`) — the card form (Stripe Elements) loads with this, on the church's connected account (`loadStripe(pk, { stripeAccount })`). Online card giving needs this, `STRIPE_SECRET_KEY`, and the church having connected its own Stripe account (below); with only the secret key, the giving page says online giving isn't fully set up (G3.0, Council Review 34). |
+| `STRIPE_WEBHOOK_SECRET` | Webhook signing secret for the **platform's own** webhook endpoint, from Stripe (see step 6). Still required — the platform-key path (demo stubs, a pre-Connect test row) and the standard Stripe webhook events are verified against this secret. |
+| `STRIPE_CONNECT_CLIENT_ID` | Connect OAuth client id (`ca_...`), from **Stripe Dashboard → Connect → Settings → OAuth settings**. Required for a church to connect its own account at all. |
+| `STRIPE_CONNECT_WEBHOOK_SECRET` | Signing secret for a **separate** webhook endpoint subscribed to events *from connected accounts* (see §7, "Connect webhook," below). |
 
-**Every church's gifts currently go to the single Stripe account above — per-church payment routing (Stripe Connect) is tracked as `DEVELOPMENT_PLAN.md` row G3.0b, not yet built.**
+**Each church connects its own Stripe account (Stripe Connect, Standard accounts, direct charges — G3.0b, ADR 0025) before its online giving or paid event registration goes live.** A church admin does this from `/app/church-admin/giving` ("Connect with Stripe"); until a church connects and Stripe reports it can take charges, that church's giving and paid registration pages say online payment isn't set up. There is no platform-account fallback — a church's gifts are never charged to the account above. See `docs/adr/0025-stripe-connect-standard-direct-charges.md`.
+
+**Before announcing live giving on this deploy (owner action O7, `DEVELOPMENT_PLAN.md` §0.3):** register the OAuth redirect URI below at Stripe, set `STRIPE_CONNECT_CLIENT_ID` and `STRIPE_CONNECT_WEBHOOK_SECRET`, and run one test-mode connect → give → confirm cycle with a real connected account. No automated test exercises real Stripe.
 
 ### Communications
 
@@ -178,6 +182,23 @@ If these are not set, push notification dispatch is skipped gracefully and all o
 7. Copy the `whsec_...` value and set it as `STRIPE_WEBHOOK_SECRET` in Vercel environment variables.
 8. Redeploy so the new variable takes effect.
 9. Use the Stripe Dashboard **Send test webhook** button to verify each event type returns `200`.
+
+### Connect webhook (for connected accounts, G3.0b/ADR 0025)
+
+A church's own payments arrive as events *from its connected account*, which Stripe signs with a separate Connect endpoint's secret, not the platform endpoint's above.
+
+1. In the same **Developers → Webhooks** screen, click **Add endpoint** again.
+2. Set the endpoint URL to the same route — `https://<your-production-domain>/api/webhooks/stripe` — but under **Listen to events on Connected accounts** (the toggle near the top of the "Add endpoint" form), not your own account.
+3. Select these events:
+   - `payment_intent.succeeded`
+   - `payment_intent.payment_failed`
+   - `charge.refunded`
+   - `customer.subscription.deleted`
+   - `account.updated`
+   - `account.application.deauthorized`
+4. Reveal its signing secret and set it as `STRIPE_CONNECT_WEBHOOK_SECRET` in Vercel environment variables, then redeploy.
+5. Also register the OAuth redirect URI under **Connect → Settings → OAuth settings**: `https://<your-production-domain>/api/stripe/connect/callback`.
+6. This can only be fully tested with a real connected account in Stripe test mode (owner action O7, `DEVELOPMENT_PLAN.md` §0.3) — no automated test exercises real Stripe.
 
 ---
 

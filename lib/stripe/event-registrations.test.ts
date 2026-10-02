@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { getChurchStripeAccountMock } = vi.hoisted(() => ({ getChurchStripeAccountMock: vi.fn() }));
+vi.mock("@/lib/stripe/connect", () => ({ getChurchStripeAccount: getChurchStripeAccountMock }));
 
 import { createEventRegistrationPaymentIntent, stubPaymentIntentId } from "@/lib/stripe/event-registrations";
 
@@ -7,6 +10,10 @@ import { createEventRegistrationPaymentIntent, stubPaymentIntentId } from "@/lib
 // rejects. Pin the request it actually sends.
 
 describe("createEventRegistrationPaymentIntent's request to Stripe", () => {
+  beforeEach(() => {
+    getChurchStripeAccountMock.mockReset();
+    getChurchStripeAccountMock.mockResolvedValue({ accountId: "acct_church1", chargesEnabled: true, detailsSubmitted: true });
+  });
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
@@ -27,11 +34,26 @@ describe("createEventRegistrationPaymentIntent's request to Stripe", () => {
       registrationId: "reg-1",
     });
 
-    expect(result).toEqual({ clientSecret: "pi_9_secret", paymentIntentId: "pi_9", isStub: false });
+    expect(result).toEqual({ clientSecret: "pi_9_secret", paymentIntentId: "pi_9", isStub: false, stripeAccount: "acct_church1" });
+    // Charged on the church's own account (ADR 0025).
+    expect((fetchMock.mock.calls[0][1]?.headers as Record<string, string>)["Stripe-Account"]).toBe("acct_church1");
     const body = new URLSearchParams(String(fetchMock.mock.calls[0][1]?.body));
     expect(body.getAll("payment_method_types[]")).toEqual(["card"]);
     expect(body.has("automatic_payment_methods")).toBe(false);
     expect(body.get("metadata[event_registration_id]")).toBe("reg-1");
+  });
+
+  it("refuses to charge, and never calls Stripe, for a church that hasn't connected or can't take charges yet", async () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_123");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const input = { amountCents: 2500, currency: "usd", churchId: "church-1", eventId: "event-1", registrationId: "reg-1" };
+
+    getChurchStripeAccountMock.mockResolvedValueOnce(null);
+    await expect(createEventRegistrationPaymentIntent(input)).rejects.toThrow();
+    getChurchStripeAccountMock.mockResolvedValueOnce({ accountId: "acct_church1", chargesEnabled: false, detailsSubmitted: true });
+    await expect(createEventRegistrationPaymentIntent(input)).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("without Stripe keys, returns the stub id the demo payment route completes", async () => {

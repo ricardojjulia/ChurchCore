@@ -68,12 +68,15 @@ export function DonorPortal({
   data,
   givingNotice = null,
   publishableKey = null,
+  stripeAccount = null,
 }: {
   data: DonorPortalData;
   /** Why online giving is off right now, or null when a member can give (Council Review 22). */
   givingNotice?: string | null;
   /** Stripe's publishable key, for the card step (G3.0); null in stub mode. */
   publishableKey?: string | null;
+  /** The church's connected account the card form confirms on (G3.0b). */
+  stripeAccount?: string | null;
 }) {
   const { donations, totalGiven } = data;
 
@@ -186,7 +189,7 @@ export function DonorPortal({
         if (!result.isStub) {
           // Live: the member pays in the card step; nothing is recorded as
           // paid until Stripe says so.
-          if (!publishableKey) {
+          if (!publishableKey || !stripeAccount) {
             notifications.show({ title: "Couldn't start your gift", message: "Card payments aren't available right now.", color: "red" });
             return;
           }
@@ -390,13 +393,14 @@ export function DonorPortal({
         size="md"
         radius="lg"
       >
-        {checkout && publishableKey ? (
+        {checkout && publishableKey && stripeAccount ? (
           <Stack gap="md" p="md">
             <Text fw={600}>
               {formatCents(checkout.cents)} to {checkout.fund}
             </Text>
             <DonationCardStep
               publishableKey={publishableKey}
+              stripeAccount={stripeAccount}
               clientSecret={checkout.clientSecret}
               amountLabel={formatCents(checkout.cents)}
               onPaid={handlePaid}

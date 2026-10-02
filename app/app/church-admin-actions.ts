@@ -1677,6 +1677,8 @@ export async function registerForEventAction(
         amount_cents: settings?.price_cents ?? 0,
         currency: settings?.currency ?? "usd",
         payment_intent_id: paymentIntent?.paymentIntentId ?? null,
+        // The church account it's charged on, for refunds (ADR 0025).
+        stripe_account_id: paymentIntent?.stripeAccount ?? null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "registration_id" },
@@ -2037,6 +2039,7 @@ export async function initiateRegistrationRefundAction(
     try {
       result = await createRefund({
         paymentIntentId: paymentRecord.payment_intent_id,
+        churchId,
         amountCents: input.amountCents,
         reason: input.reason,
       });
@@ -2110,7 +2113,7 @@ export async function initiateRegistrationRefundAction(
 
   const { data: payData } = await supabase
     .from('event_registration_payments')
-    .select('payment_intent_id, amount_cents')
+    .select('payment_intent_id, amount_cents, stripe_account_id')
     .eq('registration_id', input.registrationId)
     .eq('church_id', churchId)
     .maybeSingle();
@@ -2126,6 +2129,9 @@ export async function initiateRegistrationRefundAction(
   try {
     result = await createRefund({
       paymentIntentId: payData.payment_intent_id,
+      // Refunded on the account it was charged on (ADR 0025).
+      churchId,
+      stripeAccount: payData.stripe_account_id ?? null,
       amountCents: input.amountCents,
       reason: input.reason,
     });

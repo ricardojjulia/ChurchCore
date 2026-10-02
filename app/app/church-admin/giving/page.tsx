@@ -8,11 +8,12 @@ import {
   getGivingReadinessData,
 } from "@/lib/donations-data";
 import { getFinanceAccounts } from "@/lib/finance-data";
+import { getChurchPaymentConnection } from "@/lib/stripe/connect";
 
 export default async function ChurchAdminGivingPage({
   searchParams = Promise.resolve({}),
 }: {
-  searchParams?: Promise<{ view?: string }>;
+  searchParams?: Promise<{ view?: string; stripe?: string }>;
 } = {}) {
   const session = await requireChurchSession("/app/church-admin/giving");
 
@@ -20,13 +21,14 @@ export default async function ChurchAdminGivingPage({
     redirect(session.homePath);
   }
 
-  const { view } = await searchParams;
+  const { view, stripe } = await searchParams;
   const readinessView = view === "exceptions";
 
-  const [analytics, mappings, accounts] = await Promise.all([
+  const [analytics, mappings, accounts, paymentConnection] = await Promise.all([
     getGivingAnalyticsData(session),
     getFundMappings(session),
     getFinanceAccounts(session),
+    getChurchPaymentConnection(session.appContext.church.id),
   ]);
   const readiness = readinessView ? await getGivingReadinessData(session) : null;
 
@@ -37,6 +39,8 @@ export default async function ChurchAdminGivingPage({
       mappings={mappings}
       accounts={accounts}
       readiness={readiness}
+      paymentConnection={paymentConnection}
+      stripeResult={stripe ?? null}
     />
   );
 }

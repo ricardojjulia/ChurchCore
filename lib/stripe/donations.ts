@@ -16,22 +16,27 @@
 import { stubsAllowed } from "@/lib/stub-mode";
 
 import { stripeRequest, hasStripeConfig } from "./client";
+import { accountForExistingPayment, getChurchStripeAccount, stripeConnectClientId } from "./connect";
 
 /**
- * Whether a member can give online right now (Council Review 22).
+ * Whether a member can give online right now (Council Review 22, G3.0,
+ * G3.0b).
  *
  * - `"stub"`: no Stripe keys, outside production or in demo mode. Gifts are
  *   recorded as succeeded without charging anyone — for local development
  *   and the demo only.
  * - `"unconfigured"`: no Stripe keys in production. Online giving is off;
  *   nothing may be recorded as paid.
- * - `"unavailable"`: the Stripe secret key is set but the publishable key
- *   (NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) isn't, so the card form can't load
- *   and a PaymentIntent could never be paid. No row or PaymentIntent is made.
- * - `"live"`: both keys are set. The member pays with the card form (Stripe
- *   Elements, G3.0); the webhook is the source of truth.
+ * - `"unavailable"`: the platform's Stripe setup is incomplete (the secret
+ *   key is set, but the publishable key or the Connect client id isn't). No
+ *   row or PaymentIntent is made.
+ * - `"not_connected"`: the platform is ready but this church hasn't connected
+ *   its Stripe account, or Stripe isn't letting it take charges yet. Gifts go
+ *   only to the church's own account (ADR 0025), so giving is off.
+ * - `"live"`: the church's account is connected and can take charges; the
+ *   member pays with the card form, charged directly on that account.
  */
-export type OnlineGivingMode = "stub" | "unconfigured" | "unavailable" | "live";
+export type OnlineGivingMode = "stub" | "unconfigured" | "unavailable" | "not_connected" | "live";
 
 /** The key the browser's card form loads Stripe with, or null when unset. */
 export function stripePublishableKey(): string | null {
@@ -43,23 +48,53 @@ export function stubPaymentsAllowed(): boolean {
   return stubsAllowed();
 }
 
-export function onlineGivingMode(): OnlineGivingMode {
-  if (hasStripeConfig()) return stripePublishableKey() ? "live" : "unavailable";
+/** The platform-wide mode, before looking at any church's account. */
+export function platformGivingMode(): "stub" | "unconfigured" | "unavailable" | "ready" {
+  if (hasStripeConfig()) return stripePublishableKey() && stripeConnectClientId() ? "ready" : "unavailable";
   return stubPaymentsAllowed() ? "stub" : "unconfigured";
+}
+
+export type OnlineGivingStatus = {
+  mode: OnlineGivingMode;
+  /** The church's connected account, in live mode only. */
+  stripeAccount: string | null;
+};
+
+/**
+ * Whether this church can take online gifts, and on which Stripe account.
+ * `churchId` must come from the server-side session.
+ */
+export async function onlineGivingStatus(churchId: string): Promise<OnlineGivingStatus> {
+  const platform = platformGivingMode();
+  if (platform !== "ready") return { mode: platform, stripeAccount: null };
+  const account = await getChurchStripeAccount(churchId);
+  return account?.chargesEnabled
+    ? { mode: "live", stripeAccount: account.accountId }
+    : { mode: "not_connected", stripeAccount: null };
 }
 
 /**
  * Why a member can't give online right now, or null when they can. Shown up
  * front on the giving page and returned by `initiateDonationAction`.
  */
-export function onlineGivingNotice(mode: OnlineGivingMode = onlineGivingMode()): string | null {
-  if (mode === "unconfigured") {
+export function onlineGivingNotice(mode: OnlineGivingMode): string | null {
+  if (mode === "unconfigured" || mode === "not_connected") {
     return "Online giving isn't set up for this church yet. Please give in person or contact the church office.";
   }
   if (mode === "unavailable") {
-    return "Online card giving isn't fully set up for this church yet. Please give in person or contact the church office.";
+    return "Online card giving isn't fully set up yet. Please give in person or contact the church office.";
   }
   return null;
+}
+
+/**
+ * The connected account a live Stripe call must act on (ADR 0025): refusing
+ * rather than falling back to the platform account, where the church's money
+ * must never land.
+ */
+function churchAccount(stripeAccount: string | null | undefined): { stripeAccount: string } {
+  if (!stripeAccount) throw new Error("This church has no connected Stripe account (ADR 0025).");
+  return { stripeAccount };
 }
 
 export interface CreatePaymentIntentInput {
@@ -74,6 +109,8 @@ export interface CreatePaymentIntentInput {
   churchId: string;
   /** Our donations row id, so the webhook can find the row (S8). */
   donationId?: string;
+  /** The church's connected account the gift is charged on (ADR 0025). */
+  stripeAccount?: string | null;
 }
 
 export interface CreatePaymentIntentResult {
@@ -117,6 +154,7 @@ export async function createPaymentIntent(
     "POST",
     "/payment_intents",
     body,
+    churchAccount(input.stripeAccount),
   );
 
   return {
@@ -130,6 +168,8 @@ export interface CreateOrGetStripeCustomerInput {
   email: string;
   name?: string;
   churchId: string;
+  /** Customers live on the church's connected account (ADR 0025). */
+  stripeAccount?: string | null;
 }
 
 export async function createOrGetStripeCustomer(
@@ -141,17 +181,23 @@ export async function createOrGetStripeCustomer(
   }
 
   // Search by email first to avoid duplicates
+  const onAccount = churchAccount(input.stripeAccount);
   const search = await stripeRequest<{
     data: Array<{ id: string }>;
-  }>("GET", `/customers/search?query=email:'${encodeURIComponent(input.email)}'&limit=1`);
+  }>("GET", `/customers/search?query=email:'${encodeURIComponent(input.email)}'&limit=1`, undefined, onAccount);
 
   if (search.data.length > 0) return search.data[0].id;
 
-  const customer = await stripeRequest<{ id: string }>("POST", "/customers", {
-    email: input.email,
-    name: input.name,
-    "metadata[church_id]": input.churchId,
-  });
+  const customer = await stripeRequest<{ id: string }>(
+    "POST",
+    "/customers",
+    {
+      email: input.email,
+      name: input.name,
+      "metadata[church_id]": input.churchId,
+    },
+    onAccount,
+  );
 
   return customer.id;
 }
@@ -163,12 +209,19 @@ export interface CancelSubscriptionResult {
 
 export async function cancelStripeSubscription(
   subscriptionId: string,
+  churchId: string,
+  stripeAccount: string | null,
 ): Promise<CancelSubscriptionResult> {
   if (!hasStripeConfig()) return { cancelled: true, isStub: true };
 
-  await stripeRequest("POST", `/subscriptions/${subscriptionId}/cancel`, {
-    cancellation_details: "customer_requested",
-  });
+  // On the account it was created on, while still connected (ADR 0025).
+  const account = await accountForExistingPayment(churchId, stripeAccount);
+  await stripeRequest(
+    "POST",
+    `/subscriptions/${subscriptionId}/cancel`,
+    { cancellation_details: "customer_requested" },
+    { stripeAccount: account },
+  );
 
   return { cancelled: true, isStub: false };
 }
@@ -179,9 +232,17 @@ export async function cancelStripeSubscription(
  * STRIPE_SECRET_KEY every payment counts as succeeded only where stubs are
  * allowed (never in production outside demo mode).
  */
-export async function retrievePaymentIntentStatus(paymentIntentId: string): Promise<string> {
+export async function retrievePaymentIntentStatus(
+  paymentIntentId: string,
+  stripeAccount?: string | null,
+): Promise<string> {
   if (!hasStripeConfig()) return stubPaymentsAllowed() ? "succeeded" : "unconfigured";
-  const pi = await stripeRequest<{ status: string }>("GET", `/payment_intents/${encodeURIComponent(paymentIntentId)}`);
+  const pi = await stripeRequest<{ status: string }>(
+    "GET",
+    `/payment_intents/${encodeURIComponent(paymentIntentId)}`,
+    undefined,
+    churchAccount(stripeAccount),
+  );
   return pi.status;
 }
 
@@ -191,18 +252,20 @@ export async function retrievePaymentIntentStatus(paymentIntentId: string): Prom
  * already succeeded or is processing, Stripe refuses to cancel and the gift
  * must not be marked cancelled.
  */
-export async function cancelPaymentIntent(paymentIntentId: string): Promise<string> {
+export async function cancelPaymentIntent(paymentIntentId: string, stripeAccount?: string | null): Promise<string> {
   if (!hasStripeConfig()) return "canceled";
+  const onAccount = churchAccount(stripeAccount);
   try {
     const pi = await stripeRequest<{ status: string }>(
       "POST",
       `/payment_intents/${encodeURIComponent(paymentIntentId)}/cancel`,
       { cancellation_reason: "abandoned" },
+      onAccount,
     );
     return pi.status;
   } catch {
     // Not cancellable (already succeeded, processing, or canceled): report
     // its real status instead.
-    return retrievePaymentIntentStatus(paymentIntentId);
+    return retrievePaymentIntentStatus(paymentIntentId, onAccount.stripeAccount);
   }
 }

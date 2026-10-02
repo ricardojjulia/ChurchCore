@@ -9,6 +9,7 @@ import {
   createOrGetStripeCustomer,
   createPaymentIntent,
   onlineGivingNotice,
+  onlineGivingStatus,
   retrievePaymentIntentStatus,
 } from "@/lib/stripe/donations";
 import { postDonationToGl, sendDonationReceipt } from "@/lib/stripe/donation-completion";
@@ -71,8 +72,11 @@ export async function initiateDonationAction(
   if (!Number.isInteger(input.amountCents) || input.amountCents <= 0 || input.amountCents > MAX_DONATION_CENTS) {
     return { ok: false, error: "Enter a gift amount between $0.01 and $100,000." };
   }
-  const givingOff = onlineGivingNotice();
+  // Live only on the church's own connected Stripe account (ADR 0025).
+  const giving = await onlineGivingStatus(churchId);
+  const givingOff = onlineGivingNotice(giving.mode);
   if (givingOff) return { ok: false, error: givingOff };
+  const stripeAccount = giving.stripeAccount;
 
   const anonymous = input.isAnonymous ?? false;
   const supabase = createTenantAdminClient();
@@ -88,6 +92,7 @@ export async function initiateDonationAction(
       is_anonymous: anonymous,
       status: "pending",
       note: input.note ?? null,
+      stripe_account_id: stripeAccount,
     })
     .select("id")
     .single();
@@ -104,6 +109,7 @@ export async function initiateDonationAction(
         email: input.donorEmail,
         name: input.donorName,
         churchId,
+        stripeAccount,
       });
     }
     const pi = await createPaymentIntent({
@@ -114,6 +120,7 @@ export async function initiateDonationAction(
       donorName: anonymous ? undefined : input.donorName,
       churchId,
       donationId,
+      stripeAccount,
     });
     const { error: linkError } = await supabase
       .from("donations")
@@ -146,21 +153,25 @@ async function giftOwnership(
   session: Awaited<ReturnType<typeof requireChurchSession>>,
   donationId: string,
   paymentIntentId: string,
-): Promise<"owner" | "other" | "missing" | "error"> {
+): Promise<{ result: "owner" | "other" | "missing" | "error"; stripeAccount: string | null }> {
   const { data, error } = await createTenantAdminClient()
     .from("donations")
-    .select("profile_id")
+    .select("profile_id, stripe_account_id")
     .eq("id", donationId)
     .eq("church_id", session.appContext.church.id)
     .eq("stripe_payment_intent_id", paymentIntentId)
     .maybeSingle();
   if (error) {
     console.error("Failed to read the gift:", error.message);
-    return "error";
+    return { result: "error", stripeAccount: null };
   }
-  if (!data) return "missing";
-  const giver = (data as { profile_id: string | null }).profile_id;
-  return !giver || giver === session.churchProfileId ? "owner" : "other";
+  if (!data) return { result: "missing", stripeAccount: null };
+  const row = data as { profile_id: string | null; stripe_account_id: string | null };
+  return {
+    result: !row.profile_id || row.profile_id === session.churchProfileId ? "owner" : "other",
+    // The account the gift was charged on (ADR 0025).
+    stripeAccount: row.stripe_account_id,
+  };
 }
 
 /**
@@ -179,13 +190,13 @@ export async function confirmDonationAction(
   const churchId = session.appContext.church.id;
 
   const ownership = await giftOwnership(session, donationId, paymentIntentId);
-  if (ownership === "error") return { ok: false, error: "Couldn't check your gift. Please try again." };
-  if (ownership === "other") return { ok: false, error: "This gift isn't yours to confirm." };
-  if (ownership === "missing") return { ok: true };
+  if (ownership.result === "error") return { ok: false, error: "Couldn't check your gift. Please try again." };
+  if (ownership.result === "other") return { ok: false, error: "This gift isn't yours to confirm." };
+  if (ownership.result === "missing") return { ok: true };
 
   let status: string;
   try {
-    status = await retrievePaymentIntentStatus(paymentIntentId);
+    status = await retrievePaymentIntentStatus(paymentIntentId, ownership.stripeAccount);
   } catch (error) {
     console.error("Failed to check the payment with Stripe:", error);
     return { ok: false, error: "Couldn't check your payment. Please try again." };
@@ -255,7 +266,7 @@ export async function cancelPendingDonationAction(
 
   const { data: pending, error: readError } = await supabase
     .from("donations")
-    .select("id, profile_id")
+    .select("id, profile_id, stripe_account_id")
     .eq("id", donationId)
     .eq("church_id", churchId)
     .eq("stripe_payment_intent_id", paymentIntentId)
@@ -275,7 +286,10 @@ export async function cancelPendingDonationAction(
 
   let stripeStatus: string;
   try {
-    stripeStatus = await cancelPaymentIntent(paymentIntentId);
+    stripeStatus = await cancelPaymentIntent(
+      paymentIntentId,
+      (pending as { stripe_account_id: string | null }).stripe_account_id,
+    );
   } catch (error) {
     console.error("Failed to cancel the Stripe payment:", error);
     return { ok: false, cancelled: false, error: "Couldn't cancel the gift. Please try again." };
@@ -316,15 +330,25 @@ export async function cancelRecurringDonationAction(
   const supabase = createTenantAdminClient();
   const { data } = await supabase
     .from("donations")
-    .select("stripe_subscription_id")
+    .select("stripe_subscription_id, stripe_account_id")
     .eq("id", donationId)
     .eq("church_id", churchId)
     .eq("profile_id", profileId)
     .maybeSingle();
   if (!data) return { ok: false, error: "That gift isn't yours to cancel." };
 
-  const subscriptionId = (data as { stripe_subscription_id: string | null }).stripe_subscription_id;
-  if (subscriptionId) await cancelStripeSubscription(subscriptionId);
+  const gift = data as { stripe_subscription_id: string | null; stripe_account_id: string | null };
+  const subscriptionId = gift.stripe_subscription_id;
+  if (subscriptionId) {
+    try {
+      await cancelStripeSubscription(subscriptionId, churchId, gift.stripe_account_id);
+    } catch (error) {
+      // Includes a gift on a Stripe account the church has since
+      // disconnected: only the church can stop it now (ADR 0025).
+      console.error("Couldn't cancel the recurring gift at Stripe:", error instanceof Error ? error.message : error);
+      return { ok: false, error: "Couldn't stop your recurring gift. Please contact the church office." };
+    }
+  }
 
   const { error } = await supabase
     .from("donations")

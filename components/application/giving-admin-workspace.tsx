@@ -3,6 +3,7 @@
 import { Tabs } from "@mantine/core";
 import { BarChart2, DollarSign, Link2, Settings } from "lucide-react";
 
+import { StripeConnectCard } from "@/components/application/stripe-connect-card";
 import { ApplicationShell } from "@/components/application/app-shell";
 import {
   FundMappingPanel,
@@ -18,6 +19,7 @@ import type {
   GivingReadinessData,
 } from "@/lib/donations-data";
 import type { FinanceAccount } from "@/lib/finance-types";
+import type { ChurchPaymentConnection } from "@/lib/stripe/connect";
 
 export function GivingAdminWorkspace({
   session,
@@ -25,12 +27,18 @@ export function GivingAdminWorkspace({
   mappings,
   accounts,
   readiness,
+  paymentConnection = null,
+  stripeResult = null,
 }: {
   session: ChurchAppSession;
   analytics: GivingAnalyticsData;
   mappings: FundMapping[];
   accounts: FinanceAccount[];
   readiness: GivingReadinessData | null;
+  /** The church's Stripe Connect status (G3.0b). */
+  paymentConnection?: ChurchPaymentConnection | null;
+  /** `?stripe=` from the connect flow. */
+  stripeResult?: string | null;
 }) {
   const { t } = useI18n();
 
@@ -69,6 +77,7 @@ export function GivingAdminWorkspace({
       navLabel="Church admin"
       navItems={NAV_ITEMS}
     >
+      {paymentConnection ? <StripeConnectCard connection={paymentConnection} result={stripeResult} /> : null}
       <Tabs defaultValue={readiness ? "exceptions" : "analytics"} p="md">
         <Tabs.List mb="md">
           {readiness ? (

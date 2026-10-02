@@ -10,16 +10,21 @@ import {
 } from "@stripe/react-stripe-js";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 
-// One Stripe.js load per publishable key for the page's lifetime.
+// One Stripe.js load per publishable key and church account for the page's
+// lifetime. The account matters: gifts are direct charges on the church's
+// own account (ADR 0025), so Stripe.js must confirm there.
 const stripeByKey = new Map<string, Promise<Stripe | null>>();
-function stripeFor(publishableKey: string) {
-  if (!stripeByKey.has(publishableKey))
-    stripeByKey.set(publishableKey, loadStripe(publishableKey));
-  return stripeByKey.get(publishableKey)!;
+function stripeFor(publishableKey: string, stripeAccount: string) {
+  const cacheKey = `${publishableKey}:${stripeAccount}`;
+  if (!stripeByKey.has(cacheKey))
+    stripeByKey.set(cacheKey, loadStripe(publishableKey, { stripeAccount }));
+  return stripeByKey.get(cacheKey)!;
 }
 
 type Props = {
   publishableKey: string;
+  /** The church's connected Stripe account. */
+  stripeAccount: string;
   clientSecret: string;
   amountLabel: string;
   /** Stripe accepted the payment: its PaymentIntent status ("succeeded" or "processing"). */
@@ -38,12 +43,13 @@ type Props = {
  */
 export function DonationCardStep({
   publishableKey,
+  stripeAccount,
   clientSecret,
   ...rest
 }: Props) {
   const stripePromise = useMemo(
-    () => stripeFor(publishableKey),
-    [publishableKey],
+    () => stripeFor(publishableKey, stripeAccount),
+    [publishableKey, stripeAccount],
   );
   return (
     <Elements stripe={stripePromise} options={{ clientSecret }}>
@@ -57,7 +63,7 @@ function CardForm({
   onPaid,
   onBack,
   onCancel,
-}: Omit<Props, "publishableKey" | "clientSecret">) {
+}: Omit<Props, "publishableKey" | "stripeAccount" | "clientSecret">) {
   const stripe = useStripe();
   const elements = useElements();
   const [error, setError] = useState<string | null>(null);

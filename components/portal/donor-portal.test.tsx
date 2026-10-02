@@ -54,7 +54,12 @@ if (!("fonts" in document)) {
 function renderPortal(givingNotice: string | null, publishableKey: string | null = null) {
   return render(
     <MantineProvider>
-      <DonorPortal data={{ donations: [], totalGiven: 0 }} givingNotice={givingNotice} publishableKey={publishableKey} />
+      <DonorPortal
+        data={{ donations: [], totalGiven: 0 }}
+        givingNotice={givingNotice}
+        publishableKey={publishableKey}
+        stripeAccount={publishableKey ? "acct_church1" : null}
+      />
     </MantineProvider>,
   );
 }

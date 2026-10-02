@@ -6,6 +6,11 @@ import {
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
 import { getStripeWebhookSecret } from "@/lib/stripe/client";
+import {
+  churchForStripeAccount,
+  markChurchStripeAccountDisconnected,
+  updateChurchStripeAccountStatus,
+} from "@/lib/stripe/connect";
 import { verifyStripeSignature } from "@/lib/stripe/webhook-signature";
 import { reverseGlEntryForRefund } from "@/lib/stripe/event-registrations";
 import { postDonationToGl, sendDonationReceipt } from "@/lib/stripe/donation-completion";
@@ -505,8 +510,64 @@ async function reverseGlEntryForRefundSupabase(
 
 // ── Route handler ─────────────────────────────────────────────
 
+/**
+ * A connected (church) account's event (ADR 0025): resolve the church from
+ * `event.account`, and refuse an event whose payment names another church.
+ * The church fills in metadata the object lacks (a Charge doesn't copy its
+ * PaymentIntent's), so the handlers below find it the same way as before.
+ * Returns false when the event must be ignored.
+ */
+async function scopeConnectedEvent(event: {
+  account?: string;
+  created?: number;
+  type: string;
+  data: { object: Record<string, unknown> };
+}): Promise<boolean> {
+  const account = event.account;
+  if (!account) return true;
+  // Stripe doesn't deliver events in order: an account event from before the
+  // church's current connection (a retried deauthorization, say) must not
+  // change the new link (PR #174 review).
+  const asOf = typeof event.created === "number" ? new Date(event.created * 1000) : undefined;
+
+  if (event.type === "account.application.deauthorized") {
+    // The church revoked ChurchCore's access in Stripe.
+    await markChurchStripeAccountDisconnected(account, asOf);
+    return false;
+  }
+  if (event.type === "account.updated") {
+    const object = event.data.object as { charges_enabled?: boolean; details_submitted?: boolean };
+    await updateChurchStripeAccountStatus(
+      account,
+      {
+        chargesEnabled: Boolean(object.charges_enabled),
+        detailsSubmitted: Boolean(object.details_submitted),
+      },
+      asOf,
+    );
+    return false;
+  }
+
+  const churchId = await churchForStripeAccount(account);
+  if (!churchId) {
+    console.warn("[stripe-webhook] Event from an account no church has connected — ignored:", event.type);
+    return false;
+  }
+  const object = event.data.object as { metadata?: Record<string, string> };
+  const named = object.metadata?.church_id;
+  if (named && named !== churchId) {
+    console.error("[stripe-webhook] Event's church doesn't match its connected account — ignored:", event.type);
+    return false;
+  }
+  object.metadata = { ...object.metadata, church_id: churchId };
+  return true;
+}
+
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const webhookSecret = getStripeWebhookSecret();
+  // Events from connected church accounts come from Stripe's Connect
+  // endpoint, signed with its own secret (ADR 0025).
+  const connectWebhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET?.trim() || null;
 
   // Read raw body as text (required for signature verification)
   const rawBody = await req.text();
@@ -519,12 +580,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     console.error("[stripe-webhook] STRIPE_WEBHOOK_SECRET is not set — rejecting webhook (S2).");
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
-  if (!verifyStripeSignature(rawBody, sigHeader, webhookSecret)) {
+  if (
+    !verifyStripeSignature(rawBody, sigHeader, webhookSecret) &&
+    !(connectWebhookSecret && verifyStripeSignature(rawBody, sigHeader, connectWebhookSecret))
+  ) {
     console.warn("[stripe-webhook] Invalid or expired signature — rejected");
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  let event: { type: string; data: { object: Record<string, unknown> } };
+  let event: { type: string; account?: string; created?: number; data: { object: Record<string, unknown> } };
   try {
     event = JSON.parse(rawBody) as typeof event;
   } catch {
@@ -532,6 +596,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    if (!(await scopeConnectedEvent(event))) {
+      return NextResponse.json({ received: true });
+    }
+
     switch (event.type) {
       case "payment_intent.succeeded":
         await handlePaymentIntentSucceeded(
