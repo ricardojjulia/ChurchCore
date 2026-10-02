@@ -20,6 +20,14 @@ const RESULT_MESSAGES: Record<string, { color: string; text: string }> = {
   cancelled: { color: "gray", text: "Stripe connection cancelled. Nothing was changed." },
   invalid: { color: "red", text: "That Stripe connection link wasn't valid for this church. Please start again." },
   failed: { color: "red", text: "Couldn't connect to Stripe. Please try again." },
+  already_connected: {
+    color: "yellow",
+    text: "This church is already connected to a Stripe account. Disconnect it first to switch accounts.",
+  },
+  in_use: {
+    color: "red",
+    text: "That Stripe account is already connected to another church. Each church connects its own account.",
+  },
   not_configured: { color: "red", text: "Stripe Connect isn't set up for ChurchCore yet. Contact ChurchCore support." },
 };
 

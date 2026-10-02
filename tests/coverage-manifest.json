@@ -1865,6 +1865,7 @@
       ],
       "auth": "session",
       "tests": [
+        "app/api/stripe/connect/start/route.test.ts",
         "tests/e2e/api-session-routes.spec.ts"
       ],
       "note": "Church admin only (403 otherwise); redirects to Stripe Connect OAuth, or back to settings with ?stripe=not_configured when the platform has no Connect client id."

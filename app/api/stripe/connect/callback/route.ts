@@ -4,7 +4,10 @@ import { logAuditEvent } from "@/lib/actions/audit";
 import { appBaseUrl } from "@/lib/app-url";
 import { requireChurchSession } from "@/lib/auth";
 import {
+  churchForStripeAccount,
+  deauthorizeConnectedAccount,
   exchangeConnectCode,
+  getChurchStripeAccount,
   retrieveConnectedAccountStatus,
   saveChurchStripeAccount,
   verifyConnectState,
@@ -42,8 +45,25 @@ export async function GET(request: NextRequest) {
     return back("invalid");
   }
 
+  let accountId: string;
   try {
-    const accountId = await exchangeConnectCode(code);
+    // One account per church: switching means disconnecting first.
+    if (await getChurchStripeAccount(state.churchId)) return back("already_connected");
+    accountId = await exchangeConnectCode(code);
+  } catch (error) {
+    console.error("[stripe-connect] Connecting failed:", error instanceof Error ? error.message : error);
+    return back("failed");
+  }
+
+  // From here Stripe has authorized the account, so a failure must not leave
+  // ChurchCore holding access no church is linked to (PR #174 review).
+  // Revoke only once we know no other church relies on this account: access
+  // is per platform, not per church, so revoking would cut that church off.
+  let safeToRevoke = false;
+  try {
+    const owner = await churchForStripeAccount(accountId, { activeOnly: true });
+    if (owner && owner !== state.churchId) return back("in_use");
+    safeToRevoke = true;
     const status = await retrieveConnectedAccountStatus(accountId);
     await saveChurchStripeAccount({
       churchId: state.churchId,
@@ -63,7 +83,15 @@ export async function GET(request: NextRequest) {
     }).catch((error) => console.error("[stripe-connect] Audit log failed:", error));
     return back(status.chargesEnabled ? "connected" : "pending");
   } catch (error) {
-    console.error("[stripe-connect] Connecting failed:", error instanceof Error ? error.message : error);
+    console.error("[stripe-connect] Linking failed after Stripe authorized:", error instanceof Error ? error.message : error);
+    if (safeToRevoke) {
+      await deauthorizeConnectedAccount(accountId).catch((revokeError) =>
+        console.error(
+          "[stripe-connect] Couldn't revoke the unlinked account:",
+          revokeError instanceof Error ? revokeError.message : revokeError,
+        ),
+      );
+    }
     return back("failed");
   }
 }

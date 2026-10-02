@@ -16,7 +16,7 @@
 import { stubsAllowed } from "@/lib/stub-mode";
 
 import { stripeRequest, hasStripeConfig } from "./client";
-import { getChurchStripeAccount, stripeConnectClientId } from "./connect";
+import { accountForExistingPayment, getChurchStripeAccount, stripeConnectClientId } from "./connect";
 
 /**
  * Whether a member can give online right now (Council Review 22, G3.0,
@@ -209,15 +209,18 @@ export interface CancelSubscriptionResult {
 
 export async function cancelStripeSubscription(
   subscriptionId: string,
-  stripeAccount?: string | null,
+  churchId: string,
+  stripeAccount: string | null,
 ): Promise<CancelSubscriptionResult> {
   if (!hasStripeConfig()) return { cancelled: true, isStub: true };
 
+  // On the account it was created on, while still connected (ADR 0025).
+  const account = await accountForExistingPayment(churchId, stripeAccount);
   await stripeRequest(
     "POST",
     `/subscriptions/${subscriptionId}/cancel`,
     { cancellation_details: "customer_requested" },
-    churchAccount(stripeAccount),
+    { stripeAccount: account },
   );
 
   return { cancelled: true, isStub: false };

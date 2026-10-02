@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
   retrieveConnectedAccountStatus: vi.fn(),
   saveChurchStripeAccount: vi.fn(),
   logAuditEvent: vi.fn(),
+  getChurchStripeAccount: vi.fn(),
+  churchForStripeAccount: vi.fn(),
+  deauthorizeConnectedAccount: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ requireChurchSession: mocks.requireChurchSession }));
@@ -21,6 +24,9 @@ vi.mock("@/lib/stripe/connect", () => ({
   exchangeConnectCode: mocks.exchangeConnectCode,
   retrieveConnectedAccountStatus: mocks.retrieveConnectedAccountStatus,
   saveChurchStripeAccount: mocks.saveChurchStripeAccount,
+  getChurchStripeAccount: mocks.getChurchStripeAccount,
+  churchForStripeAccount: mocks.churchForStripeAccount,
+  deauthorizeConnectedAccount: mocks.deauthorizeConnectedAccount,
 }));
 
 import { GET } from "@/app/api/stripe/connect/callback/route";
@@ -43,6 +49,9 @@ describe("GET /api/stripe/connect/callback", () => {
     mocks.retrieveConnectedAccountStatus.mockResolvedValue({ chargesEnabled: true, detailsSubmitted: true });
     mocks.saveChurchStripeAccount.mockResolvedValue(undefined);
     mocks.logAuditEvent.mockResolvedValue(undefined);
+    mocks.getChurchStripeAccount.mockResolvedValue(null);
+    mocks.churchForStripeAccount.mockResolvedValue(null);
+    mocks.deauthorizeConnectedAccount.mockResolvedValue(undefined);
   });
 
   it("links the authorized account to the admin's church and audits it", async () => {
@@ -87,6 +96,34 @@ describe("GET /api/stripe/connect/callback", () => {
   it("reports cancelled when the admin declined at Stripe", async () => {
     expect(resultOf(await callback("error=access_denied&state=signed"))).toBe("cancelled");
     expect(mocks.verifyConnectState).not.toHaveBeenCalled();
+  });
+
+  it("refuses a second account while the church is connected: disconnect first to switch", async () => {
+    mocks.getChurchStripeAccount.mockResolvedValue({ accountId: "acct_current", chargesEnabled: true, detailsSubmitted: true });
+    expect(resultOf(await callback("code=ac_1&state=signed"))).toBe("already_connected");
+    expect(mocks.exchangeConnectCode).not.toHaveBeenCalled();
+  });
+
+  it("refuses an account another church is connected to, without revoking it (that would cut the other church off)", async () => {
+    mocks.churchForStripeAccount.mockResolvedValue("church-2");
+    expect(resultOf(await callback("code=ac_1&state=signed"))).toBe("in_use");
+    expect(mocks.churchForStripeAccount).toHaveBeenCalledWith("acct_church1", { activeOnly: true });
+    expect(mocks.saveChurchStripeAccount).not.toHaveBeenCalled();
+    expect(mocks.deauthorizeConnectedAccount).not.toHaveBeenCalled();
+  });
+
+  it("revokes the just-authorized account when linking it fails, so no access is left unlinked (PR #174 review)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.saveChurchStripeAccount.mockRejectedValue(new Error("db down"));
+    expect(resultOf(await callback("code=ac_1&state=signed"))).toBe("failed");
+    expect(mocks.deauthorizeConnectedAccount).toHaveBeenCalledWith("acct_church1");
+  });
+
+  it("doesn't revoke when it can't tell whether another church relies on the account", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.churchForStripeAccount.mockRejectedValue(new Error("db down"));
+    expect(resultOf(await callback("code=ac_1&state=signed"))).toBe("failed");
+    expect(mocks.deauthorizeConnectedAccount).not.toHaveBeenCalled();
   });
 
   it("reports failed, saving nothing, when Stripe's exchange fails", async () => {

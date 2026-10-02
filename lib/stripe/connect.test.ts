@@ -13,7 +13,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/tenant", () => {
   function builder() {
     const chain: Record<string, unknown> = {};
-    for (const method of ["select", "eq", "is", "update", "upsert"]) {
+    for (const method of ["select", "eq", "neq", "not", "is", "lte", "update", "upsert", "delete"]) {
       chain[method] = (...args: unknown[]) => {
         calls.push({ method, args });
         return chain;
@@ -28,6 +28,9 @@ vi.mock("@/lib/supabase/tenant", () => {
 });
 
 import {
+  PAYMENT_ACCOUNT_DISCONNECTED,
+  accountForExistingPayment,
+  churchForStripeAccount,
   exchangeConnectCode,
   getChurchPaymentConnection,
   getChurchStripeAccount,
@@ -147,6 +150,15 @@ describe("the church's link", () => {
       detailsSubmitted: false,
       connectedBy: "profile-1",
     });
+    // Another church's old, disconnected link to the same account gives way;
+    // a link another church still has is never touched.
+    const release = calls.slice(0, calls.findIndex((c) => c.method === "upsert"));
+    expect(release).toEqual([
+      { method: "delete", args: [] },
+      { method: "eq", args: ["stripe_account_id", "acct_church1"] },
+      { method: "neq", args: ["church_id", "church-1"] },
+      { method: "not", args: ["disconnected_at", "is", null] },
+    ]);
     const upsert = calls.find((c) => c.method === "upsert")!;
     expect(upsert.args[0]).toMatchObject({ church_id: "church-1", stripe_account_id: "acct_church1", disconnected_at: null });
     expect(upsert.args[1]).toEqual({ onConflict: "church_id" });
@@ -156,6 +168,32 @@ describe("the church's link", () => {
     await markChurchStripeAccountDisconnected("acct_church1");
     expect(calls.find((c) => c.method === "update")!.args[0]).toMatchObject({ charges_enabled: false });
     expect(calls).toEqual(expect.arrayContaining([{ method: "eq", args: ["stripe_account_id", "acct_church1"] }]));
+  });
+
+  it("ignores a webhook's disconnect from before the church's current connection (PR #174 review)", async () => {
+    const asOf = new Date("2026-10-02T12:00:00Z");
+    await markChurchStripeAccountDisconnected("acct_church1", asOf);
+    expect(calls).toEqual(expect.arrayContaining([{ method: "lte", args: ["connected_at", asOf.toISOString()] }]));
+  });
+
+  it("can ask only about a church still connected to an account", async () => {
+    tableResults.push({ data: { church_id: "church-2" }, error: null });
+    expect(await churchForStripeAccount("acct_x", { activeOnly: true })).toBe("church-2");
+    expect(calls).toEqual(expect.arrayContaining([{ method: "is", args: ["disconnected_at", null] }]));
+  });
+
+  it("refunds or cancels a payment only on the account it was charged on, while it's still connected", async () => {
+    const connected = { data: { stripe_account_id: "acct_now", charges_enabled: true, details_submitted: true }, error: null };
+    tableResults.push(connected);
+    expect(await accountForExistingPayment("church-1", "acct_now")).toBe("acct_now");
+    // A row from before G3.0b: the church's current account.
+    tableResults.push(connected);
+    expect(await accountForExistingPayment("church-1", null)).toBe("acct_now");
+    // Charged on an account since disconnected (access revoked at Stripe).
+    tableResults.push(connected);
+    await expect(accountForExistingPayment("church-1", "acct_old")).rejects.toThrow(PAYMENT_ACCOUNT_DISCONNECTED);
+    tableResults.push({ data: null, error: null });
+    await expect(accountForExistingPayment("church-1", "acct_old")).rejects.toThrow(PAYMENT_ACCOUNT_DISCONNECTED);
   });
 
   it("shows the admin card only the account's last characters", async () => {

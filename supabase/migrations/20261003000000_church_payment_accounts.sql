@@ -36,9 +36,13 @@ create policy "church_payment_accounts_read_church_admin" on public.church_payme
 
 revoke all on public.church_payment_accounts from anon;
 
--- Each payment remembers the account it was charged on, so status checks,
--- cancels, refunds and subscription cancels go to that account even if the
--- church later reconnects a different one. Null for stubbed (keyless) and
--- pre-Connect rows.
+-- Each payment remembers the account it was charged on. Status checks,
+-- cancels, refunds and subscription cancels go to that account only while
+-- it is still the church's connected account: disconnecting revokes
+-- ChurchCore's access to it at Stripe, so payments made on it are then
+-- managed from that account's own Stripe Dashboard, and ChurchCore says so
+-- instead of acting on the church's new account. A church switches accounts
+-- only by disconnecting first. Null for stubbed (keyless) and pre-Connect
+-- rows.
 alter table public.donations add column stripe_account_id text;
 alter table public.event_registration_payments add column stripe_account_id text;

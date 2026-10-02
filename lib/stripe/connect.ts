@@ -41,15 +41,45 @@ export async function getChurchStripeAccount(churchId: string): Promise<ChurchSt
   return { accountId: row.stripe_account_id, chargesEnabled: row.charges_enabled, detailsSubmitted: row.details_submitted };
 }
 
-/** The church a connected account belongs to (for webhooks), or null. */
-export async function churchForStripeAccount(accountId: string): Promise<string | null> {
-  const { data, error } = await createTenantAdminClient()
+/**
+ * The church a connected account belongs to, or null. Webhooks use any link
+ * (a refund made at Stripe after a disconnect still belongs to the church);
+ * `activeOnly` asks only about a church still connected to it.
+ */
+export async function churchForStripeAccount(
+  accountId: string,
+  options: { activeOnly?: boolean } = {},
+): Promise<string | null> {
+  let query = createTenantAdminClient()
     .from("church_payment_accounts")
     .select("church_id")
-    .eq("stripe_account_id", accountId)
-    .maybeSingle();
+    .eq("stripe_account_id", accountId);
+  if (options.activeOnly) query = query.is("disconnected_at", null);
+  const { data, error } = await query.maybeSingle();
   if (error) throw new Error(error.message);
   return (data as { church_id: string } | null)?.church_id ?? null;
+}
+
+/**
+ * Shown when a refund or cancel targets a payment made on an account that is
+ * no longer this church's connected account. Disconnecting revokes
+ * ChurchCore's access to that account at Stripe, so only the church can act
+ * on those payments, from that account's own Stripe Dashboard (ADR 0025).
+ */
+export const PAYMENT_ACCOUNT_DISCONNECTED =
+  "This payment was made on a Stripe account that's no longer connected to ChurchCore. Refund or cancel it from that account's Stripe Dashboard.";
+
+/**
+ * The account to refund or cancel an existing payment on: the account it was
+ * charged on, which must still be the church's connected account. A row with
+ * no recorded account (made before G3.0b) uses the church's current account.
+ * Throws PAYMENT_ACCOUNT_DISCONNECTED otherwise.
+ */
+export async function accountForExistingPayment(churchId: string, paymentAccount: string | null): Promise<string> {
+  const current = await getChurchStripeAccount(churchId);
+  const account = paymentAccount ?? current?.accountId ?? null;
+  if (!account || !current || current.accountId !== account) throw new Error(PAYMENT_ACCOUNT_DISCONNECTED);
+  return account;
 }
 
 // ── OAuth state ───────────────────────────────────────────────
@@ -146,7 +176,19 @@ export async function saveChurchStripeAccount(input: {
   connectedBy: string | null;
 }): Promise<void> {
   const now = new Date().toISOString();
-  const { error } = await createTenantAdminClient()
+  const supabase = createTenantAdminClient();
+  // An account another church once connected and has since disconnected can
+  // be linked here; its old link (access already revoked) gives way. A link
+  // another church still has is never touched: the caller refuses first,
+  // and the unique constraint backs that up.
+  const { error: releaseError } = await supabase
+    .from("church_payment_accounts")
+    .delete()
+    .eq("stripe_account_id", input.accountId)
+    .neq("church_id", input.churchId)
+    .not("disconnected_at", "is", null);
+  if (releaseError) throw new Error(releaseError.message);
+  const { error } = await supabase
     .from("church_payment_accounts")
     .upsert(
       {
@@ -164,30 +206,47 @@ export async function saveChurchStripeAccount(input: {
   if (error) throw new Error(error.message);
 }
 
-/** Records Stripe's view of a connected account (account.updated). */
+/**
+ * Records Stripe's view of a connected account (account.updated). `asOf` is
+ * when Stripe created the event: Stripe doesn't deliver events in order, so
+ * an event from before the current connection is ignored, in the update
+ * itself.
+ */
 export async function updateChurchStripeAccountStatus(
   accountId: string,
   status: { chargesEnabled: boolean; detailsSubmitted: boolean },
+  asOf?: Date,
 ): Promise<void> {
-  const { error } = await createTenantAdminClient()
+  let query = createTenantAdminClient()
     .from("church_payment_accounts")
     .update({
       charges_enabled: status.chargesEnabled,
       details_submitted: status.detailsSubmitted,
       updated_at: new Date().toISOString(),
     })
-    .eq("stripe_account_id", accountId);
+    .eq("stripe_account_id", accountId)
+    .is("disconnected_at", null);
+  if (asOf) query = query.lte("connected_at", asOf.toISOString());
+  const { error } = await query;
   if (error) throw new Error(error.message);
 }
 
-/** Marks a church disconnected (it disconnected here, or revoked access at Stripe). */
-export async function markChurchStripeAccountDisconnected(accountId: string): Promise<void> {
+/**
+ * Marks a church disconnected (it disconnected here, or revoked access at
+ * Stripe). `asOf`, for a webhook, is when Stripe created the event: a late
+ * or retried deauthorization from before the church reconnected must not
+ * disconnect the new link, so the update applies only to a link made at or
+ * before that time.
+ */
+export async function markChurchStripeAccountDisconnected(accountId: string, asOf?: Date): Promise<void> {
   const now = new Date().toISOString();
-  const { error } = await createTenantAdminClient()
+  let query = createTenantAdminClient()
     .from("church_payment_accounts")
     .update({ disconnected_at: now, charges_enabled: false, updated_at: now })
     .eq("stripe_account_id", accountId)
     .is("disconnected_at", null);
+  if (asOf) query = query.lte("connected_at", asOf.toISOString());
+  const { error } = await query;
   if (error) throw new Error(error.message);
 }
 

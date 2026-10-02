@@ -347,11 +347,24 @@ describe("donations actions", () => {
 
       expect(await cancelRecurringDonationAction("don-9")).toEqual({ ok: true });
 
-      expect(cancelStripeSubscriptionMock).toHaveBeenCalledWith("sub_1", "acct_church1");
+      expect(cancelStripeSubscriptionMock).toHaveBeenCalledWith("sub_1", "church-1", "acct_church1");
       expect(calls).toEqual(
         expect.arrayContaining([{ table: "donations", method: "eq", args: ["profile_id", "profile-1"] }]),
       );
       expect(methodCalls("update")[0].args[0]).toMatchObject({ status: "cancelled" });
+    });
+
+    it("keeps the gift active, and says whom to contact, when Stripe can't cancel it (e.g. the church has since disconnected that account)", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      queue("donations", { data: { stripe_subscription_id: "sub_1", stripe_account_id: "acct_old" }, error: null });
+      cancelStripeSubscriptionMock.mockRejectedValueOnce(new Error("no longer connected"));
+
+      expect(await cancelRecurringDonationAction("don-9")).toEqual({
+        ok: false,
+        error: "Couldn't stop your recurring gift. Please contact the church office.",
+      });
+      expect(methodCalls("update")).toHaveLength(0);
+      errorSpy.mockRestore();
     });
 
     it("skips Stripe when the gift has no subscription id", async () => {

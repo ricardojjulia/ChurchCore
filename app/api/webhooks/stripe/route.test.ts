@@ -1275,22 +1275,30 @@ describe("stripe webhook — events from connected church accounts", () => {
     const body = JSON.stringify({
       type: "account.updated",
       account: "acct_church1",
+      created: 1_790_000_000,
       data: { object: { id: "acct_church1", charges_enabled: true, details_submitted: true } },
     });
     expect((await stripeWebhookPost(stripeRequest({ method: "POST", body }, CONNECT_SECRET))).status).toBe(200);
-    expect(connectMocks.updateChurchStripeAccountStatus).toHaveBeenCalledWith("acct_church1", {
-      chargesEnabled: true,
-      detailsSubmitted: true,
-    });
+    expect(connectMocks.updateChurchStripeAccountStatus).toHaveBeenCalledWith(
+      "acct_church1",
+      { chargesEnabled: true, detailsSubmitted: true },
+      new Date(1_790_000_000 * 1000),
+    );
   });
 
   it("marks the church disconnected when it revokes ChurchCore's access in Stripe", async () => {
     const body = JSON.stringify({
       type: "account.application.deauthorized",
       account: "acct_church1",
+      created: 1_790_000_000,
       data: { object: { id: "ca_platform" } },
     });
     expect((await stripeWebhookPost(stripeRequest({ method: "POST", body }, CONNECT_SECRET))).status).toBe(200);
-    expect(connectMocks.markChurchStripeAccountDisconnected).toHaveBeenCalledWith("acct_church1");
+    // With the event's own time, so a late or retried deauthorization from
+    // before the church reconnected can't disconnect the new link (PR #174 review).
+    expect(connectMocks.markChurchStripeAccountDisconnected).toHaveBeenCalledWith(
+      "acct_church1",
+      new Date(1_790_000_000 * 1000),
+    );
   });
 });

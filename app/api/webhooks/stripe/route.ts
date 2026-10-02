@@ -519,23 +519,32 @@ async function reverseGlEntryForRefundSupabase(
  */
 async function scopeConnectedEvent(event: {
   account?: string;
+  created?: number;
   type: string;
   data: { object: Record<string, unknown> };
 }): Promise<boolean> {
   const account = event.account;
   if (!account) return true;
+  // Stripe doesn't deliver events in order: an account event from before the
+  // church's current connection (a retried deauthorization, say) must not
+  // change the new link (PR #174 review).
+  const asOf = typeof event.created === "number" ? new Date(event.created * 1000) : undefined;
 
   if (event.type === "account.application.deauthorized") {
     // The church revoked ChurchCore's access in Stripe.
-    await markChurchStripeAccountDisconnected(account);
+    await markChurchStripeAccountDisconnected(account, asOf);
     return false;
   }
   if (event.type === "account.updated") {
     const object = event.data.object as { charges_enabled?: boolean; details_submitted?: boolean };
-    await updateChurchStripeAccountStatus(account, {
-      chargesEnabled: Boolean(object.charges_enabled),
-      detailsSubmitted: Boolean(object.details_submitted),
-    });
+    await updateChurchStripeAccountStatus(
+      account,
+      {
+        chargesEnabled: Boolean(object.charges_enabled),
+        detailsSubmitted: Boolean(object.details_submitted),
+      },
+      asOf,
+    );
     return false;
   }
 
@@ -579,7 +588,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  let event: { type: string; account?: string; data: { object: Record<string, unknown> } };
+  let event: { type: string; account?: string; created?: number; data: { object: Record<string, unknown> } };
   try {
     event = JSON.parse(rawBody) as typeof event;
   } catch {

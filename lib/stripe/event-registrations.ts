@@ -1,6 +1,6 @@
 // queryTenantLocalDb and shouldUseLocalTenantFallback removed — Supabase-only architecture (2026-07-10)
 import { hasStripeConfig, stripeRequest } from "./client";
-import { getChurchStripeAccount } from "./connect";
+import { accountForExistingPayment, getChurchStripeAccount } from "./connect";
 
 /**
  * The church's account an event payment is charged on (ADR 0025). Refuses,
@@ -151,7 +151,8 @@ export async function createRefund(
     'POST',
     '/refunds',
     body,
-    { stripeAccount: input.stripeAccount ?? (await liveChurchAccount(input.churchId)) },
+    // The account it was charged on, while still connected (ADR 0025).
+    { stripeAccount: await accountForExistingPayment(input.churchId, input.stripeAccount ?? null) },
   );
   return {
     refundId: refund.id,

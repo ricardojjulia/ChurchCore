@@ -339,7 +339,16 @@ export async function cancelRecurringDonationAction(
 
   const gift = data as { stripe_subscription_id: string | null; stripe_account_id: string | null };
   const subscriptionId = gift.stripe_subscription_id;
-  if (subscriptionId) await cancelStripeSubscription(subscriptionId, gift.stripe_account_id);
+  if (subscriptionId) {
+    try {
+      await cancelStripeSubscription(subscriptionId, churchId, gift.stripe_account_id);
+    } catch (error) {
+      // Includes a gift on a Stripe account the church has since
+      // disconnected: only the church can stop it now (ADR 0025).
+      console.error("Couldn't cancel the recurring gift at Stripe:", error instanceof Error ? error.message : error);
+      return { ok: false, error: "Couldn't stop your recurring gift. Please contact the church office." };
+    }
+  }
 
   const { error } = await supabase
     .from("donations")
