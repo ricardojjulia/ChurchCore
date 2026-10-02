@@ -30,6 +30,9 @@ export const EVENT_PAYMENT_START_FAILED = "Couldn't start the payment for this r
  * written, so nobody is left registered with a payment they can't make.
  */
 export async function eventPaymentReadiness(churchId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Demo mode always takes the stub payment, whatever Stripe keys are set,
+  // as startRegistrationPayment does (PR #175 review).
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") return { ok: true };
   const { mode } = await onlineGivingStatus(churchId);
   return mode === "live" || mode === "stub" ? { ok: true } : { ok: false, error: EVENT_PAYMENT_UNAVAILABLE };
 }
@@ -110,24 +113,47 @@ export async function removeUnstartedRegistration(admin: AdminClient, churchId: 
   if (error) console.error("[event-payment] Couldn't remove the unpaid registration:", error.message);
 }
 
+/** A registration's payment can be cancelled while unpaid: pending, or failed (a declined card). */
+const UNPAID = ["pending", "failed"];
+
+export type CancelUnpaidRegistrationResult = {
+  ok: boolean;
+  /** The PaymentIntent and the registration were cancelled. */
+  cancelled: boolean;
+  /**
+   * Not cancelled because Stripe has the payment: "succeeded" (paid), or
+   * "processing" (it may still clear). The webhook records either.
+   */
+  paymentStatus?: "succeeded" | "processing";
+  error?: string;
+};
+
 /**
  * Cancels a registration whose registrant left the card step without paying
  * (G3.0c): cancels the PaymentIntent at Stripe first, then the registration,
  * so its place is freed. Matched by the registration and its PaymentIntent
- * id together, and only while payment is still pending; `churchId` narrows
- * it further (the signed-in member's church). If Stripe says the payment went
- * through after all, nothing is cancelled and the webhook records it.
+ * id together, and only while it's unpaid (pending, or failed after a
+ * declined card); `churchId` narrows it further (the signed-in member's
+ * church). A demo payment's stub id is cancelled here without calling
+ * Stripe.
+ *
+ * Only Stripe's word decides (PR #175 review): "canceled" cancels;
+ * "succeeded" or "processing" leaves the registration for the webhook; any
+ * other status (the cancel failed and the payment is still unpaid) is an
+ * error the registrant can retry. If the registration changed meanwhile (an
+ * admin marked it paid, say), nothing is overwritten and the conflict is
+ * reported.
  */
 export async function cancelUnpaidRegistration(
   admin: AdminClient,
   input: { registrationId: string; paymentIntentId: string; churchId?: string },
-): Promise<{ ok: boolean; cancelled: boolean; error?: string }> {
+): Promise<CancelUnpaidRegistrationResult> {
   let query = admin
     .from("event_registration_payments")
     .select("registration_id, church_id, stripe_account_id, event_registrations!inner(status, payment_status)")
     .eq("registration_id", input.registrationId)
     .eq("payment_intent_id", input.paymentIntentId)
-    .eq("event_registrations.payment_status", "pending")
+    .in("event_registrations.payment_status", UNPAID)
     .neq("event_registrations.status", "cancelled");
   if (input.churchId) query = query.eq("church_id", input.churchId);
   const { data, error } = await query.maybeSingle();
@@ -139,33 +165,57 @@ export async function cancelUnpaidRegistration(
   const row = data as { church_id: string; stripe_account_id: string | null };
 
   let status: string;
-  try {
-    status = await cancelPaymentIntent(input.paymentIntentId, row.stripe_account_id);
-  } catch (stripeError) {
-    console.error(
-      "[event-payment] Cancelling the PaymentIntent failed:",
-      stripeError instanceof Error ? stripeError.message : stripeError,
-    );
+  if (input.paymentIntentId === stubPaymentIntentId(input.registrationId)) {
+    // A stubbed (demo or keyless) payment never reached Stripe (PR #175 review).
+    status = "canceled";
+  } else {
+    try {
+      status = await cancelPaymentIntent(input.paymentIntentId, row.stripe_account_id);
+    } catch (stripeError) {
+      console.error(
+        "[event-payment] Cancelling the PaymentIntent failed:",
+        stripeError instanceof Error ? stripeError.message : stripeError,
+      );
+      return { ok: false, cancelled: false, error: "Couldn't cancel the payment. Please try again." };
+    }
+  }
+  if (status === "succeeded" || status === "processing") return { ok: true, cancelled: false, paymentStatus: status };
+  if (status !== "canceled") {
     return { ok: false, cancelled: false, error: "Couldn't cancel the payment. Please try again." };
   }
-  if (status !== "canceled") return { ok: true, cancelled: false };
 
-  const now = new Date().toISOString();
-  const { error: regError } = await admin
+  const { data: cancelledRows, error: regError } = await admin
     .from("event_registrations")
     // payment_status has no "cancelled"; the payment row records it.
     .update({ status: "cancelled" })
     .eq("id", input.registrationId)
     .eq("church_id", row.church_id)
-    .eq("payment_status", "pending");
+    .in("payment_status", UNPAID)
+    .neq("status", "cancelled")
+    .select("id");
   if (regError) {
     console.error("[event-payment] Cancelling the registration failed:", regError.message);
-    return { ok: false, cancelled: false, error: "The payment was cancelled, but the registration couldn't be. Please contact the church office." };
+    return {
+      ok: false,
+      cancelled: false,
+      error: "The payment was cancelled, but the registration couldn't be. Please contact the church office.",
+    };
   }
-  await admin
+  if (!cancelledRows?.length) {
+    // It changed since the lookup (an admin recorded the payment, say):
+    // leave it, and its payment row, as they are.
+    return {
+      ok: false,
+      cancelled: false,
+      error: "This registration's payment was updated by the church meanwhile, so it wasn't cancelled. Please contact the church office.",
+    };
+  }
+  const { error: paymentError } = await admin
     .from("event_registration_payments")
-    .update({ status: "cancelled", updated_at: now })
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
     .eq("registration_id", input.registrationId)
-    .eq("church_id", row.church_id);
+    .eq("church_id", row.church_id)
+    .in("status", ["pending", "failed"]);
+  if (paymentError) console.error("[event-payment] Recording the cancelled payment failed:", paymentError.message);
   return { ok: true, cancelled: true };
 }

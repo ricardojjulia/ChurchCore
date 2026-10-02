@@ -10,6 +10,7 @@ import {
   eventPaymentReadiness,
   removeUnstartedRegistration,
   startRegistrationPayment,
+  type CancelUnpaidRegistrationResult,
   type RegistrationCheckout,
 } from "@/lib/event-registration-payment";
 import { createEventRegistrationPaymentIntent, stubPaymentIntentId } from "@/lib/stripe/event-registrations";
@@ -906,7 +907,7 @@ export async function memberRegisterForEventAction(
 export async function cancelUnpaidMemberRegistrationAction(
   registrationId: string,
   paymentIntentId: string,
-): Promise<{ ok: boolean; cancelled: boolean; error?: string }> {
+): Promise<CancelUnpaidRegistrationResult> {
   const session = await requireChurchSession("/app/member");
   if (session.appContext.roleId !== "member") {
     return { ok: false, cancelled: false, error: "Only members can cancel their own registrations here." };

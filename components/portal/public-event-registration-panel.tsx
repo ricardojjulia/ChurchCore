@@ -23,6 +23,8 @@ import {
 } from "@/app/portal/actions";
 import {
   RegistrationPaymentStep,
+  cancelOutcome,
+  paidMessage,
   type RegistrationPaymentState,
 } from "@/components/portal/registration-payment-step";
 import type {
@@ -68,6 +70,10 @@ export function PublicEventRegistrationPanel({ churchId, churchName, timeZone, o
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [paymentCheckout, setPaymentCheckout] = useState<RegistrationPaymentState | null>(null);
   const [isPending, startTransition] = useTransition();
+  // A registration or cancel is in flight. Tracked apart from isPending,
+  // which stays true while the action's revalidation refreshes the page,
+  // well after its result is shown, and would swallow a close meanwhile.
+  const [busy, setBusy] = useState(false);
 
   const selectedEvent = useMemo(
     () => options.find((option) => option.eventId === selectedEventId) ?? null,
@@ -86,13 +92,20 @@ export function PublicEventRegistrationPanel({ churchId, churchName, timeZone, o
   }
 
   function closeModal() {
+    // Not while a registration or a cancel is in flight: its result would land
+    // in a closed dialog and the checkout would be lost (PR #175 review).
+    if (busy) return;
     // Leaving without paying cancels the unpaid registration, freeing its
-    // place (G3.0c). Best effort: a failure leaves it unpaid for the church.
+    // place (G3.0c). The dialog closes only once that has worked; a failure
+    // keeps it open, with the error, so the registrant can retry.
     if (paymentCheckout) {
-      void cancelUnpaidPublicRegistrationAction(paymentCheckout.registrationId, paymentCheckout.paymentIntentId).catch(
-        () => undefined,
-      );
+      cancelUnpaid(true);
+      return;
     }
+    resetAndClose();
+  }
+
+  function resetAndClose() {
     setSelectedEventId(null);
     setRegistrantName("");
     setRegistrantEmail("");
@@ -128,31 +141,34 @@ export function PublicEventRegistrationPanel({ churchId, churchName, timeZone, o
   }
 
   function handlePaid(status: string) {
+    const awaitingApproval = paymentCheckout?.awaitingApproval ?? false;
     setPaymentCheckout(null);
-    setMessage({
-      type: "success",
-      text:
-        status === "succeeded"
-          ? "Payment received. Your registration is complete."
-          : "Your payment is processing. Your registration completes when it clears.",
-    });
+    setMessage(paidMessage(status, awaitingApproval));
   }
 
-  function cancelUnpaid() {
+  function cancelUnpaid(closeAfter = false) {
     if (!paymentCheckout) return;
-    const { registrationId, paymentIntentId } = paymentCheckout;
+    const { registrationId, paymentIntentId, awaitingApproval } = paymentCheckout;
+    setBusy(true);
     startTransition(async () => {
-      const result = await cancelUnpaidPublicRegistrationAction(registrationId, paymentIntentId);
-      if (!result.ok) {
-        setMessage({ type: "error", text: result.error ?? "Couldn't cancel the registration. Please try again." });
+      let result: Awaited<ReturnType<typeof cancelUnpaidPublicRegistrationAction>>;
+      try {
+        result = await cancelUnpaidPublicRegistrationAction(registrationId, paymentIntentId);
+      } catch {
+        result = { ok: false, cancelled: false, error: "Couldn't cancel the registration. Please try again." };
+      }
+      setBusy(false);
+      const outcome = cancelOutcome(result, awaitingApproval);
+      if (!outcome.close) {
+        setMessage(outcome.message);
+        return;
+      }
+      if (closeAfter) {
+        resetAndClose();
         return;
       }
       setPaymentCheckout(null);
-      setMessage(
-        result.cancelled
-          ? { type: "success", text: "Registration cancelled. You weren't charged." }
-          : { type: "success", text: "Your payment already went through, so your registration stands." },
-      );
+      setMessage(outcome.message);
     });
   }
 
@@ -180,6 +196,7 @@ export function PublicEventRegistrationPanel({ churchId, churchName, timeZone, o
       return;
     }
 
+    setBusy(true);
     startTransition(async () => {
       const customFields = selectedEvent.fields.reduce<Record<string, unknown>>((acc, field) => {
         const value = fieldValues[field.fieldKey];
@@ -199,7 +216,7 @@ export function PublicEventRegistrationPanel({ churchId, churchName, timeZone, o
         registrantPhone: registrantPhone || null,
         notes: notes || null,
         customFields,
-      });
+      }).finally(() => setBusy(false));
 
       if (!result.ok) {
         setMessage({ type: "error", text: result.error ?? "Registration failed." });
@@ -231,6 +248,7 @@ export function PublicEventRegistrationPanel({ churchId, churchName, timeZone, o
               paymentIntentId: result.paymentIntentId,
               amountLabel: formatAmount(selectedEvent.priceCents, selectedEvent.currency),
               checkout: result.checkout ?? null,
+              awaitingApproval: result.status === "pending_approval",
             }
           : null;
       setMessage({
@@ -299,6 +317,8 @@ export function PublicEventRegistrationPanel({ churchId, churchName, timeZone, o
       <Modal
         opened={Boolean(selectedEvent)}
         onClose={closeModal}
+        closeOnEscape={!busy}
+        closeOnClickOutside={!busy}
         title={selectedEvent ? `Register for ${selectedEvent.title}` : "Register"}
         size="lg"
         withinPortal={false}
@@ -322,7 +342,7 @@ export function PublicEventRegistrationPanel({ churchId, churchName, timeZone, o
               payment={paymentCheckout}
               churchId={churchId}
               onPaid={handlePaid}
-              onCancel={cancelUnpaid}
+              onCancel={() => cancelUnpaid()}
             />
           ) : (
             <>
@@ -428,7 +448,7 @@ export function PublicEventRegistrationPanel({ churchId, churchName, timeZone, o
               />
 
               <Group justify="flex-end">
-                <Button variant="default" onClick={closeModal}>Cancel</Button>
+                <Button variant="default" onClick={closeModal} disabled={busy}>Cancel</Button>
                 <Button onClick={handleSubmit} loading={isPending}>Submit registration</Button>
               </Group>
             </>

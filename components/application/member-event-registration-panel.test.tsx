@@ -173,12 +173,34 @@ describe("MemberEventRegistrationPanel", () => {
     });
 
     it("says so, and keeps the registration, when the payment went through before the cancel", async () => {
-      cancelUnpaidMock.mockResolvedValue({ ok: true, cancelled: false });
+      cancelUnpaidMock.mockResolvedValue({ ok: true, cancelled: false, paymentStatus: "succeeded" });
       renderPanel({ options: paidOptions as never });
       fireEvent.click(screen.getByRole("button", { name: "Register" }));
       fireEvent.click(screen.getByRole("button", { name: "Submit registration" }));
       fireEvent.click(await screen.findByText("Leave card step"));
-      expect(await screen.findByText("Your payment already went through, so your registration stands.")).toBeInTheDocument();
+      expect(await screen.findByText(/^Your payment already went through, so your registration stands\./)).toBeInTheDocument();
+    });
+
+    it("keeps checkout open when Stripe couldn't cancel an unpaid payment, rather than calling it paid (PR #175 review)", async () => {
+      cancelUnpaidMock.mockResolvedValue({ ok: false, cancelled: false, error: "Couldn't cancel the payment. Please try again." });
+      renderPanel({ options: paidOptions as never });
+      fireEvent.click(screen.getByRole("button", { name: "Register" }));
+      fireEvent.click(screen.getByRole("button", { name: "Submit registration" }));
+      fireEvent.click(await screen.findByText("Leave card step"));
+      expect(await screen.findByText("Couldn't cancel the payment. Please try again.")).toBeInTheDocument();
+      expect(screen.getByText("Stripe card form")).toBeInTheDocument();
+      expect(screen.queryByText(/already went through/)).toBeNull();
+    });
+
+    it("keeps the dialog open, with the error, when the cancel on close fails (PR #175 review)", async () => {
+      cancelUnpaidMock.mockRejectedValue(new Error("network"));
+      renderPanel({ options: paidOptions as never });
+      fireEvent.click(screen.getByRole("button", { name: "Register" }));
+      fireEvent.click(screen.getByRole("button", { name: "Submit registration" }));
+      await screen.findByText("Stripe card form");
+      fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+      expect(await screen.findByText("Couldn't cancel the registration. Please try again.")).toBeInTheDocument();
+      expect(screen.getByText("Stripe card form")).toBeInTheDocument();
     });
   });
 

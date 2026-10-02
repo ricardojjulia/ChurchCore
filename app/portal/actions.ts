@@ -10,6 +10,7 @@ import {
   eventPaymentReadiness,
   removeUnstartedRegistration,
   startRegistrationPayment,
+  type CancelUnpaidRegistrationResult,
   type RegistrationCheckout,
 } from "@/lib/event-registration-payment";
 import { createEventRegistrationPaymentIntent } from "@/lib/stripe/event-registrations";
@@ -457,7 +458,7 @@ export async function submitPublicEventRegistrationAction(
 export async function cancelUnpaidPublicRegistrationAction(
   registrationId: string,
   paymentIntentId: string,
-): Promise<{ ok: boolean; cancelled: boolean; error?: string }> {
+): Promise<CancelUnpaidRegistrationResult> {
   if (!registrationId || !paymentIntentId) return { ok: true, cancelled: false };
   return cancelUnpaidRegistration(createTenantAdminClient(), { registrationId, paymentIntentId });
 }

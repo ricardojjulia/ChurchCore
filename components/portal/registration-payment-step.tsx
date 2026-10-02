@@ -5,7 +5,7 @@ import { Alert, Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import { FlaskConical } from "lucide-react";
 
 import { DonationCardStep } from "@/components/portal/donation-card-step";
-import type { RegistrationCheckout } from "@/lib/event-registration-payment";
+import type { CancelUnpaidRegistrationResult, RegistrationCheckout } from "@/lib/event-registration-payment";
 
 export type RegistrationPaymentState = {
   registrationId: string;
@@ -13,7 +13,67 @@ export type RegistrationPaymentState = {
   amountLabel: string;
   /** Stripe's card form, when the payment is live (G3.0c). */
   checkout: RegistrationCheckout | null;
+  /**
+   * The event needs the church's approval too: paying doesn't admit the
+   * registrant, so the messages say so (PR #175 review).
+   */
+  awaitingApproval: boolean;
 };
+
+type PanelMessage = { type: "success" | "error"; text: string };
+
+/** What to tell the registrant once Stripe has their payment ("succeeded" or "processing"). */
+export function paidMessage(status: string, awaitingApproval: boolean): PanelMessage {
+  const processing = status !== "succeeded";
+  if (awaitingApproval) {
+    return {
+      type: "success",
+      text: processing
+        ? "Your payment is processing. Your registration is still awaiting the church's approval."
+        : "Payment received. Your registration is awaiting the church's approval.",
+    };
+  }
+  return {
+    type: "success",
+    text: processing
+      ? "Your payment is processing. Your registration completes when it clears."
+      : "Payment received. Your registration is complete.",
+  };
+}
+
+/**
+ * What a cancel came to, and whether the payment step should close. Only an
+ * actual outcome closes it; a failed cancel keeps it open with the error, so
+ * the registrant can retry (PR #175 review).
+ */
+export function cancelOutcome(
+  result: CancelUnpaidRegistrationResult,
+  awaitingApproval: boolean,
+): { close: boolean; message: PanelMessage } {
+  if (!result.ok) {
+    return {
+      close: false,
+      message: { type: "error", text: result.error ?? "Couldn't cancel the registration. Please try again." },
+    };
+  }
+  if (result.cancelled) {
+    return { close: true, message: { type: "success", text: "Registration cancelled. You weren't charged." } };
+  }
+  if (result.paymentStatus) {
+    const paid = paidMessage(result.paymentStatus, awaitingApproval);
+    return {
+      close: true,
+      message: {
+        type: "success",
+        text:
+          result.paymentStatus === "succeeded"
+            ? `Your payment already went through, so your registration stands. ${paid.text}`
+            : `Your payment is already processing, so your registration can't be cancelled here. ${paid.text}`,
+      },
+    };
+  }
+  return { close: true, message: { type: "success", text: "This registration is no longer awaiting payment." } };
+}
 
 /**
  * Paying for an event registration (G3.0c), shown right after registering:

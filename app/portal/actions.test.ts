@@ -446,10 +446,10 @@ describe("cancelUnpaidPublicRegistrationAction (G3.0c)", () => {
     vi.clearAllMocks();
   });
 
-  it("acts only on the registration and PaymentIntent pair, through the admin client, while the payment is pending", async () => {
+  it("acts only on the registration and PaymentIntent pair, through the admin client, while the payment is unpaid", async () => {
     const calls: Array<[string, unknown[]]> = [];
     const builder: Record<string, unknown> = {};
-    for (const method of ["select", "eq", "neq"]) {
+    for (const method of ["select", "eq", "neq", "in"]) {
       builder[method] = (...args: unknown[]) => (calls.push([method, args]), builder);
     }
     builder.maybeSingle = async () => ({ data: null, error: null });
@@ -460,7 +460,7 @@ describe("cancelUnpaidPublicRegistrationAction (G3.0c)", () => {
       expect.arrayContaining([
         ["eq", ["registration_id", "reg-1"]],
         ["eq", ["payment_intent_id", "pi_1"]],
-        ["eq", ["event_registrations.payment_status", "pending"]],
+        ["in", ["event_registrations.payment_status", ["pending", "failed"]]],
       ]),
     );
   });

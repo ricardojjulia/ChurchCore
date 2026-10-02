@@ -38,7 +38,7 @@ function fakeAdmin(results: Record<string, Array<{ data?: unknown; error?: unkno
     from(table: string) {
       const chain: Record<string, unknown> = {};
       const next = () => Promise.resolve(results[table]?.shift() ?? { data: null, error: null });
-      for (const method of ["select", "eq", "neq", "update", "upsert", "delete"]) {
+      for (const method of ["select", "eq", "neq", "in", "update", "upsert", "delete"]) {
         chain[method] = (...args: unknown[]) => (calls.push({ table, method, args }), chain);
       }
       chain.maybeSingle = next;
@@ -147,26 +147,34 @@ describe("startRegistrationPayment", () => {
 });
 
 describe("cancelUnpaidRegistration", () => {
-  const PENDING = { data: { registration_id: "reg-1", church_id: "church-1", stripe_account_id: "acct_church1" }, error: null };
+  const UNPAID_ROW = { data: { registration_id: "reg-1", church_id: "church-1", stripe_account_id: "acct_church1" }, error: null };
+  const CANCELLED = { data: [{ id: "reg-1" }], error: null };
+  const cancel = (admin: ReturnType<typeof fakeAdmin>, paymentIntentId = "pi_1") =>
+    cancelUnpaidRegistration(admin.client, { registrationId: "reg-1", paymentIntentId });
 
   it("cancels the PaymentIntent on the church's account, then the registration, matched by both ids while unpaid", async () => {
     mocks.cancelPaymentIntent.mockResolvedValue("canceled");
-    const admin = fakeAdmin({ event_registration_payments: [PENDING] });
+    const admin = fakeAdmin({ event_registration_payments: [UNPAID_ROW], event_registrations: [CANCELLED] });
 
-    expect(await cancelUnpaidRegistration(admin.client, { registrationId: "reg-1", paymentIntentId: "pi_1" })).toEqual({
-      ok: true,
-      cancelled: true,
-    });
+    expect(await cancel(admin)).toEqual({ ok: true, cancelled: true });
     expect(mocks.cancelPaymentIntent).toHaveBeenCalledWith("pi_1", "acct_church1");
     expect(admin.calls).toEqual(
       expect.arrayContaining([
         { table: "event_registration_payments", method: "eq", args: ["registration_id", "reg-1"] },
         { table: "event_registration_payments", method: "eq", args: ["payment_intent_id", "pi_1"] },
-        { table: "event_registration_payments", method: "eq", args: ["event_registrations.payment_status", "pending"] },
+        // Unpaid includes "failed": the webhook marks it so after a declined card (PR #175 review).
+        { table: "event_registration_payments", method: "in", args: ["event_registrations.payment_status", ["pending", "failed"]] },
         { table: "event_registrations", method: "update", args: [{ status: "cancelled" }] },
-        { table: "event_registrations", method: "eq", args: ["payment_status", "pending"] },
+        { table: "event_registrations", method: "in", args: ["payment_status", ["pending", "failed"]] },
+        { table: "event_registration_payments", method: "in", args: ["status", ["pending", "failed"]] },
       ]),
     );
+  });
+
+  it("cancels a stubbed (demo or keyless) payment without calling Stripe (PR #175 review)", async () => {
+    const admin = fakeAdmin({ event_registration_payments: [{ ...UNPAID_ROW, data: { ...UNPAID_ROW.data, stripe_account_id: null } }], event_registrations: [CANCELLED] });
+    expect(await cancel(admin, "pi_event_registration_stub_reg-1")).toEqual({ ok: true, cancelled: true });
+    expect(mocks.cancelPaymentIntent).not.toHaveBeenCalled();
   });
 
   it("narrows to the member's church when given", async () => {
@@ -177,30 +185,47 @@ describe("cancelUnpaidRegistration", () => {
 
   it("does nothing, and never calls Stripe, when the ids don't match an unpaid registration", async () => {
     const admin = fakeAdmin({ event_registration_payments: [{ data: null, error: null }] });
-    expect(await cancelUnpaidRegistration(admin.client, { registrationId: "reg-1", paymentIntentId: "pi_other" })).toEqual({
-      ok: true,
-      cancelled: false,
-    });
+    expect(await cancel(admin, "pi_other")).toEqual({ ok: true, cancelled: false });
     expect(mocks.cancelPaymentIntent).not.toHaveBeenCalled();
   });
 
-  it("keeps the registration when Stripe says it was paid after all; the webhook records it", async () => {
-    mocks.cancelPaymentIntent.mockResolvedValue("succeeded");
-    const admin = fakeAdmin({ event_registration_payments: [PENDING] });
-    expect(await cancelUnpaidRegistration(admin.client, { registrationId: "reg-1", paymentIntentId: "pi_1" })).toEqual({
-      ok: true,
-      cancelled: false,
-    });
+  it.each(["succeeded", "processing"])(
+    "keeps the registration when Stripe says the payment is %s, and says which; the webhook records it",
+    async (status) => {
+      mocks.cancelPaymentIntent.mockResolvedValue(status);
+      const admin = fakeAdmin({ event_registration_payments: [UNPAID_ROW] });
+      expect(await cancel(admin)).toEqual({ ok: true, cancelled: false, paymentStatus: status });
+      expect(admin.calls.some((c) => c.table === "event_registrations" && c.method === "update")).toBe(false);
+    },
+  );
+
+  it("treats any other status as a failed cancel to retry, not as paid (PR #175 review)", async () => {
+    mocks.cancelPaymentIntent.mockResolvedValue("requires_payment_method");
+    const admin = fakeAdmin({ event_registration_payments: [UNPAID_ROW] });
+    expect(await cancel(admin)).toMatchObject({ ok: false, cancelled: false });
     expect(admin.calls.some((c) => c.table === "event_registrations" && c.method === "update")).toBe(false);
+  });
+
+  it("overwrites nothing, and says so, when an admin recorded the payment meanwhile (PR #175 review)", async () => {
+    mocks.cancelPaymentIntent.mockResolvedValue("canceled");
+    const admin = fakeAdmin({ event_registration_payments: [UNPAID_ROW], event_registrations: [{ data: [], error: null }] });
+    expect(await cancel(admin)).toMatchObject({ ok: false, cancelled: false, error: expect.stringMatching(/updated by the church/) });
+    expect(admin.calls.some((c) => c.table === "event_registration_payments" && c.method === "update")).toBe(false);
   });
 
   it("returns an error, not a throw, when Stripe can't be reached", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.cancelPaymentIntent.mockRejectedValue(new Error("network"));
-    const admin = fakeAdmin({ event_registration_payments: [PENDING] });
-    expect(await cancelUnpaidRegistration(admin.client, { registrationId: "reg-1", paymentIntentId: "pi_1" })).toMatchObject({
-      ok: false,
-      cancelled: false,
-    });
+    const admin = fakeAdmin({ event_registration_payments: [UNPAID_ROW] });
+    expect(await cancel(admin)).toMatchObject({ ok: false, cancelled: false });
+  });
+});
+
+describe("eventPaymentReadiness in demo mode", () => {
+  it("takes the demo payment even when Stripe keys are set and the church isn't connected (PR #175 review)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    mocks.onlineGivingStatus.mockResolvedValue({ mode: "not_connected", stripeAccount: null });
+    expect(await eventPaymentReadiness("church-1")).toEqual({ ok: true });
+    expect(mocks.onlineGivingStatus).not.toHaveBeenCalled();
   });
 });

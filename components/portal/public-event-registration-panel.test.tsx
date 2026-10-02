@@ -159,6 +159,47 @@ describe("PublicEventRegistrationPanel", () => {
       await screen.findByText("Stripe card form");
       fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
       await waitFor(() => expect(cancelUnpaidMock).toHaveBeenCalledWith("reg-public-1", "pi_public_1"));
+      await waitFor(() => expect(screen.queryByText("Stripe card form")).toBeNull());
+    });
+
+    it("keeps the dialog and checkout open, with the error, when the cancel on close fails (PR #175 review)", async () => {
+      cancelUnpaidMock.mockResolvedValue({ ok: false, cancelled: false, error: "Couldn't cancel the payment. Please try again." });
+      await registerAsGuest();
+      await screen.findByText("Stripe card form");
+      fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+      expect(await screen.findByText("Couldn't cancel the payment. Please try again.")).toBeInTheDocument();
+      expect(screen.getByText("Stripe card form")).toBeInTheDocument();
+    });
+
+    it("can't be closed while the registration is being submitted (PR #175 review)", async () => {
+      let resolveSubmit: (value: unknown) => void = () => {};
+      submitPublicEventRegistrationActionMock.mockReturnValue(new Promise((resolve) => (resolveSubmit = resolve)));
+      await registerAsGuest();
+      fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+      resolveSubmit({
+        ok: true,
+        status: "confirmed",
+        registrationId: "reg-public-1",
+        paymentIntentId: "pi_public_1",
+        checkout: CHECKOUT,
+      });
+      expect(await screen.findByText("Stripe card form")).toBeInTheDocument();
+    });
+
+    it("reports the payment and the pending approval separately (PR #175 review)", async () => {
+      submitPublicEventRegistrationActionMock.mockResolvedValue({
+        ok: true,
+        status: "pending_approval",
+        registrationId: "reg-public-1",
+        paymentIntentId: "pi_public_1",
+        checkout: CHECKOUT,
+      });
+      await registerAsGuest();
+      fireEvent.click(await screen.findByText("Stripe paid"));
+      expect(await screen.findByText("Payment received. Your registration is awaiting the church's approval.")).toBeInTheDocument();
+      expect(screen.queryByText(/registration is complete/)).toBeNull();
     });
 
     it("shows the server's refusal when the church can't take payments, with no card form", async () => {
