@@ -357,6 +357,71 @@ describe("church-admin actions", () => {
     );
   });
 
+  describe("registerForEventAction on Supabase (G3.0c)", () => {
+    function fakeServerClient(settings: Record<string, unknown>) {
+      const writes: Array<{ table: string; method: string; row: unknown }> = [];
+      const chain = (result: unknown) => {
+        const builder: Record<string, unknown> = {};
+        for (const method of ["select", "eq", "neq"]) builder[method] = () => builder;
+        builder.maybeSingle = async () => result;
+        builder.single = async () => result;
+        builder.then = (resolve: (v: unknown) => unknown) => resolve(result);
+        return builder;
+      };
+      const client = {
+        from: (table: string) => {
+          if (table === "events") return chain({ data: { church_id: "church-1" }, error: null });
+          if (table === "event_registration_settings") return chain({ data: settings, error: null });
+          if (table === "event_registration_payments") {
+            return { upsert: async (row: unknown) => (writes.push({ table, method: "upsert", row }), { error: null }) };
+          }
+          return {
+            ...chain({ data: null, error: null, count: 0 }),
+            insert: (row: unknown) => (writes.push({ table, method: "insert", row }), chain({ data: { id: "reg-walkin" }, error: null })),
+          };
+        },
+      };
+      return { client, writes };
+    }
+
+    beforeEach(() => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+    });
+
+    it("records a paid walk-in's payment as due, with no PaymentIntent nobody could pay", async () => {
+      const fake = fakeServerClient({ registration_open: true, capacity: null, approval_required: false, price_cents: 4000, currency: "cad" });
+      createTenantServerClientMock.mockResolvedValue(fake.client as never);
+
+      expect(
+        await registerForEventAction({ eventId: "event-1", churchId: "church-1", registrantName: "Walk In" }),
+      ).toEqual({ ok: true, registrationId: "reg-walkin", isWaitlisted: false, paymentDueCents: 4000, paymentDueCurrency: "cad" });
+      const payment = fake.writes.find((w) => w.table === "event_registration_payments");
+      expect(payment?.row).toMatchObject({ status: "pending", amount_cents: 4000, payment_intent_id: null });
+      expect(payment?.row).not.toHaveProperty("stripe_account_id");
+    });
+
+    it("is for the event page's roles only: church admin and pastor", async () => {
+      for (const roleId of ["member", "secretary", "ministry-leader"]) {
+        requireChurchSessionMock.mockResolvedValueOnce({ appContext: { roleId, church: { id: "church-1" } } });
+        expect(
+          await registerForEventAction({ eventId: "event-1", churchId: "church-1", registrantName: "Someone" }),
+        ).toEqual({ ok: false, error: "Unauthorized." });
+      }
+      expect(createTenantServerClientMock).not.toHaveBeenCalled();
+    });
+
+    it("refuses another church's event, whatever churchId the caller passes", async () => {
+      requireChurchSessionMock.mockResolvedValueOnce({ appContext: { roleId: "church-admin", church: { id: "church-2" } } });
+      const fake = fakeServerClient({ registration_open: true, price_cents: 0 });
+      createTenantServerClientMock.mockResolvedValue(fake.client as never);
+
+      expect(
+        await registerForEventAction({ eventId: "event-1", churchId: "church-2", registrantName: "Someone" }),
+      ).toEqual({ ok: false, error: "Event does not belong to the requested church." });
+      expect(fake.writes).toHaveLength(0);
+    });
+  });
+
   it("rejects registration requests when provided church does not match event church", async () => {
     queryTenantLocalDbMock.mockResolvedValueOnce({ rows: [{ church_id: "church-1" }] });
 

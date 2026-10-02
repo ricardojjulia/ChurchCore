@@ -4,17 +4,36 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemberEventRegistrationPanel } from "@/components/application/member-event-registration-panel";
 
-const { memberRegisterForEventActionMock } = vi.hoisted(() => ({
+const { memberRegisterForEventActionMock, cancelUnpaidMock, cardStepProps } = vi.hoisted(() => ({
   memberRegisterForEventActionMock: vi.fn(),
+  cancelUnpaidMock: vi.fn(),
+  cardStepProps: vi.fn(),
 }));
 
 vi.mock("@/app/app/member-actions", () => ({
   memberRegisterForEventAction: memberRegisterForEventActionMock,
+  cancelUnpaidMemberRegistrationAction: cancelUnpaidMock,
+}));
+
+// Stripe's card form itself is tested in donation-card-step.test.tsx.
+vi.mock("@/components/portal/donation-card-step", () => ({
+  DonationCardStep: (props: { onPaid: (s: string) => void; onCancel: () => void }) => {
+    cardStepProps(props);
+    return (
+      <div>
+        <span>Stripe card form</span>
+        <button onClick={() => props.onPaid("processing")}>Stripe processing</button>
+        <button onClick={props.onCancel}>Leave card step</button>
+      </div>
+    );
+  },
 }));
 
 describe("MemberEventRegistrationPanel", () => {
   beforeEach(() => {
     memberRegisterForEventActionMock.mockReset();
+    cancelUnpaidMock.mockReset();
+    cardStepProps.mockReset();
   });
 
   const baseOptions = [
@@ -108,36 +127,59 @@ describe("MemberEventRegistrationPanel", () => {
     expect(await screen.findByText("Registration confirmed.")).toBeInTheDocument();
   });
 
-  it("shows payment-ready checkout state for paid registrations", async () => {
-    memberRegisterForEventActionMock.mockResolvedValue({
-      ok: true,
-      status: "confirmed",
-      registrationId: "reg-member-1",
-      paymentIntentId: "pi_member_registration_1",
-      paymentClientSecret: "client_secret_hidden",
+  describe("live payment: Stripe's card form (G3.0c)", () => {
+    const paidOptions = [{ ...baseOptions[0], priceCents: 2500, currency: "usd", fields: [] }];
+
+    beforeEach(() => {
+      memberRegisterForEventActionMock.mockResolvedValue({
+        ok: true,
+        status: "confirmed",
+        registrationId: "reg-member-1",
+        paymentIntentId: "pi_member_1",
+        paymentClientSecret: "pi_member_1_secret",
+        checkout: { clientSecret: "pi_member_1_secret", publishableKey: "pk_test_1", stripeAccount: "acct_church1" },
+      });
     });
 
-    renderPanel({
-      options: [
-        {
-          ...baseOptions[0],
-          priceCents: 2500,
-          currency: "usd",
-          fields: [],
-        },
-      ] as never,
+    it("shows the card form on the church's account after registering, in place of the form", async () => {
+      renderPanel({ options: paidOptions as never });
+      fireEvent.click(screen.getByRole("button", { name: "Register" }));
+      expect(screen.getByText(/Payment required: \$25.00/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Submit registration" }));
+
+      expect(await screen.findByText("Stripe card form")).toBeInTheDocument();
+      expect(cardStepProps).toHaveBeenCalledWith(
+        expect.objectContaining({ publishableKey: "pk_test_1", stripeAccount: "acct_church1", clientSecret: "pi_member_1_secret" }),
+      );
+      expect(screen.queryByRole("button", { name: "Submit registration" })).toBeNull();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    it("says a processing payment completes the registration when it clears", async () => {
+      renderPanel({ options: paidOptions as never });
+      fireEvent.click(screen.getByRole("button", { name: "Register" }));
+      fireEvent.click(screen.getByRole("button", { name: "Submit registration" }));
+      fireEvent.click(await screen.findByText("Stripe processing"));
+      expect(await screen.findByText(/Your payment is processing/)).toBeInTheDocument();
+    });
 
-    expect(screen.getByText(/Payment required: \$25.00/)).toBeInTheDocument();
+    it("cancels the unpaid registration when the member leaves the card step", async () => {
+      cancelUnpaidMock.mockResolvedValue({ ok: true, cancelled: true });
+      renderPanel({ options: paidOptions as never });
+      fireEvent.click(screen.getByRole("button", { name: "Register" }));
+      fireEvent.click(screen.getByRole("button", { name: "Submit registration" }));
+      fireEvent.click(await screen.findByText("Leave card step"));
+      expect(await screen.findByText("Registration cancelled. You weren't charged.")).toBeInTheDocument();
+      expect(cancelUnpaidMock).toHaveBeenCalledWith("reg-member-1", "pi_member_1");
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: "Submit registration" }));
-
-    expect(await screen.findByText("Secure payment ready")).toBeInTheDocument();
-    expect(screen.getByText(/Complete \$25.00 through the secure Stripe payment step/)).toBeInTheDocument();
-    expect(screen.getByText("Payment intent: pi_member_registration_1")).toBeInTheDocument();
-    expect(screen.queryByText("client_secret_hidden")).not.toBeInTheDocument();
+    it("says so, and keeps the registration, when the payment went through before the cancel", async () => {
+      cancelUnpaidMock.mockResolvedValue({ ok: true, cancelled: false });
+      renderPanel({ options: paidOptions as never });
+      fireEvent.click(screen.getByRole("button", { name: "Register" }));
+      fireEvent.click(screen.getByRole("button", { name: "Submit registration" }));
+      fireEvent.click(await screen.findByText("Leave card step"));
+      expect(await screen.findByText("Your payment already went through, so your registration stands.")).toBeInTheDocument();
+    });
   });
 
   describe("demo payment (S4, PR #168 review)", () => {
@@ -149,6 +191,7 @@ describe("MemberEventRegistrationPanel", () => {
         registrationId: "reg-member-1",
         paymentIntentId: "pi_event_registration_stub_reg-member-1",
         paymentClientSecret: null,
+        checkout: null,
       });
       renderPanel({ options: [{ ...baseOptions[0], priceCents: 2500, currency: "usd", fields: [] }] as never });
       fireEvent.click(screen.getByRole("button", { name: "Register" }));
@@ -166,16 +209,16 @@ describe("MemberEventRegistrationPanel", () => {
       fireEvent.click(await openDemoCheckout());
 
       expect(await screen.findByText("The demo payment couldn't be completed.")).toBeInTheDocument();
-      expect(screen.getByText("Secure payment ready")).toBeInTheDocument();
-      expect(screen.queryByText(/Demo payment complete/)).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Complete Demo Payment/ })).toBeInTheDocument();
+      expect(screen.queryByText(/Payment received/)).not.toBeInTheDocument();
     });
 
     it("confirms and closes checkout when the route completes the payment", async () => {
       vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200 })));
       fireEvent.click(await openDemoCheckout());
 
-      expect(await screen.findByText("Demo payment complete. Registration confirmed.")).toBeInTheDocument();
-      expect(screen.queryByText("Secure payment ready")).not.toBeInTheDocument();
+      expect(await screen.findByText("Payment received. Your registration is complete.")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Complete Demo Payment/ })).toBeNull();
     });
   });
 });

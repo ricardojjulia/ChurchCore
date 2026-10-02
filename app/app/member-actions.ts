@@ -4,6 +4,14 @@ import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
 import { resolveRegistrationLifecycle } from "@/lib/event-registration-lifecycle";
+import {
+  EVENT_PAYMENT_START_FAILED,
+  cancelUnpaidRegistration,
+  eventPaymentReadiness,
+  removeUnstartedRegistration,
+  startRegistrationPayment,
+  type RegistrationCheckout,
+} from "@/lib/event-registration-payment";
 import { createEventRegistrationPaymentIntent, stubPaymentIntentId } from "@/lib/stripe/event-registrations";
 import {
   createTenantAdminClient,
@@ -61,6 +69,8 @@ export type MemberRegisterForEventResult = {
   registrationId?: string | null;
   paymentIntentId?: string | null;
   paymentClientSecret?: string | null;
+  /** Stripe's card form for a live paid registration (G3.0c). */
+  checkout?: RegistrationCheckout | null;
   error?: string;
 };
 
@@ -819,6 +829,13 @@ export async function memberRegisterForEventAction(
     priceCents: settings.price_cents ?? 0,
   });
 
+  // A paid registration is taken only when the church can take the payment
+  // (G3.0c, Council Review 35).
+  if (paymentStatus === "pending") {
+    const readiness = await eventPaymentReadiness(churchId);
+    if (!readiness.ok) return { ok: false, error: readiness.error };
+  }
+
   // Written through the admin client after every rule above has passed: a
   // household member's row can't be read back through the member's own
   // select policy, so the RLS-bound insert failed (Council Review 22).
@@ -842,48 +859,26 @@ export async function memberRegisterForEventAction(
   }
 
   if (paymentStatus === "pending" && data?.id) {
-    const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
-    let paymentIntent:
-      | Awaited<ReturnType<typeof createEventRegistrationPaymentIntent>>
-      | null = null;
-    if (!demoMode) {
-      try {
-        paymentIntent = await createEventRegistrationPaymentIntent({
-          amountCents: settings.price_cents ?? 0,
-          currency: settings.currency,
-          churchId,
-          eventId: input.eventId,
-          registrationId: data.id,
-          registrantEmail: targetProfile.email,
-          registrantName: targetProfile.full_name,
-        });
-      } catch {
-        paymentIntent = null;
-      }
-    }
-
-    const intentId = paymentIntent?.paymentIntentId ?? (demoMode ? stubPaymentIntentId(data.id) : null);
-
-    // S8: the payments table is admin-only, so this upsert failed silently
-    // and paid registrations had no payment record to reconcile against.
-    const { error: paymentError } = await admin.from("event_registration_payments").upsert(
-      {
-        registration_id: data.id,
-        event_id: input.eventId,
-        church_id: churchId,
-        provider: "stripe",
-        status: "pending",
-        amount_cents: settings.price_cents ?? 0,
-        currency: settings.currency ?? "usd",
-        payment_intent_id: intentId,
-        // The church account it's charged on, for refunds (ADR 0025).
-        stripe_account_id: paymentIntent?.stripeAccount ?? null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "registration_id" },
-    );
-    if (paymentError) {
-      console.error("Failed to record the registration payment:", paymentError.message);
+    let payment: Awaited<ReturnType<typeof startRegistrationPayment>>;
+    try {
+      payment = await startRegistrationPayment(admin, {
+        churchId,
+        eventId: input.eventId,
+        registrationId: data.id,
+        amountCents: settings.price_cents ?? 0,
+        currency: settings.currency,
+        registrantEmail: targetProfile.email,
+        registrantName: targetProfile.full_name,
+      });
+    } catch (paymentError) {
+      // S8 found this payment row failing silently; now Stripe or the row
+      // failing undoes the registration so the member can try again.
+      console.error(
+        "Starting the registration payment failed:",
+        paymentError instanceof Error ? paymentError.message : paymentError,
+      );
+      await removeUnstartedRegistration(admin, churchId, data.id);
+      return { ok: false, error: EVENT_PAYMENT_START_FAILED };
     }
 
     revalidatePath("/app/member");
@@ -892,12 +887,36 @@ export async function memberRegisterForEventAction(
       ok: true,
       status,
       registrationId: data.id,
-      ...(intentId ? { paymentIntentId: intentId } : {}),
-      ...(paymentIntent ? { paymentClientSecret: paymentIntent.clientSecret } : {}),
+      paymentIntentId: payment.paymentIntentId,
+      ...(payment.checkout ? { paymentClientSecret: payment.checkout.clientSecret, checkout: payment.checkout } : {}),
     };
   }
 
   revalidatePath("/app/member");
   revalidatePath(`/app/church-admin/events/${input.eventId}`);
   return { ok: true, status, registrationId: data.id };
+}
+
+/**
+ * The member left the card step without paying (G3.0c): cancel the
+ * PaymentIntent and the registration, freeing its place. Only in the
+ * member's church, only while that registration's payment is pending, and
+ * only with its PaymentIntent id, which only the registrant's browser had.
+ */
+export async function cancelUnpaidMemberRegistrationAction(
+  registrationId: string,
+  paymentIntentId: string,
+): Promise<{ ok: boolean; cancelled: boolean; error?: string }> {
+  const session = await requireChurchSession("/app/member");
+  if (session.appContext.roleId !== "member") {
+    return { ok: false, cancelled: false, error: "Only members can cancel their own registrations here." };
+  }
+  if (!registrationId || !paymentIntentId) return { ok: true, cancelled: false };
+  const result = await cancelUnpaidRegistration(createTenantAdminClient(), {
+    registrationId,
+    paymentIntentId,
+    churchId: session.appContext.church.id,
+  });
+  if (result.cancelled) revalidatePath("/app/member");
+  return result;
 }

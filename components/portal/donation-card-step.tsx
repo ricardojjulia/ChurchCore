@@ -29,17 +29,18 @@ type Props = {
   amountLabel: string;
   /** Stripe accepted the payment: its PaymentIntent status ("succeeded" or "processing"). */
   onPaid: (status: string) => void;
-  /** Back to the amount and fund; the pending gift is cancelled. */
-  onBack: () => void;
+  /** Back to the previous step (giving: the amount and fund). Hidden when absent. */
+  onBack?: () => void;
   onCancel: () => void;
 };
 
 /**
- * The card step of a gift (G3.0): Stripe's Payment Element collects the card
- * in Stripe's own iframe — no card details reach ChurchCore — and confirms
- * the PaymentIntent in the browser. The server then checks the status with
- * Stripe itself before recording anything (confirmDonationAction), and the
- * webhook stays the source of truth.
+ * The card step of a gift (G3.0) and of a paid event registration (G3.0c):
+ * Stripe's Payment Element collects the card in Stripe's own iframe (no card
+ * details reach ChurchCore) and confirms the PaymentIntent in the browser.
+ * Nothing is recorded as paid on the browser's word: a gift is checked with
+ * Stripe by the server (confirmDonationAction), and the webhook is the source
+ * of truth for both.
  */
 export function DonationCardStep({
   publishableKey,
@@ -108,10 +109,12 @@ function CardForm({
           {error}
         </Alert>
       ) : null}
-      <Group justify="space-between" gap="sm">
-        <Button variant="subtle" radius="xl" onClick={onBack} disabled={paying}>
-          Back
-        </Button>
+      <Group justify={onBack ? "space-between" : "flex-end"} gap="sm">
+        {onBack ? (
+          <Button variant="subtle" radius="xl" onClick={onBack} disabled={paying}>
+            Back
+          </Button>
+        ) : null}
         <Group gap="sm">
           <Button
             variant="default"

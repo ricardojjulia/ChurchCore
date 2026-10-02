@@ -1180,7 +1180,11 @@ export function EventRegistrationsPanel({
         setForm({ name: "", email: "", phone: "", notes: "" });
         setMsg({
           type: "success",
-          text: res.isWaitlisted ? "Added to waitlist." : "Registered.",
+          text: res.isWaitlisted
+            ? "Added to waitlist."
+            : res.paymentDueCents
+              ? `Registered. Payment of ${(res.paymentDueCents / 100).toLocaleString(undefined, { style: "currency", currency: (res.paymentDueCurrency ?? "usd").toUpperCase() })} is due; collect it in person.`
+              : "Registered.",
         });
       } else {
         setMsg({ type: "error", text: res.error ?? "Failed to register." });

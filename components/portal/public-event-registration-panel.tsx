@@ -17,11 +17,14 @@ import {
   Textarea,
   Title,
 } from "@mantine/core";
-import { FlaskConical } from "lucide-react";
-
 import {
+  cancelUnpaidPublicRegistrationAction,
   submitPublicEventRegistrationAction,
 } from "@/app/portal/actions";
+import {
+  RegistrationPaymentStep,
+  type RegistrationPaymentState,
+} from "@/components/portal/registration-payment-step";
 import type {
   PublicEventRegistrationField,
   PublicEventRegistrationOption,
@@ -55,12 +58,6 @@ function formatEventTime(iso: string, timeZone: string | null | undefined): stri
   }
 }
 
-type PaymentCheckoutState = {
-  registrationId: string;
-  paymentIntentId: string;
-  amountLabel: string;
-};
-
 export function PublicEventRegistrationPanel({ churchId, churchName, timeZone, options }: Props) {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [registrantName, setRegistrantName] = useState("");
@@ -69,8 +66,7 @@ export function PublicEventRegistrationPanel({ churchId, churchName, timeZone, o
   const [notes, setNotes] = useState("");
   const [fieldValues, setFieldValues] = useState<Record<string, string | number | boolean>>({});
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [paymentCheckout, setPaymentCheckout] = useState<PaymentCheckoutState | null>(null);
-  const [demoPaymentLoading, setDemoPaymentLoading] = useState(false);
+  const [paymentCheckout, setPaymentCheckout] = useState<RegistrationPaymentState | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const selectedEvent = useMemo(
@@ -90,6 +86,13 @@ export function PublicEventRegistrationPanel({ churchId, churchName, timeZone, o
   }
 
   function closeModal() {
+    // Leaving without paying cancels the unpaid registration, freeing its
+    // place (G3.0c). Best effort: a failure leaves it unpaid for the church.
+    if (paymentCheckout) {
+      void cancelUnpaidPublicRegistrationAction(paymentCheckout.registrationId, paymentCheckout.paymentIntentId).catch(
+        () => undefined,
+      );
+    }
     setSelectedEventId(null);
     setRegistrantName("");
     setRegistrantEmail("");
@@ -124,24 +127,33 @@ export function PublicEventRegistrationPanel({ churchId, churchName, timeZone, o
     return String(value ?? "").trim().length > 0;
   }
 
-  async function completeDemoPayment() {
+  function handlePaid(status: string) {
+    setPaymentCheckout(null);
+    setMessage({
+      type: "success",
+      text:
+        status === "succeeded"
+          ? "Payment received. Your registration is complete."
+          : "Your payment is processing. Your registration completes when it clears.",
+    });
+  }
+
+  function cancelUnpaid() {
     if (!paymentCheckout) return;
-    setDemoPaymentLoading(true);
-    try {
-      const response = await fetch("/api/demo/complete-payment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ registrationId: paymentCheckout.registrationId, churchId }),
-      });
-      if (!response.ok) {
-        setMessage({ type: "error", text: "The demo payment couldn't be completed." });
+    const { registrationId, paymentIntentId } = paymentCheckout;
+    startTransition(async () => {
+      const result = await cancelUnpaidPublicRegistrationAction(registrationId, paymentIntentId);
+      if (!result.ok) {
+        setMessage({ type: "error", text: result.error ?? "Couldn't cancel the registration. Please try again." });
         return;
       }
       setPaymentCheckout(null);
-      setMessage({ type: "success", text: "Demo payment complete. Registration confirmed." });
-    } finally {
-      setDemoPaymentLoading(false);
-    }
+      setMessage(
+        result.cancelled
+          ? { type: "success", text: "Registration cancelled. You weren't charged." }
+          : { type: "success", text: "Your payment already went through, so your registration stands." },
+      );
+    });
   }
 
   function handleSubmit() {
@@ -212,22 +224,20 @@ export function PublicEventRegistrationPanel({ churchId, churchName, timeZone, o
         : result.status === "waitlisted"
           ? "Registration submitted to waitlist."
           : "Registration confirmed.";
-      setMessage({
-        type: "success",
-        text: result.paymentClientSecret
-          ? `${statusText} Secure payment is ready.`
-          : statusText,
-      });
-      setPaymentCheckout(
-        result.paymentIntentId && result.registrationId &&
-        (result.paymentClientSecret || process.env.NEXT_PUBLIC_DEMO_MODE === "true")
+      const payment =
+        result.paymentIntentId && result.registrationId
           ? {
               registrationId: result.registrationId,
               paymentIntentId: result.paymentIntentId,
               amountLabel: formatAmount(selectedEvent.priceCents, selectedEvent.currency),
+              checkout: result.checkout ?? null,
             }
-          : null,
-      );
+          : null;
+      setMessage({
+        type: "success",
+        text: payment ? `${statusText} Pay below to finish.` : statusText,
+      });
+      setPaymentCheckout(payment);
     });
   }
 
@@ -303,166 +313,126 @@ export function PublicEventRegistrationPanel({ churchId, churchName, timeZone, o
           {selectedEvent && selectedEvent.priceCents > 0 && !paymentCheckout ? (
             <Alert color="grape" variant="light">
               Payment required: {formatAmount(selectedEvent.priceCents, selectedEvent.currency)}.
-              A secure Stripe payment step will be prepared after registration.
+              You&apos;ll pay by card right after registering.
             </Alert>
           ) : null}
 
           {paymentCheckout ? (
-            <Paper withBorder radius="md" p="md">
-              <Stack gap={6}>
-                <Text fw={700}>Secure payment ready</Text>
-                <Text size="sm">
-                  Complete {paymentCheckout.amountLabel} through the secure Stripe payment step for this registration.
-                </Text>
-                <Text size="xs" c="dimmed">
-                  Payment intent: {paymentCheckout.paymentIntentId}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  No card details are stored in ChurchCore.
-                </Text>
-                {process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? (
-                  <>
-                    <Paper p="sm" radius="md" mt={4} style={{ background: "rgba(20,184,166,0.06)", border: "1px solid rgba(20,184,166,0.25)" }}>
-                      <Group gap="xs" mb="xs">
-                        <FlaskConical size={14} color="#0d9488" />
-                        <Text size="xs" fw={700} c="teal.7" tt="uppercase">Demo Mode — Test Payment</Text>
-                      </Group>
-                      <Stack gap={6}>
-                        <Group gap="xs">
-                          <Text size="xs" c="dimmed" w={80}>Card</Text>
-                          <Text size="xs" ff="monospace" fw={600}>4242 4242 4242 4242</Text>
-                        </Group>
-                        <Group gap="xs">
-                          <Text size="xs" c="dimmed" w={80}>Expiry</Text>
-                          <Text size="xs" ff="monospace" fw={600}>12 / 29</Text>
-                        </Group>
-                        <Group gap="xs">
-                          <Text size="xs" c="dimmed" w={80}>CVC</Text>
-                          <Text size="xs" ff="monospace" fw={600}>123</Text>
-                        </Group>
-                      </Stack>
-                      <Text size="xs" c="dimmed" mt="xs">No real charge will be made.</Text>
-                    </Paper>
-                    <Button
-                      color="teal"
-                      fullWidth
-                      loading={demoPaymentLoading}
-                      onClick={completeDemoPayment}
-                      leftSection={<FlaskConical size={14} />}
-                    >
-                      Complete Demo Payment — {paymentCheckout.amountLabel}
-                    </Button>
-                  </>
-                ) : null}
-              </Stack>
-            </Paper>
-          ) : null}
-
-          <TextInput
-            label="Full name"
-            required
-            value={registrantName}
-            onChange={(event) => setRegistrantName(event.currentTarget.value)}
-          />
-
-          <TextInput
-            label="Email"
-            required
-            value={registrantEmail}
-            onChange={(event) => setRegistrantEmail(event.currentTarget.value)}
-          />
-
-          <TextInput
-            label="Phone (optional)"
-            value={registrantPhone}
-            onChange={(event) => setRegistrantPhone(event.currentTarget.value)}
-          />
-
-          {selectedEvent?.fields.map((field) => {
-            const key = field.fieldKey;
-            const value = fieldValues[key];
-
-            if (field.fieldType === "textarea") {
-              return (
-                <Textarea
-                  key={field.id}
-                  label={field.label}
-                  required={field.isRequired}
-                  value={String(value ?? "")}
-                  onChange={(event) =>
-                    setFieldValues((prev) => ({ ...prev, [key]: event.currentTarget.value }))
-                  }
-                />
-              );
-            }
-
-            if (field.fieldType === "select") {
-              return (
-                <Select
-                  key={field.id}
-                  label={field.label}
-                  required={field.isRequired}
-                  data={field.options.map((option) => ({ value: option, label: option }))}
-                  value={typeof value === "string" ? value : null}
-                  onChange={(next) => setFieldValues((prev) => ({ ...prev, [key]: next ?? "" }))}
-                />
-              );
-            }
-
-            if (field.fieldType === "checkbox") {
-              // A real checkbox: announced as one, and marked when required
-              // (it was a toggle Button, Council Review 33).
-              return (
-                <Checkbox
-                  key={field.id}
-                  label={field.label}
-                  required={field.isRequired}
-                  checked={Boolean(value)}
-                  onChange={(event) => {
-                    const checked = event.currentTarget.checked;
-                    setFieldValues((prev) => ({ ...prev, [key]: checked }));
-                  }}
-                />
-              );
-            }
-
-            if (field.fieldType === "number") {
-              return (
-                <NumberInput
-                  key={field.id}
-                  label={field.label}
-                  required={field.isRequired}
-                  value={typeof value === "number" ? value : undefined}
-                  onChange={(next) =>
-                    setFieldValues((prev) => ({ ...prev, [key]: typeof next === "number" ? next : "" }))
-                  }
-                />
-              );
-            }
-
-            return (
+            <RegistrationPaymentStep
+              payment={paymentCheckout}
+              churchId={churchId}
+              onPaid={handlePaid}
+              onCancel={cancelUnpaid}
+            />
+          ) : (
+            <>
               <TextInput
-                key={field.id}
-                label={field.label}
-                required={field.isRequired}
-                value={String(value ?? "")}
-                onChange={(event) =>
-                  setFieldValues((prev) => ({ ...prev, [key]: event.currentTarget.value }))
-                }
+                label="Full name"
+                required
+                value={registrantName}
+                onChange={(event) => setRegistrantName(event.currentTarget.value)}
               />
-            );
-          })}
 
-          <Textarea
-            label="Notes (optional)"
-            value={notes}
-            onChange={(event) => setNotes(event.currentTarget.value)}
-          />
+              <TextInput
+                label="Email"
+                required
+                value={registrantEmail}
+                onChange={(event) => setRegistrantEmail(event.currentTarget.value)}
+              />
 
-          <Group justify="flex-end">
-            <Button variant="default" onClick={closeModal}>Cancel</Button>
-            <Button onClick={handleSubmit} loading={isPending}>Submit registration</Button>
-          </Group>
+              <TextInput
+                label="Phone (optional)"
+                value={registrantPhone}
+                onChange={(event) => setRegistrantPhone(event.currentTarget.value)}
+              />
+
+              {selectedEvent?.fields.map((field) => {
+                const key = field.fieldKey;
+                const value = fieldValues[key];
+
+                if (field.fieldType === "textarea") {
+                  return (
+                    <Textarea
+                      key={field.id}
+                      label={field.label}
+                      required={field.isRequired}
+                      value={String(value ?? "")}
+                      onChange={(event) =>
+                        setFieldValues((prev) => ({ ...prev, [key]: event.currentTarget.value }))
+                      }
+                    />
+                  );
+                }
+
+                if (field.fieldType === "select") {
+                  return (
+                    <Select
+                      key={field.id}
+                      label={field.label}
+                      required={field.isRequired}
+                      data={field.options.map((option) => ({ value: option, label: option }))}
+                      value={typeof value === "string" ? value : null}
+                      onChange={(next) => setFieldValues((prev) => ({ ...prev, [key]: next ?? "" }))}
+                    />
+                  );
+                }
+
+                if (field.fieldType === "checkbox") {
+                  // A real checkbox: announced as one, and marked when required
+                  // (it was a toggle Button, Council Review 33).
+                  return (
+                    <Checkbox
+                      key={field.id}
+                      label={field.label}
+                      required={field.isRequired}
+                      checked={Boolean(value)}
+                      onChange={(event) => {
+                        const checked = event.currentTarget.checked;
+                        setFieldValues((prev) => ({ ...prev, [key]: checked }));
+                      }}
+                    />
+                  );
+                }
+
+                if (field.fieldType === "number") {
+                  return (
+                    <NumberInput
+                      key={field.id}
+                      label={field.label}
+                      required={field.isRequired}
+                      value={typeof value === "number" ? value : undefined}
+                      onChange={(next) =>
+                        setFieldValues((prev) => ({ ...prev, [key]: typeof next === "number" ? next : "" }))
+                      }
+                    />
+                  );
+                }
+
+                return (
+                  <TextInput
+                    key={field.id}
+                    label={field.label}
+                    required={field.isRequired}
+                    value={String(value ?? "")}
+                    onChange={(event) =>
+                      setFieldValues((prev) => ({ ...prev, [key]: event.currentTarget.value }))
+                    }
+                  />
+                );
+              })}
+
+              <Textarea
+                label="Notes (optional)"
+                value={notes}
+                onChange={(event) => setNotes(event.currentTarget.value)}
+              />
+
+              <Group justify="flex-end">
+                <Button variant="default" onClick={closeModal}>Cancel</Button>
+                <Button onClick={handleSubmit} loading={isPending}>Submit registration</Button>
+              </Group>
+            </>
+          )}
         </Stack>
       </Modal>
     </Paper>

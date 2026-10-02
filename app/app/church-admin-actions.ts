@@ -1475,13 +1475,21 @@ export async function registerForEventAction(
   isWaitlisted?: boolean;
   paymentIntentId?: string | null;
   paymentClientSecret?: string | null;
+  /** A paid event: the amount due, to collect in person. */
+  paymentDueCents?: number;
+  paymentDueCurrency?: string;
   error?: string;
 }> {
+  // The event page's own gate (G3.0c: this export had none; RLS was the only
+  // check).
+  const session = await requireChurchSession("/app/church-admin/events");
+  const role = session.appContext.roleId;
+  if (role !== "church-admin" && role !== "pastor") return { ok: false, error: "Unauthorized." };
   if (!input.registrantName.trim()) return { ok: false, error: "Name is required." };
 
   const churchId = await resolveEventRegistrationChurchId(input.eventId);
 
-  if (input.churchId && input.churchId !== churchId) {
+  if (churchId !== session.appContext.church.id || (input.churchId && input.churchId !== churchId)) {
     return { ok: false, error: "Event does not belong to the requested church." };
   }
 
@@ -1650,24 +1658,11 @@ export async function registerForEventAction(
   if (error) return { ok: false, error: error.message };
 
   if (paymentStatus === "pending") {
-    let paymentIntent:
-      | Awaited<ReturnType<typeof createEventRegistrationPaymentIntent>>
-      | null = null;
-    try {
-      paymentIntent = await createEventRegistrationPaymentIntent({
-        amountCents: settings?.price_cents ?? 0,
-        currency: settings?.currency,
-        churchId,
-        eventId: input.eventId,
-        registrationId: data.id,
-        registrantEmail: input.registrantEmail,
-        registrantName: input.registrantName.trim(),
-      });
-    } catch {
-      paymentIntent = null;
-    }
-
-    await supabase.from("event_registration_payments").upsert(
+    // An admin adding someone doesn't take a card for them, so no
+    // PaymentIntent is created: that one could never be paid (nobody was
+    // given its card form). The payment is recorded as due, to collect in
+    // person (G3.0c, Council Review 35).
+    const { error: paymentError } = await supabase.from("event_registration_payments").upsert(
       {
         registration_id: data.id,
         event_id: input.eventId,
@@ -1676,25 +1671,20 @@ export async function registerForEventAction(
         status: "pending",
         amount_cents: settings?.price_cents ?? 0,
         currency: settings?.currency ?? "usd",
-        payment_intent_id: paymentIntent?.paymentIntentId ?? null,
-        // The church account it's charged on, for refunds (ADR 0025).
-        stripe_account_id: paymentIntent?.stripeAccount ?? null,
+        payment_intent_id: null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "registration_id" },
     );
+    if (paymentError) console.error("Failed to record the registration's payment due:", paymentError.message);
 
     revalidatePath(`/app/church-admin/events/${input.eventId}`);
     return {
       ok: true,
       registrationId: data.id,
       isWaitlisted,
-      ...(paymentIntent
-        ? {
-            paymentIntentId: paymentIntent.paymentIntentId,
-            paymentClientSecret: paymentIntent.clientSecret,
-          }
-        : {}),
+      paymentDueCents: settings?.price_cents ?? 0,
+      paymentDueCurrency: settings?.currency ?? "usd",
     };
   }
 
