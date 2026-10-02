@@ -194,7 +194,7 @@ export function CustomReportsWorkspace({ session }: { session: ChurchAppSession 
                 transition: "all 0.2s ease-in-out",
                 border: isSelected
                   ? `2px solid var(--mantine-color-${entity.tone}-filled)`
-                  : "1px solid var(--mantine-color-gray-3)",
+                  : "1px solid #1e293b",
                 boxShadow: isSelected
                   ? "0 8px 24px rgba(0,0,0,0.06)"
                   : "none",
@@ -249,7 +249,7 @@ export function CustomReportsWorkspace({ session }: { session: ChurchAppSession 
             </ThemeIcon>
           </Group>
 
-          <Paper bg="var(--mantine-color-gray-0)" p="md" radius="lg" withBorder>
+          <Paper bg="dark.6" p="md" radius="lg" withBorder>
             <Text size="sm" fw={600} mb="xs">
               Columns included in this CSV:
             </Text>
@@ -261,7 +261,7 @@ export function CustomReportsWorkspace({ session }: { session: ChurchAppSession 
                   radius="md"
                   withBorder
                   style={{
-                    backgroundColor: "white",
+                    backgroundColor: "#0f172a",
                     display: "flex",
                     alignItems: "center",
                     boxShadow: "0 2px 4px rgba(30, 41, 59, 0.6)",

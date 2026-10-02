@@ -323,9 +323,9 @@ export function ControlPlaneDashboard({
               onClick={() => setProvisionOpen(true)}
               styles={{
                 root: {
-                  backgroundColor: "#5c5fc8",
+                  backgroundColor: "#4f46e5",
                   "&:hover": {
-                    backgroundColor: "#4c4fa8",
+                    backgroundColor: "#6366f1",
                   },
                 },
               }}
@@ -347,7 +347,7 @@ export function ControlPlaneDashboard({
                 withBorder
                 radius="md"
                 p="md"
-                bg="#0b1329"
+                bg="dark.6"
                 style={{ borderColor: "#1e293b", color: "#f8fafc" }}
               >
                 <Text size="2.5rem" fw={800} lh={1} style={{ color: "#f8fafc" }}>
@@ -361,7 +361,7 @@ export function ControlPlaneDashboard({
           </SimpleGrid>
 
           {/* Table */}
-          <Paper withBorder radius="md" p="md" bg="#0b1329" style={{ borderColor: "#1e293b", overflowX: "auto" }}>
+          <Paper withBorder radius="md" p="md" bg="dark.6" style={{ borderColor: "#1e293b", overflowX: "auto" }}>
             <Table variant="unstyled" style={{ color: "#f8fafc" }}>
               <Table.Thead style={{ borderBottom: "1px solid #1e293b" }}>
                 <Table.Tr>

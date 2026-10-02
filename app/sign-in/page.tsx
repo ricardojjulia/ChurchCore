@@ -148,7 +148,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
                       borderRadius: 999,
                       display: "grid",
                       placeItems: "center",
-                      background: "var(--mantine-color-gray-0)",
+                      background: "rgba(99, 102, 241, 0.1)",
                     }}
                   >
                     <KeyRound size={16} />

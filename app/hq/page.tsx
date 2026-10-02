@@ -449,7 +449,7 @@ export default function ProjectHQPage() {
     return (
       <Grid gap="xl" p="md" style={{ height: "100vh", overflow: "hidden" }}>
         {/* Mock Sidebar Nav */}
-        <Grid.Col span={3} style={{ borderRight: "1px solid var(--mantine-color-gray-3)" }}>
+        <Grid.Col span={3} style={{ borderRight: "1px solid #1e293b" }}>
           <Stack gap="md" p="md">
             <Skeleton height={30} width="60%" radius="sm" />
             <Skeleton height={20} width="80%" radius="sm" />

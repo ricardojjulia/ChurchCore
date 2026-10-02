@@ -12,6 +12,8 @@ export function formatCategory(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
+// Each category colour is a chip behind white text (4.5:1 or better) and a
+// dot on the slate-900 surface (3:1 or better), per WCAG AA (ADR 0026).
 export function getCategoryColor(category: string): string {
   switch (category) {
     case "worship":
@@ -21,15 +23,15 @@ export function getCategoryColor(category: string): string {
     case "outreach":
       return "#c2410c";
     case "administrative":
-      return "#475569";
+      return "#64748b";
     case "ministry":
       return "#7c3aed";
     case "liturgical":
-      return "#1d4ed8";
+      return "#9333ea";
     case "informational":
-      return "#0284c7";
+      return "#0369a1";
     case "internal":
-      return "#334155";
+      return "#78716c";
     default:
       return "#1f6feb";
   }

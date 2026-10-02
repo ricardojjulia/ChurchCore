@@ -368,7 +368,7 @@ export function CalendarLiveBoard({
             minHeight: 100,
             padding: "6px 7px",
             border: "1px solid #1e293b",
-            backgroundColor: isToday ? "#eff6ff" : "#fff",
+            backgroundColor: isToday ? "rgba(99, 102, 241, 0.12)" : "#0f172a",
             cursor: "pointer",
             overflow: "hidden",
           }}

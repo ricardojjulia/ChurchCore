@@ -234,6 +234,27 @@ html {
   color: #e2e8f0;
 }
 
+/*
+ * Input and checkbox outlines at slate-500: 3.9:1 against the input and 3.75:1
+ * against the surface, meeting WCAG 1.4.11's 3:1 for component boundaries.
+ * The theme's slate-700 borders (1.8:1) stay for decorative lines.
+ */
+[data-mantine-color-scheme="dark"] .mantine-Input-input,
+[data-mantine-color-scheme="dark"] .mantine-Checkbox-input:not(:checked),
+[data-mantine-color-scheme="dark"] .mantine-Radio-radio:not(:checked) {
+  --input-bd: #64748b;
+  border-color: #64748b;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Input-input:focus,
+[data-mantine-color-scheme="dark"] .mantine-Input-input:focus-within {
+  border-color: var(--mantine-color-indigo-5);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Input-input[data-error] {
+  border-color: var(--mantine-color-error);
+}
+
 /* Filled buttons get the spec's soft glow, in their own colour. */
 .mantine-Button-root[data-variant="filled"]:not(:disabled):not([data-disabled]) {
   box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--button-bg, #4f46e5) 55%, transparent);
