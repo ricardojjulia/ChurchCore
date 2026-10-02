@@ -23,10 +23,12 @@ import { notifications } from "@mantine/notifications";
 import { Heart, RefreshCw, XCircle } from "lucide-react";
 
 import {
+  cancelPendingDonationAction,
   confirmDonationAction,
   initiateDonationAction,
   cancelRecurringDonationAction,
 } from "@/app/app/donations-actions";
+import { DonationCardStep } from "@/components/portal/donation-card-step";
 import type { DonationEntry, DonorPortalData } from "@/lib/donations-data";
 
 const STATUS_COLORS: Record<DonationEntry["status"], string> = {
@@ -60,13 +62,18 @@ const FUND_OPTIONS = [
   { value: "Community Outreach", label: "Community Outreach" },
 ];
 
+type Checkout = { clientSecret: string; donationId: string; paymentIntentId: string; cents: number; fund: string };
+
 export function DonorPortal({
   data,
   givingNotice = null,
+  publishableKey = null,
 }: {
   data: DonorPortalData;
   /** Why online giving is off right now, or null when a member can give (Council Review 22). */
   givingNotice?: string | null;
+  /** Stripe's publishable key, for the card step (G3.0); null in stub mode. */
+  publishableKey?: string | null;
 }) {
   const { donations, totalGiven } = data;
 
@@ -77,7 +84,84 @@ export function DonorPortal({
   const [donorEmail, setDonorEmail] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [note, setNote] = useState("");
+  const [checkout, setCheckout] = useState<Checkout | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  function resetForm() {
+    setAmountDollars(25);
+    setNote("");
+    setCheckout(null);
+    give.close();
+  }
+
+  // Leaving the card step cancels the PaymentIntent and the pending gift
+  // (G3.0). It waits for that to succeed (PR #172 review): if it fails, the
+  // card step stays open with the error, so the member can retry instead of
+  // leaving both open with no way back to them.
+  function abandonCheckout(then: () => void) {
+    const abandoned = checkout;
+    if (!abandoned) {
+      then();
+      return;
+    }
+    startTransition(async () => {
+      const result = await cancelPendingDonationAction(abandoned.donationId, abandoned.paymentIntentId).catch(() => ({
+        ok: false,
+        cancelled: false,
+        error: "Couldn't cancel the gift. Please try again.",
+      }));
+      if (!result.ok) {
+        notifications.show({
+          title: "Couldn't cancel your gift",
+          message: result.error ?? "Please try again.",
+          color: "red",
+        });
+        return;
+      }
+      then();
+    });
+  }
+
+  function closeGive() {
+    abandonCheckout(resetForm);
+  }
+
+  // Back to the amount and fund (kept as entered): this PaymentIntent is for
+  // the old amount, so it's cancelled and a new one made on Give.
+  function backToForm() {
+    abandonCheckout(() => setCheckout(null));
+  }
+
+  function handlePaid(status: string) {
+    const paid = checkout;
+    if (!paid) return;
+    startTransition(async () => {
+      if (status === "succeeded") {
+        const confirmed = await confirmDonationAction(paid.donationId, paid.paymentIntentId);
+        notifications.show(
+          confirmed.ok
+            ? {
+                title: "Thank you for your gift",
+                message: `Your gift of ${formatCents(paid.cents)} to ${paid.fund} went through. A receipt is on its way if you gave an email.`,
+                color: "teal",
+              }
+            : {
+                title: "Payment received",
+                message: "Your payment went through; it may take a moment to show in your giving history.",
+                color: "teal",
+              },
+        );
+      } else {
+        // e.g. a bank debit still clearing: the webhook records it.
+        notifications.show({
+          title: "Payment processing",
+          message: `Your gift of ${formatCents(paid.cents)} is processing. It'll show in your giving history once it clears.`,
+          color: "blue",
+        });
+      }
+      resetForm();
+    });
+  }
 
   function handleGive() {
     const cents = Math.round(Number(amountDollars) * 100);
@@ -99,8 +183,25 @@ export function DonorPortal({
           return;
         }
 
-        // initiateDonationAction only succeeds in stub mode until the card form
-        // ships (G3.0): there's no card to take, so record the gift now.
+        if (!result.isStub) {
+          // Live: the member pays in the card step; nothing is recorded as
+          // paid until Stripe says so.
+          if (!publishableKey) {
+            notifications.show({ title: "Couldn't start your gift", message: "Card payments aren't available right now.", color: "red" });
+            return;
+          }
+          setCheckout({
+            clientSecret: result.clientSecret,
+            donationId: result.donationId,
+            paymentIntentId: result.paymentIntentId,
+            cents,
+            fund,
+          });
+          return;
+        }
+
+        // Stub mode (development and the demo): there's no card to take, so
+        // record the gift now.
         const confirmed = await confirmDonationAction(result.donationId, result.paymentIntentId);
         notifications.show(
           confirmed.ok
@@ -112,9 +213,7 @@ export function DonorPortal({
             : { title: "Couldn't record your gift", message: confirmed.error ?? "Please try again.", color: "red" },
         );
 
-        setAmountDollars(25);
-        setNote("");
-        give.close();
+        resetForm();
       } catch (err) {
         notifications.show({
           title: "Error",
@@ -285,12 +384,27 @@ export function DonorPortal({
       {/* Give drawer */}
       <Drawer
         opened={giveOpen}
-        onClose={give.close}
+        onClose={closeGive}
         title="Give to Your Church"
         position="right"
         size="md"
         radius="lg"
       >
+        {checkout && publishableKey ? (
+          <Stack gap="md" p="md">
+            <Text fw={600}>
+              {formatCents(checkout.cents)} to {checkout.fund}
+            </Text>
+            <DonationCardStep
+              publishableKey={publishableKey}
+              clientSecret={checkout.clientSecret}
+              amountLabel={formatCents(checkout.cents)}
+              onPaid={handlePaid}
+              onBack={backToForm}
+              onCancel={closeGive}
+            />
+          </Stack>
+        ) : (
         <Stack gap="md" p="md">
           <Alert color="teal" icon={<Heart size={13} />} variant="light" radius="md">
             <Text fz="xs">
@@ -357,7 +471,7 @@ export function DonorPortal({
 
           <Divider />
           <Group justify="flex-end" gap="sm">
-            <Button variant="default" radius="xl" onClick={give.close}>
+            <Button variant="default" radius="xl" onClick={closeGive}>
               Cancel
             </Button>
             <Button
@@ -372,6 +486,7 @@ export function DonorPortal({
             </Button>
           </Group>
         </Stack>
+        )}
       </Drawer>
     </Stack>
   );

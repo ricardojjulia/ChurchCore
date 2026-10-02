@@ -9,6 +9,7 @@ const {
   donorPortalMock,
   memberBottomNavMock,
   onlineGivingNoticeMock,
+  onlineGivingModeMock,
 } = vi.hoisted(() => ({
   redirectMock: vi.fn((url: string) => {
     throw { url };
@@ -25,10 +26,13 @@ const {
   donorPortalMock: vi.fn(() => <div>Donor Portal</div>),
   memberBottomNavMock: vi.fn(() => <div>Bottom Nav</div>),
   onlineGivingNoticeMock: vi.fn(),
+  onlineGivingModeMock: vi.fn(() => "stub"),
 }));
 
 vi.mock("@/lib/stripe/donations", () => ({
   onlineGivingNotice: onlineGivingNoticeMock,
+  onlineGivingMode: onlineGivingModeMock,
+  stripePublishableKey: () => "pk_test_123",
 }));
 
 vi.mock("next/navigation", () => ({
@@ -85,7 +89,7 @@ describe("member giving page", () => {
     expect(screen.getByText("Grace Church")).toBeInTheDocument();
     expect(screen.getByText("Donor Portal")).toBeInTheDocument();
     expect(getDonorPortalDataMock).toHaveBeenCalled();
-    expect(donorPortalMock).toHaveBeenCalledWith({ data: { donations: [] }, givingNotice: null }, undefined);
+    expect(donorPortalMock).toHaveBeenCalledWith({ data: { donations: [] }, givingNotice: null, publishableKey: null }, undefined);
   });
 
   it("tells members up front when online giving is off (Council Review 22)", async () => {
@@ -93,7 +97,18 @@ describe("member giving page", () => {
     render(await MemberGivingPage());
 
     expect(donorPortalMock).toHaveBeenCalledWith(
-      { data: { donations: [] }, givingNotice: "Online card giving isn't available yet." },
+      { data: { donations: [] }, givingNotice: "Online card giving isn't available yet.", publishableKey: null },
+      undefined,
+    );
+  });
+
+  it("hands the card form Stripe's publishable key only in live mode (G3.0)", async () => {
+    onlineGivingModeMock.mockReturnValue("live");
+    onlineGivingNoticeMock.mockReturnValue(null);
+    render(await MemberGivingPage());
+
+    expect(donorPortalMock).toHaveBeenCalledWith(
+      { data: { donations: [] }, givingNotice: null, publishableKey: "pk_test_123" },
       undefined,
     );
   });

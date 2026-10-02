@@ -40,7 +40,9 @@ export async function createEventRegistrationPaymentIntent(
   const body: Record<string, unknown> = {
     amount: input.amountCents,
     currency: input.currency ?? "usd",
-    automatic_payment_methods: "enabled",
+    // Cards only; the old `automatic_payment_methods: "enabled"` was a
+    // malformed parameter Stripe rejects (Council Review 34).
+    "payment_method_types[]": "card",
     "metadata[church_id]": input.churchId,
     "metadata[event_id]": input.eventId,
     "metadata[event_registration_id]": input.registrationId,

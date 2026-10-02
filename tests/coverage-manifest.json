@@ -2175,6 +2175,7 @@
     "app/app/donations-actions.ts": {
       "module": "app/app/donations-actions.ts",
       "exports": [
+        "cancelPendingDonationAction",
         "cancelRecurringDonationAction",
         "confirmDonationAction",
         "initiateDonationAction"

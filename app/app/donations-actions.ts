@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { requireChurchSession } from "@/lib/auth";
 import {
+  cancelPaymentIntent,
   cancelStripeSubscription,
   createOrGetStripeCustomer,
   createPaymentIntent,
@@ -54,8 +55,9 @@ export type InitiateDonationResult =
  *
  * Writes a pending donations row, then creates the Stripe PaymentIntent for
  * it. If Stripe fails, the row is marked failed; nothing is left half-made.
- * Only runs in stub mode until the card form ships (G3.0): otherwise no row
- * or PaymentIntent is created, so nothing is left pending forever.
+ * Runs in stub mode (development and demo) and live mode (both Stripe keys
+ * set; the member pays with the card form, G3.0). Otherwise no row or
+ * PaymentIntent is created, so nothing is left pending forever.
  *
  * All giving is 100% voluntary — no minimum, no platform fee.
  */
@@ -132,6 +134,36 @@ export async function initiateDonationAction(
 }
 
 /**
+ * Whether the signed-in person may confirm this gift (Council Review 34):
+ * - "owner": it's in their church and either names them or is anonymous (an
+ *   anonymous gift stores no profile, so knowing both ids is the proof);
+ * - "other": it names someone else;
+ * - "missing": no gift here has these ids — nothing to confirm;
+ * - "error": the read failed. This fails closed (PR #172 review): a failed
+ *   read must not be mistaken for an anonymous gift.
+ */
+async function giftOwnership(
+  session: Awaited<ReturnType<typeof requireChurchSession>>,
+  donationId: string,
+  paymentIntentId: string,
+): Promise<"owner" | "other" | "missing" | "error"> {
+  const { data, error } = await createTenantAdminClient()
+    .from("donations")
+    .select("profile_id")
+    .eq("id", donationId)
+    .eq("church_id", session.appContext.church.id)
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .maybeSingle();
+  if (error) {
+    console.error("Failed to read the gift:", error.message);
+    return "error";
+  }
+  if (!data) return "missing";
+  const giver = (data as { profile_id: string | null }).profile_id;
+  return !giver || giver === session.churchProfileId ? "owner" : "other";
+}
+
+/**
  * confirmDonationAction
  *
  * Called after Stripe Elements confirms payment (or right away in stub mode).
@@ -145,6 +177,11 @@ export async function confirmDonationAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await requireChurchSession("/app/member");
   const churchId = session.appContext.church.id;
+
+  const ownership = await giftOwnership(session, donationId, paymentIntentId);
+  if (ownership === "error") return { ok: false, error: "Couldn't check your gift. Please try again." };
+  if (ownership === "other") return { ok: false, error: "This gift isn't yours to confirm." };
+  if (ownership === "missing") return { ok: true };
 
   let status: string;
   try {
@@ -195,6 +232,71 @@ export async function confirmDonationAction(
   }
   revalidatePath("/app/member/giving");
   return { ok: true };
+}
+
+/**
+ * cancelPendingDonationAction
+ *
+ * The member closed the card form without paying (G3.0): cancel the
+ * PaymentIntent at Stripe and mark the gift cancelled, instead of leaving
+ * both open forever. Ownership is the pair of ids the member's own browser was
+ * given — an anonymous gift stores no profile to check — and only a gift
+ * that's still pending, in this church, can be cancelled. If Stripe reports
+ * the payment already succeeded or is processing, nothing is cancelled: the
+ * webhook will record it.
+ */
+export async function cancelPendingDonationAction(
+  donationId: string,
+  paymentIntentId: string,
+): Promise<{ ok: boolean; cancelled: boolean; error?: string }> {
+  const session = await requireChurchSession("/app/member");
+  const churchId = session.appContext.church.id;
+  const supabase = createTenantAdminClient();
+
+  const { data: pending, error: readError } = await supabase
+    .from("donations")
+    .select("id, profile_id")
+    .eq("id", donationId)
+    .eq("church_id", churchId)
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .eq("status", "pending")
+    .maybeSingle();
+  if (readError) {
+    console.error("Failed to read the pending gift:", readError.message);
+    return { ok: false, cancelled: false, error: "Couldn't cancel the gift. Please try again." };
+  }
+  if (!pending) return { ok: true, cancelled: false };
+  // A named gift is cancelled only by its giver (Council Review 34); an
+  // anonymous one stores no profile, so the two ids are the proof.
+  const giver = (pending as { profile_id: string | null }).profile_id;
+  if (giver && giver !== session.churchProfileId) {
+    return { ok: false, cancelled: false, error: "This gift isn't yours to cancel." };
+  }
+
+  let stripeStatus: string;
+  try {
+    stripeStatus = await cancelPaymentIntent(paymentIntentId);
+  } catch (error) {
+    console.error("Failed to cancel the Stripe payment:", error);
+    return { ok: false, cancelled: false, error: "Couldn't cancel the gift. Please try again." };
+  }
+  if (stripeStatus !== "canceled") {
+    // Paid (or paying) after all: leave it for the webhook.
+    return { ok: true, cancelled: false };
+  }
+
+  const { error: updateError } = await supabase
+    .from("donations")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", donationId)
+    .eq("church_id", churchId)
+    .eq("status", "pending");
+  if (updateError) {
+    console.error("Failed to mark the gift cancelled:", updateError.message);
+    return { ok: false, cancelled: false, error: "Couldn't cancel the gift. Please try again." };
+  }
+  revalidatePath("/app/member/giving");
+  return { ok: true, cancelled: true };
 }
 
 /**

@@ -12,6 +12,7 @@ const {
   createOrGetStripeCustomerMock,
   cancelStripeSubscriptionMock,
   retrievePaymentIntentStatusMock,
+  cancelPaymentIntentMock,
   onlineGivingNoticeMock,
   postDonationToGlMock,
   sendDonationReceiptMock,
@@ -27,6 +28,7 @@ const {
     createOrGetStripeCustomerMock: vi.fn(),
     cancelStripeSubscriptionMock: vi.fn(),
     retrievePaymentIntentStatusMock: vi.fn(),
+    cancelPaymentIntentMock: vi.fn(),
     onlineGivingNoticeMock: vi.fn(),
     postDonationToGlMock: vi.fn(),
     sendDonationReceiptMock: vi.fn(),
@@ -42,6 +44,7 @@ vi.mock("@/lib/stripe/donations", () => ({
   createOrGetStripeCustomer: createOrGetStripeCustomerMock,
   cancelStripeSubscription: cancelStripeSubscriptionMock,
   retrievePaymentIntentStatus: retrievePaymentIntentStatusMock,
+  cancelPaymentIntent: cancelPaymentIntentMock,
   onlineGivingNotice: onlineGivingNoticeMock,
 }));
 vi.mock("@/lib/stripe/donation-completion", () => ({
@@ -70,6 +73,7 @@ vi.mock("@/lib/supabase/tenant", () => {
 });
 
 import {
+  cancelPendingDonationAction,
   cancelRecurringDonationAction,
   confirmDonationAction,
   initiateDonationAction,
@@ -192,6 +196,7 @@ describe("donations actions", () => {
     it("marks the gift succeeded only when Stripe says so, only from pending, then posts it to the GL and sends the receipt", async () => {
       queue(
         "donations",
+        { data: { profile_id: "profile-1" }, error: null },
         { data: [{ donor_email: "maya@example.org", donor_name: "Maya", amount_cents: 2500, fund_designation: "General" }], error: null },
         { error: null },
       );
@@ -214,6 +219,7 @@ describe("donations actions", () => {
 
     it("returns an error, not a throw, when Stripe can't be reached", async () => {
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      queue("donations", { data: { profile_id: "profile-1" }, error: null });
       retrievePaymentIntentStatusMock.mockRejectedValueOnce(new Error("network"));
       expect(await confirmDonationAction("don-1", "pi_123")).toEqual({
         ok: false,
@@ -224,6 +230,7 @@ describe("donations actions", () => {
     });
 
     it("refuses when Stripe hasn't confirmed the payment", async () => {
+      queue("donations", { data: { profile_id: "profile-1" }, error: null });
       retrievePaymentIntentStatusMock.mockResolvedValueOnce("requires_payment_method");
       expect(await confirmDonationAction("don-1", "pi_123")).toEqual({
         ok: false,
@@ -233,11 +240,93 @@ describe("donations actions", () => {
     });
 
     it("does nothing more when the webhook already confirmed it", async () => {
-      queue("donations", { data: [], error: null });
+      queue("donations", { data: { profile_id: "profile-1" }, error: null }, { data: [], error: null });
       expect(await confirmDonationAction("don-1", "pi_123")).toEqual({ ok: true });
       // The webhook won the update, so it posted and receipted; this call must not.
       expect(postDonationToGlMock).not.toHaveBeenCalled();
       expect(sendDonationReceiptMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("only the giver confirms or cancels a named gift (Council Review 34)", () => {
+    it("refuses to confirm another member's gift, without asking Stripe", async () => {
+      queue("donations", { data: { profile_id: "someone-else" }, error: null });
+
+      expect(await confirmDonationAction("don-1", "pi_123")).toEqual({ ok: false, error: "This gift isn't yours to confirm." });
+      expect(retrievePaymentIntentStatusMock).not.toHaveBeenCalled();
+      expect(methodCalls("update")).toHaveLength(0);
+    });
+
+    it("refuses to cancel another member's gift, without touching Stripe", async () => {
+      queue("donations", { data: { id: "don-1", profile_id: "someone-else" }, error: null });
+
+      expect(await cancelPendingDonationAction("don-1", "pi_123")).toMatchObject({ ok: false, cancelled: false });
+      expect(cancelPaymentIntentMock).not.toHaveBeenCalled();
+    });
+
+    it("fails closed when the gift can't be read, rather than treating it as anonymous (PR #172 review)", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      queue("donations", { data: null, error: { message: "connection reset" } });
+
+      expect(await confirmDonationAction("don-1", "pi_123")).toEqual({ ok: false, error: "Couldn't check your gift. Please try again." });
+      expect(retrievePaymentIntentStatusMock).not.toHaveBeenCalled();
+      expect(methodCalls("update")).toHaveLength(0);
+      errorSpy.mockRestore();
+    });
+
+    it("does nothing for ids that match no gift here", async () => {
+      queue("donations", { data: null, error: null });
+      expect(await confirmDonationAction("don-1", "pi_123")).toEqual({ ok: true });
+      expect(retrievePaymentIntentStatusMock).not.toHaveBeenCalled();
+    });
+
+    it("lets an anonymous gift (no profile) be confirmed by whoever holds both ids", async () => {
+      queue("donations", { data: { profile_id: null }, error: null }, { data: [], error: null });
+      expect(await confirmDonationAction("don-1", "pi_123")).toEqual({ ok: true });
+    });
+  });
+
+  describe("cancelPendingDonationAction (G3.0: a gift abandoned at the card step)", () => {
+    it("cancels the PaymentIntent at Stripe, then the pending gift, matched by both ids in this church", async () => {
+      queue("donations", { data: { id: "don-1", profile_id: "profile-1" }, error: null }, { data: null, error: null });
+      cancelPaymentIntentMock.mockResolvedValue("canceled");
+
+      expect(await cancelPendingDonationAction("don-1", "pi_123")).toEqual({ ok: true, cancelled: true });
+      expect(cancelPaymentIntentMock).toHaveBeenCalledWith("pi_123");
+      const lookup = calls.filter((c) => c.method === "eq").slice(0, 4).map((c) => c.args);
+      expect(lookup).toEqual([
+        ["id", "don-1"],
+        ["church_id", "church-1"],
+        ["stripe_payment_intent_id", "pi_123"],
+        ["status", "pending"],
+      ]);
+      expect(methodCalls("update")[0].args[0]).toMatchObject({ status: "cancelled" });
+    });
+
+    it("does nothing, and never calls Stripe, when the ids don't match a pending gift here", async () => {
+      queue("donations", { data: null, error: null });
+
+      expect(await cancelPendingDonationAction("don-1", "pi_other")).toEqual({ ok: true, cancelled: false });
+      expect(cancelPaymentIntentMock).not.toHaveBeenCalled();
+      expect(methodCalls("update")).toHaveLength(0);
+    });
+
+    it("leaves the gift for the webhook when Stripe says it was paid after all", async () => {
+      queue("donations", { data: { id: "don-1" }, error: null });
+      cancelPaymentIntentMock.mockResolvedValue("succeeded");
+
+      expect(await cancelPendingDonationAction("don-1", "pi_123")).toEqual({ ok: true, cancelled: false });
+      expect(methodCalls("update")).toHaveLength(0);
+    });
+
+    it("returns an error, not a throw, when Stripe can't be reached", async () => {
+      queue("donations", { data: { id: "don-1" }, error: null });
+      cancelPaymentIntentMock.mockRejectedValue(new Error("network"));
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      expect(await cancelPendingDonationAction("don-1", "pi_123")).toMatchObject({ ok: false, cancelled: false });
+      expect(methodCalls("update")).toHaveLength(0);
+      errorSpy.mockRestore();
     });
   });
 
