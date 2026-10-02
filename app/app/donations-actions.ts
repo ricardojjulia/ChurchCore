@@ -134,26 +134,33 @@ export async function initiateDonationAction(
 }
 
 /**
- * Whether the signed-in person may confirm this gift: it's in their church
- * and, when it names a giver, that's them (Council Review 34). An anonymous
- * gift stores no profile, so knowing both its ids is the proof. A gift that
- * no longer matches (already confirmed, or not this church's) passes here and
- * is then a no-op in the conditional update.
+ * Whether the signed-in person may confirm this gift (Council Review 34):
+ * - "owner": it's in their church and either names them or is anonymous (an
+ *   anonymous gift stores no profile, so knowing both ids is the proof);
+ * - "other": it names someone else;
+ * - "missing": no gift here has these ids — nothing to confirm;
+ * - "error": the read failed. This fails closed (PR #172 review): a failed
+ *   read must not be mistaken for an anonymous gift.
  */
-async function ownsPendingGift(
+async function giftOwnership(
   session: Awaited<ReturnType<typeof requireChurchSession>>,
   donationId: string,
   paymentIntentId: string,
-): Promise<boolean> {
-  const { data } = await createTenantAdminClient()
+): Promise<"owner" | "other" | "missing" | "error"> {
+  const { data, error } = await createTenantAdminClient()
     .from("donations")
     .select("profile_id")
     .eq("id", donationId)
     .eq("church_id", session.appContext.church.id)
     .eq("stripe_payment_intent_id", paymentIntentId)
     .maybeSingle();
-  const giver = (data as { profile_id: string | null } | null)?.profile_id ?? null;
-  return !giver || giver === session.churchProfileId;
+  if (error) {
+    console.error("Failed to read the gift:", error.message);
+    return "error";
+  }
+  if (!data) return "missing";
+  const giver = (data as { profile_id: string | null }).profile_id;
+  return !giver || giver === session.churchProfileId ? "owner" : "other";
 }
 
 /**
@@ -171,9 +178,10 @@ export async function confirmDonationAction(
   const session = await requireChurchSession("/app/member");
   const churchId = session.appContext.church.id;
 
-  if (!(await ownsPendingGift(session, donationId, paymentIntentId))) {
-    return { ok: false, error: "This gift isn't yours to confirm." };
-  }
+  const ownership = await giftOwnership(session, donationId, paymentIntentId);
+  if (ownership === "error") return { ok: false, error: "Couldn't check your gift. Please try again." };
+  if (ownership === "other") return { ok: false, error: "This gift isn't yours to confirm." };
+  if (ownership === "missing") return { ok: true };
 
   let status: string;
   try {

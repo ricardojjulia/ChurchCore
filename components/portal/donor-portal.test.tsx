@@ -115,6 +115,15 @@ describe("DonorPortal", () => {
       expect(await screen.findByRole("button", { name: /^Give \$25\.00/ })).toBeInTheDocument();
     });
 
+    it("keeps the card step open, with the error, when cancelling fails (PR #172 review)", async () => {
+      cancelPendingDonationActionMock.mockResolvedValue({ ok: false, cancelled: false, error: "Couldn't cancel the gift. Please try again." });
+      await startGift();
+
+      fireEvent.click(screen.getByRole("button", { name: "Leave card step" }));
+      await waitFor(() => expect(showMock).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't cancel your gift" })));
+      expect(screen.getByText("Card step for $25.00")).toBeInTheDocument();
+    });
+
     it("cancels the pending gift when the member leaves the card step without paying", async () => {
       cancelPendingDonationActionMock.mockResolvedValue({ ok: true, cancelled: true });
       await startGift();

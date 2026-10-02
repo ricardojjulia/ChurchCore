@@ -219,6 +219,7 @@ describe("donations actions", () => {
 
     it("returns an error, not a throw, when Stripe can't be reached", async () => {
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      queue("donations", { data: { profile_id: "profile-1" }, error: null });
       retrievePaymentIntentStatusMock.mockRejectedValueOnce(new Error("network"));
       expect(await confirmDonationAction("don-1", "pi_123")).toEqual({
         ok: false,
@@ -229,6 +230,7 @@ describe("donations actions", () => {
     });
 
     it("refuses when Stripe hasn't confirmed the payment", async () => {
+      queue("donations", { data: { profile_id: "profile-1" }, error: null });
       retrievePaymentIntentStatusMock.mockResolvedValueOnce("requires_payment_method");
       expect(await confirmDonationAction("don-1", "pi_123")).toEqual({
         ok: false,
@@ -260,6 +262,22 @@ describe("donations actions", () => {
 
       expect(await cancelPendingDonationAction("don-1", "pi_123")).toMatchObject({ ok: false, cancelled: false });
       expect(cancelPaymentIntentMock).not.toHaveBeenCalled();
+    });
+
+    it("fails closed when the gift can't be read, rather than treating it as anonymous (PR #172 review)", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      queue("donations", { data: null, error: { message: "connection reset" } });
+
+      expect(await confirmDonationAction("don-1", "pi_123")).toEqual({ ok: false, error: "Couldn't check your gift. Please try again." });
+      expect(retrievePaymentIntentStatusMock).not.toHaveBeenCalled();
+      expect(methodCalls("update")).toHaveLength(0);
+      errorSpy.mockRestore();
+    });
+
+    it("does nothing for ids that match no gift here", async () => {
+      queue("donations", { data: null, error: null });
+      expect(await confirmDonationAction("don-1", "pi_123")).toEqual({ ok: true });
+      expect(retrievePaymentIntentStatusMock).not.toHaveBeenCalled();
     });
 
     it("lets an anonymous gift (no profile) be confirmed by whoever holds both ids", async () => {

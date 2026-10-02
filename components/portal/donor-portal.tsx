@@ -94,24 +94,42 @@ export function DonorPortal({
     give.close();
   }
 
-  // Closing the drawer before paying cancels the PaymentIntent and the
-  // pending gift, rather than leaving both open (G3.0).
-  function closeGive() {
+  // Leaving the card step cancels the PaymentIntent and the pending gift
+  // (G3.0). It waits for that to succeed (PR #172 review): if it fails, the
+  // card step stays open with the error, so the member can retry instead of
+  // leaving both open with no way back to them.
+  function abandonCheckout(then: () => void) {
     const abandoned = checkout;
-    resetForm();
-    if (abandoned) {
-      void cancelPendingDonationAction(abandoned.donationId, abandoned.paymentIntentId);
+    if (!abandoned) {
+      then();
+      return;
     }
+    startTransition(async () => {
+      const result = await cancelPendingDonationAction(abandoned.donationId, abandoned.paymentIntentId).catch(() => ({
+        ok: false,
+        cancelled: false,
+        error: "Couldn't cancel the gift. Please try again.",
+      }));
+      if (!result.ok) {
+        notifications.show({
+          title: "Couldn't cancel your gift",
+          message: result.error ?? "Please try again.",
+          color: "red",
+        });
+        return;
+      }
+      then();
+    });
+  }
+
+  function closeGive() {
+    abandonCheckout(resetForm);
   }
 
   // Back to the amount and fund (kept as entered): this PaymentIntent is for
   // the old amount, so it's cancelled and a new one made on Give.
   function backToForm() {
-    const abandoned = checkout;
-    setCheckout(null);
-    if (abandoned) {
-      void cancelPendingDonationAction(abandoned.donationId, abandoned.paymentIntentId);
-    }
+    abandonCheckout(() => setCheckout(null));
   }
 
   function handlePaid(status: string) {
