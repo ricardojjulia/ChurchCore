@@ -325,7 +325,7 @@ export function ControlPlaneDashboard({
                 root: {
                   backgroundColor: "#4f46e5",
                   "&:hover": {
-                    backgroundColor: "#6366f1",
+                    backgroundColor: "#4338ca",
                   },
                 },
               }}

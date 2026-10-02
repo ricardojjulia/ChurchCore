@@ -38,7 +38,7 @@ import { useI18n } from "@/components/i18n-provider";
 // so the pre-login landing page reads as the same product.
 const PAGE_BG = "#020617"; // slate-950
 const ACCENT = "#4f46e5"; // indigo-600
-const ACCENT_HOVER = "#6366f1"; // indigo-500
+const ACCENT_HOVER = "#4338ca"; // indigo-700: white text stays above 4.5:1 on hover
 // Accent as text: indigo-400 reads at 5.9:1 on slate-900 and 6.9:1 on the
 // canvas; indigo-600 (ACCENT) is for fills behind white text.
 const ACCENT_TEXT = "#818cf8";

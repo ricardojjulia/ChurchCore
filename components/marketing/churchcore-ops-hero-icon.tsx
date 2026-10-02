@@ -116,7 +116,7 @@ export function ChurchCoreOpsHeroIcon() {
       <defs>
         <radialGradient id="centerGradient" cx="35%" cy="35%">
           <stop offset="0%" stopColor="rgba(99, 102, 241, 1)" />
-          <stop offset="100%" stopColor="rgba(29, 78, 216, 0.9)" />
+          <stop offset="100%" stopColor="rgba(67, 56, 202, 0.9)" />
         </radialGradient>
       </defs>
     </svg>

@@ -98,7 +98,7 @@ The owner chose these on 2026-10-02.
   | indigo-400 link or nav text | 6.0:1 |
   | the member bottom nav's active colour | 6.0:1 (was `#1a56db`, about 2.5:1 on the new surface) |
 
-  **One known exception:** placeholders use the spec's slate-500, at 4.2:1 on inputs. Placeholder text isn't content, and this keeps the spec's value.
+  **Placeholders** use slate-400, at 6.9:1 on the input background, not the spec's slate-500 (3.9:1). *Corrected after the PR #176 review:* the first draft kept slate-500 as an exception on the grounds that placeholder text isn't content, but WCAG 1.4.3 applies to placeholders too.
 - **Teal stays as ChurchCore's secondary accent** (about 90 uses: check-in, success-adjacent states), alongside the spec's emerald, amber and rose states. The shell's brand mark, its nav and the church-context pill are indigo, per the spec.
 - **Found while checking:**
   - A calendar test only ever passed because the "today" circle shared the worship category's blue. It now checks the event's own chip.

@@ -115,7 +115,8 @@ const resolver: CSSVariablesResolver = () => ({
     "--mantine-color-text": "#e2e8f0",
     "--mantine-color-body": "#0f172a",
     "--mantine-color-default-border": "#1e293b",
-    "--mantine-color-placeholder": "#64748b",
+    // slate-400: 6.9:1 on the input background (placeholders must meet 4.5:1 too).
+    "--mantine-color-placeholder": "#94a3b8",
     "--mantine-color-anchor": "#818cf8",
   },
 });
