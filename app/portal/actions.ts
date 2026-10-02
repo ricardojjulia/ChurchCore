@@ -427,6 +427,8 @@ export async function submitPublicEventRegistrationAction(
         amount_cents: settings.price_cents ?? 0,
         currency: settings.currency ?? "usd",
         payment_intent_id: intentId,
+        // The church account it's charged on, for refunds (ADR 0025).
+        stripe_account_id: paymentIntent?.stripeAccount ?? null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "registration_id" },

@@ -1844,6 +1844,31 @@
         "app/api/reports/custom/route.test.ts"
       ]
     },
+    "/api/stripe/connect/callback": {
+      "path": "/api/stripe/connect/callback",
+      "file": "app/api/stripe/connect/callback/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "session",
+      "tests": [
+        "tests/e2e/api-session-routes.spec.ts",
+        "app/api/stripe/connect/callback/route.test.ts"
+      ],
+      "note": "Links an account only when the signed OAuth state names the signed-in church admin and church."
+    },
+    "/api/stripe/connect/start": {
+      "path": "/api/stripe/connect/start",
+      "file": "app/api/stripe/connect/start/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "session",
+      "tests": [
+        "tests/e2e/api-session-routes.spec.ts"
+      ],
+      "note": "Church admin only (403 otherwise); redirects to Stripe Connect OAuth, or back to settings with ?stripe=not_configured when the platform has no Connect client id."
+    },
     "/api/unsubscribe": {
       "path": "/api/unsubscribe",
       "file": "app/api/unsubscribe/route.ts",
@@ -1891,8 +1916,8 @@
       ],
       "auth": "webhook",
       "tests": [
-        "tests/e2e/api-webhooks.spec.ts",
-        "app/api/webhooks/stripe/route.test.ts"
+        "app/api/webhooks/stripe/route.test.ts",
+        "tests/e2e/api-webhooks.spec.ts"
       ]
     },
     "/api/webhooks/twilio": {
@@ -2296,6 +2321,15 @@
       ],
       "tests": [
         "app/app/shepherd-ai-actions.test.ts"
+      ]
+    },
+    "app/app/stripe-connect-actions.ts": {
+      "module": "app/app/stripe-connect-actions.ts",
+      "exports": [
+        "disconnectStripeAccountAction"
+      ],
+      "tests": [
+        "app/app/stripe-connect-actions.test.ts"
       ]
     },
     "app/app/volunteer-actions.ts": {

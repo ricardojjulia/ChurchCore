@@ -8,7 +8,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { confirmPaymentMock } = vi.hoisted(() => ({ confirmPaymentMock: vi.fn() }));
 
-vi.mock("@stripe/stripe-js", () => ({ loadStripe: vi.fn(async () => ({})) }));
+const { loadStripeMock } = vi.hoisted(() => ({ loadStripeMock: vi.fn(async () => ({})) }));
+vi.mock("@stripe/stripe-js", () => ({ loadStripe: loadStripeMock }));
 vi.mock("@stripe/react-stripe-js", () => ({
   Elements: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   PaymentElement: () => <div>Stripe card field</div>,
@@ -26,6 +27,7 @@ function renderStep() {
     <MantineProvider>
       <DonationCardStep
         publishableKey="pk_test_123"
+        stripeAccount="acct_church1"
         clientSecret="pi_123_secret"
         amountLabel="$25.00"
         onPaid={onPaid}
@@ -39,7 +41,12 @@ function renderStep() {
 
 describe("DonationCardStep", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    confirmPaymentMock.mockReset();
+  });
+
+  it("loads Stripe.js on the church's connected account, where the gift is charged (ADR 0025)", () => {
+    renderStep();
+    expect(loadStripeMock).toHaveBeenCalledWith("pk_test_123", { stripeAccount: "acct_church1" });
   });
 
   it("shows a declined card's message, records nothing, and lets the member try again", async () => {

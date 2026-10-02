@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const {
@@ -9,7 +9,13 @@ const {
   createTenantAdminClientMock,
   getStripeWebhookSecretMock,
   sendEmailMock,
+  connectMocks,
 } = vi.hoisted(() => ({
+  connectMocks: {
+    churchForStripeAccount: vi.fn(),
+    markChurchStripeAccountDisconnected: vi.fn(),
+    updateChurchStripeAccountStatus: vi.fn(),
+  },
   queryTenantLocalDbMock: vi.fn(),
   shouldUseLocalTenantFallbackMock: vi.fn(),
   createTenantAdminClientMock: vi.fn(),
@@ -26,6 +32,8 @@ vi.mock("@/lib/supabase/tenant", () => ({
 vi.mock("@/lib/stripe/client", () => ({
   getStripeWebhookSecret: getStripeWebhookSecretMock,
 }));
+
+vi.mock("@/lib/stripe/connect", () => connectMocks);
 
 vi.mock("@/lib/notifications/send-email", () => ({
   sendEmail: sendEmailMock,
@@ -1197,5 +1205,92 @@ describe("stripe webhook route", () => {
       expect(createTenantAdminClientMock).not.toHaveBeenCalled();
       expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
     });
+  });
+});
+
+// ── Connected church accounts (G3.0b, ADR 0025) ─────────────────────────────
+describe("stripe webhook — events from connected church accounts", () => {
+  const CONNECT_SECRET = "whsec_connect_test";
+  const succeeded = (account: string, metadata: Record<string, string>) =>
+    JSON.stringify({
+      type: "payment_intent.succeeded",
+      account,
+      data: { object: { id: "pi_c1", amount: 2500, currency: "usd", metadata } },
+    });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("STRIPE_CONNECT_WEBHOOK_SECRET", CONNECT_SECRET);
+    shouldUseLocalTenantFallbackMock.mockReturnValue(true);
+    getStripeWebhookSecretMock.mockReturnValue(TEST_SECRET);
+    queryTenantLocalDbMock.mockResolvedValue({ rows: [] });
+    connectMocks.churchForStripeAccount.mockResolvedValue("church-1");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("accepts an event signed with the Connect endpoint's secret and scopes it to the account's church", async () => {
+    const response = await stripeWebhookPost(
+      stripeRequest({ method: "POST", body: succeeded("acct_church1", { event_registration_id: "reg-1" }) }, CONNECT_SECRET),
+    );
+    expect(response.status).toBe(200);
+    expect(connectMocks.churchForStripeAccount).toHaveBeenCalledWith("acct_church1");
+    // A Charge or PaymentIntent without church metadata gets the account's church.
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringContaining("update public.event_registrations"),
+      ["reg-1", "church-1", "pi_c1", 2500],
+    );
+  });
+
+  it("still rejects an event signed with neither secret", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const response = await stripeWebhookPost(
+      stripeRequest({ method: "POST", body: succeeded("acct_church1", {}) }, "whsec_someone_else"),
+    );
+    expect(response.status).toBe(401);
+    expect(connectMocks.churchForStripeAccount).not.toHaveBeenCalled();
+  });
+
+  it("ignores a payment naming another church than the account's — one church can't settle another's gift", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const response = await stripeWebhookPost(
+      stripeRequest({ method: "POST", body: succeeded("acct_church1", { church_id: "church-2", donation_id: "don-1" }) }, CONNECT_SECRET),
+    );
+    expect(response.status).toBe(200);
+    expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores an event from an account no church has connected", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    connectMocks.churchForStripeAccount.mockResolvedValue(null);
+    const response = await stripeWebhookPost(
+      stripeRequest({ method: "POST", body: succeeded("acct_unknown", { church_id: "church-1", donation_id: "don-1" }) }, CONNECT_SECRET),
+    );
+    expect(response.status).toBe(200);
+    expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+  });
+
+  it("records Stripe's account status on account.updated", async () => {
+    const body = JSON.stringify({
+      type: "account.updated",
+      account: "acct_church1",
+      data: { object: { id: "acct_church1", charges_enabled: true, details_submitted: true } },
+    });
+    expect((await stripeWebhookPost(stripeRequest({ method: "POST", body }, CONNECT_SECRET))).status).toBe(200);
+    expect(connectMocks.updateChurchStripeAccountStatus).toHaveBeenCalledWith("acct_church1", {
+      chargesEnabled: true,
+      detailsSubmitted: true,
+    });
+  });
+
+  it("marks the church disconnected when it revokes ChurchCore's access in Stripe", async () => {
+    const body = JSON.stringify({
+      type: "account.application.deauthorized",
+      account: "acct_church1",
+      data: { object: { id: "ca_platform" } },
+    });
+    expect((await stripeWebhookPost(stripeRequest({ method: "POST", body }, CONNECT_SECRET))).status).toBe(200);
+    expect(connectMocks.markChurchStripeAccountDisconnected).toHaveBeenCalledWith("acct_church1");
   });
 });

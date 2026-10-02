@@ -5,7 +5,7 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import { MemberBottomNav } from "@/components/application/member-bottom-nav";
 import { requireChurchSession } from "@/lib/auth";
 import { getDonorPortalData } from "@/lib/donations-data";
-import { onlineGivingMode, onlineGivingNotice, stripePublishableKey } from "@/lib/stripe/donations";
+import { onlineGivingNotice, onlineGivingStatus, stripePublishableKey } from "@/lib/stripe/donations";
 
 export default async function MemberGivingPage() {
   const session = await requireChurchSession("/app/member/giving");
@@ -14,7 +14,10 @@ export default async function MemberGivingPage() {
     redirect(session.homePath);
   }
 
-  const data = await getDonorPortalData(session);
+  const [data, giving] = await Promise.all([
+    getDonorPortalData(session),
+    onlineGivingStatus(session.appContext.church.id),
+  ]);
 
   const navItems = [
     {
@@ -48,8 +51,9 @@ export default async function MemberGivingPage() {
     >
       <DonorPortal
         data={data}
-        givingNotice={onlineGivingNotice()}
-        publishableKey={onlineGivingMode() === "live" ? stripePublishableKey() : null}
+        givingNotice={onlineGivingNotice(giving.mode)}
+        publishableKey={giving.mode === "live" ? stripePublishableKey() : null}
+        stripeAccount={giving.stripeAccount}
       />
     </ApplicationShell>
   );

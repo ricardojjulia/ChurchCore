@@ -31,19 +31,33 @@ export function hasStripeConfig(): boolean {
  * so we don't add a large dependency until the church opts in.
  * Replace with `import Stripe from 'stripe'` once stripe is installed.
  */
+export type StripeRequestOptions = {
+  /**
+   * The connected (church) account the call acts on, sent as `Stripe-Account`
+   * (ADR 0025: every church payment is a direct charge on the church's own
+   * account). Omitted only for platform calls: Connect OAuth and reading a
+   * connected account itself.
+   */
+  stripeAccount?: string;
+  /** Defaults to the API; Connect OAuth uses https://connect.stripe.com. */
+  baseUrl?: string;
+};
+
 export async function stripeRequest<T>(
   method: "GET" | "POST",
   path: string,
   body?: Record<string, unknown>,
+  options: StripeRequestOptions = {},
 ): Promise<T> {
   const key = getStripeSecretKey();
   if (!key) throw new Error("STRIPE_SECRET_KEY is not configured.");
 
-  const url = `https://api.stripe.com/v1${path}`;
+  const url = `${options.baseUrl ?? "https://api.stripe.com/v1"}${path}`;
   const headers: Record<string, string> = {
     Authorization: `Bearer ${key}`,
     "Stripe-Version": "2024-04-10",
   };
+  if (options.stripeAccount) headers["Stripe-Account"] = options.stripeAccount;
 
   let fetchBody: string | undefined;
   if (body && method === "POST") {
@@ -56,10 +70,16 @@ export async function stripeRequest<T>(
   }
 
   const res = await fetch(url, { method, headers, body: fetchBody });
-  const json = (await res.json()) as T & { error?: { message?: string } };
+  const json = (await res.json()) as T;
 
   if (!res.ok) {
-    const msg = (json as { error?: { message?: string } }).error?.message ?? `Stripe ${res.status}`;
+    // The API nests errors ({ error: { message } }); Connect OAuth returns
+    // them flat ({ error: "invalid_client", error_description }).
+    const error = (json as { error?: string | { message?: string }; error_description?: string }).error;
+    const msg =
+      typeof error === "string"
+        ? ((json as { error_description?: string }).error_description ?? error)
+        : (error?.message ?? `Stripe ${res.status}`);
     throw new Error(msg);
   }
 

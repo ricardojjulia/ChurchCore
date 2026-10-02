@@ -199,3 +199,57 @@ test.describe("control-plane routes — signed in as a tenant role", () => {
     expect(response.headers()["location"]).toContain("force=1");
   });
 });
+
+// ── Stripe Connect onboarding (G3.0b, ADR 0025) ──────────────────────────────
+// CI runs without Stripe keys, so "start" can't reach Stripe and the callback
+// can't verify a state; these pin who may use the routes and that a forged
+// callback links nothing.
+
+test.describe("Stripe Connect routes — signed out", () => {
+  for (const path of ["/api/stripe/connect/start", "/api/stripe/connect/callback?code=ac_x&state=forged"]) {
+    test(`GET ${path.split("?")[0]} -> redirect to /sign-in`, async ({ request }) => {
+      const response = await request.get(path, { maxRedirects: 0 });
+      expect(response.status()).toBe(307);
+      expect(response.headers()["location"]).toContain("/sign-in");
+    });
+  }
+});
+
+for (const identity of ["pastor", "secretary", "member"] as const) {
+  test.describe(`Stripe Connect routes — signed in as ${identity}`, () => {
+    test.use({ storageState: authFilePath(identity) });
+
+    test("start -> 403: only a church admin connects the church's account", async ({ page }) => {
+      const response = await page.request.get("/api/stripe/connect/start", { maxRedirects: 0 });
+      expect(response.status()).toBe(403);
+    });
+  });
+}
+
+test.describe("Stripe Connect routes — signed in as church-admin", () => {
+  test.use({ storageState: authFilePath("church-admin") });
+
+  test("start -> to Stripe's OAuth page, or back to settings when the platform isn't set up for Connect", async ({ page }) => {
+    const response = await page.request.get("/api/stripe/connect/start", { maxRedirects: 0 });
+    expect(response.status()).toBe(307);
+    expect(response.headers()["location"]).toMatch(
+      /^https:\/\/connect\.stripe\.com\/oauth\/authorize\?|\/app\/church-admin\/giving\?stripe=not_configured$/,
+    );
+  });
+
+  test("a callback with a forged state links nothing", async ({ page }) => {
+    const response = await page.request.get("/api/stripe/connect/callback?code=ac_forged&state=forged.signature", {
+      maxRedirects: 0,
+    });
+    expect(response.status()).toBe(307);
+    expect(response.headers()["location"]).toContain("/app/church-admin/giving?stripe=invalid");
+    const { rows } = await queryTenantDb("select 1 from public.church_payment_accounts where church_id = $1", [SEED_CHURCH_ID]);
+    expect(rows).toHaveLength(0);
+  });
+
+  test("a callback Stripe sends back declined -> cancelled", async ({ page }) => {
+    const response = await page.request.get("/api/stripe/connect/callback?error=access_denied&state=x", { maxRedirects: 0 });
+    expect(response.status()).toBe(307);
+    expect(response.headers()["location"]).toContain("/app/church-admin/giving?stripe=cancelled");
+  });
+});

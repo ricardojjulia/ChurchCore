@@ -1,5 +1,17 @@
 // queryTenantLocalDb and shouldUseLocalTenantFallback removed — Supabase-only architecture (2026-07-10)
 import { hasStripeConfig, stripeRequest } from "./client";
+import { getChurchStripeAccount } from "./connect";
+
+/**
+ * The church's account an event payment is charged on (ADR 0025). Refuses,
+ * rather than falling back to the platform account, when the church hasn't
+ * connected or Stripe isn't letting it take charges.
+ */
+async function liveChurchAccount(churchId: string): Promise<string> {
+  const account = await getChurchStripeAccount(churchId);
+  if (!account?.chargesEnabled) throw new Error("This church can't take online payments yet (no connected Stripe account).");
+  return account.accountId;
+}
 
 export type CreateEventRegistrationPaymentIntentInput = {
   amountCents: number;
@@ -15,6 +27,8 @@ export type CreateEventRegistrationPaymentIntentResult = {
   clientSecret: string;
   paymentIntentId: string;
   isStub: boolean;
+  /** The church's account it's charged on; null when stubbed. */
+  stripeAccount: string | null;
 };
 
 /**
@@ -34,9 +48,11 @@ export async function createEventRegistrationPaymentIntent(
       clientSecret: `${stubPaymentIntentId(input.registrationId)}_secret_test`,
       paymentIntentId: stubPaymentIntentId(input.registrationId),
       isStub: true,
+      stripeAccount: null,
     };
   }
 
+  const stripeAccount = await liveChurchAccount(input.churchId);
   const body: Record<string, unknown> = {
     amount: input.amountCents,
     currency: input.currency ?? "usd",
@@ -57,17 +73,23 @@ export async function createEventRegistrationPaymentIntent(
     "POST",
     "/payment_intents",
     body,
+    { stripeAccount },
   );
 
   return {
     clientSecret: paymentIntent.client_secret,
     paymentIntentId: paymentIntent.id,
     isStub: false,
+    stripeAccount,
   };
 }
 
 export type CreateRefundInput = {
   paymentIntentId: string;
+  /** The church whose payment this is (refunds run on its account, ADR 0025). */
+  churchId: string;
+  /** The account the payment was charged on, when recorded on its row. */
+  stripeAccount?: string | null;
   amountCents: number;
   reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer' | null;
 };
@@ -129,6 +151,7 @@ export async function createRefund(
     'POST',
     '/refunds',
     body,
+    { stripeAccount: input.stripeAccount ?? (await liveChurchAccount(input.churchId)) },
   );
   return {
     refundId: refund.id,

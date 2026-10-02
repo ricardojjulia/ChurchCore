@@ -9,7 +9,7 @@ const {
   donorPortalMock,
   memberBottomNavMock,
   onlineGivingNoticeMock,
-  onlineGivingModeMock,
+  onlineGivingStatusMock,
 } = vi.hoisted(() => ({
   redirectMock: vi.fn((url: string) => {
     throw { url };
@@ -26,12 +26,12 @@ const {
   donorPortalMock: vi.fn(() => <div>Donor Portal</div>),
   memberBottomNavMock: vi.fn(() => <div>Bottom Nav</div>),
   onlineGivingNoticeMock: vi.fn(),
-  onlineGivingModeMock: vi.fn(() => "stub"),
+  onlineGivingStatusMock: vi.fn(),
 }));
 
 vi.mock("@/lib/stripe/donations", () => ({
   onlineGivingNotice: onlineGivingNoticeMock,
-  onlineGivingMode: onlineGivingModeMock,
+  onlineGivingStatus: onlineGivingStatusMock,
   stripePublishableKey: () => "pk_test_123",
 }));
 
@@ -65,11 +65,12 @@ describe("member giving page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireChurchSessionMock.mockResolvedValue({
-      appContext: { roleId: "member", church: { name: "Grace Church" } },
+      appContext: { roleId: "member", church: { id: "church-1", name: "Grace Church" } },
       homePath: "/app/church-admin",
     });
     getDonorPortalDataMock.mockResolvedValue({ donations: [] });
     onlineGivingNoticeMock.mockReturnValue(null);
+    onlineGivingStatusMock.mockResolvedValue({ mode: "stub", stripeAccount: null });
   });
 
   it("redirects non-member roles to their home path", async () => {
@@ -89,7 +90,8 @@ describe("member giving page", () => {
     expect(screen.getByText("Grace Church")).toBeInTheDocument();
     expect(screen.getByText("Donor Portal")).toBeInTheDocument();
     expect(getDonorPortalDataMock).toHaveBeenCalled();
-    expect(donorPortalMock).toHaveBeenCalledWith({ data: { donations: [] }, givingNotice: null, publishableKey: null }, undefined);
+    expect(onlineGivingStatusMock).toHaveBeenCalledWith("church-1");
+    expect(donorPortalMock).toHaveBeenCalledWith({ data: { donations: [] }, givingNotice: null, publishableKey: null, stripeAccount: null }, undefined);
   });
 
   it("tells members up front when online giving is off (Council Review 22)", async () => {
@@ -97,18 +99,18 @@ describe("member giving page", () => {
     render(await MemberGivingPage());
 
     expect(donorPortalMock).toHaveBeenCalledWith(
-      { data: { donations: [] }, givingNotice: "Online card giving isn't available yet.", publishableKey: null },
+      { data: { donations: [] }, givingNotice: "Online card giving isn't available yet.", publishableKey: null, stripeAccount: null },
       undefined,
     );
   });
 
-  it("hands the card form Stripe's publishable key only in live mode (G3.0)", async () => {
-    onlineGivingModeMock.mockReturnValue("live");
+  it("hands the card form Stripe's publishable key and the church's account only in live mode (G3.0, ADR 0025)", async () => {
+    onlineGivingStatusMock.mockResolvedValue({ mode: "live", stripeAccount: "acct_church1" });
     onlineGivingNoticeMock.mockReturnValue(null);
     render(await MemberGivingPage());
 
     expect(donorPortalMock).toHaveBeenCalledWith(
-      { data: { donations: [] }, givingNotice: null, publishableKey: "pk_test_123" },
+      { data: { donations: [] }, givingNotice: null, publishableKey: "pk_test_123", stripeAccount: "acct_church1" },
       undefined,
     );
   });
