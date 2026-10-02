@@ -53,11 +53,13 @@ export function CcmBadgePreview({ result, serviceLabel }: BadgeProps) {
       <Box
         className="print-badge"
         style={{
-          border: "2px solid #333",
+          border: "2px solid #1e293b",
           borderRadius: 8,
           padding: 16,
           maxWidth: 340,
           background: "white",
+          // A preview of the printed (white) badge: dark ink, whatever the app theme.
+          color: "#111827",
         }}
       >
         {session.noPhotoFlag && (
@@ -79,8 +81,8 @@ export function CcmBadgePreview({ result, serviceLabel }: BadgeProps) {
         )}
         <AllergyBar allergies={session.allAllergies} />
         <Title order={3} mt={6}>{session.childName}</Title>
-        <Text size="sm" c="dimmed" mb={4}>{session.roomName}</Text>
-        <Text size="xs" c="dimmed">{serviceLabel}</Text>
+        <Text size="sm" c="#4b5563" mb={4}>{session.roomName}</Text>
+        <Text size="xs" c="#4b5563">{serviceLabel}</Text>
         <Box
           mt="sm"
           style={{
@@ -90,7 +92,7 @@ export function CcmBadgePreview({ result, serviceLabel }: BadgeProps) {
             textAlign: "center",
           }}
         >
-          <Text size="xs" c="dimmed" mb={2}>Security PIN</Text>
+          <Text size="xs" c="#4b5563" mb={2}>Security PIN</Text>
           <Text
             style={{ fontFamily: "monospace", fontSize: 28, fontWeight: 700, letterSpacing: 6 }}
           >
@@ -115,13 +117,15 @@ export function CcmBadgePreview({ result, serviceLabel }: BadgeProps) {
           padding: 16,
           maxWidth: 340,
           background: "white",
+          // A preview of the printed (white) badge: dark ink, whatever the app theme.
+          color: "#111827",
         }}
       >
-        <Text size="xs" fw={700} tt="uppercase" c="dimmed" mb={4}>
+        <Text size="xs" fw={700} tt="uppercase" c="#4b5563" mb={4}>
           Guardian Claim Check
         </Text>
         <Text fw={600}>{session.childName}</Text>
-        <Text size="xs" c="dimmed">{serviceLabel}</Text>
+        <Text size="xs" c="#4b5563">{serviceLabel}</Text>
         <Box
           mt="sm"
           style={{
@@ -131,14 +135,14 @@ export function CcmBadgePreview({ result, serviceLabel }: BadgeProps) {
             textAlign: "center",
           }}
         >
-          <Text size="xs" c="dimmed" mb={2}>PIN — Present at pick-up</Text>
+          <Text size="xs" c="#4b5563" mb={2}>PIN — Present at pick-up</Text>
           <Text
             style={{ fontFamily: "monospace", fontSize: 24, fontWeight: 700, letterSpacing: 4 }}
           >
             {pin}
           </Text>
         </Box>
-        <Text size="xs" c="dimmed" mt="xs" ta="center">
+        <Text size="xs" c="#4b5563" mt="xs" ta="center">
           Keep this until you pick up your child.
         </Text>
       </Box>

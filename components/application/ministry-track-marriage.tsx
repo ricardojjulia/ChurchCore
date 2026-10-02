@@ -42,7 +42,7 @@ export function MarriageTrackPanel({
         {data.mentorCouples.length ? (
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
             {data.mentorCouples.map((couple) => (
-              <Paper key={couple.id} withBorder radius="lg" p="md" bg="#f8fafc">
+              <Paper key={couple.id} withBorder radius="lg" p="md" bg="#0f172a">
                 <Group justify="space-between" align="flex-start">
                   <div>
                     <Text fw={600}>{couple.coupleName ?? couple.partner1Name}</Text>
@@ -86,7 +86,7 @@ export function MarriageTrackPanel({
         {data.cohorts.length ? (
           <Stack gap="sm">
             {data.cohorts.map((cohort) => (
-              <Paper key={cohort.id} withBorder radius="lg" p="md" bg="#f8fafc">
+              <Paper key={cohort.id} withBorder radius="lg" p="md" bg="#0f172a">
                 <Group justify="space-between" align="flex-start">
                   <div>
                     <Text fw={600}>{cohort.name}</Text>

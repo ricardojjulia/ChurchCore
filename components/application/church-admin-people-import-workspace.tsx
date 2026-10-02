@@ -159,7 +159,7 @@ export function ChurchAdminPeopleImportWorkspace({
             />
 
             {sourceSystem === "generic_csv" && headers.length > 0 && (
-              <Paper withBorder p="md" radius="sm" bg="#fafbfc">
+              <Paper withBorder p="md" radius="sm" bg="#0f172a">
                 <Stack gap="xs">
                   <Text size="sm" fw={600}>Configure Column Header Mapping</Text>
                   <Group grow gap="xs">

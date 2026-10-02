@@ -245,7 +245,7 @@ export function CommunicationsComposeClient({
     >
       <Stack gap="lg">
         <Group justify="space-between" align="center">
-          <Title order={2} fw={700} c="#101827">
+          <Title order={2} fw={700} c="#f8fafc">
             Compose Message
           </Title>
           <Button

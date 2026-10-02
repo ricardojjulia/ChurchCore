@@ -120,8 +120,10 @@ export function MemberDirectoryPanel({
         {visibleDirectory.length ? (
           visibleDirectory.map((entry) => (
             <Paper key={entry.id} withBorder radius="xl" p="lg">
-              <Group justify="space-between" align="flex-start" gap="md">
-                <div>
+              <Group justify="space-between" align="flex-start" gap="md" wrap="nowrap">
+                {/* minWidth 0 lets a long name or email wrap instead of
+                    pushing the page wider than a phone screen. */}
+                <div style={{ minWidth: 0, overflowWrap: "anywhere" }}>
                   <Text fw={600}>{entry.fullName}</Text>
                   <Text size="sm" c="dimmed" mt={4}>
                     {entry.displayTitle || translateMember("churchMember")}

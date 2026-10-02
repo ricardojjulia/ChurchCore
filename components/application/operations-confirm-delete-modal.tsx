@@ -23,7 +23,7 @@ export function OperationsConfirmDeleteModal({
       centered
       size="sm"
     >
-      <Text size="sm" c="#617184" mb="lg">
+      <Text size="sm" c="#94a3b8" mb="lg">
         Are you sure you want to delete &quot;{title}&quot;? This cannot be undone.
       </Text>
       <Group justify="flex-end" gap="sm">

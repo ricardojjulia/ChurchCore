@@ -142,3 +142,34 @@ describe("church calendar days (Council Review 24)", () => {
     expect(churchDayAnchor("2026-09-30", "America/New_York").toISOString()).toBe("2026-09-30T16:00:00.000Z");
   });
 });
+
+// ADR 0026 / Council Review 37: each category colour is a chip behind white
+// text and a dot on the slate-900 surface, so it must meet WCAG AA for both.
+describe("getCategoryColor contrast on the dark theme", () => {
+  const SURFACE = "#0f172a";
+  function luminance(hex: string) {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+    const channel = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+  }
+  function contrast(a: string, b: string) {
+    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  }
+
+  it.each([
+    ["worship", "#2563eb"],
+    ["prayer", "#0f766e"],
+    ["outreach", "#c2410c"],
+    ["administrative", "#64748b"],
+    ["ministry", "#7c3aed"],
+    ["liturgical", "#9333ea"],
+    ["informational", "#0369a1"],
+    ["internal", "#78716c"],
+    ["anything-else", "#1f6feb"],
+  ])("%s is %s: white text on it at 4.5:1 or better, and 3:1 or better as a dot on the surface", (category, colour) => {
+    expect(getCategoryColor(category)).toBe(colour);
+    expect(contrast("#ffffff", colour)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(colour, SURFACE)).toBeGreaterThanOrEqual(3);
+  });
+});

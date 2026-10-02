@@ -15,7 +15,7 @@ ChurchCore is part of a broader product family:
 
 ## Product Position & Competitive Analysis
 
-> **MVP status: 80/100 (Council Review 36, 2026-10-02). MVP target: November 6, 2026.** Milestones M1 (service planning, Gap 1 closed) and M2 (the Week 2 production-safety track) are met. Giving and paid event registration both run on each church's own Stripe account (Stripe Connect, [ADR 0025](docs/adr/0025-stripe-connect-standard-direct-charges.md)), with Stripe's card form for online gifts and for paid registrations (G3.0c, built and Council Review 36-clean, pending PR); recurring giving (G3.1) is next. Live giving is not announced until the platform's Stripe setup and one real test-mode run are done (owner action O7). Readiness history, round by round, is in [`DEVELOPMENT_PLAN.md`](DEVELOPMENT_PLAN.md) and [`docs/reviews/`](docs/reviews/). MVP is defined as closing five ranked competitive gaps against Planning Center, Breeze and Tithe.ly: service planning depth (Gap 1, closed), phone-first mobile, recurring giving and statements, migration reconciliation, and provider breadth, plus a production-safety track. All open work, milestones and status are tracked in one place: [`DEVELOPMENT_PLAN.md` §0](DEVELOPMENT_PLAN.md#0-mvp-roadmap-to-november-6-2026-tracker).
+> **MVP status: 80/100 (Council Review 37, 2026-10-02). MVP target: November 6, 2026.** Milestones M1 (service planning, Gap 1 closed) and M2 (the Week 2 production-safety track) are met. Giving and paid event registration both run on each church's own Stripe account (Stripe Connect, [ADR 0025](docs/adr/0025-stripe-connect-standard-direct-charges.md)), with Stripe's card form for online gifts and for paid registrations (G3.0c); recurring giving (G3.1) is next. The app runs on the ChurchCore design system — dark-first, through the Mantine theme ([ADR 0026](docs/adr/0026-churchcore-design-system-parity.md), D1, built and Council Review 37-clean, pending PR) — a visual foundation that closes no competitive gap on its own. Live giving is not announced until the platform's Stripe setup and one real test-mode run are done (owner action O7). Readiness history, round by round, is in [`DEVELOPMENT_PLAN.md`](DEVELOPMENT_PLAN.md) and [`docs/reviews/`](docs/reviews/). MVP is defined as closing five ranked competitive gaps against Planning Center, Breeze and Tithe.ly: service planning depth (Gap 1, closed), phone-first mobile, recurring giving and statements, migration reconciliation, and provider breadth, plus a production-safety track. All open work, milestones and status are tracked in one place: [`DEVELOPMENT_PLAN.md` §0](DEVELOPMENT_PLAN.md#0-mvp-roadmap-to-november-6-2026-tracker).
 
 Key facts at a glance:
 
@@ -110,6 +110,14 @@ npm run dev
 - Stripe-oriented giving and finance flows
 - GitHub Actions for lint, build, CodeQL, dependency review, and secret scanning
 - Vercel hosting with scheduled ShepherdAI evaluation support
+
+## Design System
+
+ChurchCore follows the ChurchCore Design System: dark-first slate surfaces, an indigo primary, Inter type, and `rounded-2xl`/`rounded-xl` radii — adopted ecosystem-wide for visual parity with sister apps ChurchCore LMS and Orthos, through the Mantine theme rather than a stack rewrite ([ADR 0026](docs/adr/0026-churchcore-design-system-parity.md)).
+
+- **Theme:** `components/theme-provider.tsx` maps the spec's slate/indigo roles onto Mantine's `dark` palette and forces the dark scheme. `app/globals.css` carries the matching CSS variables.
+- **Rule for new screens:** colours come from the theme (`c="dimmed"`, `color="indigo"`, etc.) or a CSS variable in `app/globals.css` — never a new hard-coded colour literal.
+- **Enforced in CI:** `components/theme-provider.test.ts` is a ratchet — the count of colour literals in `app/` and `components/` may only go down from its recorded baseline, and the pre-ADR-0026 light theme's palette is banned outright, so a copied light-theme snippet fails the build instead of rendering unreadable.
 
 ## Repository Map
 

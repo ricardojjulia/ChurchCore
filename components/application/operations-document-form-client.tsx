@@ -122,7 +122,7 @@ export function OperationsDocumentFormClient({
       ]}
     >
       <Stack gap="lg" maw={720}>
-        <Title order={2} fw={700} c="#101827">
+        <Title order={2} fw={700} c="#f8fafc">
           {pageTitle}
         </Title>
 

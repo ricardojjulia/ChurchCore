@@ -283,9 +283,9 @@ export function PortalWorkspace({
           p="xl"
           style={{
             background:
-              "linear-gradient(135deg, rgba(255,255,255,0.96), rgba(238,247,246,0.92))",
-            border: "1px solid rgba(16, 24, 39, 0.1)",
-            boxShadow: "0 18px 48px rgba(16, 24, 39, 0.08)",
+              "linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.92))",
+            border: "1px solid #1e293b",
+            boxShadow: "0 18px 48px #1e293b",
           }}
         >
           <Group gap="sm" mb="md">
@@ -297,8 +297,8 @@ export function PortalWorkspace({
             </Badge>
           </Group>
 
-          <Title order={2} c="#101827">{session.profile.name}</Title>
-          <Text c="#617184" mt="sm">
+          <Title order={2} c="#f8fafc">{session.profile.name}</Title>
+          <Text c="#94a3b8" mt="sm">
             {session.profile.title}
           </Text>
           {churchContext ? (
@@ -312,13 +312,13 @@ export function PortalWorkspace({
           radius="lg"
           p="xl"
           style={{
-            background: "#ffffff",
-            border: "1px solid rgba(16, 24, 39, 0.1)",
-            boxShadow: "0 18px 48px rgba(16, 24, 39, 0.08)",
+            background: "#0f172a",
+            border: "1px solid #1e293b",
+            boxShadow: "0 18px 48px #1e293b",
           }}
         >
           <Group justify="space-between" align="center">
-            <Title order={3} size="h4" c="#101827">
+            <Title order={3} size="h4" c="#f8fafc">
               {t("portalNav", "next")}
             </Title>
             <Badge color="teal" variant="light" radius="sm">
@@ -370,8 +370,8 @@ export function PortalWorkspace({
                     cursor: "pointer",
                   }}
                 >
-                  <Text fw={750} c="#101827">{s.title}</Text>
-                  <Text c="#617184" size="sm" mt={6}>{s.description}</Text>
+                  <Text fw={750} c="#f8fafc">{s.title}</Text>
+                  <Text c="#94a3b8" size="sm" mt={6}>{s.description}</Text>
                 </Paper>
               </Link>
             ))}

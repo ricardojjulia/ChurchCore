@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import localFont from "next/font/local";
-import { mantineHtmlProps } from "@mantine/core";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "@mantine/core/styles.css";
@@ -18,11 +17,12 @@ import { siteConfig } from "@/lib/site";
 
 import "./globals.css";
 
+// Inter, the ChurchCore design system's face (ADR 0026).
 const sans = localFont({
-  src: "./fonts/manrope-latin-var.woff2",
-  variable: "--font-manrope",
+  src: "./fonts/inter-latin-var.woff2",
+  variable: "--font-inter",
   display: "swap",
-  weight: "200 800",
+  weight: "100 900",
 });
 
 const serif = localFont({
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "ChurchCore",
   },
 };
@@ -54,7 +54,10 @@ export default async function RootLayout({
   return (
     <html
       lang={locale}
-      {...mantineHtmlProps}
+      // Dark-first (ADR 0026): rendered dark on the server, so there's no
+      // light flash before the theme loads.
+      suppressHydrationWarning
+      data-mantine-color-scheme="dark"
       className={`${sans.variable} ${serif.variable} h-full scroll-smooth antialiased`}
     >
       <body className="min-h-full bg-background font-sans text-foreground">

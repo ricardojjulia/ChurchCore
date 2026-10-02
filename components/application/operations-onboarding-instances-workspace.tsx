@@ -69,7 +69,7 @@ export function OperationsOnboardingInstancesWorkspace({
     >
       <Stack gap="lg">
         <Group justify="space-between" align="center">
-          <Title order={2} fw={700} c="#101827">
+          <Title order={2} fw={700} c="#f8fafc">
             Active Onboarding
           </Title>
           <Button
@@ -87,12 +87,12 @@ export function OperationsOnboardingInstancesWorkspace({
             radius="md"
             p="xl"
             style={{
-              border: "1px dashed rgba(20, 33, 61, 0.15)",
+              border: "1px dashed #1e293b",
               textAlign: "center",
             }}
           >
             <UserPlus size={40} color="#9ca3af" style={{ margin: "0 auto 12px" }} />
-            <Text c="#617184" size="sm">
+            <Text c="#94a3b8" size="sm">
               No onboarding in progress.
             </Text>
           </Paper>
@@ -125,12 +125,12 @@ export function OperationsOnboardingInstancesWorkspace({
                       </Text>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm" c="#617184">
+                      <Text size="sm" c="#94a3b8">
                         {inst.templateName ?? "—"}
                       </Text>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm" c="#617184">
+                      <Text size="sm" c="#94a3b8">
                         {inst.completedSteps} of {inst.totalSteps} steps
                       </Text>
                     </Table.Td>
@@ -138,7 +138,7 @@ export function OperationsOnboardingInstancesWorkspace({
                       <StatusBadge status={inst.status} />
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm" c="#617184">
+                      <Text size="sm" c="#94a3b8">
                         {formatDate(inst.createdAt)}
                       </Text>
                     </Table.Td>

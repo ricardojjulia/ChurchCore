@@ -94,7 +94,7 @@ export function OperationsStartInstanceClient({
       ]}
     >
       <Stack gap="lg" maw={560}>
-        <Title order={2} fw={700} c="#101827">
+        <Title order={2} fw={700} c="#f8fafc">
           Start Onboarding
         </Title>
 

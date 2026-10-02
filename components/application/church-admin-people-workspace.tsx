@@ -480,7 +480,7 @@ export function ChurchAdminPeopleWorkspace({
               </Paper>
             ))
           ) : (
-            <Paper withBorder radius="lg" p="lg" bg="#f8fbff">
+            <Paper withBorder radius="lg" p="lg" bg="#0f172a">
               <Text fw={700}>{translatePeople("noPendingMemberProfileReviews")}</Text>
             </Paper>
           )}
@@ -503,7 +503,7 @@ export function ChurchAdminPeopleWorkspace({
         </Group>
 
         {readinessContext ? (
-          <Paper withBorder radius="lg" p="md" mb="md" bg="#f8fbff">
+          <Paper withBorder radius="lg" p="md" mb="md" bg="#0f172a">
             <Group justify="space-between" gap="md">
               <div>
                 <Text fw={700} size="sm">
@@ -831,7 +831,7 @@ export function ChurchAdminPeopleWorkspace({
               </Paper>
             ))
           ) : (
-            <Paper withBorder radius="lg" p="lg" bg="#f8fbff">
+            <Paper withBorder radius="lg" p="lg" bg="#0f172a">
               <Text fw={700}>{translatePeople("noPeopleMatch")}</Text>
               <Text size="sm" c="dimmed" mt={4}>
                 {translatePeople("noPeopleMatchDescription")}

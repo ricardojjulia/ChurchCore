@@ -377,7 +377,7 @@ describe("CalendarLiveBoard", () => {
   // AC13: Month view event dots also use getCategoryColor (not all-blue)
   // -------------------------------------------------------------------------
 
-  it("month view: event color dot backgroundColor matches getCategoryColor('worship')", () => {
+  it("month view: the event's chip takes getCategoryColor('worship')", () => {
     const events = [
       makeEvent({
         id: "m1",
@@ -389,17 +389,15 @@ describe("CalendarLiveBoard", () => {
     ];
     renderBoard({ viewMode: "month", events, churchTimeZone: "UTC" });
 
-    // Color dots are divs with a borderRadius and backgroundColor inline style
-    // Look for any element styled with the worship color
-    const allDivs = document.querySelectorAll("div");
-    const coloredDot = Array.from(allDivs).find((div) => {
-      const style = (div as HTMLElement).style;
-      return (
-        style.backgroundColor === "rgb(37, 99, 235)" &&
-        style.borderRadius === "50%"
-      );
-    });
-    expect(coloredDot).toBeDefined();
+    // The month grid shows each event as a chip in its category's colour.
+    // (This used to look for any round element in that colour, and matched
+    // the "today" circle, which shared the worship blue until ADR 0026.)
+    const chip = Array.from(document.querySelectorAll("div")).find(
+      (div) =>
+        (div as HTMLElement).style.backgroundColor === "rgb(37, 99, 235)" &&
+        div.textContent === "Sunday Worship",
+    );
+    expect(chip).toBeDefined();
   });
 
   // -------------------------------------------------------------------------

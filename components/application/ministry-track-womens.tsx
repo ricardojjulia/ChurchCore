@@ -40,7 +40,7 @@ export function WomensMinistryPanel({ data }: { data: WomensTrackData }) {
         {data.lifeStageCircles.length ? (
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
             {data.lifeStageCircles.map((circle) => (
-              <Paper key={circle.id} withBorder radius="lg" p="md" bg="#f8fafc">
+              <Paper key={circle.id} withBorder radius="lg" p="md" bg="#0f172a">
                 <Group justify="space-between" align="flex-start">
                   <div>
                     <Text fw={600}>{circle.name}</Text>
@@ -81,7 +81,7 @@ export function WomensMinistryPanel({ data }: { data: WomensTrackData }) {
         {data.supportPairings.length ? (
           <Stack gap="sm">
             {data.supportPairings.map((pairing) => (
-              <Paper key={pairing.id} withBorder radius="lg" p="md" bg="#f8fafc">
+              <Paper key={pairing.id} withBorder radius="lg" p="md" bg="#0f172a">
                 <Group justify="space-between" align="center">
                   <div>
                     <Group gap="xs">

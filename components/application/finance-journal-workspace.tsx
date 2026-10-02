@@ -98,7 +98,7 @@ export function FinanceJournalWorkspace({
 
         {readinessView ? (
           <>
-            <Paper withBorder radius="lg" p="md" bg="#f8fbff">
+            <Paper withBorder radius="lg" p="md" bg="#0f172a">
               <Group justify="space-between" gap="md">
                 <div>
                   <Text fw={700} size="sm">

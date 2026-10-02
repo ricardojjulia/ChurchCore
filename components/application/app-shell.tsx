@@ -126,22 +126,22 @@ export function ApplicationShell({
       styles={{
         main: {
           background:
-            "radial-gradient(circle at 18% 0%, rgba(37, 99, 235, 0.12), transparent 26%), radial-gradient(circle at 82% 3%, rgba(15, 118, 110, 0.12), transparent 24%), #f4f7fb",
+            "radial-gradient(circle at 18% 0%, rgba(99, 102, 241, 0.17), transparent 26%), radial-gradient(circle at 82% 3%, rgba(15, 118, 110, 0.12), transparent 24%), #020617",
           minHeight: "100vh",
         },
         navbar: {
-          background: "#ffffff",
-          borderRight: "1px solid rgba(20, 33, 61, 0.10)",
+          background: "#0f172a",
+          borderRight: "1px solid #1e293b",
         },
         header: {
-          background: "rgba(244, 247, 251, 0.82)",
+          background: "rgba(15, 23, 42, 0.82)",
           backdropFilter: "blur(18px)",
-          borderBottom: "1px solid rgba(20, 33, 61, 0.08)",
+          borderBottom: "1px solid #1e293b",
         },
         footer: {
-          background: "rgba(251, 252, 254, 0.96)",
+          background: "rgba(15, 23, 42, 0.95)",
           backdropFilter: "blur(12px)",
-          borderTop: "1px solid rgba(20, 33, 61, 0.08)",
+          borderTop: "1px solid #1e293b",
         },
       }}
     >
@@ -157,11 +157,11 @@ export function ApplicationShell({
               aria-label="Toggle navigation"
             />
             <Box>
-              <Text fw={850} size="md" lh={1.2} c="#101827">
+              <Text fw={850} size="md" lh={1.2} c="#f8fafc">
                 {title}
               </Text>
               {description ? (
-                <Text c="#617184" size="xs" lh={1.2}>
+                <Text c="#94a3b8" size="xs" lh={1.2}>
                   {description}
                 </Text>
               ) : null}
@@ -183,17 +183,17 @@ export function ApplicationShell({
             p="md"
             mb="md"
             style={{
-              background: "linear-gradient(135deg, rgba(20, 184, 166, 0.10), rgba(37, 99, 235, 0.07))",
-              border: "1px solid rgba(20, 33, 61, 0.08)",
+              background: "linear-gradient(135deg, rgba(20, 184, 166, 0.10), rgba(99, 102, 241, 0.1))",
+              border: "1px solid #1e293b",
             }}
           >
             <Group gap="sm" wrap="nowrap">
-              <ThemeIcon size={38} radius="md" color="teal" variant="filled">
+              <ThemeIcon size={38} radius="md" color="indigo" variant="filled">
                 <Sparkles size={17} />
               </ThemeIcon>
               <Box style={{ minWidth: 0 }}>
-                <Text fw={850} size="sm" c="#101827" truncate>ChurchCore</Text>
-                <Text c="#617184" size="xs" truncate>
+                <Text fw={850} size="sm" c="#f8fafc" truncate>ChurchCore</Text>
+                <Text c="#94a3b8" size="xs" truncate>
                   {sectionLabel}
                 </Text>
               </Box>
@@ -206,13 +206,13 @@ export function ApplicationShell({
               p="sm"
               mb="sm"
               style={{
-                background: "rgba(20, 33, 61, 0.04)",
-                border: "1px solid rgba(20, 33, 61, 0.08)",
+                background: "rgba(30, 41, 59, 0.6)",
+                border: "1px solid #1e293b",
               }}
             >
-              <Text fw={700} size="sm" c="#101827">{sidebarTitle}</Text>
+              <Text fw={700} size="sm" c="#f8fafc">{sidebarTitle}</Text>
               {sidebarDescription ? (
-                <Text c="#617184" size="xs" mt={4}>
+                <Text c="#94a3b8" size="xs" mt={4}>
                   {sidebarDescription}
                 </Text>
               ) : null}
@@ -220,7 +220,7 @@ export function ApplicationShell({
           ) : null}
         </AppShellSection>
 
-        <Divider mb="sm" color="rgba(20, 33, 61, 0.08)" />
+        <Divider mb="sm" color="#1e293b" />
 
         {/* Page navigation */}
         <AppShellSection grow component={ScrollArea} scrollbarSize={6}>
@@ -228,8 +228,8 @@ export function ApplicationShell({
             {navItems.length ? (
               <>
                 <Group gap={6} px="xs" mb={4}>
-                  <LayoutGrid size={13} color="#617184" />
-                  <Text size="xs" fw={800} tt="uppercase" c="#617184">
+                  <LayoutGrid size={13} color="#94a3b8" />
+                  <Text size="xs" fw={800} tt="uppercase" c="#94a3b8">
                     {navLabel ?? t("common", "navigation")}
                   </Text>
                 </Group>
@@ -254,21 +254,21 @@ export function ApplicationShell({
                       description={item.description}
                       leftSection={<Icon size={16} />}
                       variant="light"
-                      color="teal"
+                      color="indigo"
                       onClick={close}
                       styles={navLinkStyles}
                     />
                   );
                 })}
 
-                <Divider my="sm" color="rgba(20, 33, 61, 0.08)" />
+                <Divider my="sm" color="#1e293b" />
               </>
             ) : null}
 
             {/* System links */}
             <Group gap={6} px="xs" mb={4}>
-              <LayoutGrid size={13} color="#617184" />
-              <Text size="xs" fw={800} tt="uppercase" c="#617184">
+              <LayoutGrid size={13} color="#94a3b8" />
+              <Text size="xs" fw={800} tt="uppercase" c="#94a3b8">
                 {t("common", "app")}
               </Text>
             </Group>
@@ -283,7 +283,7 @@ export function ApplicationShell({
               description={t("common", "yourRoleHome")}
               leftSection={<ShieldCheck size={16} />}
               variant="light"
-              color="teal"
+              color="indigo"
               onClick={close}
               styles={navLinkStyles}
             />
@@ -299,7 +299,7 @@ export function ApplicationShell({
                 description={t("common", "churchEvents")}
                 leftSection={<CalendarRange size={16} />}
                 variant="light"
-                color="teal"
+                color="indigo"
                 onClick={close}
                 styles={navLinkStyles}
               />
@@ -307,7 +307,7 @@ export function ApplicationShell({
           </Stack>
         </AppShellSection>
 
-        <Divider mt="sm" mb="sm" color="rgba(20, 33, 61, 0.08)" />
+        <Divider mt="sm" mb="sm" color="#1e293b" />
 
         {/* User + Log out */}
         <AppShellSection>
@@ -316,19 +316,19 @@ export function ApplicationShell({
             p="sm"
             mb="sm"
             style={{
-              background: "rgba(20, 33, 61, 0.04)",
-              border: "1px solid rgba(20, 33, 61, 0.08)",
+              background: "rgba(30, 41, 59, 0.6)",
+              border: "1px solid #1e293b",
             }}
           >
             <Group gap="sm" wrap="nowrap">
-              <Avatar color="teal" radius="md" variant="filled" size="sm">
+              <Avatar color="indigo" radius="md" variant="filled" size="sm">
                 <ShieldCheck size={14} />
               </Avatar>
               <Box style={{ flex: 1, minWidth: 0 }}>
-                <Text fw={700} size="sm" c="#101827" truncate>
+                <Text fw={700} size="sm" c="#f8fafc" truncate>
                   {session.profile.name}
                 </Text>
-                <Text c="#617184" size="xs" truncate>
+                <Text c="#94a3b8" size="xs" truncate>
                   {session.profile.title}
                 </Text>
               </Box>

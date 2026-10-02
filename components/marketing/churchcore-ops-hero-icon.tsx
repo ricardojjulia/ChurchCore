@@ -20,7 +20,7 @@ export function ChurchCoreOpsHeroIcon() {
         cy="90"
         r="88"
         fill="none"
-        stroke="rgba(37, 99, 235, 0.1)"
+        stroke="rgba(99, 102, 241, 0.14)"
         strokeWidth="2"
       />
 
@@ -30,7 +30,7 @@ export function ChurchCoreOpsHeroIcon() {
           cy="90"
           r="75"
           fill="none"
-          stroke="rgba(37, 99, 235, 0.3)"
+          stroke="rgba(99, 102, 241, 0.35)"
           strokeWidth="2"
         >
           <animate
@@ -48,7 +48,7 @@ export function ChurchCoreOpsHeroIcon() {
           cy="90"
           r="60"
           fill="none"
-          stroke="rgba(37, 99, 235, 0.25)"
+          stroke="rgba(99, 102, 241, 0.35)"
           strokeWidth="2"
         >
           <animate
@@ -77,7 +77,7 @@ export function ChurchCoreOpsHeroIcon() {
               y1="90"
               x2={point.x}
               y2={point.y}
-              stroke="rgba(37, 99, 235, 0.2)"
+              stroke="rgba(99, 102, 241, 0.28)"
               strokeWidth="1.5"
               opacity="0.6"
             />
@@ -85,7 +85,7 @@ export function ChurchCoreOpsHeroIcon() {
               cx={point.x}
               cy={point.y}
               r="6"
-              fill="rgba(37, 99, 235, 0.82)"
+              fill="rgba(99, 102, 241, 0.35)"
             >
               <animate
                 attributeName="opacity"
@@ -115,8 +115,8 @@ export function ChurchCoreOpsHeroIcon() {
 
       <defs>
         <radialGradient id="centerGradient" cx="35%" cy="35%">
-          <stop offset="0%" stopColor="rgba(37, 99, 235, 1)" />
-          <stop offset="100%" stopColor="rgba(29, 78, 216, 0.9)" />
+          <stop offset="0%" stopColor="rgba(99, 102, 241, 1)" />
+          <stop offset="100%" stopColor="rgba(67, 56, 202, 0.9)" />
         </radialGradient>
       </defs>
     </svg>

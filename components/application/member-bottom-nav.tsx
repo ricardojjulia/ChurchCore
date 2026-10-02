@@ -65,7 +65,7 @@ export function MemberBottomNav() {
     <Group h="100%" px="xs" justify="space-between" align="center" wrap="nowrap" gap={2}>
       {NAV_ITEMS.map((item) => {
         const active = isActive(item);
-        const color = active ? "#1a56db" : "#8a94a6";
+        const color = active ? "#818cf8" : "#94a3b8"; // indigo-400 / slate-400 (ADR 0026)
         const label = t("member", item.labelKey);
 
         return (

@@ -33,27 +33,29 @@ import {
 import { LanguageSelect } from "@/components/language-select";
 import { useI18n } from "@/components/i18n-provider";
 
-// Matches the in-app palette (components/theme-provider.tsx's "churchBlue"
-// Mantine theme + the app shell's light canvas), so the pre-login landing
-// page reads as the same product as the authenticated app instead of a
-// separate dark/gold marketing skin.
-const PAGE_BG = "#f4f7fb";
-const ACCENT = "#2563eb";
-const ACCENT_HOVER = "#1d4ed8";
-const ACCENT_SOFT = "#0f766e";
+// The ChurchCore design system's palette (ADR 0026): the same dark slate
+// surfaces and indigo primary as the app (components/theme-provider.tsx),
+// so the pre-login landing page reads as the same product.
+const PAGE_BG = "#020617"; // slate-950
+const ACCENT = "#4f46e5"; // indigo-600
+const ACCENT_HOVER = "#4338ca"; // indigo-700: white text stays above 4.5:1 on hover
+// Accent as text: indigo-400 reads at 5.9:1 on slate-900 and 6.9:1 on the
+// canvas; indigo-600 (ACCENT) is for fills behind white text.
+const ACCENT_TEXT = "#818cf8";
+const ACCENT_SOFT = "#5eead4"; // teal-300
 const ON_ACCENT = "#ffffff";
-const TEXT_PRIMARY = "#14213d";
-const TEXT_BODY = "rgba(20,33,61,0.68)";
-const TEXT_MUTED = "#617184";
-const TEXT_DIM = "#5c6b7a";
-const CARD_SURFACE = "#ffffff";
-const CARD_BORDER = "rgba(20,33,61,0.08)";
-const ACCENT_BORDER = "rgba(37,99,235,0.18)";
-const ACCENT_BADGE_BG = "rgba(37,99,235,0.12)";
-const CTA_SECTION_BG = "rgba(37,99,235,0.06)";
+const TEXT_PRIMARY = "#ffffff";
+const TEXT_BODY = "#cbd5e1"; // slate-300
+const TEXT_MUTED = "#94a3b8"; // slate-400
+const TEXT_DIM = "#94a3b8"; // slate-400
+const CARD_SURFACE = "#0f172a"; // slate-900
+const CARD_BORDER = "#1e293b"; // slate-800
+const ACCENT_BORDER = "rgba(99,102,241,0.2)"; // indigo-500/20
+const ACCENT_BADGE_BG = "rgba(99,102,241,0.1)"; // indigo-500/10
+const CTA_SECTION_BG = "rgba(99,102,241,0.08)";
 
 const FONT_SERIF = "var(--font-fraunces)";
-const FONT_SANS = "var(--font-manrope)";
+const FONT_SANS = "var(--font-inter)";
 
 const NAV_LINKS = [
   { key: "navPlatform", href: "#platform" },
@@ -135,9 +137,9 @@ function BackgroundTexture() {
         pointerEvents: "none",
         zIndex: 0,
         backgroundImage: `
-          linear-gradient(rgba(20,33,61,0.025) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(20,33,61,0.025) 1px, transparent 1px),
-          radial-gradient(circle at 12% 8%, rgba(37,99,235,0.08), transparent 40%),
+          linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+          radial-gradient(circle at 12% 8%, rgba(99, 102, 241, 0.11), transparent 40%),
           radial-gradient(circle at 88% 82%, rgba(15,118,110,0.07), transparent 42%)
         `,
         backgroundSize: "72px 72px, 72px 72px, 100% 100%, 100% 100%",
@@ -152,7 +154,7 @@ function EyebrowLabel({ children }: { children: React.ReactNode }) {
       fw={600}
       tt="uppercase"
       style={{
-        color: ACCENT,
+        color: ACCENT_TEXT,
         fontFamily: FONT_SANS,
         letterSpacing: "0.14em",
         fontSize: 13,
@@ -174,7 +176,7 @@ function IconTile({ Icon }: { Icon: React.ComponentType<{ size?: number; strokeW
         borderRadius: 14,
         background: ACCENT_BADGE_BG,
         border: `1px solid ${ACCENT_BORDER}`,
-        color: ACCENT,
+        color: ACCENT_TEXT,
       }}
     >
       <Icon size={22} strokeWidth={2} />
@@ -304,7 +306,7 @@ export default function Home() {
                 <Box
                   component="span"
                   display="block"
-                  style={{ color: ACCENT, fontStyle: "italic" }}
+                  style={{ color: ACCENT_TEXT, fontStyle: "italic" }}
                 >
                   {t("publicHome", "heroHeadlineLine3")}
                 </Box>
@@ -406,8 +408,8 @@ export default function Home() {
                     {t("publicHome", "statActiveMembersValue")}
                   </Text>
                   <Group gap={6} mt={8} wrap="nowrap">
-                    <TrendingUp size={14} color={ACCENT} />
-                    <Text style={{ color: ACCENT, fontSize: 12, fontWeight: 600 }}>
+                    <TrendingUp size={14} color={ACCENT_TEXT} />
+                    <Text style={{ color: ACCENT_TEXT, fontSize: 12, fontWeight: 600 }}>
                       {t("publicHome", "statActiveMembersTrend")}
                     </Text>
                   </Group>
@@ -435,8 +437,8 @@ export default function Home() {
                     {t("publicHome", "statVolunteersValue")}
                   </Text>
                   <Group gap={6} mt={8} wrap="nowrap">
-                    <TrendingUp size={14} color={ACCENT} />
-                    <Text style={{ color: ACCENT, fontSize: 12, fontWeight: 600 }}>
+                    <TrendingUp size={14} color={ACCENT_TEXT} />
+                    <Text style={{ color: ACCENT_TEXT, fontSize: 12, fontWeight: 600 }}>
                       {t("publicHome", "statVolunteersTrend")}
                     </Text>
                   </Group>
@@ -509,7 +511,7 @@ export default function Home() {
               <Box
                 style={{
                   borderRadius: 20,
-                  background: `linear-gradient(135deg, rgba(37,99,235,0.14), rgba(37,99,235,0.04))`,
+                  background: `linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.06))`,
                   border: `1px solid ${ACCENT_BORDER}`,
                   padding: 20,
                 }}
@@ -521,7 +523,7 @@ export default function Home() {
                     </Text>
                     <Text
                       fw={700}
-                      style={{ color: ACCENT, fontFamily: FONT_SERIF, fontSize: 26 }}
+                      style={{ color: ACCENT_TEXT, fontFamily: FONT_SERIF, fontSize: 26 }}
                     >
                       {t("publicHome", "smallGroupsValue")}
                     </Text>
@@ -550,7 +552,7 @@ export default function Home() {
           <SimpleGrid cols={{ base: 2, sm: 3, md: 6 }} spacing="lg" mt={{ base: 56, md: 80 }}>
             {BOTTOM_STRIP.map((item) => (
               <Stack key={item.key} gap="xs" align="center" ta="center">
-                <Box style={{ color: ACCENT }}>
+                <Box style={{ color: ACCENT_TEXT }}>
                   <item.icon size={22} strokeWidth={1.8} />
                 </Box>
                 <Text style={{ color: TEXT_MUTED, fontSize: 13, fontWeight: 500 }}>
@@ -652,7 +654,7 @@ export default function Home() {
                 style={{
                   borderRadius: 20,
                   background: card.featured
-                    ? `linear-gradient(160deg, rgba(37,99,235,0.16), rgba(37,99,235,0.03))`
+                    ? `linear-gradient(160deg, rgba(99,102,241,0.18), rgba(99,102,241,0.04))`
                     : CARD_SURFACE,
                   border: `1px solid ${card.featured ? ACCENT_BORDER : CARD_BORDER}`,
                   padding: 24,

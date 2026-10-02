@@ -76,7 +76,7 @@ function StepRow({
             <Text
               fw={600}
               size="sm"
-              c={step.isComplete ? "#617184" : "#101827"}
+              c={step.isComplete ? "dimmed" : "#f8fafc"}
               style={{ textDecoration: step.isComplete ? "line-through" : "none" }}
             >
               {step.title}
@@ -90,7 +90,7 @@ function StepRow({
             </Badge>
           </Group>
           {step.description ? (
-            <Text size="sm" c="#617184">
+            <Text size="sm" c="#94a3b8">
               {step.description}
             </Text>
           ) : null}
@@ -196,17 +196,17 @@ export function OperationsInstanceDetailClient({
           <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
             <Stack gap={4}>
               <Group gap="sm" align="center">
-                <Title order={3} fw={700} c="#101827">
+                <Title order={3} fw={700} c="#f8fafc">
                   {instance.profileName}
                 </Title>
                 <StatusBadge status={currentStatus} />
               </Group>
               {instance.templateName ? (
-                <Text size="sm" c="#617184">
+                <Text size="sm" c="#94a3b8">
                   Template: {instance.templateName}
                 </Text>
               ) : null}
-              <Text size="sm" c="#617184">
+              <Text size="sm" c="#94a3b8">
                 Started {formatDate(instance.createdAt)} &middot;{" "}
                 {completedCount} of {steps.length} steps complete
               </Text>
@@ -228,16 +228,16 @@ export function OperationsInstanceDetailClient({
 
         {/* Steps */}
         <Stack gap="sm">
-          <Text fw={700} size="sm" c="#101827">
+          <Text fw={700} size="sm" c="#f8fafc">
             Steps
           </Text>
           {steps.length === 0 ? (
             <Paper
               radius="md"
               p="xl"
-              style={{ border: "1px dashed rgba(20, 33, 61, 0.15)", textAlign: "center" }}
+              style={{ border: "1px dashed #1e293b", textAlign: "center" }}
             >
-              <Text c="#617184" size="sm">
+              <Text c="#94a3b8" size="sm">
                 No steps for this onboarding.
               </Text>
             </Paper>
@@ -264,10 +264,10 @@ export function OperationsInstanceDetailClient({
           <>
             <Divider />
             <Stack gap="sm">
-              <Text fw={700} size="sm" c="#101827">
+              <Text fw={700} size="sm" c="#f8fafc">
                 Close onboarding
               </Text>
-              <Text size="sm" c="#617184">
+              <Text size="sm" c="#94a3b8">
                 Closing this onboarding will mark it as complete. Provide a reason below.
               </Text>
 
@@ -306,10 +306,10 @@ export function OperationsInstanceDetailClient({
 
         {currentStatus === "closed" && instance.closeReason ? (
           <Paper radius="md" p="md" withBorder style={{ background: "rgba(156, 163, 175, 0.06)" }}>
-            <Text size="xs" fw={700} c="#617184" mb={4}>
+            <Text size="xs" fw={700} c="#94a3b8" mb={4}>
               Closure reason
             </Text>
-            <Text size="sm" c="#374151">
+            <Text size="sm" c="#94a3b8">
               {instance.closeReason}
             </Text>
             {instance.closedAt ? (

@@ -30,7 +30,7 @@ export function MensMinistryPanel({ data }: { data: MensTrackData }) {
         {data.mentorshipPairs.length ? (
           <Stack gap="sm">
             {data.mentorshipPairs.map((pair) => (
-              <Paper key={pair.id} withBorder radius="lg" p="md" bg="#f8fafc">
+              <Paper key={pair.id} withBorder radius="lg" p="md" bg="#0f172a">
                 <Group justify="space-between" align="center">
                   <Group gap="sm">
                     <Text fw={600}>{pair.mentorName}</Text>
@@ -75,7 +75,7 @@ export function MensMinistryPanel({ data }: { data: MensTrackData }) {
         {data.discipleshipGroups.length ? (
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
             {data.discipleshipGroups.map((group) => (
-              <Paper key={group.id} withBorder radius="lg" p="md" bg="#f8fafc">
+              <Paper key={group.id} withBorder radius="lg" p="md" bg="#0f172a">
                 <Group justify="space-between" align="flex-start">
                   <div>
                     <Text fw={600}>{group.name}</Text>

@@ -56,7 +56,7 @@ export function ChurchAdminPeopleBulkActions({
   }
 
   return (
-    <Paper withBorder radius="xl" p="lg" mb="lg" bg="#f8fbff">
+    <Paper withBorder radius="xl" p="lg" mb="lg" bg="#0f172a">
       <Stack gap="md">
         <Group justify="space-between" align="center" gap="md">
           <Group gap="sm">

@@ -88,7 +88,7 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
 
   if (step === "submitted") {
     return (
-      <div style={{ minHeight: "100vh", background: "var(--mantine-color-gray-0)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ minHeight: "100vh", background: "var(--background)", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Paper p="xl" radius="md" withBorder style={{ maxWidth: 480, width: "100%" }}>
           <Stack align="center" gap="md">
             <div style={{ background: "var(--mantine-color-green-1)", borderRadius: "50%", width: 64, height: 64, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -113,7 +113,7 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--mantine-color-gray-0)", padding: "2rem 1rem" }}>
+    <div style={{ minHeight: "100vh", background: "var(--background)", padding: "2rem 1rem" }}>
       <Stack align="center" gap="lg">
         <div style={{ textAlign: "center" }}>
           <Text size="sm" c="dimmed" tt="uppercase" fw={500} mb={4}>{data.churchName}</Text>

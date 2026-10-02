@@ -61,7 +61,7 @@ export function OperationsOnboardingTemplateDetailClient({
       <Stack gap="lg" maw={760}>
         <Group justify="space-between" align="flex-start">
           <Stack gap={4}>
-            <Title order={2} fw={700} c="#101827">
+            <Title order={2} fw={700} c="#f8fafc">
               {template.name}
             </Title>
             <Text size="xs" c="#9ca3af">
@@ -85,11 +85,11 @@ export function OperationsOnboardingTemplateDetailClient({
             radius="md"
             p="xl"
             style={{
-              border: "1px dashed rgba(20, 33, 61, 0.15)",
+              border: "1px dashed #1e293b",
               textAlign: "center",
             }}
           >
-            <Text c="#617184" size="sm">
+            <Text c="#94a3b8" size="sm">
               No steps configured for this template.
             </Text>
           </Paper>
@@ -100,15 +100,15 @@ export function OperationsOnboardingTemplateDetailClient({
                 <Group justify="space-between" align="flex-start" wrap="nowrap">
                   <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
                     <Group gap="sm" align="center">
-                      <Text size="xs" fw={700} c="#617184" tt="uppercase" style={{ minWidth: 20 }}>
+                      <Text size="xs" fw={700} c="#94a3b8" tt="uppercase" style={{ minWidth: 20 }}>
                         {idx + 1}.
                       </Text>
-                      <Text fw={600} size="sm" c="#101827">
+                      <Text fw={600} size="sm" c="#f8fafc">
                         {step.title}
                       </Text>
                     </Group>
                     {step.description ? (
-                      <Text size="sm" c="#617184" ml={28}>
+                      <Text size="sm" c="#94a3b8" ml={28}>
                         {step.description}
                       </Text>
                     ) : null}
