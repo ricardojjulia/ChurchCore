@@ -1,15 +1,15 @@
 # IMPROVE-SOFTWARE — ChurchCore Council Review & Software Factory Protocol
 
-This protocol defines the repeatable cycle of **auditing code (via the 4-agent audit Council)**, **planning changes (via ADRs and Change Management)**, **executing features/fixes (via the Software Factory)**, and **closing the loop (via the Documenter)** to keep the ChurchCore platform aligned with enterprise-grade MVP, security, and performance standards.
+This protocol defines the repeatable cycle of **auditing code (via the 5-agent audit Council)**, **planning changes (via ADRs and Change Management)**, **executing features/fixes (via the Software Factory)**, and **closing the loop (via the Documenter)** to keep the ChurchCore platform aligned with enterprise-grade MVP, security, and performance standards.
 
 ## 0. Mandate
 
 **The Council runs before every merge to `main`.** This is not optional for meaningful work — see `AGENTS.md`. Any PR of non-trivial size (new feature, schema change, security-relevant change, or an accumulated multi-commit branch) must have a council pass and Documenter sign-off referenced in the PR description before merge. Small, isolated fixes (typo, single-line config, dependency bump with no behavior change) may skip it, but the exception is the branch being small — not the reviewer being in a hurry.
 
-The Council is five agents, not four:
+The Council is six agents (Council v2, adopted 2026-10-02):
 
-- **Agents 1–4** (below): read-only audit — database/API, routes/pages, UX/shell, feature/competitive.
-- **Agent 5 — Documenter**: write role, runs after synthesis and after factory execution verifies cleanly. Closes the loop that agents 1–4 cannot: updates `DEVELOPMENT_PLAN.md`, `CHANGELOG.md`, README/docs, finalizes ADRs, commits the council's own output, and writes memory. See `.claude/agents/documenter.md` for the full contract; Codex and Gemini surfaces invoke the same role via `.codex/skills/churchcore-council/SKILL.md` and `.gemini/skills/gemini-council/SKILL.md`.
+- **Agents 1–5** (below): read-only audit — data/API, routes/pages, UX/shell, feature/competitive, and **security**. Security became its own seat in v2: across Council Reviews 17–38, security findings (`SECURITY DEFINER` actors, webhooks failing open, actions with no gate, unauthenticated proofs) recurred while folded into the data/API seat.
+- **Agent 6 — Documenter**: write role, runs after synthesis and after factory execution verifies cleanly. Closes the loop that agents 1–5 cannot: updates `DEVELOPMENT_PLAN.md`, `CHANGELOG.md`, README/docs, finalizes ADRs, commits the council's own output, and writes memory. See `.claude/agents/documenter.md` for the full contract; Codex and Gemini surfaces invoke the same role via `.codex/skills/churchcore-council/SKILL.md` and `.gemini/skills/gemini-council/SKILL.md`.
 
 Past council rounds (1–8, see `docs/reviews/`) ran the audit and synthesis phases but never had a Documenter step — which is why `DEVELOPMENT_PLAN.md` and other docs drifted out of sync with what actually shipped. Do not repeat that gap.
 
@@ -21,7 +21,7 @@ Whenever you need to verify, plan, or improve the ChurchCore software (at the en
 
 ```mermaid
 graph TD
-    A[Trigger /improve-software] --> B[Run 4-Agent Council Audit]
+    A[Trigger /improve-software] --> B[Run 5-Agent Council Audit]
     B --> C[Synthesize Consensus & Findings]
     C --> D[Generate ADRs & Change Management Plan]
     D --> E[Create AI Prompts for Software Factory]
@@ -31,12 +31,12 @@ graph TD
     H --> I[Open PR referencing Council + Documenter sign-off]
 ```
 
-1. **Audit (Council):** Spawn 4 read-only agents in parallel using the prompts defined below to inspect database state, page routing, UX quality, and feature completeness.
+1. **Audit (Council):** Spawn 5 read-only agents in parallel using the prompts defined below to inspect data and API state, page routing, UX quality, feature completeness, and security. Each is a separate agent with its own brief: one model voting as several seats in a single response is not a Council.
 2. **Synthesize:** Group findings into consensus items, list architectural decisions, and outline the sequence of work.
 3. **ADRs:** Generate Architectural Decision Records (ADRs) for any new boundaries, role access helpers, integration contracts, or data exposure rules under `docs/adr/`.
 4. **Change Management:** Map out the prompts into sequential tasks and track them via repo-local Planning Mode artifacts (`implementation_plan.md`, `task.md`, `walkthrough.md`).
 5. **Software Factory Execution:** Hand off the concrete, self-contained AI prompts to the software factory (`feature-factory` / `build-with-tests` on Claude, `gemini-feature-factory` / `gemini-build-with-tests` on Gemini, `churchcore-feature-factory` / `churchcore-build-with-tests` on Codex) to implement the changes to professional standards.
-6. **Documentation Close-Out (Documenter):** Once verification (`npm test`, `npm run lint`, `npm run build`) is clean, run the Documenter agent (Agent 5) to update the plan, changelog, docs, ADRs, and memory, and to confirm the council's own reports are committed. See Phase 4 below.
+6. **Documentation Close-Out (Documenter):** Once verification (`npm test`, `npm run lint`, `npm run build`) is clean, run the Documenter agent (Agent 6) to update the plan, changelog, docs, ADRs, and memory, and to confirm the council's own reports are committed. See Phase 4 below.
 7. **PR:** Only after the Documenter step does the branch open a PR, referencing the council synthesis and confirming Documenter sign-off in the description.
 
 ---
@@ -45,10 +45,10 @@ graph TD
 
 Copy these prompts verbatim when spawning the council. Replace `[REPO_ROOT]` with the absolute workspace path.
 
-### Agent 1 — Database & API Audit
+### Agent 1 — Data & API Audit
 
 ```
-You are Council Agent 1 for ChurchCore. Your job is a database and API state audit. READ-ONLY — do not edit any files.
+You are Council Agent 1 for ChurchCore. Your job is a data and API state audit: schema hygiene, migrations, data integrity and concurrency. (Security is Agent 5's seat.) READ-ONLY — do not edit any files.
 
 Repo root: [REPO_ROOT]
 
@@ -64,7 +64,9 @@ Produce a structured report covering:
 
 5. Seed data — check supabase/migrations/ or seed files for seed INSERT statements. Is the demo/seed dataset realistic? What is missing?
 
-6. Top 5 critical missing pieces for database/API security and MVP completeness — be specific and honest.
+6. Migrations — is each new migration backwards-compatible with the code running before it deploys (no dropped or renamed column still read, no new NOT NULL without a default)? Does it state how it would be rolled back? Are writes that must happen together (a ledger post, a claim and its marker) in one transaction or otherwise race-safe?
+
+7. Top 5 critical missing pieces for data integrity and MVP completeness — be specific and honest.
 
 Return concise structured markdown. Target 500–700 words.
 ```
@@ -138,11 +140,42 @@ Then audit the actual implementation:
 Return concise structured markdown. Be honest and direct. Target 500–700 words.
 ```
 
+### Agent 5 — Security Audit
+
+```
+You are Council Agent 5 for ChurchCore. Your job is a security audit. READ-ONLY — do not edit any files.
+
+Repo root: [REPO_ROOT]
+
+Threat-model the scope under review. For every finding give the file:line, the concrete attack or failure, and a fix; mark anything you could not verify as UNVERIFIED.
+
+1. Authorization — does every "use server" export and API route authenticate its own caller and check the role? Does any take a church, profile or actor id from the caller instead of the session (see memory: server-only vs "use server"; login id vs church profile id)?
+
+2. Tenant isolation — does every read and write through an admin (service-role) client scope by church (ADR 0022)? Can one church read or change another's rows?
+
+3. RLS — for every new or changed table: RLS enabled, anon revoked, no client write path the server doesn't intend, no column (e.g. a profile id on an anonymous row) that a direct query could use to defeat masking the UI does on the server.
+
+4. SECURITY DEFINER functions — does any take its actor from an argument instead of auth.uid() (ADR 0024)? Who can EXECUTE it (check grants to anon/authenticated/public)?
+
+5. Unauthenticated surfaces — webhooks (signature verified, fail closed with no secret, replay window), public actions (rate limits, what proof stands in for a session), demo/stub routes (gated to demo mode).
+
+6. Secrets and PII — keys never reach the client, PII scrubbed before third parties (e.g. the LLM), audit-log entries for privileged changes.
+
+7. Top 5 security risks in scope, ranked.
+
+Return concise structured markdown. Target 500–800 words.
+```
+
 ---
 
 ## 3. Phase 2: Synthesis & Change Management
 
-After receiving all 4 agent reports, the synthesis step must produce:
+After receiving all 5 agent reports, the synthesis step must produce:
+
+### 0. Status and claim verification
+Open the synthesis with a **Status**: `RATIFIED` (ready as built), `AMENDED` (ready once the listed fixes land), or `REJECTED` (back to design). The status is the Council's recommendation; the owner decides.
+
+Check every agent claim against the source (or by computation, for contrast and wire formats) before adopting it, and list the claims that proved wrong or unsupported. Agents have made wrong claims in nearly every round; a finding that isn't verified isn't a finding.
 
 ### 1. Cross-Agent Consensus
 List findings that multiple agents independently flagged. These are highest priority.
@@ -199,14 +232,15 @@ Before handing work back to the user, the agent must run:
 1. `npm run test` (Vitest) and `npm run test:surfaces` (coverage manifest), plus `npm run test:e2e:local` (Playwright, every page × every role and every API route) when pages, routes, or actions changed. See `docs/testing.md`.
 2. `npm run lint` to guarantee zero ESLint rules violations.
 3. `npm run build` to verify next-compilation builds successfully without compiler exceptions.
+4. For any branch with a migration: `npm run lint:migrations`; the migration applies to a freshly reset database (`./supabase/scripts/setup-e2e.sh --reset`, as CI does); it is backwards-compatible with the code running before it deploys; and its rollback is stated (in the migration's comments or the PR).
 
-Only once these three are clean does the branch move to Phase 4. A red build or failing test is a stop condition, not a Documenter task.
+Only once these are clean does the branch move to Phase 4. A red build or failing test is a stop condition, not a Documenter task.
 
 ---
 
 ## 5. Phase 4: Documentation Close-Out (Documenter)
 
-The Documenter (Agent 5) runs once Phase 3's sanity checks are clean and before a PR is opened. It is a write role, unlike Agents 1–4.
+The Documenter (Agent 6) runs once Phase 3's sanity checks are clean and before a PR is opened. It is a write role, unlike Agents 1–5.
 
 **Task:** Make the finished, verified work legible to everyone who reads the repo without having read this conversation.
 
@@ -232,8 +266,18 @@ On Claude Code, invoke this as the `documenter` subagent (`.claude/agents/docume
 After each council run, commit the following:
 
 - `docs/reviews/YYYY-MM-DD-council-review-[N]-synthesis.md` — full synthesis with prompts
-- `docs/reviews/YYYY-MM-DD-council-review-[N]-agent-[1–4]-*.md` — individual agent reports
+- `docs/reviews/YYYY-MM-DD-council-review-[N]-agents-1-5.md` — the agent reports (from Council v2; rounds before it have four)
 - `docs/adr/XXXX-*.md` — any new ADRs drafted by the council
 - Documenter's updates to `DEVELOPMENT_PLAN.md`, `CHANGELOG.md`, `README.md`, `/docs`, and memory (Phase 4)
 
 The Documenter owns confirming all of the above are actually committed before the PR opens — a council run is not complete when the last agent report is written, it is complete when this list is true on disk.
+
+---
+
+## 6. The in-app LLM Council (Project HQ)
+
+Project HQ (`/hq`, platform staff only) has its own **Council mode**, wired to an LLM through `/api/ai`. It runs the same five audit seats as **separate model calls**, each with its seat's brief (`lib/council/seats.ts`), in parallel, then one synthesis call that drafts a `RATIFIED` / `AMENDED` / `REJECTED` recommendation for the owner, and saves the run with HQ's sessions.
+
+What it is for: a quick, structured second opinion on a proposal, decision or risk written in HQ, with HQ's own register (tasks, risks, decisions) as context.
+
+What it is not: the code-reading Council. The in-app Council sees only the text it's given and HQ's register; it cannot read the repository, run tests, or verify a claim against source. The merge mandate in §0 is met only by this protocol's agents reading the code. The portable description of both is `docs/council-and-hq-portable.md`.

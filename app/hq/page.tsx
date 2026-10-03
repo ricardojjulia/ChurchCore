@@ -24,6 +24,7 @@ import {
   SimpleGrid,
   Center,
   ScrollArea,
+  SegmentedControl,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
@@ -44,6 +45,20 @@ import { createClient } from "@/lib/supabase/client";
 import { ApplicationShell } from "@/components/application/app-shell";
 import type { AuthSession, ChurchRoleId } from "@/lib/auth";
 import type { User } from "@supabase/supabase-js";
+
+type CouncilStatus = "RATIFIED" | "AMENDED" | "REJECTED" | null;
+type CouncilRunView = {
+  status: CouncilStatus;
+  synthesis: string;
+  seats: Array<{ id: string; name: string; review: string; recommendation: CouncilStatus }>;
+};
+
+function councilStatusColor(status: CouncilStatus) {
+  if (status === "RATIFIED") return "teal";
+  if (status === "AMENDED") return "yellow";
+  if (status === "REJECTED") return "red";
+  return "gray";
+}
 
 interface Profile {
   id: string;
@@ -143,6 +158,8 @@ export default function ProjectHQPage() {
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiMode, setAiMode] = useState<"advisor" | "council">("advisor");
+  const [councilRun, setCouncilRun] = useState<CouncilRunView | null>(null);
   const [selectedHistorySession, setSelectedHistorySession] = useState<ChatSessionRecord | null>(null);
 
   // Fetch tables data once role is validated
@@ -390,6 +407,7 @@ export default function ProjectHQPage() {
 
     setAiLoading(true);
     setAiResponse(null);
+    setCouncilRun(null);
     setSelectedHistorySession(null);
 
     try {
@@ -398,6 +416,7 @@ export default function ProjectHQPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: activePrompt,
+          mode: aiMode,
           agentId: "hq-governance",
           agentName: "HQ Governance Advisor",
         }),
@@ -408,7 +427,11 @@ export default function ProjectHQPage() {
         throw new Error(data.error || "Failed to contact AI agent.");
       }
 
-      setAiResponse(data.response);
+      if (data.mode === "council") {
+        setCouncilRun({ status: data.status, synthesis: data.synthesis, seats: data.seats });
+      } else {
+        setAiResponse(data.response);
+      }
       setAiPrompt("");
       fetchRecords();
     } catch (err) {
@@ -422,21 +445,32 @@ export default function ProjectHQPage() {
     }
   }
 
-  // Pre-configured templates
-  const aiTemplates = [
-    {
-      label: "Analyze Risks",
-      prompt: "Based on our current risks table, what are the top 3 items we should prioritize for mitigation immediately, and what actions are recommended?",
-    },
-    {
-      label: "Draft ADR Template",
-      prompt: "Draft a new Architectural Decision Record (ADR) detailing why we prioritize database Row Level Security (RLS) over custom server logic for the LMS platform.",
-    },
-    {
-      label: "Risk Task Mitigations",
-      prompt: "Create a list of 5 actionable development tasks we can add to our backlog to mitigate the risk of 'AI tutor giving unsupervised incorrect guidance'.",
-    },
-  ];
+  // Starting points. The advisor and the Council both see HQ's register.
+  const aiTemplates = aiMode === "council"
+    ? [
+        {
+          label: "Review a feature proposal",
+          prompt: "Proposal: <what it does, who it serves, the pages/routes/tables it adds or changes, how it's tested, and its definition of done>",
+        },
+        {
+          label: "Review a migration plan",
+          prompt: "Migration proposal: <the schema change, whether code running before it deploys still works against it, how it's rolled back, and which RLS policies change>",
+        },
+      ]
+    : [
+        {
+          label: "Prioritize risks",
+          prompt: "From the register's risks, which three should we mitigate first, and what concrete action closes each?",
+        },
+        {
+          label: "Check the task load",
+          prompt: "Looking at the open tasks, which are blocked or at risk of slipping, and what would you cut or re-sequence?",
+        },
+        {
+          label: "Draft an ADR",
+          prompt: "Draft an Architectural Decision Record (context, decision, consequences, rollback) for: <the decision>",
+        },
+      ];
 
   // Visual severity risk color
   function getSeverityColor(score: number) {
@@ -983,9 +1017,24 @@ export default function ProjectHQPage() {
               <Grid.Col span={{ base: 12, md: 8 }}>
                 <Stack gap="md">
                   <div>
-                    <Title order={3}>AI Governance Advisor</Title>
-                    <Text size="xs" c="dimmed">Consult the project intelligence agent. Submits prompts via a secure, PII-scrubbed endpoint.</Text>
+                    <Title order={3}>{aiMode === "council" ? "AI Council" : "AI Governance Advisor"}</Title>
+                    <Text size="xs" c="dimmed">
+                      {aiMode === "council"
+                        ? "Five independent reviewers (Data & API, Routes & Pages, UX & Accessibility, Feature & Plan, Security), then a synthesis. It reviews the text you give it and the register, not the code; it recommends, you decide."
+                        : "Ask about the project's tasks, risks and decisions. Prompts are PII-scrubbed before they're sent."}
+                    </Text>
                   </div>
+
+                  <SegmentedControl
+                    aria-label="AI mode"
+                    value={aiMode}
+                    onChange={(value) => setAiMode(value as "advisor" | "council")}
+                    disabled={aiLoading}
+                    data={[
+                      { value: "advisor", label: "Advisor" },
+                      { value: "council", label: "Council review" },
+                    ]}
+                  />
 
                   {/* Template Chips */}
                   <Group gap="xs">
@@ -995,7 +1044,7 @@ export default function ProjectHQPage() {
                         size="xs"
                         variant="light"
                         color="teal"
-                        onClick={() => handleCallAi(tpl.prompt)}
+                        onClick={() => (tpl.prompt.includes("<") ? setAiPrompt(tpl.prompt) : handleCallAi(tpl.prompt))}
                         disabled={aiLoading}
                       >
                         {tpl.label}
@@ -1006,7 +1055,9 @@ export default function ProjectHQPage() {
                   <Card withBorder radius="lg" p="md">
                     <Stack gap="sm">
                       <Textarea
-                        placeholder="Ask the AI Advisor for suggestions on risks, tasks, or structural log ADR entries..."
+                        aria-label={aiMode === "council" ? "Proposal for the Council" : "Question for the advisor"}
+                        placeholder={aiMode === "council" ? "Describe the proposal: what it does, what it changes, how it's tested, and its definition of done..." : "Ask about risks, tasks, decisions, or an ADR..."}
+                        maxLength={8000}
                         minRows={4}
                         value={aiPrompt}
                         onChange={(e) => setAiPrompt(e.target.value)}
@@ -1021,11 +1072,44 @@ export default function ProjectHQPage() {
                           loading={aiLoading}
                           disabled={!aiPrompt.trim()}
                         >
-                          Consult Advisor
+                          {aiMode === "council" ? "Convene Council" : "Consult Advisor"}
                         </Button>
                       </Group>
                     </Stack>
                   </Card>
+
+                  {councilRun && !selectedHistorySession && (
+                    <Stack gap="sm">
+                      <Card withBorder radius="lg" p="xl">
+                        <Stack gap="xs">
+                          <Group gap="xs">
+                            <Gavel size={16} />
+                            <Text fw={700} size="sm">Council synthesis</Text>
+                            <Badge color={councilStatusColor(councilRun.status)} variant="light">
+                              {councilRun.status ?? "No status given"}
+                            </Badge>
+                          </Group>
+                          <Text style={{ whiteSpace: "pre-wrap", lineHeight: 1.6, fontSize: "14px" }}>{councilRun.synthesis}</Text>
+                          <Text size="xs" c="dimmed">A recommendation, not a decision. Check each claim before acting on it.</Text>
+                        </Stack>
+                      </Card>
+                      <SimpleGrid cols={{ base: 1, md: 2 }}>
+                        {councilRun.seats.map((seat) => (
+                          <Card key={seat.id} withBorder radius="md" p="md">
+                            <Stack gap={6}>
+                              <Group justify="space-between" wrap="nowrap">
+                                <Text fw={700} size="sm">{seat.name}</Text>
+                                <Badge size="sm" color={councilStatusColor(seat.recommendation)} variant="light">
+                                  {seat.recommendation ?? "—"}
+                                </Badge>
+                              </Group>
+                              <Text size="sm" style={{ whiteSpace: "pre-wrap", lineHeight: 1.5, overflowWrap: "anywhere" }}>{seat.review}</Text>
+                            </Stack>
+                          </Card>
+                        ))}
+                      </SimpleGrid>
+                    </Stack>
+                  )}
 
                   {/* AI Response Display */}
                   {(aiResponse || selectedHistorySession) && (

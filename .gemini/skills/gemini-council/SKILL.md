@@ -1,6 +1,6 @@
 ---
 name: gemini-council
-description: Gemini (Antigravity) entrypoint for the ChurchCore Ops council review defined in improve-software.md — 4-agent audit plus Documenter close-out, integrated with native Planning Mode. Use before any non-trivial merge to main.
+description: Gemini (Antigravity) entrypoint for the ChurchCore Ops council review defined in improve-software.md — 5-agent audit (data/API, routes/pages, UX/shell, feature/competitive, security) plus Documenter close-out, integrated with native Planning Mode. Use before any non-trivial merge to main.
 ---
 
 # ChurchCore Gemini Council
@@ -12,12 +12,13 @@ Mandate: per `AGENTS.md` and `improve-software.md` §0, the council runs before 
 ## Process
 
 1. Read `AGENTS.md`, `DEVELOPMENT_PLAN.md`, and `improve-software.md` §0–2.
-2. Run the four Phase 1 audit prompts (database/API, routes/pages, UX/shell, feature/competitive) as read-only exploration.
+2. Run the five Phase 1 audit prompts (data/API, routes/pages, UX/shell, feature/competitive, security; Council v2) as read-only exploration.
+   Synthesis opens with a Status (RATIFIED / AMENDED / REJECTED, the Council's recommendation; the owner decides). Check every agent claim against source before adopting it, and list the claims that proved wrong. A branch with a migration also needs `npm run lint:migrations`, a clean apply to a freshly reset database, backwards-compatibility with the code running before deploy, and a stated rollback.
 3. Synthesize consensus findings and draft ADRs under `docs/adr/`; write `implementation_plan.md` covering the agreed prompt sequence with `request_feedback = true`, and commit the synthesis plus agent reports under `docs/reviews/`.
 4. Wait for explicit human approval on `implementation_plan.md` before executing.
 5. Execute via `gemini-build-with-tests`, tracking tasks in `task.md`; write phases run sequentially.
 6. Verify: `npm run test`, `npm run lint`, `npm run build` must all pass — record results in `walkthrough.md`. Any failure is a stop condition.
-7. **Documenter close-out** (Agent 5, write role, docs/changelog/plan/ADRs/memory only — never application code):
+7. **Documenter close-out** (Agent 6, write role, docs/changelog/plan/ADRs/memory only — never application code):
    - Update the §0 MVP roadmap tracker in `DEVELOPMENT_PLAN.md`:
      - set shipped rows to `Done (#PR)`;
      - add new open items as rows, or list them in §0.5 with a reason;

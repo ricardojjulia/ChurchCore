@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Banknote, Building2, Headset, MessageSquare, PlusCircle, ShieldCheck } from "lucide-react";
+import { Banknote, Building2, ClipboardList, Headset, MessageSquare, PlusCircle, ShieldCheck } from "lucide-react";
 import {
   Badge,
   Button,
@@ -102,13 +102,24 @@ export function ControlPlaneDashboard({
     billingStatus: "active",
   });
   const activeSection = getControlPlaneSection(sectionId) ?? controlPlaneSections[0];
-  const navItems = controlPlaneSections.map((section) => ({
-    href: section.id === "overview" ? "/control" : `/control/${section.id}`,
-    label: section.label,
-    description: section.description,
-    icon: sectionIcons[section.id],
-    active: section.id === activeSection.id,
-  }));
+  const navItems = [
+    ...controlPlaneSections.map((section) => ({
+      href: section.id === "overview" ? "/control" : `/control/${section.id}`,
+      label: section.label,
+      description: section.description,
+      icon: sectionIcons[section.id],
+      active: section.id === activeSection.id,
+    })),
+    // Project HQ (the internal register and AI Council) lives in the church
+    // app, gated by is_platform_admin() on that app's own session (S5), so
+    // it opens there; a staff member without one signs in first.
+    {
+      href: "/hq",
+      label: "Project HQ",
+      description: "Tasks, risks, decisions and the AI Council (church-app sign-in)",
+      icon: ClipboardList,
+    },
+  ];
 
   const isOverview = activeSection.id === "overview";
   const queueItems = activeSection.id === "billing" ? billingQueue : supportQueue;
