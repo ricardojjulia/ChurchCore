@@ -20,15 +20,16 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { Heart, RefreshCw, XCircle } from "lucide-react";
+import { Heart, RefreshCw } from "lucide-react";
 
 import {
   cancelPendingDonationAction,
   confirmDonationAction,
   initiateDonationAction,
-  cancelRecurringDonationAction,
 } from "@/app/app/donations-actions";
 import { DonationCardStep } from "@/components/portal/donation-card-step";
+import { RecurringGiftsPanel } from "@/components/portal/recurring-gifts-panel";
+import type { RecurringGift } from "@/lib/recurring-gifts";
 import type { DonationEntry, DonorPortalData } from "@/lib/donations-data";
 
 const STATUS_COLORS: Record<DonationEntry["status"], string> = {
@@ -69,8 +70,14 @@ export function DonorPortal({
   givingNotice = null,
   publishableKey = null,
   stripeAccount = null,
+  recurringGifts = [],
+  today = new Date().toISOString().slice(0, 10),
 }: {
   data: DonorPortalData;
+  /** The member's recurring gifts (G3.1). */
+  recurringGifts?: RecurringGift[];
+  /** Today in the church's time zone (YYYY-MM-DD). */
+  today?: string;
   /** Why online giving is off right now, or null when a member can give (Council Review 22). */
   givingNotice?: string | null;
   /** Stripe's publishable key, for the card step (G3.0); null in stub mode. */
@@ -227,33 +234,6 @@ export function DonorPortal({
     });
   }
 
-  function handleCancelRecurring(donationId: string) {
-    startTransition(async () => {
-      try {
-        const cancelled = await cancelRecurringDonationAction(donationId);
-        if (!cancelled.ok) {
-          notifications.show({ title: "Couldn't cancel", message: cancelled.error ?? "Please try again.", color: "red" });
-          return;
-        }
-        notifications.show({
-          title: "Recurring gift cancelled",
-          message: "Your recurring gift has been cancelled. Thank you for your past generosity.",
-          color: "teal",
-        });
-      } catch (err) {
-        notifications.show({
-          title: "Error",
-          message: err instanceof Error ? err.message : "Something went wrong.",
-          color: "red",
-        });
-      }
-    });
-  }
-
-  const activeRecurring = donations.filter(
-    (d) => d.isRecurring && d.status === "succeeded" && d.stripeSubscriptionId,
-  );
-
   return (
     <Stack gap="lg">
       {/* Summary */}
@@ -292,39 +272,13 @@ export function DonorPortal({
         </Text>
       </Alert>
 
-      {/* Active recurring */}
-      {activeRecurring.length > 0 ? (
-        <Paper withBorder p="md" radius="md">
-          <Text fw={600} fz="sm" mb="sm">
-            Recurring Gifts
-          </Text>
-          <Stack gap="sm">
-            {activeRecurring.map((d) => (
-              <Group key={d.id} justify="space-between" align="center">
-                <Stack gap={2}>
-                  <Text fz="sm">
-                    {formatCents(d.amountCents, d.currency)} / month → {d.fundDesignation ?? "General"}
-                  </Text>
-                  <Text fz="xs" c="dimmed">
-                    Started {formatDate(d.createdAt)}
-                  </Text>
-                </Stack>
-                <Button
-                  size="xs"
-                  variant="subtle"
-                  color="red"
-                  radius="xl"
-                  leftSection={<XCircle size={12} />}
-                  loading={isPending}
-                  onClick={() => handleCancelRecurring(d.id)}
-                >
-                  Cancel
-                </Button>
-              </Group>
-            ))}
-          </Stack>
-        </Paper>
-      ) : null}
+      {/* Recurring gifts (G3.1) */}
+      <RecurringGiftsPanel
+        gifts={recurringGifts}
+        fundOptions={FUND_OPTIONS}
+        today={today}
+        givingOff={Boolean(givingNotice)}
+      />
 
       {/* Giving history */}
       <Paper withBorder radius="md" style={{ overflow: "hidden" }}>

@@ -1,8 +1,9 @@
 "use client";
 
 import { Tabs } from "@mantine/core";
-import { BarChart2, DollarSign, Link2, Settings } from "lucide-react";
+import { BarChart2, DollarSign, Link2, RefreshCw, Settings } from "lucide-react";
 
+import { RecurringGiftsAdminPanel } from "@/components/application/recurring-gifts-admin-panel";
 import { StripeConnectCard } from "@/components/application/stripe-connect-card";
 import { ApplicationShell } from "@/components/application/app-shell";
 import {
@@ -19,6 +20,7 @@ import type {
   GivingReadinessData,
 } from "@/lib/donations-data";
 import type { FinanceAccount } from "@/lib/finance-types";
+import type { RecurringGift } from "@/lib/recurring-gifts";
 import type { ChurchPaymentConnection } from "@/lib/stripe/connect";
 
 export function GivingAdminWorkspace({
@@ -29,6 +31,7 @@ export function GivingAdminWorkspace({
   readiness,
   paymentConnection = null,
   stripeResult = null,
+  recurringGifts = [],
 }: {
   session: ChurchAppSession;
   analytics: GivingAnalyticsData;
@@ -39,6 +42,8 @@ export function GivingAdminWorkspace({
   paymentConnection?: ChurchPaymentConnection | null;
   /** `?stripe=` from the connect flow. */
   stripeResult?: string | null;
+  /** The church's recurring gifts (G3.1). */
+  recurringGifts?: RecurringGift[];
 }) {
   const { t } = useI18n();
 
@@ -88,6 +93,9 @@ export function GivingAdminWorkspace({
           <Tabs.Tab value="analytics" leftSection={<BarChart2 size={14} />}>
             {t("givingAdmin", "tabAnalytics")}
           </Tabs.Tab>
+          <Tabs.Tab value="recurring" leftSection={<RefreshCw size={14} />}>
+            Recurring
+          </Tabs.Tab>
           <Tabs.Tab value="mappings" leftSection={<Link2 size={14} />}>
             {t("givingAdmin", "tabFundMappings")}
           </Tabs.Tab>
@@ -104,6 +112,10 @@ export function GivingAdminWorkspace({
 
         <Tabs.Panel value="analytics">
           <GivingAnalyticsPanel analytics={analytics} />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="recurring">
+          <RecurringGiftsAdminPanel gifts={recurringGifts} />
         </Tabs.Panel>
 
         <Tabs.Panel value="mappings">

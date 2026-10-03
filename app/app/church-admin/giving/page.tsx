@@ -8,7 +8,9 @@ import {
   getGivingReadinessData,
 } from "@/lib/donations-data";
 import { getFinanceAccounts } from "@/lib/finance-data";
+import { listChurchRecurringGifts } from "@/lib/recurring-gifts";
 import { getChurchPaymentConnection } from "@/lib/stripe/connect";
+import { createTenantAdminClient } from "@/lib/supabase/tenant";
 
 export default async function ChurchAdminGivingPage({
   searchParams = Promise.resolve({}),
@@ -24,11 +26,12 @@ export default async function ChurchAdminGivingPage({
   const { view, stripe } = await searchParams;
   const readinessView = view === "exceptions";
 
-  const [analytics, mappings, accounts, paymentConnection] = await Promise.all([
+  const [analytics, mappings, accounts, paymentConnection, recurringGifts] = await Promise.all([
     getGivingAnalyticsData(session),
     getFundMappings(session),
     getFinanceAccounts(session),
     getChurchPaymentConnection(session.appContext.church.id),
+    listChurchRecurringGifts(createTenantAdminClient(), session.appContext.church.id),
   ]);
   const readiness = readinessView ? await getGivingReadinessData(session) : null;
 
@@ -40,6 +43,7 @@ export default async function ChurchAdminGivingPage({
       accounts={accounts}
       readiness={readiness}
       paymentConnection={paymentConnection}
+      recurringGifts={recurringGifts}
       stripeResult={stripe ?? null}
     />
   );

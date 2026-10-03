@@ -194,8 +194,13 @@ A church's own payments arrive as events *from its connected account*, which Str
    - `payment_intent.payment_failed`
    - `charge.refunded`
    - `customer.subscription.deleted`
+   - `customer.subscription.updated` (recurring gifts, G3.2)
+   - `invoice.paid` (each recurring installment, G3.2)
+   - `invoice.payment_failed` (a failed installment; the donor is told, G3.2)
    - `account.updated`
    - `account.application.deauthorized`
+
+   The route answers **5xx** when a handler fails, so Stripe retries (G3.2): every handler is safe to repeat, and a gift is marked complete only after its ledger post and receipt.
 4. Reveal its signing secret and set it as `STRIPE_CONNECT_WEBHOOK_SECRET` in Vercel environment variables, then redeploy.
 5. Also register the OAuth redirect URI under **Connect → Settings → OAuth settings**: `https://<your-production-domain>/api/stripe/connect/callback`.
 6. This can only be fully tested with a real connected account in Stripe test mode (owner action O7, `DEVELOPMENT_PLAN.md` §0.3) — no automated test exercises real Stripe.

@@ -1543,10 +1543,11 @@
         "slug": "grace-harbor"
       },
       "tests": [
-        "tests/e2e/page-role-sweep.spec.ts"
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/recurring-giving.spec.ts"
       ],
-      "note": "Renders demo Grace Harbor giving data for any :slug when NEXT_PUBLIC_DEMO_MODE=true; 404s otherwise. No real Stripe/production public_giving_pages lookup is wired yet (see the TODO comment in the page source).",
-      "seedSource": "not a DB lookup \u2014 app/give/[slug]/page.tsx's getGivingPageData() stub accepts any slug string and returns static Grace Harbor demo data ONLY when NEXT_PUBLIC_DEMO_MODE=true; returns null (-> notFound(), a 404) otherwise. CI's e2e job sets NEXT_PUBLIC_DEMO_MODE=true (.github/workflows/ci.yml); local runs must set it too or this page 404s for every slug."
+      "note": "Reads the church's live public_giving_pages row by slug (G3.1); in demo mode, an unknown slug falls back to demo Grace Harbor data. One-time gifts only: a real card form on the church's connected Stripe account, or recorded at once when payments are stubbed (development, demo).",
+      "seedSource": "supabase/seed.sql inserts Grace Harbor's live public_giving_pages row with slug 'grace-harbor'."
     },
     "/hq": {
       "path": "/hq",
@@ -2202,7 +2203,6 @@
       "module": "app/app/donations-actions.ts",
       "exports": [
         "cancelPendingDonationAction",
-        "cancelRecurringDonationAction",
         "confirmDonationAction",
         "initiateDonationAction"
       ],
@@ -2308,6 +2308,21 @@
       "tests": [
         "app/app/member-actions.test.ts",
         "app/app/member-actions-supabase.test.ts"
+      ]
+    },
+    "app/app/recurring-gifts-actions.ts": {
+      "module": "app/app/recurring-gifts-actions.ts",
+      "exports": [
+        "adminCancelRecurringGiftAction",
+        "adminSetRecurringGiftPausedAction",
+        "cancelRecurringGiftAction",
+        "confirmRecurringGiftAction",
+        "setRecurringGiftPausedAction",
+        "startRecurringGiftAction",
+        "updateRecurringGiftAction"
+      ],
+      "tests": [
+        "app/app/recurring-gifts-actions.test.ts"
       ]
     },
     "app/app/shepherd-ai-actions.ts": {
@@ -2421,6 +2436,16 @@
         "launchTenantViewAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
         "returnToControlPlaneAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
       }
+    },
+    "app/give/actions.ts": {
+      "module": "app/give/actions.ts",
+      "exports": [
+        "cancelPublicGiftAction",
+        "submitPublicGiftAction"
+      ],
+      "tests": [
+        "app/give/actions.test.ts"
+      ]
     },
     "app/language-actions.ts": {
       "module": "app/language-actions.ts",

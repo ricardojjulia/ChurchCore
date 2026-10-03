@@ -10,6 +10,7 @@ const {
   memberBottomNavMock,
   onlineGivingNoticeMock,
   onlineGivingStatusMock,
+  listOwnRecurringGiftsMock,
 } = vi.hoisted(() => ({
   redirectMock: vi.fn((url: string) => {
     throw { url };
@@ -27,6 +28,7 @@ const {
   memberBottomNavMock: vi.fn(() => <div>Bottom Nav</div>),
   onlineGivingNoticeMock: vi.fn(),
   onlineGivingStatusMock: vi.fn(),
+  listOwnRecurringGiftsMock: vi.fn(),
 }));
 
 vi.mock("@/lib/stripe/donations", () => ({
@@ -34,6 +36,9 @@ vi.mock("@/lib/stripe/donations", () => ({
   onlineGivingStatus: onlineGivingStatusMock,
   stripePublishableKey: () => "pk_test_123",
 }));
+
+vi.mock("@/lib/recurring-gifts", () => ({ listOwnRecurringGifts: listOwnRecurringGiftsMock }));
+vi.mock("@/lib/supabase/tenant", () => ({ createTenantAdminClient: () => ({}) }));
 
 vi.mock("next/navigation", () => ({
   redirect: redirectMock,
@@ -91,7 +96,7 @@ describe("member giving page", () => {
     expect(screen.getByText("Donor Portal")).toBeInTheDocument();
     expect(getDonorPortalDataMock).toHaveBeenCalled();
     expect(onlineGivingStatusMock).toHaveBeenCalledWith("church-1");
-    expect(donorPortalMock).toHaveBeenCalledWith({ data: { donations: [] }, givingNotice: null, publishableKey: null, stripeAccount: null }, undefined);
+    expect(donorPortalMock).toHaveBeenCalledWith({ data: { donations: [] }, givingNotice: null, publishableKey: null, stripeAccount: null, recurringGifts: [], today: expect.any(String) }, undefined);
   });
 
   it("tells members up front when online giving is off (Council Review 22)", async () => {
@@ -99,7 +104,7 @@ describe("member giving page", () => {
     render(await MemberGivingPage());
 
     expect(donorPortalMock).toHaveBeenCalledWith(
-      { data: { donations: [] }, givingNotice: "Online card giving isn't available yet.", publishableKey: null, stripeAccount: null },
+      { data: { donations: [] }, givingNotice: "Online card giving isn't available yet.", publishableKey: null, stripeAccount: null, recurringGifts: [], today: expect.any(String) },
       undefined,
     );
   });
@@ -110,8 +115,22 @@ describe("member giving page", () => {
     render(await MemberGivingPage());
 
     expect(donorPortalMock).toHaveBeenCalledWith(
-      { data: { donations: [] }, givingNotice: null, publishableKey: "pk_test_123", stripeAccount: "acct_church1" },
+      { data: { donations: [] }, givingNotice: null, publishableKey: "pk_test_123", stripeAccount: "acct_church1", recurringGifts: [], today: expect.any(String) },
       undefined,
     );
+  });
+
+  it("loads the member's own recurring gifts, by their church profile (G3.1)", async () => {
+    requireChurchSessionMock.mockResolvedValueOnce({
+      appContext: { roleId: "member", church: { id: "church-1", name: "Grace Church", timezone: "America/Chicago" } },
+      churchProfileId: "profile-1",
+      homePath: "/app/member",
+    });
+    const gift = { id: "rg-1", amountCents: 2500, frequency: "monthly", status: "active" };
+    listOwnRecurringGiftsMock.mockResolvedValueOnce([gift]);
+    render(await MemberGivingPage());
+
+    expect(listOwnRecurringGiftsMock).toHaveBeenCalledWith(expect.anything(), "church-1", "profile-1");
+    expect(donorPortalMock).toHaveBeenCalledWith(expect.objectContaining({ recurringGifts: [gift] }), undefined);
   });
 });

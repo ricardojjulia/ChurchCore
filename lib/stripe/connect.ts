@@ -199,6 +199,8 @@ export async function saveChurchStripeAccount(input: {
         connected_at: now,
         disconnected_at: null,
         connected_by: input.connectedBy,
+        // Products belong to an account: a (re)link starts without one (G3.1).
+        stripe_recurring_product_id: null,
         updated_at: now,
       },
       { onConflict: "church_id" },
