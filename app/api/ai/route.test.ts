@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 const { getUserMock, rpcMock, fromMock, insertMock, createMock } = vi.hoisted(() => ({
   getUserMock: vi.fn(),
@@ -24,8 +24,8 @@ import { COUNCIL_SEATS, SYNTHESIS_SYSTEM_PROMPT } from "@/lib/council/seats";
 
 // A query chain over one table's rows: select/neq/order/limit, awaited.
 function table(rows: Array<Record<string, unknown>>) {
-  const chain = {
-    select: () => chain,
+  const chain: Record<string, unknown> = {
+    select: vi.fn(() => chain),
     neq: () => chain,
     order: () => chain,
     limit: () => Promise.resolve({ data: rows, error: null }),
@@ -36,7 +36,7 @@ function table(rows: Array<Record<string, unknown>>) {
 
 const register: Record<string, Array<Record<string, unknown>>> = {
   hq_tasks: [{ title: "Ship G3.3", status: "todo", owner: "ana@example.org", priority: "high" }],
-  hq_risks: [{ title: "Stripe review delay", mitigation: null, severity: 4, probability: 2, owner: "Ops" }],
+  hq_risks: [{ title: "Stripe review delay, call 787-555-0142", severity: 4, probability: 2 }],
   hq_decisions: [],
   hq_sessions: [],
 };
@@ -99,6 +99,8 @@ describe("POST /api/ai modes (Council v2)", () => {
     const content = params.messages[0].content as string;
     expect(content).toContain("Ship G3.3");
     expect(content).toContain("Stripe review delay");
+    expect(content).not.toContain("555-0142");
+    expect(content).toContain("[PHONE]");
     expect(content).toContain("Decisions: none recorded");
     expect(content).not.toContain("@example.org");
     expect(insertMock).toHaveBeenCalledWith(expect.objectContaining({ agent_id: "hq-governance", prompt: "What first? cc [EMAIL]" }));
@@ -144,6 +146,24 @@ describe("POST /api/ai modes (Council v2)", () => {
     expect(insertMock).not.toHaveBeenCalledWith(expect.objectContaining({ agent_id: "spoofed" }));
     // The advisor has its own allowance.
     expect((await post({ prompt: "p" })).status).toBe(200);
+  });
+
+  it("reads only titles and structured fields from the register, never owners or mitigation notes", async () => {
+    createMock.mockResolvedValue({ content: [{ type: "text", text: "ok" }] });
+    await post({ prompt: "hi" });
+    const selects = fromMock.mock.results.filter((result) => (result.value as { select: Mock }).select.mock.calls.length).map((result) => (result.value as { select: Mock }).select.mock.calls[0][0] as string);
+    expect(selects).toHaveLength(3);
+    for (const columns of selects) {
+      expect(columns).not.toMatch(/owner|mitigation/);
+    }
+  });
+
+  it("refuses a body that isn't a JSON object, or an unknown mode, before calling the model", async () => {
+    expect((await post(null)).status).toBe(400);
+    expect((await post(["hi"])).status).toBe(400);
+    expect((await post({ prompt: "hi", mode: "councl" })).status).toBe(400);
+    expect(createMock).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled();
   });
 
   it("refuses an empty or oversized prompt before calling the model", async () => {

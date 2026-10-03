@@ -168,6 +168,9 @@ ChurchCore includes a repo-local software factory for structured AI-assisted dev
 - **Codex:** use `.codex/skills/churchcore-feature-factory`, `.codex/skills/churchcore-build-with-tests`, and `.codex/skills/churchcore-pr-review`.
 - **Gemini (Antigravity):** use `.gemini/skills/gemini-feature-factory`, `.gemini/skills/gemini-build-with-tests`, and `.gemini/skills/gemini-pr-review`.
 
+- **The Council (v2):** five read-only audit agents (Data & API, Routes & Pages, UX & Shell, Feature & Plan, Security) plus a Documenter run before every non-trivial merge to `main`; the synthesis opens with a RATIFIED/AMENDED/REJECTED recommendation. See [`improve-software.md`](improve-software.md) and [`docs/reviews/`](docs/reviews/).
+- **Project HQ (`/hq`, platform staff only):** a register of tasks, risks and decisions plus an AI advisor and an in-app Council (five seats in parallel, then a synthesis) on `AI_HQ_MODEL`. Prompts are PII-scrubbed; only register titles and statuses are sent. Portable spec: [`docs/council-and-hq-portable.md`](docs/council-and-hq-portable.md).
+
 Start with [docs/software-factory.md](docs/software-factory.md) for the how-to and [docs/diagrams.md](docs/diagrams.md#claude-code-software-factory) for the visual workflow maps.
 
 ### Preferred Factory Workflow

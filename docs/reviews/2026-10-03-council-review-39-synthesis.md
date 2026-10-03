@@ -1,8 +1,12 @@
+Status: AMENDED
+
 # Council Review 39 — Synthesis (Council v2 and the HQ AI Council)
 
 **Branch:** `feat/council-v2-hq-llm` vs `main`. This is the **first round run under Council v2**: five separate read-only audit agents (Data & API, Routes & Pages, UX & Shell, Feature & Plan, and Security, new this round), then the Documenter. The reports are in `2026-10-03-council-review-39-agents-1-5.md`.
 
-## Status: AMENDED → fixes landed
+## Status
+
+**AMENDED** — ready once the listed fixes land. They landed the same round; see "Fixed after Council" below.
 
 The branch does what the owner asked:
 - **Council v2.** A dedicated Security seat; a migration line in the definition of done; RATIFIED/AMENDED/REJECTED status labels. Applied consistently across `improve-software.md`, `AGENTS.md`, and the Claude, Codex and Gemini council skills.

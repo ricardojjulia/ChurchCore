@@ -25,9 +25,20 @@ function textOf(message: Anthropic.Message): string {
     .trim();
 }
 
-/** The status a seat or the synthesis gave, or null when it gave none. */
-export function parseStatus(text: string, marker: RegExp): CouncilStatus | null {
-  const match = text.match(marker);
+const STATUS = "(RATIFIED|AMENDED|REJECTED)";
+const SEAT_MARKER = new RegExp(`^Seat recommendation:\\s*${STATUS}\\s*$`, "i");
+const SYNTHESIS_MARKER = new RegExp(`^Status:\\s*${STATUS}\\s*$`, "i");
+
+/**
+ * The status on one required line, or null when that line isn't the marker.
+ * Only that line is read, so a status quoted elsewhere (from the proposal,
+ * the register or a seat) can't stand in for a missing one.
+ */
+export function parseStatus(text: string, where: "first" | "last"): CouncilStatus | null {
+  // Markdown emphasis around the marker ("**Status: AMENDED**") is tolerated.
+  const lines = text.split("\n").map((line) => line.replace(/^[\s*_#>]+|[\s*_]+$/g, "")).filter(Boolean);
+  const line = where === "first" ? lines[0] : lines[lines.length - 1];
+  const match = line?.match(where === "first" ? SYNTHESIS_MARKER : SEAT_MARKER);
   return match ? (match[1].toUpperCase() as CouncilStatus) : null;
 }
 
@@ -54,7 +65,7 @@ export async function runCouncil(input: {
         id: seat.id,
         name: seat.name,
         review,
-        recommendation: parseStatus(review, /Seat recommendation:\s*(RATIFIED|AMENDED|REJECTED)/i),
+        recommendation: parseStatus(review, "last"),
       };
     }),
   );
@@ -67,5 +78,5 @@ export async function runCouncil(input: {
     messages: [{ role: "user", content: `${subject}\n\nSEAT REVIEWS:\n${reviews}` }],
   });
   const synthesis = textOf(synthesisMessage);
-  return { status: parseStatus(synthesis, /^\s*Status:\s*(RATIFIED|AMENDED|REJECTED)/im), synthesis, seats };
+  return { status: parseStatus(synthesis, "first"), synthesis, seats };
 }

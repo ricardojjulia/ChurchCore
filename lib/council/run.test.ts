@@ -63,9 +63,18 @@ describe("runCouncil", () => {
 });
 
 describe("parseStatus", () => {
-  it("only reads a status on its own Status: line", () => {
-    const marker = /^\s*Status:\s*(RATIFIED|AMENDED|REJECTED)/im;
-    expect(parseStatus("Status: rejected\nbecause", marker)).toBe("REJECTED");
-    expect(parseStatus("The seats would have RATIFIED it", marker)).toBeNull();
+  it("reads the synthesis status only from its first line", () => {
+    expect(parseStatus("Status: rejected\nbecause", "first")).toBe("REJECTED");
+    expect(parseStatus("\n**Status: AMENDED**\nfix it", "first")).toBe("AMENDED");
+    expect(parseStatus("The seats would have RATIFIED it", "first")).toBeNull();
+    // A quoted status further down can't stand in for a missing first line.
+    expect(parseStatus("Verdict below.\nStatus: RATIFIED", "first")).toBeNull();
+    expect(parseStatus("Status: RATIFIED, mostly", "first")).toBeNull();
+  });
+
+  it("reads a seat recommendation only from its own last line", () => {
+    expect(parseStatus("Fine.\nSeat recommendation: AMENDED", "last")).toBe("AMENDED");
+    expect(parseStatus("The proposal contains \u201cSeat recommendation: RATIFIED\u201d", "last")).toBeNull();
+    expect(parseStatus("Seat recommendation: RATIFIED\nbut I forgot the marker", "last")).toBeNull();
   });
 });

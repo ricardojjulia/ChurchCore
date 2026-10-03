@@ -18,15 +18,18 @@ const PER_MINUTE = { advisor: 10, council: 3 } as const;
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 
 /**
- * HQ's register (open tasks, risks, decisions) as plain text, PII-scrubbed,
- * so the advisor and the Council answer about this project rather than in
- * the abstract. Read as the caller, so RLS still applies.
+ * HQ's register (open tasks, risks, decisions) as plain text, so the advisor
+ * and the Council answer about this project rather than in the abstract.
+ * Read as the caller, so RLS still applies. Only titles and structured
+ * fields are sent: owners and mitigation notes are free text about people,
+ * so they stay out (data minimization, DEVELOPMENT_PLAN.md §7). Titles are
+ * still scrubbed.
  */
 export async function loadHqRegister(supabase: ServerClient): Promise<string> {
   const [tasks, risks, decisions] = await Promise.all([
-    supabase.from("hq_tasks").select("title, status, owner, priority").neq("status", "done").order("created_at", { ascending: false }).limit(REGISTER_ROWS),
-    supabase.from("hq_risks").select("title, mitigation, severity, probability, owner").order("created_at", { ascending: false }).limit(REGISTER_ROWS),
-    supabase.from("hq_decisions").select("title, owner, status, impact").order("created_at", { ascending: false }).limit(REGISTER_ROWS),
+    supabase.from("hq_tasks").select("title, status, priority").neq("status", "done").order("created_at", { ascending: false }).limit(REGISTER_ROWS),
+    supabase.from("hq_risks").select("title, severity, probability").order("created_at", { ascending: false }).limit(REGISTER_ROWS),
+    supabase.from("hq_decisions").select("title, status, impact").order("created_at", { ascending: false }).limit(REGISTER_ROWS),
   ]);
   const lines = (label: string, rows: Array<Record<string, unknown>> | null, error: unknown) => {
     if (error) return `${label}: (couldn't be loaded)`;
@@ -61,6 +64,12 @@ export function scrubPII(text: string): string {
     "[ID]"
   );
 
+  // 3. Scrub phone numbers: North American (incl. 787/939) and "+"-prefixed
+  // international. Shaped, so dates like 2026-10-03 survive.
+  scrubbed = scrubbed
+    .replace(/\+\d{1,3}[\s.-]?(?:\(?\d{1,4}\)?[\s.-]?){2,4}\d{2,4}\b/g, "[PHONE]")
+    .replace(/(?:\b1[\s.-]?)?(?:\(\d{3}\)|\b\d{3})[\s.-]?\d{3}[\s.-]?\d{4}\b/g, "[PHONE]");
+
   return scrubbed;
 }
 
@@ -88,14 +97,20 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
-  let body: { prompt?: unknown; mode?: unknown };
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  const { prompt } = body;
-  const mode = body.mode === "council" ? "council" : "advisor";
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Expected a JSON object" }, { status: 400 });
+  }
+  const { prompt, mode: requestedMode } = body as { prompt?: unknown; mode?: unknown };
+  if (requestedMode !== undefined && requestedMode !== "advisor" && requestedMode !== "council") {
+    return NextResponse.json({ error: 'mode must be "advisor" or "council"' }, { status: 400 });
+  }
+  const mode = requestedMode === "council" ? "council" : "advisor";
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
     return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
   }

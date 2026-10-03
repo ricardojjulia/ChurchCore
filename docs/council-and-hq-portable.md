@@ -307,11 +307,12 @@ The order of operations:
 1. **Authenticate**: 401 if signed out.
 2. **Authorize**: 403 unless the caller is a platform admin. This happens before any model call.
 3. **Check configuration**: 500 "AI features are not configured" without an API key.
-4. **Validate the prompt**: 400 for an empty or oversized prompt.
+4. **Validate the request**: 400 when the body isn't a JSON object, when `mode` is anything but `advisor`, `council` or absent, or for an empty or oversized prompt.
    Then **throttle per person**: 429 beyond 3 Council runs or 10 advisor questions a minute. Even platform staff shouldn't be able to loop six model calls per request.
-5. **Scrub PII from the prompt.** Emails and UUIDs are replaced with `[EMAIL]` and `[ID]`. The regular expressions use bounded quantifiers, because they run on user input and unbounded ones allow catastrophic backtracking.
+5. **Scrub PII from the prompt.** Emails, phone numbers and UUIDs are replaced with `[EMAIL]`, `[PHONE]` and `[ID]`. Phone patterns are shaped (North American, or `+`-prefixed international), so dates and plain numbers survive. The regular expressions use bounded quantifiers, because they run on user input and unbounded ones allow catastrophic backtracking.
 6. **Load HQ's register.** This means open tasks, risks and recent decisions, at most 25 rows each.
    - It is read as the caller, so row-level security still applies.
+   - Only titles and structured fields (status, priority, severity, probability, impact) are read. Owners and mitigation notes are free text about people, so they are never sent (data minimization).
    - It is rendered as plain text and scrubbed too.
    - A table that fails to load is said to have failed, not silently omitted.
 7. **Call the model.**
@@ -346,7 +347,7 @@ The order of operations:
 
 1. Calls the model once per seat, **in parallel**. Each call gets that seat's brief plus the shared rules as its system prompt, and the same user message: the proposal plus the register.
 2. Then makes one synthesis call. It receives the proposal, the register, and all five reviews.
-3. Parses statuses only from their marked lines: `Seat recommendation: X`, and `Status: X` at the start of a line.
+3. Parses statuses only from their required lines: a seat's **last** nonblank line must be `Seat recommendation: X`, and the synthesis's **first** nonblank line must be `Status: X` (markdown emphasis around either is tolerated). A status quoted anywhere else — from the proposal, the register or a seat — is ignored.
    - When the model gives no status, the status is `null`.
    - It is never guessed from words elsewhere in the text.
 
