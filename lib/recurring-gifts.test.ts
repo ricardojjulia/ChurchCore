@@ -151,6 +151,28 @@ describe("startRecurringGift", () => {
     expect(stripe.createRecurringSubscription).not.toHaveBeenCalled();
   });
 
+  it("cancels the subscription at Stripe too when recording it fails afterwards (Council Review 38)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    stripe.cancelStripeSubscription.mockResolvedValue({ cancelled: true, isStub: false });
+    const db = fakeDb({ profiles: [PROFILE] });
+    // The first write (the insert) succeeds; the link update after the subscription fails.
+    db.failOn.add("recurring_gifts");
+    const insertFirst = await startRecurringGift(db.client, CTX, { amountCents: 2500, frequency: "monthly" });
+    expect(insertFirst).toMatchObject({ ok: false });
+    expect(stripe.createRecurringSubscription).not.toHaveBeenCalled();
+
+    const db2 = fakeDb({ profiles: [PROFILE] });
+    const realFrom = (db2.client as unknown as { from: (t: string) => unknown }).from;
+    let recurringWrites = 0;
+    (db2.client as unknown as { from: (t: string) => unknown }).from = (table: string) => {
+      if (table === "recurring_gifts" && ++recurringWrites === 2) db2.failOn.add("recurring_gifts");
+      return realFrom(table);
+    };
+    expect(await startRecurringGift(db2.client, CTX, { amountCents: 2500, frequency: "monthly" })).toMatchObject({ ok: false });
+    expect(stripe.cancelStripeSubscription).toHaveBeenCalledWith("sub_new", "church-1", "acct_church1");
+    expect(db2.tables.recurring_gifts[0].status).toBe("cancelled");
+  });
+
   it("cancels the half-made gift, and says so, when Stripe fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     stripe.createRecurringSubscription.mockRejectedValue(new Error("card_error"));

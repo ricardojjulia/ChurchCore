@@ -180,6 +180,7 @@ export async function startRecurringGift(
 
   const stripeAccount = giving.stripeAccount as string;
   const publishableKey = stripePublishableKey();
+  let createdSubscriptionId: string | null = null;
   try {
     if (!publishableKey) throw new Error("No publishable key.");
     const customerId = await createOrGetStripeCustomer({
@@ -200,6 +201,7 @@ export async function startRecurringGift(
       startsToday: startDate === today,
       timeZone: ctx.timeZone,
     });
+    createdSubscriptionId = subscription.subscriptionId;
     const { error: linkError } = await admin
       .from("recurring_gifts")
       .update({
@@ -218,6 +220,13 @@ export async function startRecurringGift(
     };
   } catch (error) {
     console.error("[recurring-gifts] Starting the subscription failed:", error instanceof Error ? error.message : error);
+    // A subscription created before the failure is cancelled at Stripe too,
+    // so nothing is left open there with no gift here (Council Review 38).
+    if (createdSubscriptionId) {
+      await cancelStripeSubscription(createdSubscriptionId, ctx.churchId, stripeAccount).catch((cancelError) =>
+        console.error("[recurring-gifts] Couldn't cancel the orphaned subscription:", cancelError instanceof Error ? cancelError.message : cancelError),
+      );
+    }
     await admin
       .from("recurring_gifts")
       .update({ status: "cancelled", cancelled_at: new Date().toISOString(), updated_at: new Date().toISOString() })

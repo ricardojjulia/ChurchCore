@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-import { queryTenantDb } from "./fixtures/api";
-import { getDemoCredentials } from "./fixtures/env";
+import { queryTenantDb, signStripeWebhook } from "./fixtures/api";
+import { getDemoCredentials, getWebhookSecret } from "./fixtures/env";
 import { authFilePath, SEED_CHURCH_ID } from "./fixtures/roles";
 
 /**
@@ -97,6 +97,66 @@ test.describe("the public giving page (signed out)", () => {
       expect(rows).toEqual([{ church_id: SEED_CHURCH_ID, amount_cents: 2500, status: "succeeded", completed: true, receipted: true }]);
     } finally {
       await queryTenantDb("delete from public.donations where donor_email = $1", [email]);
+    }
+  });
+});
+
+test.describe("POST /api/webhooks/stripe — a recurring installment, retried (G3.2)", () => {
+  test("a retry resumes a half-finished installment, and a repeated delivery records nothing twice", async ({ request }) => {
+    const stamp = Date.now();
+    const subscriptionId = `sub_e2e_${stamp}`;
+    const invoiceId = `in_e2e_${stamp}`;
+    const gift = await queryTenantDb<{ id: string }>(
+      `insert into public.recurring_gifts (church_id, profile_id, amount_cents, fund_designation, frequency, start_date, status, stripe_subscription_id)
+       values ($1, $2, 3000, 'General', 'monthly', current_date, 'active', $3) returning id`,
+      [SEED_CHURCH_ID, await memberProfileId(), subscriptionId],
+    );
+    // An earlier attempt got as far as the receipt and then died before
+    // writing completed_at (the completion marker, written last).
+    const sentAt = "2026-10-02T12:00:00.000Z";
+    await queryTenantDb(
+      `insert into public.donations (church_id, amount_cents, status, is_recurring, recurring_gift_id, stripe_invoice_id, receipt_sent_at)
+       values ($1, 3000, 'succeeded', true, $2, $3, $4)`,
+      [SEED_CHURCH_ID, gift.rows[0].id, invoiceId, sentAt],
+    );
+    const body = JSON.stringify({
+      type: "invoice.paid",
+      data: {
+        object: {
+          id: invoiceId,
+          subscription: subscriptionId,
+          amount_paid: 3000,
+          currency: "usd",
+          metadata: { church_id: SEED_CHURCH_ID },
+          lines: { data: [{ period: { end: Math.floor(Date.parse("2026-12-01T00:00:00Z") / 1000) } }] },
+        },
+      },
+    });
+    const deliver = () =>
+      request.post("/api/webhooks/stripe", {
+        data: body,
+        headers: { "content-type": "application/json", "stripe-signature": signStripeWebhook(body, getWebhookSecret("stripe")) },
+      });
+
+    try {
+      expect((await deliver()).status()).toBe(200);
+      expect((await deliver()).status()).toBe(200); // Stripe delivers it again
+
+      const { rows } = await queryTenantDb<{ status: string; completed: boolean; receipt_sent_at: string }>(
+        `select status, completed_at is not null as completed, receipt_sent_at from public.donations where stripe_invoice_id = $1`,
+        [invoiceId],
+      );
+      // One row; completed now; the receipt from the first attempt kept
+      // (claimed already), so no second receipt was sent.
+      expect(rows).toEqual([{ status: "succeeded", completed: true, receipt_sent_at: new Date(sentAt) }]);
+      const giftRow = await queryTenantDb<{ next_payment_at: Date; paid: boolean }>(
+        `select next_payment_at, last_payment_at is not null as paid from public.recurring_gifts where id = $1`,
+        [gift.rows[0].id],
+      );
+      expect(giftRow.rows[0]).toEqual({ next_payment_at: new Date("2026-12-01T00:00:00Z"), paid: true });
+    } finally {
+      await queryTenantDb("delete from public.donations where stripe_invoice_id = $1", [invoiceId]);
+      await queryTenantDb("delete from public.recurring_gifts where id = $1", [gift.rows[0].id]);
     }
   });
 });

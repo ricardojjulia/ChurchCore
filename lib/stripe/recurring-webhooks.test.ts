@@ -127,6 +127,16 @@ describe("recurring gift webhooks", () => {
       expect(db.tables.recurring_gifts[0].status).toBe("past_due");
     });
 
+    it("records nothing, and sends nothing, for a gift never set up or since cancelled", async () => {
+      for (const status of ["incomplete", "cancelled"]) {
+        const db = seed({ status });
+        await handleInvoicePaymentFailed(db.client, "church-1", INVOICE);
+        expect(db.tables.donations ?? []).toHaveLength(0);
+        expect(db.tables.recurring_gifts[0].status).toBe(status);
+      }
+      expect(sendEmailMock).not.toHaveBeenCalled();
+    });
+
     it("sends the notice again on a retry when the first send was refused", async () => {
       const db = seed();
       sendEmailMock.mockResolvedValueOnce({ accepted: false, error: "SendGrid 503" });
@@ -164,6 +174,12 @@ describe("recurring gift webhooks", () => {
       const db = seed({ status: "paused", stripe_event_at: at(1_790_000_100) });
       await syncRecurringGiftFromSubscription(db.client, "church-1", { id: "sub_1", status: "active" }, 1_790_000_000);
       expect(db.tables.recurring_gifts[0].status).toBe("paused");
+    });
+
+    it("leaves a gift whose card was never confirmed incomplete, even if Stripe calls it trialing (Council Review 38)", async () => {
+      const db = seed({ status: "incomplete" });
+      await syncRecurringGiftFromSubscription(db.client, "church-1", { id: "sub_1", status: "trialing", trial_end: 1_794_000_000 }, 1_790_000_000);
+      expect(db.tables.recurring_gifts[0].status).toBe("incomplete");
     });
 
     it("never brings a cancelled gift back", async () => {

@@ -94,7 +94,7 @@ export function GivingAdminWorkspace({
             {t("givingAdmin", "tabAnalytics")}
           </Tabs.Tab>
           <Tabs.Tab value="recurring" leftSection={<RefreshCw size={14} />}>
-            Recurring
+            {t("givingAdmin", "tabRecurring")}
           </Tabs.Tab>
           <Tabs.Tab value="mappings" leftSection={<Link2 size={14} />}>
             {t("givingAdmin", "tabFundMappings")}

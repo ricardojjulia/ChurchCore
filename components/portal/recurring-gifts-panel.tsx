@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
   Badge,
   Button,
@@ -93,6 +93,13 @@ export function RecurringGiftsPanel({
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [setup, setSetup] = useState<Setup | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState<string | null>(null);
+  const cardHeadingRef = useRef<HTMLParagraphElement>(null);
+
+  // The form was just replaced by the card step: move focus there, so
+  // keyboard and screen reader users land on it (Council Review 38).
+  useEffect(() => {
+    if (setup) cardHeadingRef.current?.focus();
+  }, [setup]);
 
   const visible = gifts.filter((gift) => gift.status !== "cancelled");
 
@@ -176,7 +183,7 @@ export function RecurringGiftsPanel({
         result.ok && result.gift.status === "active"
           ? startsLater
             ? `${done.label} to ${fund} starts on ${formatDay(result.gift.nextPaymentAt) ?? startDate}.`
-            : `${done.label} to ${fund} is set up. A receipt is on its way.`
+            : `${done.label} to ${fund} is set up. Your receipt for the first gift will follow shortly.`
           : "Your card was accepted; your gift will show as active in a moment.",
       );
       setSetup(null);
@@ -291,7 +298,7 @@ export function RecurringGiftsPanel({
       >
         {setup ? (
           <Stack gap="md" p="md">
-            <Text fw={600}>
+            <Text fw={600} ref={cardHeadingRef} tabIndex={-1}>
               {setup.label} to {fund}
             </Text>
             <Text fz="xs" c="dimmed">
@@ -325,7 +332,7 @@ export function RecurringGiftsPanel({
                 <TextInput
                   type="date"
                   label="Start date"
-                  description="Today, or a later date: your card is saved now and first charged then."
+                  description="In your church's time zone. Today, or a later date: your card is saved now and first charged then."
                   value={startDate}
                   min={today}
                   onChange={(event) => setStartDate(event.currentTarget.value)}

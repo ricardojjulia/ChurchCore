@@ -65,7 +65,9 @@ export async function postDonationToGl(
   };
 
   // A journal from an attempt that failed before donation_gl_posts was
-  // written: remove it (its lines cascade) and post again.
+  // written: remove it (its lines cascade) and post again. Only this
+  // function writes "giving" journals; the manual post
+  // (postDonationToGlAction) writes "general" ones and is never touched here.
   const { error: orphanError } = await supabase
     .from("finance_journals")
     .delete()

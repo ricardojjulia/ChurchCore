@@ -147,7 +147,9 @@ export async function handleInvoicePaymentFailed(supabase: AdminClient, churchId
   const amountCents = invoice.amount_due ?? 0;
   if (!invoice.subscription || amountCents <= 0) return;
   const gift = await giftForSubscription(supabase, churchId, invoice.subscription);
-  if (!gift) return;
+  // A gift never set up (the member left the card step) or since cancelled
+  // has no installment to fail: no record, and no email about it.
+  if (!gift || gift.status === "incomplete" || gift.status === "cancelled") return;
 
   const person = await donor(supabase, churchId, gift.profile_id);
   await recordInstallment(supabase, churchId, gift, invoice, "failed", amountCents, person);
@@ -231,7 +233,13 @@ export async function syncRecurringGiftFromSubscription(
     .eq("stripe_subscription_id", subscription.id)
     // Quoted: a timestamp's "." and ":" are PostgREST filter syntax.
     .or(`stripe_event_at.is.null,stripe_event_at.lte."${eventAt}"`);
-  if (status !== "cancelled") query = query.neq("status", "cancelled");
+  if (status !== "cancelled") {
+    // A cancelled gift never comes back. A gift whose card was never
+    // confirmed stays incomplete: a trialing subscription with no card isn't
+    // an active gift (Council Review 38). confirmRecurringGift or the first
+    // paid installment activates it.
+    query = query.neq("status", "cancelled").neq("status", "incomplete");
+  }
   const { error } = await query;
   if (error) throw new Error(error.message);
 }
