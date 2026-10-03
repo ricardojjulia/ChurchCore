@@ -24,6 +24,12 @@ export default async function LaunchChecklistPage() {
       icon: "CheckSquare",
       active: true,
     },
+    {
+      href: "/hq",
+      label: "Project HQ",
+      description: "Tasks, risks, decisions and the AI Council (church-app sign-in)",
+      icon: "ClipboardList",
+    },
   ];
 
   return (
