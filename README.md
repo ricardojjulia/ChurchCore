@@ -229,12 +229,23 @@ See [docs/shepherd-ai-ops.md](docs/shepherd-ai-ops.md) for architecture and guar
 
 ## Evaluation Snapshot
 
-- Current repo version: `3.4.0`
+- Current repo version: `3.5.0`
 - License: [MIT](LICENSE)
 - Included demo scope: preview mode without a backend, or local Supabase with seeded Grace Harbor Church data
 - Local credential material is not committed; demo credentials are generated locally by the bootstrap script and saved to gitignored `.demo-credentials.local`
 - Evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, `npm run smoke:local`, `npm run test:e2e:readiness`, and `npm run test:e2e:member-mobile`
 - Spanish UI support has started with cookie-backed English/Spanish selection; track rollout in [docs/plans/spanish-ui-coverage.md](docs/plans/spanish-ui-coverage.md)
+
+## Release 3.5.0 Highlights
+
+Release 3.5.0 (2026-10-03) collects the work since June toward the November 6 MVP. Full notes: [CHANGELOG.md](CHANGELOG.md).
+
+- **Service planning:** song library and setlists, role taxonomy and roster, a fatigue-aware rotation planner, volunteer blockout dates, assignment notifications, and church-timezone days (Gap 1 closed).
+- **Production safety:** webhooks and crons fail closed and verify the providers' real signatures; member writes, profile ids, `SECURITY DEFINER` actors and public registration hardened.
+- **Giving on each church's own Stripe account:** card form for gifts and paid registrations, Stripe Connect (Standard, direct charges), recurring giving with installments, and real public gifts at `/give/[slug]`.
+- **Design system:** dark-first slate, indigo primary, Inter, through the Mantine theme (ADR 0026).
+- **Quality gates:** a blocking e2e suite (every page × role, every API route) and the surface-coverage manifest; Council v2 with a Security seat, plus Project HQ's in-app AI Council.
+- **Dependencies** refreshed within their semver ranges; majors deferred until after the MVP.
 
 ## Release 3.4.0 Highlights
 

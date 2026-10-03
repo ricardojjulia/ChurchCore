@@ -21,3 +21,14 @@ Object.defineProperty(window, "matchMedia", {
 		dispatchEvent: () => false,
 	}),
 });
+
+// jsdom has no ResizeObserver; Mantine 9.6's ScrollArea observes on mount.
+class ResizeObserverStub {
+	observe() {}
+	unobserve() {}
+	disconnect() {}
+}
+if (typeof window !== "undefined" && !("ResizeObserver" in window)) {
+	Object.defineProperty(window, "ResizeObserver", { writable: true, configurable: true, value: ResizeObserverStub });
+	Object.defineProperty(globalThis, "ResizeObserver", { writable: true, configurable: true, value: ResizeObserverStub });
+}
