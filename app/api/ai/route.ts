@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { ADVISOR_SYSTEM_PROMPT } from "@/lib/council/seats";
 import { runCouncil } from "@/lib/council/run";
+import { isRateLimited } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
 export const DEFAULT_HQ_MODEL = "claude-sonnet-5";
 const MAX_PROMPT_CHARS = 8000;
 const REGISTER_ROWS = 25;
+// Per person per minute. A Council run is six model calls (Council Review 39).
+const PER_MINUTE = { advisor: 10, council: 3 } as const;
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -85,7 +88,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
-  let body: { prompt?: unknown; mode?: unknown; agentId?: unknown; agentName?: unknown };
+  let body: { prompt?: unknown; mode?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -98,6 +101,9 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
   if (prompt.length > MAX_PROMPT_CHARS) {
     return NextResponse.json({ error: `Prompt is limited to ${MAX_PROMPT_CHARS} characters` }, { status: 400 });
+  }
+  if (isRateLimited(`api-ai:${mode}:${user.id}`, PER_MINUTE[mode])) {
+    return NextResponse.json({ error: "Too many requests. Wait a minute and try again." }, { status: 429 });
   }
 
   try {
@@ -133,8 +139,9 @@ export async function POST(request: NextRequest): Promise<Response> {
       .from("hq_sessions")
       .insert({
         user_id: user.id,
-        agent_id: mode === "council" ? "hq-council" : typeof body.agentId === "string" && body.agentId ? body.agentId : "hq-governance",
-        agent_name: mode === "council" ? "HQ Council" : typeof body.agentName === "string" && body.agentName ? body.agentName : "HQ Governance Advisor",
+        // Set by the mode, never by the caller, so the log says what actually ran.
+        agent_id: mode === "council" ? "hq-council" : "hq-governance",
+        agent_name: mode === "council" ? "HQ Council" : "HQ Governance Advisor",
         prompt: scrubbedPrompt,
         response: responseText,
       });

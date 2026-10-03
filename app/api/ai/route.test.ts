@@ -19,6 +19,7 @@ vi.mock("@anthropic-ai/sdk", () => ({
 }));
 
 import { DEFAULT_HQ_MODEL, POST, scrubPII } from "@/app/api/ai/route";
+import { resetRateLimits } from "@/lib/rate-limit";
 import { COUNCIL_SEATS, SYNTHESIS_SYSTEM_PROMPT } from "@/lib/council/seats";
 
 // A query chain over one table's rows: select/neq/order/limit, awaited.
@@ -80,6 +81,7 @@ describe("POST /api/ai modes (Council v2)", () => {
     rpcMock.mockResolvedValue({ data: true, error: null });
     fromMock.mockImplementation((name: string) => table(register[name]));
     insertMock.mockResolvedValue({ error: null });
+    resetRateLimits();
   });
 
   const post = (body: unknown) =>
@@ -125,7 +127,23 @@ describe("POST /api/ai modes (Council v2)", () => {
     expect(body.mode).toBe("council");
     expect(body.status).toBe("RATIFIED");
     expect(body.seats.map((seat: { id: string }) => seat.id)).toEqual(COUNCIL_SEATS.map((seat) => seat.id));
+    expect(body.synthesis).toBe("Status: RATIFIED\nShip it.");
+    for (const seat of body.seats) {
+      expect(seat).toEqual({ id: expect.any(String), name: expect.any(String), review: "Fine.\nSeat recommendation: RATIFIED", recommendation: "RATIFIED" });
+    }
     expect(insertMock).toHaveBeenCalledWith(expect.objectContaining({ agent_id: "hq-council", agent_name: "HQ Council" }));
+  });
+
+  it("throttles Council runs per person (six model calls each), and logs the mode's own agent id", async () => {
+    createMock.mockResolvedValue({ content: [{ type: "text", text: "Status: RATIFIED" }] });
+    for (let run = 0; run < 3; run += 1) {
+      expect((await post({ prompt: "p", mode: "council", agentId: "spoofed", agentName: "Spoofed" })).status).toBe(200);
+    }
+    expect((await post({ prompt: "p", mode: "council" })).status).toBe(429);
+    expect(createMock).toHaveBeenCalledTimes(3 * (COUNCIL_SEATS.length + 1));
+    expect(insertMock).not.toHaveBeenCalledWith(expect.objectContaining({ agent_id: "spoofed" }));
+    // The advisor has its own allowance.
+    expect((await post({ prompt: "p" })).status).toBe(200);
   });
 
   it("refuses an empty or oversized prompt before calling the model", async () => {

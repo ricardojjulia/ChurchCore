@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Paper,
@@ -160,6 +160,10 @@ export default function ProjectHQPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiMode, setAiMode] = useState<"advisor" | "council">("advisor");
   const [councilRun, setCouncilRun] = useState<CouncilRunView | null>(null);
+  // A Council run is six model calls; guard against a second submit before
+  // the disabled state renders, and bring the result into view when it lands.
+  const aiInFlight = useRef(false);
+  const aiResultRef = useRef<HTMLDivElement>(null);
   const [selectedHistorySession, setSelectedHistorySession] = useState<ChatSessionRecord | null>(null);
 
   // Fetch tables data once role is validated
@@ -403,7 +407,8 @@ export default function ProjectHQPage() {
   // AI Queries
   async function handleCallAi(promptText?: string) {
     const activePrompt = promptText || aiPrompt;
-    if (!activePrompt.trim()) return;
+    if (!activePrompt.trim() || aiInFlight.current) return;
+    aiInFlight.current = true;
 
     setAiLoading(true);
     setAiResponse(null);
@@ -417,8 +422,6 @@ export default function ProjectHQPage() {
         body: JSON.stringify({
           prompt: activePrompt,
           mode: aiMode,
-          agentId: "hq-governance",
-          agentName: "HQ Governance Advisor",
         }),
       });
 
@@ -434,6 +437,7 @@ export default function ProjectHQPage() {
       }
       setAiPrompt("");
       fetchRecords();
+      requestAnimationFrame(() => aiResultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     } catch (err) {
       notifications.show({
         title: "AI Response Failed",
@@ -441,6 +445,7 @@ export default function ProjectHQPage() {
         color: "red",
       });
     } finally {
+      aiInFlight.current = false;
       setAiLoading(false);
     }
   }
@@ -1058,7 +1063,9 @@ export default function ProjectHQPage() {
                         aria-label={aiMode === "council" ? "Proposal for the Council" : "Question for the advisor"}
                         placeholder={aiMode === "council" ? "Describe the proposal: what it does, what it changes, how it's tested, and its definition of done..." : "Ask about risks, tasks, decisions, or an ADR..."}
                         maxLength={8000}
+                        autosize
                         minRows={4}
+                        maxRows={12}
                         value={aiPrompt}
                         onChange={(e) => setAiPrompt(e.target.value)}
                         disabled={aiLoading}
@@ -1078,6 +1085,7 @@ export default function ProjectHQPage() {
                     </Stack>
                   </Card>
 
+                  <div ref={aiResultRef} role="status" aria-live="polite">
                   {councilRun && !selectedHistorySession && (
                     <Stack gap="sm">
                       <Card withBorder radius="lg" p="xl">
@@ -1143,11 +1151,12 @@ export default function ProjectHQPage() {
                         </Text>
                         
                         <Text size="xs" c="dimmed" mt="md" style={{ borderTop: "1px solid #1e293b", paddingTop: "8px" }}>
-                          Disclaimer: Verify references against standard criteria before implementation. No PII is stored.
+                          Verify references before acting on them. Email addresses and IDs are removed before a prompt is sent or saved; names and other details you type are not, so leave them out.
                         </Text>
                       </Stack>
                     </Card>
                   )}
+                  </div>
                 </Stack>
               </Grid.Col>
 

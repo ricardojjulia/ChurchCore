@@ -308,6 +308,7 @@ The order of operations:
 2. **Authorize**: 403 unless the caller is a platform admin. This happens before any model call.
 3. **Check configuration**: 500 "AI features are not configured" without an API key.
 4. **Validate the prompt**: 400 for an empty or oversized prompt.
+   Then **throttle per person**: 429 beyond 3 Council runs or 10 advisor questions a minute. Even platform staff shouldn't be able to loop six model calls per request.
 5. **Scrub PII from the prompt.** Emails and UUIDs are replaced with `[EMAIL]` and `[ID]`. The regular expressions use bounded quantifiers, because they run on user input and unbounded ones allow catastrophic backtracking.
 6. **Load HQ's register.** This means open tasks, risks and recent decisions, at most 25 rows each.
    - It is read as the caller, so row-level security still applies.
@@ -316,7 +317,7 @@ The order of operations:
 7. **Call the model.**
    - **advisor**: one call, with the advisor system prompt (§8). The user message is the question followed by the register.
    - **council**: the in-app Council (§8).
-8. **Log the exchange to `hq_sessions`.** A failed log is reported in the server log; it doesn't fail the request.
+8. **Log the exchange to `hq_sessions`.** The agent id and name come from the mode, never from the request, so the log records what actually ran. A failed log is reported in the server log; it doesn't fail the request. Each person sees only their own sessions (a deliberate choice in ChurchCore; widen the read policy if your staff should audit each other's).
 9. **Respond.**
    - advisor: `{ mode, response }`.
    - council: `{ mode, status, synthesis, seats: [{ id, name, review, recommendation }] }`.
@@ -430,7 +431,8 @@ You are the [Product] Project HQ Governance Advisor. [One line on the product.] 
 - **It reviews text, not code.** It can't read the repository, run tests, or verify a claim against source. A RATIFIED proposal can still be built wrong.
 - **It doesn't satisfy the merge mandate.** Only the code Council (§1–§6) does.
 - **Its status is a recommendation.** The owner decides.
-- **Each run costs six model calls.** Keep it behind the platform-admin gate.
+- **Each run costs six model calls.** Keep it behind the platform-admin gate and a per-person throttle.
+- **Text in the register reaches the model as-is.** Only emails and IDs are scrubbed. A register row can try to steer the review (prompt injection); the model has no tools, so the worst case is bad advice, which is one more reason the status is only a recommendation.
 
 ## 9. What we deliberately did not adopt
 
