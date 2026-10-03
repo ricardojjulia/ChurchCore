@@ -216,12 +216,11 @@ export async function cancelStripeSubscription(
 
   // On the account it was created on, while still connected (ADR 0025).
   const account = await accountForExistingPayment(churchId, stripeAccount);
-  await stripeRequest(
-    "POST",
-    `/subscriptions/${subscriptionId}/cancel`,
-    { cancellation_details: "customer_requested" },
-    { stripeAccount: account },
-  );
+  // Stripe cancels a subscription with DELETE /v1/subscriptions/:id. There is
+  // no /cancel endpoint for subscriptions (that's PaymentIntents); the old
+  // POST .../cancel failed, so no recurring gift could be cancelled at Stripe
+  // (found while building G3.1).
+  await stripeRequest("DELETE", `/subscriptions/${encodeURIComponent(subscriptionId)}`, undefined, { stripeAccount: account });
 
   return { cancelled: true, isStub: false };
 }
