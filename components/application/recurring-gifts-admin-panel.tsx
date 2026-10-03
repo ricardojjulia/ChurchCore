@@ -5,6 +5,7 @@ import { Badge, Button, Group, Paper, Table, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 
 import { adminCancelRecurringGiftAction, adminSetRecurringGiftPausedAction } from "@/app/app/recurring-gifts-actions";
+import { formatDay } from "@/components/portal/recurring-gifts-panel";
 import type { RecurringGift } from "@/lib/recurring-gifts";
 
 // The church's recurring gifts for church admins (G3.1): who gives what, how
@@ -29,7 +30,7 @@ function formatCents(cents: number): string {
   return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
 
-export function RecurringGiftsAdminPanel({ gifts }: { gifts: RecurringGift[] }) {
+export function RecurringGiftsAdminPanel({ gifts, timeZone = null }: { gifts: RecurringGift[]; timeZone?: string | null }) {
   const [isPending, startTransition] = useTransition();
   const [confirmingCancel, setConfirmingCancel] = useState<string | null>(null);
   const active = gifts.filter((gift) => gift.status === "active");
@@ -84,7 +85,7 @@ export function RecurringGiftsAdminPanel({ gifts }: { gifts: RecurringGift[] }) 
                       {formatCents(gift.amountCents)} <Text span fz="xs" c="dimmed">{FREQUENCY[gift.frequency].toLowerCase()}</Text>
                     </Table.Td>
                     <Table.Td>{gift.fundDesignation ?? "General"}</Table.Td>
-                    <Table.Td>{gift.nextPaymentAt && gift.status === "active" ? new Date(gift.nextPaymentAt).toLocaleDateString("en-US") : "—"}</Table.Td>
+                    <Table.Td>{gift.nextPaymentAt && gift.status === "active" ? formatDay(gift.nextPaymentAt, timeZone) : "—"}</Table.Td>
                     <Table.Td>
                       <Badge size="sm" variant="light" color={status.color}>
                         {status.label}

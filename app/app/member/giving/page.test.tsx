@@ -96,7 +96,7 @@ describe("member giving page", () => {
     expect(screen.getByText("Donor Portal")).toBeInTheDocument();
     expect(getDonorPortalDataMock).toHaveBeenCalled();
     expect(onlineGivingStatusMock).toHaveBeenCalledWith("church-1");
-    expect(donorPortalMock).toHaveBeenCalledWith({ data: { donations: [] }, givingNotice: null, publishableKey: null, stripeAccount: null, recurringGifts: [], today: expect.any(String) }, undefined);
+    expect(donorPortalMock).toHaveBeenCalledWith({ data: { donations: [] }, givingNotice: null, publishableKey: null, stripeAccount: null, recurringGifts: [], today: expect.any(String), timeZone: null }, undefined);
   });
 
   it("tells members up front when online giving is off (Council Review 22)", async () => {
@@ -104,7 +104,7 @@ describe("member giving page", () => {
     render(await MemberGivingPage());
 
     expect(donorPortalMock).toHaveBeenCalledWith(
-      { data: { donations: [] }, givingNotice: "Online card giving isn't available yet.", publishableKey: null, stripeAccount: null, recurringGifts: [], today: expect.any(String) },
+      { data: { donations: [] }, givingNotice: "Online card giving isn't available yet.", publishableKey: null, stripeAccount: null, recurringGifts: [], today: expect.any(String), timeZone: null },
       undefined,
     );
   });
@@ -115,7 +115,7 @@ describe("member giving page", () => {
     render(await MemberGivingPage());
 
     expect(donorPortalMock).toHaveBeenCalledWith(
-      { data: { donations: [] }, givingNotice: null, publishableKey: "pk_test_123", stripeAccount: "acct_church1", recurringGifts: [], today: expect.any(String) },
+      { data: { donations: [] }, givingNotice: null, publishableKey: "pk_test_123", stripeAccount: "acct_church1", recurringGifts: [], today: expect.any(String), timeZone: null },
       undefined,
     );
   });

@@ -23,6 +23,21 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - **Score:** MVP readiness **82/100** (Council Review 38, 2026-10-02), up from 80.
   - **Verified (re-run by the Documenter):** `tsc` clean; `npm run lint` exit 0; `npm run test:surfaces` OK; `npx vitest run` (**2,209 tests / 185 files**); `npm run test:db` (**91 tests**, including the new `tests/database/recurring-gifts-rls.test.ts`); `npm run lint:migrations` PASS; `npm run build` compiled. Full local e2e: 816 passed, 0 failed (11 known local "denied" timeouts, all passing on retry). `tests/e2e/recurring-giving.spec.ts` with `api-webhooks`: 25/25 — setup/pause/resume/cancel, the admin list masking an anonymous giver, a public one-time gift recorded/completed/receipted, and the retry e2e (a signed `invoice.paid` resuming a half-finished installment with no second receipt; a repeated delivery recording nothing twice). Commit signatures verified.
   - **This branch carries one new migration, `20261004000000_recurring_gifts.sql`, applied locally only** — the hosted push happens after merge, dry run first. **No PR exists yet for this branch, so the CI `e2e` job has not run** — not independently confirmed; a draft PR is needed before this is treated as merge-ready.
+  - **The PR #177 review (GitHub) found 16 more real issues after Council Review 38. All are fixed before merge:**
+    - Cancelling a plan no longer marks its paid installments cancelled.
+    - A future-dated gift becomes active only once Stripe holds a card for it.
+    - The ledger post is one transaction per gift (`post_donation_to_gl`, with an advisory lock), so concurrent completions can't post twice.
+    - The receipt and the failure notice use a lease (`*_claimed_at`), separate from proof of delivery (`*_sent_at`), so a stopped or failed sender can't lose them, and `completed_at` waits for an accepted receipt.
+    - Subscriptions created without a card step are linked or cancelled, never orphaned.
+    - A frequency change no longer bills at once: a replacement subscription starts on the next billing date, using the same card.
+    - The page refreshes after a stub-mode start.
+    - Dates show in the church's time zone.
+    - A failed server confirm keeps the drawer open, with a retry.
+    - Payment dates only move forward, and a failure delivered after a payment changes nothing.
+    - A pause wins over past-due.
+    - Managers can't read anonymous gifts directly (RLS); the admin panel masks them on the server.
+    - The completion backfill only marks gifts with evidence they were completed.
+    - The e2e tests that share fixtures run serially.
 - **ChurchCore design system — dark-first slate, indigo primary, Inter, through the theme — D1, ADR 0026** (`feat/design-system-parity-d1`, commits `57a67bd` build, `e1dbbf6` Council Review 37 fixes, `cde1b34` review docs, on top of G3.0c/`adeed15` (#175)): the owner adopted the ChurchCore Design System & UI/UX Specification (written for sister apps ChurchCore LMS and Orthos) and chose visual parity through the Mantine theme, not a rewrite.
   - **Kept on purpose:** Mantine stays the component library; ChurchCore's own i18n (ADR 0009) and governance stay; `church_id` and ChurchCore's own roles stay. Out of scope: Tailwind-classes-replace-Mantine, `next-intl`, renaming `church_id` to `org_id`.
   - **Dark-first, rendered dark on the server** (`forceColorScheme="dark"`, `data-mantine-color-scheme="dark"` in `app/layout.tsx` — no light flash). Mantine's `dark` palette is rebuilt from the spec's slate roles: canvas `slate-950`, surfaces `slate-900`, borders `slate-800`/`700`, text `slate-200`, dimmed `slate-400`. Indigo is the primary, with a soft glow on filled buttons; Inter replaces Manrope; radii map to the spec's `rounded-xl` (controls) and `rounded-2xl` (containers). `churchBlue`, the old primary's name (~100 uses), is kept as an alias of indigo, so those components follow the new primary with no edits.

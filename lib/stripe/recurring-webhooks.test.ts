@@ -36,7 +36,9 @@ const INVOICE = {
 };
 
 function seed(gift: Record<string, unknown> = {}) {
-  return fakeDb({ recurring_gifts: [{ ...GIFT, ...gift }], profiles: [PROFILE], churches: [{ id: "church-1", name: "Grace Harbor" }] });
+  const db = fakeDb({ recurring_gifts: [{ ...GIFT, ...gift }], profiles: [PROFILE], churches: [{ id: "church-1", name: "Grace Harbor" }] });
+  db.rpcs.post_donation_to_gl = () => ({ data: "unmapped" });
+  return db;
 }
 
 describe("recurring gift webhooks", () => {
@@ -107,6 +109,24 @@ describe("recurring gift webhooks", () => {
       expect(db.tables.donations ?? []).toHaveLength(0);
     });
 
+    it("never moves the payment dates back when an older invoice is replayed after a newer one (PR #177 review)", async () => {
+      const db = seed();
+      const NOVEMBER = { ...INVOICE, id: "in_nov", status_transitions: { paid_at: 1_793_500_000 }, lines: { data: [{ period: { end: 1_796_000_000 } }] } };
+      const OCTOBER = { ...INVOICE, id: "in_oct", status_transitions: { paid_at: 1_791_000_000 }, lines: { data: [{ period: { end: 1_793_500_000 } }] } };
+      await handleInvoicePaid(db.client, "church-1", NOVEMBER);
+      await handleInvoicePaid(db.client, "church-1", OCTOBER);
+      expect(db.tables.recurring_gifts[0]).toMatchObject({
+        next_payment_at: new Date(1_796_000_000 * 1000).toISOString(),
+        last_payment_at: new Date(1_793_500_000 * 1000).toISOString(),
+      });
+    });
+
+    it("gives a cancelled gift no next payment date", async () => {
+      const db = seed({ status: "cancelled", next_payment_at: null });
+      await handleInvoicePaid(db.client, "church-1", INVOICE);
+      expect(db.tables.recurring_gifts[0].next_payment_at).toBeNull();
+    });
+
     it("leaves a paused gift paused", async () => {
       const db = seed({ status: "paused" });
       await handleInvoicePaid(db.client, "church-1", INVOICE);
@@ -137,13 +157,28 @@ describe("recurring gift webhooks", () => {
       expect(sendEmailMock).not.toHaveBeenCalled();
     });
 
-    it("sends the notice again on a retry when the first send was refused", async () => {
+    it("sends the notice again on a retry when the first send was refused or threw", async () => {
+      for (const failure of [() => sendEmailMock.mockResolvedValueOnce({ accepted: false, error: "SendGrid 503" }), () => sendEmailMock.mockRejectedValueOnce(new Error("fetch failed"))]) {
+        vi.clearAllMocks();
+        sendEmailMock.mockResolvedValue({ accepted: true });
+        const db = seed();
+        failure();
+        await expect(handleInvoicePaymentFailed(db.client, "church-1", INVOICE)).rejects.toThrow();
+        expect(db.tables.donations[0]).toMatchObject({ failure_notice_claimed_at: null });
+        expect(db.tables.donations[0].failure_notice_sent_at ?? null).toBeNull();
+        await handleInvoicePaymentFailed(db.client, "church-1", INVOICE);
+        expect(db.tables.donations[0].failure_notice_sent_at).toBeTruthy();
+      }
+    });
+
+    it("ignores a failure delivered after the same invoice was paid: the payment and the gift stand (PR #177 review)", async () => {
       const db = seed();
-      sendEmailMock.mockResolvedValueOnce({ accepted: false, error: "SendGrid 503" });
-      await expect(handleInvoicePaymentFailed(db.client, "church-1", INVOICE)).rejects.toThrow();
-      expect(db.tables.donations[0].failure_notice_sent_at).toBeNull();
+      await handleInvoicePaid(db.client, "church-1", INVOICE);
       await handleInvoicePaymentFailed(db.client, "church-1", INVOICE);
-      expect(db.tables.donations[0].failure_notice_sent_at).toBeTruthy();
+      expect(db.tables.donations).toHaveLength(1);
+      expect(db.tables.donations[0].status).toBe("succeeded");
+      expect(db.tables.recurring_gifts[0].status).toBe("active");
+      expect(sendEmailMock).toHaveBeenCalledTimes(1); // only the receipt
     });
 
     it("turns the failed installment succeeded when Stripe's own retry is paid", async () => {

@@ -79,7 +79,13 @@ export function fakeDb(seed: Record<string, Row[]> = {}) {
           const [column, operator, ...rest] = clause.split(".");
           const value = rest.join(".").replace(/^"|"$/g, "");
           return (r: Row) =>
-            operator === "is" ? (r[column] ?? null) === null : operator === "lte" ? String(r[column]) <= value : false;
+            operator === "is"
+              ? (r[column] ?? null) === null
+              : operator === "lte"
+                ? r[column] != null && String(r[column]) <= value
+                : operator === "lt"
+                  ? r[column] != null && String(r[column]) < value
+                  : false;
         });
         filters.push((r) => clauses.some((test) => test(r)));
         return chain;
@@ -91,5 +97,13 @@ export function fakeDb(seed: Record<string, Row[]> = {}) {
     };
     return chain;
   }
-  return { client: { from } as never, tables, failOn, writes };
+  /** Stand-ins for database functions, by name. */
+  const rpcs: Record<string, (args: Record<string, unknown>) => { data?: unknown; error?: { message: string } | null }> = {};
+  const rpc = async (name: string, args: Record<string, unknown>) => {
+    const fn = rpcs[name];
+    if (!fn) return { data: null, error: { message: `no fake for rpc ${name}` } };
+    const result = fn(args);
+    return { data: result.data ?? null, error: result.error ?? null };
+  };
+  return { client: { from, rpc } as never, tables, failOn, writes, rpcs };
 }

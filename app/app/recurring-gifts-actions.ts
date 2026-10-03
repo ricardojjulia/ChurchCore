@@ -52,7 +52,11 @@ export async function startRecurringGiftAction(input: StartRecurringGiftInput): 
   const { churchId, profileId, timeZone } = await memberContext();
   if (!profileId) return { ok: false, error: "Your account has no profile in this church." };
   try {
-    return await startRecurringGift(createTenantAdminClient(), { churchId, profileId, timeZone }, input);
+    const result = await startRecurringGift(createTenantAdminClient(), { churchId, profileId, timeZone }, input);
+    // A stubbed or card-free start is complete here, with no later
+    // confirm: refresh the page's list (PR #177 review).
+    if (result.ok) revalidatePath(MEMBER_PATH);
+    return result;
   } catch (error) {
     console.error("[recurring-gifts] Start failed:", error instanceof Error ? error.message : error);
     return { ok: false, error: "Couldn't start your recurring gift. Please try again." };

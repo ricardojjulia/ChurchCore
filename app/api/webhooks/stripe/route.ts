@@ -418,13 +418,19 @@ async function handleSubscriptionDeleted(sub: {
     return;
   }
 
-  // Supabase path
+  // Supabase path. Only a legacy, still-unpaid gift row is cancelled: a
+  // recurring gift's installments are payments that happened, and stay so
+  // (PR #177 review). The recurring gift itself is cancelled by
+  // syncSubscription.
   const supabase = createTenantAdminClient();
-  await supabase
+  const { error } = await supabase
     .from("donations")
     .update({ status: "cancelled", updated_at: new Date().toISOString() })
     .eq("stripe_subscription_id", sub.id)
-    .eq("church_id", churchId);
+    .eq("church_id", churchId)
+    .eq("status", "pending")
+    .is("recurring_gift_id", null);
+  if (error) throw new Error(error.message);
 }
 
 /** Keeps a recurring gift in step with its subscription (G3.2). */

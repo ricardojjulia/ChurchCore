@@ -28,101 +28,17 @@ export function escapeHtml(value: string): string {
 }
 
 /**
- * Posts a succeeded gift to the GL: debit the fund's asset account, credit
- * its income account. Repeatable: a gift already in `donation_gl_posts` is
- * skipped, and a journal left half-written by a failed attempt is replaced.
- * Skips silently when the fund has no account mapping. Throws on a database
- * error, so the caller can retry (G3.2).
+ * Posts a succeeded gift to the GL (debit the fund's asset account, credit
+ * its income account) through `post_donation_to_gl`, which does the check,
+ * the journal, its lines and the link in one transaction, one caller at a
+ * time per gift: concurrent completions can't post twice, and a failure
+ * can't leave half a journal (PR #177 review). Skips a gift already posted
+ * and one whose fund has no ledger mapping. Throws on a database error, so
+ * the caller can retry (G3.2).
  */
-export async function postDonationToGl(
-  supabase: AdminClient,
-  donationId: string,
-  churchId: string,
-  amountCents: number,
-  fundDesignation: string | null,
-): Promise<void> {
-  const { data: existing, error: existingError } = await supabase
-    .from("donation_gl_posts")
-    .select("id")
-    .eq("donation_id", donationId)
-    .maybeSingle();
-  if (existingError) throw new Error(existingError.message);
-  if (existing) return;
-
-  const { data: mapping, error: mappingError } = await supabase
-    .from("giving_fund_accounts")
-    .select("asset_account_id, income_account_id")
-    .eq("church_id", churchId)
-    .eq("fund_designation", fundDesignation ?? "General")
-    .eq("is_active", true)
-    .maybeSingle();
-  if (mappingError) throw new Error(mappingError.message);
-  if (!mapping) return; // No mapping configured: nothing to post.
-
-  const { asset_account_id, income_account_id } = mapping as {
-    asset_account_id: string;
-    income_account_id: string;
-  };
-
-  // A journal from an attempt that failed before donation_gl_posts was
-  // written: remove it (its lines cascade) and post again. Only this
-  // function writes "giving" journals; the manual post
-  // (postDonationToGlAction) writes "general" ones and is never touched here.
-  const { error: orphanError } = await supabase
-    .from("finance_journals")
-    .delete()
-    .eq("church_id", churchId)
-    .eq("journal_type", "giving")
-    .eq("reference", donationId);
-  if (orphanError) throw new Error(orphanError.message);
-
-  const { data: journal, error: journalError } = await supabase
-    .from("finance_journals")
-    .insert({
-      church_id: churchId,
-      journal_date: new Date().toISOString().slice(0, 10),
-      description: `Online giving — ${fundDesignation ?? "General Fund"}`,
-      journal_type: "giving",
-      status: "posted",
-      reference: donationId,
-    })
-    .select("id")
-    .single();
-  if (journalError || !journal) throw new Error(journalError?.message ?? "Journal insert returned nothing.");
-
-  const journalId = (journal as { id: string }).id;
-  const lineMemo = `Donation ${donationId.slice(-8)}`;
-
-  // Balanced journal lines: debit asset, credit income
-  const { error: linesError } = await supabase.from("finance_journal_lines").insert([
-    {
-      journal_id: journalId,
-      church_id: churchId,
-      account_id: asset_account_id,
-      side: "debit",
-      amount_cents: amountCents,
-      memo: lineMemo,
-      sort_order: 0,
-    },
-    {
-      journal_id: journalId,
-      church_id: churchId,
-      account_id: income_account_id,
-      side: "credit",
-      amount_cents: amountCents,
-      memo: lineMemo,
-      sort_order: 1,
-    },
-  ]);
-  if (linesError) throw new Error(linesError.message);
-
-  const { error: postError } = await supabase.from("donation_gl_posts").insert({
-    church_id: churchId,
-    donation_id: donationId,
-    journal_id: journalId,
-    status: "posted",
-  });
-  if (postError) throw new Error(postError.message);
+export async function postDonationToGl(supabase: AdminClient, donationId: string, churchId: string): Promise<void> {
+  const { error } = await supabase.rpc("post_donation_to_gl", { p_donation_id: donationId, p_church_id: churchId });
+  if (error) throw new Error(error.message);
 }
 
 export interface DonationReceipt {
@@ -168,6 +84,9 @@ export async function sendDonationReceipt(receipt: DonationReceipt): Promise<voi
 /** Finds the gift by one of its ids. */
 export type DonationMatch = { id: string } | { paymentIntentId: string } | { invoiceId: string };
 
+/** How long a receipt claim holds before another attempt may take it over. */
+export const RECEIPT_LEASE_MS = 5 * 60_000;
+
 type CompletionRow = {
   id: string;
   status: string;
@@ -183,10 +102,11 @@ type CompletionRow = {
  * Completes a gift Stripe has charged: marks it succeeded, posts it to the
  * ledger, sends the receipt, and only then writes `completed_at`. Every step
  * can be repeated: a retried webhook resumes a gift without `completed_at`,
- * the ledger post is skipped once done, and the receipt is claimed (by
- * `receipt_sent_at`) before it's sent, so two callers never both send it; a
- * failed send releases the claim. Throws on any failure, for the caller to
- * retry. Returns false when there's no such gift, or it was cancelled or
+ * the ledger post is transactional and skipped once done, and the receipt
+ * is claimed with a lease before it's sent and marked sent only once the
+ * provider accepted it, so two callers never both send it and none
+ * completes a gift whose receipt hasn't gone out. Throws on any failure,
+ * for the caller to retry. Returns false when there's no such gift, or it was cancelled or
  * refunded.
  */
 export async function completeDonation(
@@ -219,39 +139,53 @@ export async function completeDonation(
     if (flipError) throw new Error(flipError.message);
   }
 
-  await postDonationToGl(supabase, gift.id, churchId, gift.amount_cents, gift.fund_designation);
+  await postDonationToGl(supabase, gift.id, churchId);
 
   const to = gift.donor_email ?? options.receiptEmailFallback ?? null;
   if (to && !gift.receipt_sent_at) {
+    // Claim the send with a lease (receipt_claimed_at), separate from proof
+    // of delivery (receipt_sent_at, written once the provider accepts it).
+    // Another caller holding a fresh claim means "not done yet": this one
+    // throws, and completed_at waits until the receipt really went out. A
+    // claim older than the lease is from a worker that stopped, and is
+    // taken over (PR #177 review).
+    const staleBefore = new Date(Date.now() - RECEIPT_LEASE_MS).toISOString();
     const { data: claimed, error: claimError } = await supabase
       .from("donations")
-      .update({ receipt_sent_at: new Date().toISOString() })
+      .update({ receipt_claimed_at: new Date().toISOString() })
       .eq("id", gift.id)
       .eq("church_id", churchId)
       .is("receipt_sent_at", null)
+      .or(`receipt_claimed_at.is.null,receipt_claimed_at.lt."${staleBefore}"`)
       .select("id");
     if (claimError) throw new Error(claimError.message);
-    if (claimed?.length) {
-      let churchName = options.churchName ?? null;
-      if (churchName === null) {
-        const { data: church } = await supabase.from("churches").select("name").eq("id", churchId).maybeSingle();
-        churchName = (church as { name: string } | null)?.name ?? null;
-      }
-      try {
-        await sendDonationReceipt({
-          to,
-          donorName: gift.donor_name,
-          amountCents: gift.amount_cents,
-          fundDesignation: gift.fund_designation,
-          donationId: gift.id,
-          churchName,
-        });
-      } catch (sendError) {
-        // Release the claim so a retry sends it.
-        await supabase.from("donations").update({ receipt_sent_at: null }).eq("id", gift.id).eq("church_id", churchId);
-        throw sendError;
-      }
+    if (!claimed?.length) throw new Error("Another attempt is sending this receipt; retry later.");
+
+    let churchName = options.churchName ?? null;
+    if (churchName === null) {
+      const { data: church } = await supabase.from("churches").select("name").eq("id", churchId).maybeSingle();
+      churchName = (church as { name: string } | null)?.name ?? null;
     }
+    try {
+      await sendDonationReceipt({
+        to,
+        donorName: gift.donor_name,
+        amountCents: gift.amount_cents,
+        fundDesignation: gift.fund_designation,
+        donationId: gift.id,
+        churchName,
+      });
+    } catch (sendError) {
+      // Release the claim so the next attempt sends it at once.
+      await supabase.from("donations").update({ receipt_claimed_at: null }).eq("id", gift.id).eq("church_id", churchId);
+      throw sendError;
+    }
+    const { error: sentError } = await supabase
+      .from("donations")
+      .update({ receipt_sent_at: new Date().toISOString() })
+      .eq("id", gift.id)
+      .eq("church_id", churchId);
+    if (sentError) throw new Error(sentError.message);
   }
 
   const { error: markError } = await supabase

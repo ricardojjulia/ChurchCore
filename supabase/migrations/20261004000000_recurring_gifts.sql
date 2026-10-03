@@ -49,9 +49,13 @@ create policy "recurring_gifts_select_own" on public.recurring_gifts
     profile_id in (select id from public.profiles where user_id = auth.uid())
   );
 
+-- Managers read their church's gifts, but not anonymous ones: those rows
+-- carry the giver's profile_id (so the giver can manage the gift), which a
+-- direct query could resolve to a name. The admin panel reads every gift
+-- through the server, with anonymous givers masked (PR #177 review).
 create policy "recurring_gifts_select_management" on public.recurring_gifts
   for select to authenticated
-  using (public.can_manage_church(church_id));
+  using (public.can_manage_church(church_id) and not is_anonymous);
 
 revoke all on public.recurring_gifts from anon;
 
@@ -61,16 +65,109 @@ alter table public.donations
   -- One donation per Stripe invoice: a retried invoice.paid finds it.
   add column stripe_invoice_id text unique,
   -- Written last, once the gift is posted to the ledger and its receipt is
-  -- sent: a webhook retry resumes any gift without it.
+  -- accepted by the email provider: a webhook retry resumes any gift
+  -- without it.
   add column completed_at timestamptz,
-  -- The donor was told this installment failed (sent once per invoice).
+  -- A worker is sending the receipt. A lease, not proof of delivery
+  -- (receipt_sent_at is that): a claim older than a few minutes is from a
+  -- worker that stopped, and the next attempt takes it over.
+  add column receipt_claimed_at timestamptz,
+  -- The same pair for the "installment failed" notice: claimed while
+  -- sending, sent once the provider accepted it (once per invoice).
+  add column failure_notice_claimed_at timestamptz,
   add column failure_notice_sent_at timestamptz;
 
 create index donations_recurring_gift_idx on public.donations (recurring_gift_id);
 
--- Gifts already succeeded before this migration were completed by the old
--- path (ledger and receipt in the same handler).
-update public.donations set completed_at = updated_at where status = 'succeeded' and completed_at is null;
+-- Gifts that succeeded before this migration, with evidence their work was
+-- done: the receipt went out (or there was no one to send it to), and the
+-- gift is in the ledger (or its fund has no ledger mapping). The rest are
+-- left incomplete, so a replayed event repairs them rather than skipping
+-- them (PR #177 review); none of them is re-receipted, since a sent receipt
+-- is recorded in receipt_sent_at.
+update public.donations d
+set completed_at = d.updated_at
+where d.status = 'succeeded'
+  and d.completed_at is null
+  and (d.receipt_sent_at is not null or d.donor_email is null)
+  and (
+    exists (select 1 from public.donation_gl_posts p where p.donation_id = d.id)
+    or not exists (
+      select 1 from public.giving_fund_accounts m
+      where m.church_id = d.church_id
+        and m.fund_designation = coalesce(d.fund_designation, 'General')
+        and m.is_active
+    )
+  );
+
+-- Posting a gift to the ledger, in one transaction, one caller at a time per
+-- gift (G3.2, PR #177 review): the check, the journal, its lines and the
+-- link commit together or not at all, so concurrent completions can't post
+-- twice and a failure can't leave half a journal. Called only by the server
+-- (service role); never by a client.
+create or replace function public.post_donation_to_gl(p_donation_id uuid, p_church_id uuid)
+returns text
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  gift record;
+  mapping record;
+  new_journal_id uuid;
+  memo text;
+begin
+  perform pg_advisory_xact_lock(hashtextextended('post_donation_to_gl:' || p_donation_id::text, 0));
+
+  -- This church's gift first: nothing about another church's gift, not
+  -- even whether it's posted, is answered.
+  select id, amount_cents, fund_designation into gift
+  from public.donations
+  where id = p_donation_id and church_id = p_church_id;
+  if not found then
+    return 'missing';
+  end if;
+
+  if exists (select 1 from public.donation_gl_posts where donation_id = p_donation_id) then
+    return 'already_posted';
+  end if;
+
+  select asset_account_id, income_account_id into mapping
+  from public.giving_fund_accounts
+  where church_id = p_church_id
+    and fund_designation = coalesce(gift.fund_designation, 'General')
+    and is_active
+  limit 1;
+  if not found then
+    return 'unmapped';
+  end if;
+
+  insert into public.finance_journals (church_id, journal_date, description, journal_type, status, reference)
+  values (
+    p_church_id,
+    (timezone('utc', now()))::date,
+    'Online giving — ' || coalesce(gift.fund_designation, 'General Fund'),
+    'giving',
+    'posted',
+    p_donation_id::text
+  )
+  returning id into new_journal_id;
+
+  memo := 'Donation ' || right(p_donation_id::text, 8);
+  insert into public.finance_journal_lines (journal_id, church_id, account_id, side, amount_cents, memo, sort_order)
+  values
+    (new_journal_id, p_church_id, mapping.asset_account_id, 'debit', gift.amount_cents, memo, 0),
+    (new_journal_id, p_church_id, mapping.income_account_id, 'credit', gift.amount_cents, memo, 1);
+
+  insert into public.donation_gl_posts (church_id, donation_id, journal_id, status)
+  values (p_church_id, p_donation_id, new_journal_id, 'posted');
+
+  return 'posted';
+end;
+$$;
+
+revoke all on function public.post_donation_to_gl(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.post_donation_to_gl(uuid, uuid) to service_role;
 
 -- The church's "Recurring gift" product on its Stripe account: a
 -- subscription's price must name one, so it's created once per account.

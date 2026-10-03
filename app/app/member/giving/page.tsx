@@ -64,6 +64,7 @@ export default async function MemberGivingPage() {
         stripeAccount={giving.stripeAccount}
         recurringGifts={recurringGifts}
         today={todayInTimeZone(session.appContext.church.timezone ?? null)}
+        timeZone={session.appContext.church.timezone ?? null}
       />
     </ApplicationShell>
   );

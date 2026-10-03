@@ -13,7 +13,8 @@ const stripe = vi.hoisted(() => ({
   stripePublishableKey: vi.fn(),
   createRecurringSubscription: vi.fn(),
   retrieveSubscriptionState: vi.fn(),
-  updateSubscriptionPlan: vi.fn(),
+  updateSubscriptionAmount: vi.fn(),
+  replaceSubscriptionForFrequency: vi.fn(),
   setSubscriptionPaused: vi.fn(),
 }));
 vi.mock("@/lib/stripe/donations", () => ({
@@ -27,7 +28,8 @@ vi.mock("@/lib/stripe/recurring", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/stripe/recurring")>()),
   createRecurringSubscription: stripe.createRecurringSubscription,
   retrieveSubscriptionState: stripe.retrieveSubscriptionState,
-  updateSubscriptionPlan: stripe.updateSubscriptionPlan,
+  updateSubscriptionAmount: stripe.updateSubscriptionAmount,
+  replaceSubscriptionForFrequency: stripe.replaceSubscriptionForFrequency,
   setSubscriptionPaused: stripe.setSubscriptionPaused,
 }));
 
@@ -173,6 +175,21 @@ describe("startRecurringGift", () => {
     expect(db2.tables.recurring_gifts[0].status).toBe("cancelled");
   });
 
+  it("keeps a subscription Stripe set up with no card step only when Stripe holds a card for it (PR #177 review)", async () => {
+    stripe.createRecurringSubscription.mockResolvedValue({ subscriptionId: "sub_new", status: "active", intentType: "payment", clientSecret: null, nextPaymentAt: null });
+    stripe.retrieveSubscriptionState.mockResolvedValue({ status: "active", paused: false, nextPaymentAt: null, cardSaved: true });
+    const db = fakeDb({ profiles: [PROFILE] });
+    expect(await startRecurringGift(db.client, CTX, { amountCents: 2500, frequency: "monthly" })).toMatchObject({ ok: true, checkout: null });
+    expect(db.tables.recurring_gifts[0]).toMatchObject({ status: "active", stripe_subscription_id: "sub_new" });
+
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    stripe.retrieveSubscriptionState.mockResolvedValue({ status: "incomplete", paused: false, nextPaymentAt: null, cardSaved: false });
+    stripe.cancelStripeSubscription.mockResolvedValue({ cancelled: true, isStub: false });
+    const db2 = fakeDb({ profiles: [PROFILE] });
+    expect(await startRecurringGift(db2.client, CTX, { amountCents: 2500, frequency: "monthly" })).toMatchObject({ ok: false });
+    expect(stripe.cancelStripeSubscription).toHaveBeenCalledWith("sub_new", "church-1", "acct_church1");
+  });
+
   it("cancels the half-made gift, and says so, when Stripe fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     stripe.createRecurringSubscription.mockRejectedValue(new Error("card_error"));
@@ -184,11 +201,20 @@ describe("startRecurringGift", () => {
 
 describe("managing a recurring gift", () => {
   it("confirms from Stripe's own report, not the browser's", async () => {
-    stripe.retrieveSubscriptionState.mockResolvedValue({ status: "active", paused: false, nextPaymentAt: "2026-11-02T00:00:00Z" });
+    stripe.retrieveSubscriptionState.mockResolvedValue({ status: "active", paused: false, nextPaymentAt: "2026-11-02T00:00:00Z", cardSaved: true });
     const db = fakeDb({ recurring_gifts: [{ ...GIFT, status: "incomplete" }] });
     const result = await confirmRecurringGift(db.client, "church-1", "profile-1", "rg-1");
     expect(stripe.retrieveSubscriptionState).toHaveBeenCalledWith("sub_1", "acct_church1");
     expect(result).toMatchObject({ ok: true, gift: { status: "active", nextPaymentAt: "2026-11-02T00:00:00Z" } });
+  });
+
+  it("keeps a future-dated gift incomplete until Stripe holds a card for it (PR #177 review)", async () => {
+    stripe.retrieveSubscriptionState.mockResolvedValue({ status: "trialing", paused: false, nextPaymentAt: "2026-11-02T00:00:00Z", cardSaved: false });
+    const db = fakeDb({ recurring_gifts: [{ ...GIFT, status: "incomplete" }] });
+    expect(await confirmRecurringGift(db.client, "church-1", "profile-1", "rg-1")).toMatchObject({ ok: true, gift: { status: "incomplete" } });
+
+    stripe.retrieveSubscriptionState.mockResolvedValue({ status: "trialing", paused: false, nextPaymentAt: "2026-11-02T00:00:00Z", cardSaved: true });
+    expect(await confirmRecurringGift(db.client, "church-1", "profile-1", "rg-1")).toMatchObject({ ok: true, gift: { status: "active" } });
   });
 
   it("refuses another member's gift, and another church's, touching nothing at Stripe", async () => {
@@ -201,17 +227,34 @@ describe("managing a recurring gift", () => {
     expect(db.tables.recurring_gifts[0].status).toBe("active");
   });
 
-  it("changes the amount and frequency at Stripe, and the fund here", async () => {
+  it("changes the amount on the subscription, from the next gift", async () => {
     const db = fakeDb({ recurring_gifts: [{ ...GIFT }] });
-    const result = await updateRecurringGift(db.client, "church-1", "profile-1", "rg-1", { amountCents: 5000, frequency: "weekly", fundDesignation: "Missions" });
-    expect(stripe.updateSubscriptionPlan).toHaveBeenCalledWith(expect.objectContaining({ subscriptionId: "sub_1", stripeAccount: "acct_church1", amountCents: 5000, frequency: "weekly" }));
-    expect(result).toMatchObject({ ok: true, gift: { amountCents: 5000, frequency: "weekly", fundDesignation: "Missions" } });
+    const result = await updateRecurringGift(db.client, "church-1", "profile-1", "rg-1", { amountCents: 5000, fundDesignation: "Missions" });
+    expect(stripe.updateSubscriptionAmount).toHaveBeenCalledWith(expect.objectContaining({ subscriptionId: "sub_1", stripeAccount: "acct_church1", amountCents: 5000, frequency: "monthly" }));
+    expect(stripe.replaceSubscriptionForFrequency).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ ok: true, gift: { amountCents: 5000, frequency: "monthly", fundDesignation: "Missions" } });
+  });
+
+  it("changes the frequency from the next gift date on a replacement subscription, and records it (PR #177 review)", async () => {
+    stripe.replaceSubscriptionForFrequency.mockResolvedValue({ subscriptionId: "sub_2", nextPaymentAt: "2026-11-02T15:00:00.000Z" });
+    const db = fakeDb({ recurring_gifts: [{ ...GIFT, status: "paused" }] });
+    await updateRecurringGift(db.client, "church-1", "profile-1", "rg-1", { frequency: "weekly", amountCents: 1000 });
+    expect(stripe.replaceSubscriptionForFrequency).toHaveBeenCalledWith(
+      expect.objectContaining({ subscriptionId: "sub_1", recurringGiftId: "rg-1", frequency: "weekly", amountCents: 1000, paused: true }),
+    );
+    expect(db.tables.recurring_gifts[0]).toMatchObject({ stripe_subscription_id: "sub_2", frequency: "weekly", next_payment_at: "2026-11-02T15:00:00.000Z" });
+  });
+
+  it("refuses a frequency change while a payment is past due", async () => {
+    const db = fakeDb({ recurring_gifts: [{ ...GIFT, status: "past_due" }] });
+    expect(await updateRecurringGift(db.client, "church-1", "profile-1", "rg-1", { frequency: "weekly" })).toMatchObject({ ok: false, error: expect.stringMatching(/settled/) });
+    expect(stripe.replaceSubscriptionForFrequency).not.toHaveBeenCalled();
   });
 
   it("changes only the fund without calling Stripe", async () => {
     const db = fakeDb({ recurring_gifts: [{ ...GIFT }] });
     await updateRecurringGift(db.client, "church-1", "profile-1", "rg-1", { fundDesignation: "Missions" });
-    expect(stripe.updateSubscriptionPlan).not.toHaveBeenCalled();
+    expect(stripe.updateSubscriptionAmount).not.toHaveBeenCalled();
     expect(db.tables.recurring_gifts[0].fund_designation).toBe("Missions");
   });
 

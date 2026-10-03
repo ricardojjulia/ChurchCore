@@ -14,9 +14,11 @@ import {
   createRecurringSubscription,
   ensureRecurringProduct,
   recurringStatusFromStripe,
+  replaceSubscriptionForFrequency,
+  retrieveSubscriptionState,
   setSubscriptionPaused,
   stripeInterval,
-  updateSubscriptionPlan,
+  updateSubscriptionAmount,
 } from "@/lib/stripe/recurring";
 
 type Call = { url: string; method: string; body: URLSearchParams; account: string | undefined };
@@ -53,6 +55,10 @@ describe("stripe recurring helpers", () => {
     expect(recurringStatusFromStripe("active", false)).toBe("active");
     expect(recurringStatusFromStripe("trialing", false)).toBe("active");
     expect(recurringStatusFromStripe("active", true)).toBe("paused");
+    // A pause wins over past due (PR #177 review); cancelled and incomplete win over a pause.
+    expect(recurringStatusFromStripe("past_due", true)).toBe("paused");
+    expect(recurringStatusFromStripe("canceled", true)).toBe("cancelled");
+    expect(recurringStatusFromStripe("incomplete", true)).toBe("incomplete");
     expect(recurringStatusFromStripe("past_due", false)).toBe("past_due");
     expect(recurringStatusFromStripe("unpaid", false)).toBe("past_due");
     expect(recurringStatusFromStripe("incomplete", false)).toBe("incomplete");
@@ -141,11 +147,10 @@ describe("stripe recurring helpers", () => {
     expect(calls[0].body.get("expand[]")).toBe("pending_setup_intent");
   });
 
-  it("throws when Stripe returns no payment step", async () => {
+  it("returns the subscription, not a throw, when Stripe asks for no card step, so the caller can link or cancel it (PR #177 review)", async () => {
     tenant.client = fakeDb({ church_payment_accounts: [{ ...ACCOUNT_ROW, stripe_recurring_product_id: "prod_1" }] }).client;
     stubStripe([{ id: "sub_1", status: "incomplete", latest_invoice: "in_1" }]);
-    await expect(
-      createRecurringSubscription({
+    const created = await createRecurringSubscription({
         churchId: "church-1",
         stripeAccount: "acct_church1",
         customerId: "cus_1",
@@ -156,15 +161,27 @@ describe("stripe recurring helpers", () => {
         startDate: "2026-10-02",
         startsToday: true,
         timeZone: null,
-      }),
-    ).rejects.toThrow(/payment step/);
+      });
+    expect(created).toMatchObject({ subscriptionId: "sub_1", clientSecret: null });
   });
 
-  it("changes the amount and frequency on the subscription's item, from the next installment (no proration)", async () => {
+  it("reports a card saved only when Stripe holds one: a trialing subscription alone isn't a set-up gift (PR #177 review)", async () => {
+    const calls = stubStripe([
+      { id: "sub_1", status: "trialing", trial_end: 1_793_000_000, pending_setup_intent: { status: "requires_payment_method" } },
+      { id: "sub_1", status: "trialing", trial_end: 1_793_000_000, pending_setup_intent: { status: "succeeded" } },
+      { id: "sub_1", status: "active", default_payment_method: "pm_1", current_period_end: 1_793_000_000 },
+    ]);
+    expect((await retrieveSubscriptionState("sub_1", "acct_church1")).cardSaved).toBe(false);
+    expect((await retrieveSubscriptionState("sub_1", "acct_church1")).cardSaved).toBe(true);
+    expect((await retrieveSubscriptionState("sub_1", "acct_church1")).cardSaved).toBe(true);
+    expect(calls[0].url).toBe("https://api.stripe.com/v1/subscriptions/sub_1?expand[]=pending_setup_intent");
+  });
+
+  it("changes the amount on the subscription's item, from the next installment (no proration, same interval)", async () => {
     tenant.client = fakeDb({ church_payment_accounts: [{ ...ACCOUNT_ROW, stripe_recurring_product_id: "prod_1" }] }).client;
     const calls = stubStripe([{ id: "sub_1", status: "active", items: { data: [{ id: "si_1" }] } }, {}]);
 
-    await updateSubscriptionPlan({ subscriptionId: "sub_1", stripeAccount: "acct_church1", churchId: "church-1", amountCents: 5000, currency: "usd", frequency: "weekly" });
+    await updateSubscriptionAmount({ subscriptionId: "sub_1", stripeAccount: "acct_church1", churchId: "church-1", amountCents: 5000, currency: "usd", frequency: "weekly" });
 
     expect(calls.map((c) => [c.method, c.url, c.account])).toEqual([
       ["GET", "https://api.stripe.com/v1/subscriptions/sub_1", "acct_church1"],
@@ -176,6 +193,53 @@ describe("stripe recurring helpers", () => {
       "items[0][price_data][recurring][interval]": "week",
       proration_behavior: "none",
     });
+  });
+
+  it("changes the frequency from the next billing date: a replacement subscription on the same card, trialing until then, and the old one ending at its period's end (PR #177 review)", async () => {
+    tenant.client = fakeDb({ church_payment_accounts: [{ ...ACCOUNT_ROW, stripe_recurring_product_id: "prod_1" }] }).client;
+    const calls = stubStripe([
+      { id: "sub_1", status: "active", customer: "cus_1", default_payment_method: "pm_1", current_period_end: 1_793_000_000 },
+      { id: "sub_2", status: "trialing" },
+      { id: "sub_1", cancel_at_period_end: true },
+    ]);
+
+    const result = await replaceSubscriptionForFrequency({
+      subscriptionId: "sub_1",
+      stripeAccount: "acct_church1",
+      churchId: "church-1",
+      recurringGiftId: "rg-1",
+      amountCents: 1000,
+      currency: "usd",
+      frequency: "weekly",
+      paused: false,
+    });
+
+    expect(result).toEqual({ subscriptionId: "sub_2", nextPaymentAt: new Date(1_793_000_000 * 1000).toISOString() });
+    expect(calls.map((c) => [c.method, c.url, c.account])).toEqual([
+      ["GET", "https://api.stripe.com/v1/subscriptions/sub_1", "acct_church1"],
+      ["POST", "https://api.stripe.com/v1/subscriptions", "acct_church1"],
+      ["POST", "https://api.stripe.com/v1/subscriptions/sub_1", "acct_church1"],
+    ]);
+    expect(Object.fromEntries(calls[1].body)).toMatchObject({
+      customer: "cus_1",
+      default_payment_method: "pm_1",
+      trial_end: "1793000000",
+      "items[0][price_data][unit_amount]": "1000",
+      "items[0][price_data][recurring][interval]": "week",
+      "metadata[recurring_gift_id]": "rg-1",
+    });
+    // Nothing is charged now: no proration or immediate-billing parameters.
+    expect(calls[1].body.has("payment_behavior")).toBe(false);
+    expect(Object.fromEntries(calls[2].body)).toEqual({ cancel_at_period_end: "true" });
+  });
+
+  it("refuses a frequency change with no saved card to carry over", async () => {
+    tenant.client = fakeDb({ church_payment_accounts: [{ ...ACCOUNT_ROW, stripe_recurring_product_id: "prod_1" }] }).client;
+    const calls = stubStripe([{ id: "sub_1", status: "active", customer: "cus_1", current_period_end: 1_793_000_000 }]);
+    await expect(
+      replaceSubscriptionForFrequency({ subscriptionId: "sub_1", stripeAccount: "acct_church1", churchId: "church-1", recurringGiftId: "rg-1", amountCents: 1000, currency: "usd", frequency: "weekly", paused: false }),
+    ).rejects.toThrow(/saved card/);
+    expect(calls).toHaveLength(1);
   });
 
   it("pauses by voiding collection, and resumes by unsetting it", async () => {

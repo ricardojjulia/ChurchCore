@@ -3,7 +3,7 @@ import "server-only";
 import { sendEmail } from "@/lib/notifications/send-email";
 import type { createTenantAdminClient } from "@/lib/supabase/tenant";
 
-import { completeDonation, escapeHtml } from "./donation-completion";
+import { completeDonation, escapeHtml, RECEIPT_LEASE_MS } from "./donation-completion";
 import { recurringStatusFromStripe } from "./recurring";
 
 // Stripe webhooks for recurring gifts (G3.2). Each installment (invoice)
@@ -23,6 +23,7 @@ export type StripeInvoice = {
   payment_intent?: string | null;
   customer?: string | null;
   lines?: { data?: Array<{ period?: { end?: number } }> };
+  status_transitions?: { paid_at?: number | null };
 };
 
 export type StripeSubscriptionEvent = {
@@ -117,17 +118,31 @@ export async function handleInvoicePaid(supabase: AdminClient, churchId: string,
   await recordInstallment(supabase, churchId, gift, invoice, "pending", amountCents, person);
   await completeDonation(supabase, churchId, { invoiceId: invoice.id }, { receiptEmailFallback: person?.email ?? null });
 
-  const periodEnd = invoice.lines?.data?.[0]?.period?.end;
-  const { error } = await supabase
+  // Payment dates only move forward, from Stripe's own times, never the
+  // delivery time: a replayed older invoice can't move the next date back,
+  // and a cancelled gift gets no next date (PR #177 review).
+  const paidAt = new Date((invoice.status_transitions?.paid_at ?? Math.floor(Date.now() / 1000)) * 1000).toISOString();
+  const { error: paidError } = await supabase
     .from("recurring_gifts")
-    .update({
-      last_payment_at: new Date().toISOString(),
-      ...(periodEnd ? { next_payment_at: new Date(periodEnd * 1000).toISOString() } : {}),
-      updated_at: new Date().toISOString(),
-    })
+    .update({ last_payment_at: paidAt, updated_at: new Date().toISOString() })
     .eq("id", gift.id)
-    .eq("church_id", churchId);
-  if (error) throw new Error(error.message);
+    .eq("church_id", churchId)
+    .or(`last_payment_at.is.null,last_payment_at.lt."${paidAt}"`);
+  if (paidError) throw new Error(paidError.message);
+
+  const periodEnd = invoice.lines?.data?.[0]?.period?.end;
+  if (periodEnd) {
+    const nextAt = new Date(periodEnd * 1000).toISOString();
+    const { error: nextError } = await supabase
+      .from("recurring_gifts")
+      .update({ next_payment_at: nextAt })
+      .eq("id", gift.id)
+      .eq("church_id", churchId)
+      .neq("status", "cancelled")
+      .or(`next_payment_at.is.null,next_payment_at.lt."${nextAt}"`);
+    if (nextError) throw new Error(nextError.message);
+  }
+
   // A paid installment brings a gift that was waiting on its card, or
   // behind on a payment, back to active; paused and cancelled stay so.
   const { error: statusError } = await supabase
@@ -154,21 +169,43 @@ export async function handleInvoicePaymentFailed(supabase: AdminClient, churchId
   const person = await donor(supabase, churchId, gift.profile_id);
   await recordInstallment(supabase, churchId, gift, invoice, "failed", amountCents, person);
 
-  if (person?.email) {
+  // A failure delivered after this invoice was paid (Stripe doesn't deliver
+  // in order) changes nothing: the payment stands, and so does the gift
+  // (PR #177 review).
+  const { data: installment, error: readError } = await supabase
+    .from("donations")
+    .select("status, failure_notice_sent_at")
+    .eq("church_id", churchId)
+    .eq("stripe_invoice_id", invoice.id)
+    .maybeSingle();
+  if (readError) throw new Error(readError.message);
+  const row = installment as { status: string; failure_notice_sent_at: string | null } | null;
+  if (!row || row.status !== "failed") return;
+
+  if (person?.email && !row.failure_notice_sent_at) {
+    // Claimed with a lease while sending, marked sent once the provider
+    // accepted it, so neither a refusal nor a thrown send nor a stopped
+    // worker can lose the notice (PR #177 review).
+    const staleBefore = new Date(Date.now() - RECEIPT_LEASE_MS).toISOString();
     const { data: claimed, error: claimError } = await supabase
       .from("donations")
-      .update({ failure_notice_sent_at: new Date().toISOString() })
+      .update({ failure_notice_claimed_at: new Date().toISOString() })
       .eq("church_id", churchId)
       .eq("stripe_invoice_id", invoice.id)
-      .eq("status", "failed")
       .is("failure_notice_sent_at", null)
+      .or(`failure_notice_claimed_at.is.null,failure_notice_claimed_at.lt."${staleBefore}"`)
       .select("id");
     if (claimError) throw new Error(claimError.message);
-    if (claimed?.length) {
-      const { data: church } = await supabase.from("churches").select("name").eq("id", churchId).maybeSingle();
-      const churchName = (church as { name: string } | null)?.name ?? "your church";
-      const dollars = (amountCents / 100).toFixed(2);
-      const sent = await sendEmail({
+    if (!claimed?.length) throw new Error("Another attempt is sending this failure notice; retry later.");
+
+    const release = () =>
+      supabase.from("donations").update({ failure_notice_claimed_at: null }).eq("church_id", churchId).eq("stripe_invoice_id", invoice.id);
+    const { data: church } = await supabase.from("churches").select("name").eq("id", churchId).maybeSingle();
+    const churchName = (church as { name: string } | null)?.name ?? "your church";
+    const dollars = (amountCents / 100).toFixed(2);
+    let sent: Awaited<ReturnType<typeof sendEmail>>;
+    try {
+      sent = await sendEmail({
         to: person.email,
         subject: `Your recurring gift to ${churchName} couldn't be processed`,
         text: [
@@ -183,15 +220,20 @@ export async function handleInvoicePaymentFailed(supabase: AdminClient, churchId
 <p>If your card has changed or expired, please contact your bank or the church office. You can pause or cancel the gift any time from your giving page.</p>`,
         idempotencyKey: `recurring-failed-${invoice.id}`,
       });
-      if (!sent.accepted) {
-        await supabase
-          .from("donations")
-          .update({ failure_notice_sent_at: null })
-          .eq("church_id", churchId)
-          .eq("stripe_invoice_id", invoice.id);
-        throw new Error(`Failure notice refused: ${sent.error ?? "unknown error"}`);
-      }
+    } catch (sendError) {
+      await release();
+      throw sendError;
     }
+    if (!sent.accepted) {
+      await release();
+      throw new Error(`Failure notice refused: ${sent.error ?? "unknown error"}`);
+    }
+    const { error: sentError } = await supabase
+      .from("donations")
+      .update({ failure_notice_sent_at: new Date().toISOString() })
+      .eq("church_id", churchId)
+      .eq("stripe_invoice_id", invoice.id);
+    if (sentError) throw new Error(sentError.message);
   }
 
   const { error } = await supabase

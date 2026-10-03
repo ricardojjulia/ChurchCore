@@ -115,7 +115,7 @@ export function GivingAdminWorkspace({
         </Tabs.Panel>
 
         <Tabs.Panel value="recurring">
-          <RecurringGiftsAdminPanel gifts={recurringGifts} />
+          <RecurringGiftsAdminPanel gifts={recurringGifts} timeZone={session.appContext.church.timezone ?? null} />
         </Tabs.Panel>
 
         <Tabs.Panel value="mappings">

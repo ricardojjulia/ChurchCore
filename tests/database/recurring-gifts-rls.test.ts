@@ -103,6 +103,15 @@ describe("recurring_gifts RLS", () => {
     });
   });
 
+  it("a manager can't read an anonymous gift directly: its profile_id would name the giver (PR #177 review)", async () => {
+    await inRolledBackTransaction(async (client, ids) => {
+      await client.query(`update public.recurring_gifts set is_anonymous = true where profile_id = $1`, [ids.otherMember]);
+      expect((await as(client, "authenticated", ADMIN_A_USER, AMOUNTS, [CHURCH_A])).rows).toEqual([{ amount_cents: 2500 }]);
+      // The giver still reads their own anonymous gift.
+      expect((await as(client, "authenticated", OTHER_MEMBER_USER, AMOUNTS, [CHURCH_A])).rows).toEqual([{ amount_cents: 5000 }]);
+    });
+  });
+
   it("anon can't read it at all", async () => {
     await inRolledBackTransaction(async (client) => {
       expect((await as(client, "anon", null, AMOUNTS, [CHURCH_A])).error).toMatch(/permission denied/);

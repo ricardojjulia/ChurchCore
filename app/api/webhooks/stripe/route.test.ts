@@ -1019,15 +1019,17 @@ describe("stripe webhook route", () => {
       shouldUseLocalTenantFallbackMock.mockReturnValue(false);
     });
 
-    it("handleSubscriptionDeleted — Supabase: cancels donations on subscription deletion", async () => {
+    it("handleSubscriptionDeleted — Supabase: cancels only legacy unpaid donations, never a paid installment, on subscription deletion", async () => {
       const fromMock = vi.fn();
       const updateMock = vi.fn();
       const eqMock = vi.fn();
 
-      const chainProxy = { from: fromMock, update: updateMock, eq: eqMock };
+      const isMock = vi.fn();
+      const chainProxy = { from: fromMock, update: updateMock, eq: eqMock, is: isMock };
       fromMock.mockReturnValue(chainProxy);
       updateMock.mockReturnValue(chainProxy);
       eqMock.mockReturnValue(chainProxy);
+      isMock.mockReturnValue(chainProxy);
 
       createTenantAdminClientMock.mockReturnValue(chainProxy);
 
@@ -1054,6 +1056,9 @@ describe("stripe webhook route", () => {
       );
       expect(eqMock).toHaveBeenCalledWith("stripe_subscription_id", "sub_cancelled_1");
       expect(eqMock).toHaveBeenCalledWith("church_id", "church-sb-1");
+      // Only a legacy, still-unpaid row: paid installments stay paid (PR #177 review).
+      expect(eqMock).toHaveBeenCalledWith("status", "pending");
+      expect(isMock).toHaveBeenCalledWith("recurring_gift_id", null);
       // The recurring gift is cancelled too, as Stripe reports it (G3.2).
       expect(recurringMocks.syncRecurringGiftFromSubscription).toHaveBeenCalledWith(
         chainProxy,

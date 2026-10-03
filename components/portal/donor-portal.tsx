@@ -72,12 +72,15 @@ export function DonorPortal({
   stripeAccount = null,
   recurringGifts = [],
   today = new Date().toISOString().slice(0, 10),
+  timeZone = null,
 }: {
   data: DonorPortalData;
   /** The member's recurring gifts (G3.1). */
   recurringGifts?: RecurringGift[];
   /** Today in the church's time zone (YYYY-MM-DD). */
   today?: string;
+  /** The church's time zone, for payment dates. */
+  timeZone?: string | null;
   /** Why online giving is off right now, or null when a member can give (Council Review 22). */
   givingNotice?: string | null;
   /** Stripe's publishable key, for the card step (G3.0); null in stub mode. */
@@ -277,6 +280,7 @@ export function DonorPortal({
         gifts={recurringGifts}
         fundOptions={FUND_OPTIONS}
         today={today}
+        timeZone={timeZone}
         givingOff={Boolean(givingNotice)}
       />
 

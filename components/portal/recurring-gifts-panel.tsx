@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
+  Alert,
   Badge,
   Button,
   Drawer,
@@ -55,9 +56,20 @@ function formatCents(cents: number): string {
   return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
 
-function formatDay(value: string | null): string | null {
+/** A payment time, as a date in the church's time zone (not the viewer's). */
+export function formatDay(value: string | null, timeZone: string | null): string | null {
   if (!value) return null;
-  return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
+  try {
+    return new Date(value).toLocaleDateString("en-US", { ...options, timeZone: timeZone ?? undefined });
+  } catch {
+    return new Date(value).toLocaleDateString("en-US", options);
+  }
+}
+
+/** A YYYY-MM-DD date, as written: a date, not a moment, so no time zone shifts it. */
+function formatDateKey(day: string): string {
+  return new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 }
 
 type Setup = {
@@ -74,12 +86,15 @@ export function RecurringGiftsPanel({
   gifts,
   fundOptions,
   today,
+  timeZone = null,
   givingOff,
 }: {
   gifts: RecurringGift[];
   fundOptions: Array<{ value: string; label: string }>;
   /** Today in the church's time zone (YYYY-MM-DD): the earliest start date. */
   today: string;
+  /** The church's time zone: payment dates are shown in it. */
+  timeZone?: string | null;
   /** Online giving is off for this church: no new recurring gifts. */
   givingOff: boolean;
 }) {
@@ -93,6 +108,8 @@ export function RecurringGiftsPanel({
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [setup, setSetup] = useState<Setup | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState<string | null>(null);
+  /** Stripe accepted the card but the server couldn't record it yet: retry the confirm only. */
+  const [confirmFailed, setConfirmFailed] = useState(false);
   const cardHeadingRef = useRef<HTMLParagraphElement>(null);
 
   // The form was just replaced by the card step: move focus there, so
@@ -115,6 +132,7 @@ export function RecurringGiftsPanel({
     setStartDate(today);
     setIsAnonymous(false);
     setSetup(null);
+    setConfirmFailed(false);
     setFormOpen(true);
   }
 
@@ -171,21 +189,32 @@ export function RecurringGiftsPanel({
     });
   }
 
+  // After Stripe accepts the card. If recording it fails, the drawer stays
+  // open with a retry that repeats only this step (the card step is done):
+  // closing would hide a gift whose card Stripe will charge (PR 177 review).
   function cardConfirmed() {
     const done = setup;
     if (!done) return;
     startTransition(async () => {
-      const result = await confirmRecurringGiftAction(done.recurringGiftId);
+      const result = await confirmRecurringGiftAction(done.recurringGiftId).catch(() => ({
+        ok: false as const,
+        error: "Couldn't finish setting up your gift.",
+      }));
+      if (!result.ok) {
+        setConfirmFailed(true);
+        return;
+      }
       const startsLater = done.intentType === "setup";
       notify(
         true,
         "Thank you for your recurring gift",
-        result.ok && result.gift.status === "active"
+        result.gift.status === "active"
           ? startsLater
-            ? `${done.label} to ${fund} starts on ${formatDay(result.gift.nextPaymentAt) ?? startDate}.`
+            ? `${done.label} to ${fund} starts on ${formatDay(result.gift.nextPaymentAt, timeZone) ?? formatDateKey(startDate)}.`
             : `${done.label} to ${fund} is set up. Your receipt for the first gift will follow shortly.`
           : "Your card was accepted; your gift will show as active in a moment.",
       );
+      setConfirmFailed(false);
       setSetup(null);
       setFormOpen(false);
     });
@@ -231,7 +260,7 @@ export function RecurringGiftsPanel({
         <Stack gap="sm">
           {visible.map((gift) => {
             const status = STATUS[gift.status];
-            const next = formatDay(gift.nextPaymentAt);
+            const next = formatDay(gift.nextPaymentAt, timeZone);
             return (
               <Paper key={gift.id} withBorder p="sm" radius="md" bg="dark.6">
                 <Group justify="space-between" align="flex-start" wrap="wrap" gap="xs">
@@ -301,9 +330,21 @@ export function RecurringGiftsPanel({
             <Text fw={600} ref={cardHeadingRef} tabIndex={-1}>
               {setup.label} to {fund}
             </Text>
+            {confirmFailed ? (
+              <Stack gap="sm">
+                <Alert color="red" variant="light" radius="md" title="Almost done">
+                  Your card was accepted, but we couldn&apos;t finish setting up your gift. Please try again; your card
+                  won&apos;t be asked for again.
+                </Alert>
+                <Button loading={isPending} onClick={cardConfirmed}>
+                  Try again
+                </Button>
+              </Stack>
+            ) : (
+            <>
             <Text fz="xs" c="dimmed">
               {setup.intentType === "setup"
-                ? `Your card is saved now and first charged on ${formatDay(`${startDate}T12:00:00Z`)}.`
+                ? `Your card is saved now and first charged on ${formatDateKey(startDate)}.`
                 : "Your first gift is charged now, then on the same schedule."}
             </Text>
             <DonationCardStep
@@ -317,6 +358,8 @@ export function RecurringGiftsPanel({
               onPaid={cardConfirmed}
               onCancel={closeForm}
             />
+            </>
+            )}
           </Stack>
         ) : (
           <Stack gap="md" p="md">

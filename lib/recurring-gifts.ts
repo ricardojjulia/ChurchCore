@@ -8,7 +8,8 @@ import {
   recurringStatusFromStripe,
   retrieveSubscriptionState,
   setSubscriptionPaused,
-  updateSubscriptionPlan,
+  replaceSubscriptionForFrequency,
+  updateSubscriptionAmount,
   type RecurringFrequency,
 } from "@/lib/stripe/recurring";
 import type { createTenantAdminClient } from "@/lib/supabase/tenant";
@@ -202,12 +203,23 @@ export async function startRecurringGift(
       timeZone: ctx.timeZone,
     });
     createdSubscriptionId = subscription.subscriptionId;
+
+    // No card step: Stripe can already charge a saved default card. Only a
+    // subscription Stripe confirms is ready is kept (PR #177 review).
+    let readyWithoutCard = false;
+    if (!subscription.clientSecret) {
+      const state = await retrieveSubscriptionState(subscription.subscriptionId, stripeAccount);
+      readyWithoutCard = state.cardSaved && (state.status === "active" || state.status === "trialing");
+      if (!readyWithoutCard) throw new Error("Stripe returned no payment step and has no saved card for the subscription.");
+    }
+
     const { error: linkError } = await admin
       .from("recurring_gifts")
       .update({
         stripe_subscription_id: subscription.subscriptionId,
         stripe_customer_id: customerId,
         next_payment_at: subscription.nextPaymentAt,
+        ...(readyWithoutCard ? { status: "active" } : {}),
         updated_at: new Date().toISOString(),
       })
       .eq("id", recurringGiftId)
@@ -216,7 +228,9 @@ export async function startRecurringGift(
     return {
       ok: true,
       recurringGiftId,
-      checkout: { clientSecret: subscription.clientSecret, intentType: subscription.intentType, publishableKey, stripeAccount },
+      checkout: subscription.clientSecret
+        ? { clientSecret: subscription.clientSecret, intentType: subscription.intentType, publishableKey, stripeAccount }
+        : null,
     };
   } catch (error) {
     console.error("[recurring-gifts] Starting the subscription failed:", error instanceof Error ? error.message : error);
@@ -259,7 +273,11 @@ export async function confirmRecurringGift(admin: AdminClient, churchId: string,
   if (!row) return { ok: false, error: NOT_YOURS };
   if (isStub(row)) return { ok: true, gift: toRecurringGift(row) };
   const state = await retrieveSubscriptionState(row.stripe_subscription_id as string, row.stripe_account_id as string);
-  const status = recurringStatusFromStripe(state.status, state.paused);
+  // A future-dated subscription is "trialing" before any card is saved: an
+  // incomplete gift becomes active only once Stripe holds a card for it
+  // (PR #177 review).
+  const status =
+    row.status === "incomplete" && !state.cardSaved ? "incomplete" : recurringStatusFromStripe(state.status, state.paused);
   const { data, error } = await admin
     .from("recurring_gifts")
     .update({ status, next_payment_at: state.nextPaymentAt, updated_at: new Date().toISOString() })
@@ -293,19 +311,47 @@ export async function updateRecurringGift(
   if (!isRecurringFrequency(frequency)) return { ok: false, error: "Choose weekly, every two weeks, or monthly." };
   const fundDesignation = change.fundDesignation === undefined ? row.fund_designation : change.fundDesignation?.trim() || "General";
 
-  if ((amountCents !== row.amount_cents || frequency !== row.frequency) && !isStub(row)) {
-    await updateSubscriptionPlan({
-      subscriptionId: row.stripe_subscription_id as string,
-      stripeAccount: row.stripe_account_id as string,
-      churchId,
-      amountCents,
-      currency: row.currency,
-      frequency,
-    });
+  let replacement: { subscriptionId: string; nextPaymentAt: string | null } | null = null;
+  if (!isStub(row)) {
+    if (frequency !== row.frequency) {
+      // Stripe bills at once when an interval changes, so the new
+      // frequency starts on the gift's next date on a replacement
+      // subscription (PR #177 review). A gift behind on a payment settles
+      // that first: the old subscription's retries would otherwise go
+      // unrecorded.
+      if (row.status === "past_due") {
+        return { ok: false, error: "This gift has a payment that didn't go through. Once it's settled, you can change how often you give." };
+      }
+      replacement = await replaceSubscriptionForFrequency({
+        subscriptionId: row.stripe_subscription_id as string,
+        stripeAccount: row.stripe_account_id as string,
+        churchId,
+        recurringGiftId: id,
+        amountCents,
+        currency: row.currency,
+        frequency,
+        paused: row.status === "paused",
+      });
+    } else if (amountCents !== row.amount_cents) {
+      await updateSubscriptionAmount({
+        subscriptionId: row.stripe_subscription_id as string,
+        stripeAccount: row.stripe_account_id as string,
+        churchId,
+        amountCents,
+        currency: row.currency,
+        frequency,
+      });
+    }
   }
   const { data, error } = await admin
     .from("recurring_gifts")
-    .update({ amount_cents: amountCents, frequency, fund_designation: fundDesignation, updated_at: new Date().toISOString() })
+    .update({
+      amount_cents: amountCents,
+      frequency,
+      fund_designation: fundDesignation,
+      ...(replacement ? { stripe_subscription_id: replacement.subscriptionId, next_payment_at: replacement.nextPaymentAt } : {}),
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", id)
     .eq("church_id", churchId)
     .select(GIFT_COLUMNS)

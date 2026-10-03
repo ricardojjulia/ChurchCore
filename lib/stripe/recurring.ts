@@ -27,12 +27,14 @@ export function stripeInterval(frequency: RecurringFrequency): { interval: "week
 type StripeSubscription = {
   id: string;
   status: string;
+  customer?: string;
+  default_payment_method?: string | { id: string } | null;
   current_period_end?: number | null;
   trial_end?: number | null;
   pause_collection?: { behavior?: string } | null;
-  items?: { data?: Array<{ id: string }> };
   latest_invoice?: { payment_intent?: { client_secret?: string | null; status?: string } | null } | string | null;
   pending_setup_intent?: { client_secret?: string | null; status?: string } | string | null;
+  items?: { data?: Array<{ id: string; price?: { id: string } }> };
 };
 
 /**
@@ -94,7 +96,12 @@ export type CreatedSubscription = {
   status: string;
   /** What the card step confirms: the first payment (starting today) or a saved card (a future start). */
   intentType: "payment" | "setup";
-  clientSecret: string;
+  /**
+   * The card step's secret, or null when Stripe asked for none (the
+   * customer already has a usable default card). The subscription exists
+   * either way, so the caller always gets its id to link or cancel.
+   */
+  clientSecret: string | null;
   nextPaymentAt: string | null;
 };
 
@@ -148,13 +155,11 @@ export async function createRecurringSubscription(input: {
     : typeof subscription.pending_setup_intent === "object"
       ? subscription.pending_setup_intent?.client_secret
       : null;
-  if (!clientSecret) throw new Error("Stripe didn't return a payment step for the subscription.");
-
   return {
     subscriptionId: subscription.id,
     status: subscription.status,
     intentType: input.startsToday ? "payment" : "setup",
-    clientSecret,
+    clientSecret: clientSecret ?? null,
     nextPaymentAt: nextPaymentAt(subscription),
   };
 }
@@ -163,29 +168,44 @@ export type SubscriptionState = {
   status: string;
   paused: boolean;
   nextPaymentAt: string | null;
+  /**
+   * A card Stripe can charge: the subscription's default payment method, or
+   * a pending setup the member completed. A trialing (future-dated)
+   * subscription exists before any card does, so "trialing" alone doesn't
+   * mean a gift is set up (PR #177 review).
+   */
+  cardSaved: boolean;
 };
 
 export async function retrieveSubscriptionState(subscriptionId: string, stripeAccount: string): Promise<SubscriptionState> {
   const subscription = await stripeRequest<StripeSubscription>(
     "GET",
-    `/subscriptions/${encodeURIComponent(subscriptionId)}`,
+    `/subscriptions/${encodeURIComponent(subscriptionId)}?expand[]=pending_setup_intent`,
     undefined,
     { stripeAccount },
   );
+  const setup = typeof subscription.pending_setup_intent === "object" ? subscription.pending_setup_intent : null;
   return {
     status: subscription.status,
     paused: Boolean(subscription.pause_collection?.behavior),
     nextPaymentAt: nextPaymentAt(subscription),
+    cardSaved: Boolean(subscription.default_payment_method) || setup?.status === "succeeded",
   };
 }
 
-/** Changes the amount or frequency from the next installment on, with no proration. */
-export async function updateSubscriptionPlan(input: {
+/**
+ * Changes the amount from the next installment on: same interval, no
+ * proration, so nothing is charged now. A frequency change goes through
+ * replaceSubscriptionForFrequency instead, since Stripe bills immediately
+ * when a subscription's interval changes.
+ */
+export async function updateSubscriptionAmount(input: {
   subscriptionId: string;
   stripeAccount: string;
   churchId: string;
   amountCents: number;
   currency: string;
+  /** The gift's current frequency: unchanged here. */
   frequency: RecurringFrequency;
 }): Promise<void> {
   const productId = await ensureRecurringProduct(input.churchId, input.stripeAccount);
@@ -224,6 +244,62 @@ export async function setSubscriptionPaused(subscriptionId: string, stripeAccoun
 export function recurringStatusFromStripe(status: string, paused: boolean): "incomplete" | "active" | "paused" | "past_due" | "cancelled" {
   if (status === "canceled" || status === "incomplete_expired") return "cancelled";
   if (status === "incomplete") return "incomplete";
+  // A pause wins over past due: Stripe can keep status past_due with
+  // collection paused, and the member's pause must hold (PR #177 review).
+  if (paused) return "paused";
   if (status === "past_due" || status === "unpaid") return "past_due";
-  return paused ? "paused" : "active";
+  return "active";
+}
+
+/**
+ * Changes how often a gift is given, from its next scheduled date (PR #177
+ * review): Stripe bills at once when a subscription's interval changes, so
+ * instead a new subscription with the new amount and frequency starts as a
+ * trial ending on the old one's next billing date, on the same saved card,
+ * and the old one ends at its period's end without billing again. Returns
+ * the new subscription's id.
+ */
+export async function replaceSubscriptionForFrequency(input: {
+  subscriptionId: string;
+  stripeAccount: string;
+  churchId: string;
+  recurringGiftId: string;
+  amountCents: number;
+  currency: string;
+  frequency: RecurringFrequency;
+  paused: boolean;
+}): Promise<{ subscriptionId: string; nextPaymentAt: string | null }> {
+  const current = await stripeRequest<StripeSubscription>(
+    "GET",
+    `/subscriptions/${encodeURIComponent(input.subscriptionId)}`,
+    undefined,
+    { stripeAccount: input.stripeAccount },
+  );
+  const card = typeof current.default_payment_method === "object" ? current.default_payment_method?.id : current.default_payment_method;
+  const periodEnd = current.status === "trialing" ? current.trial_end : current.current_period_end;
+  if (!card || !current.customer || !periodEnd) throw new Error("The gift has no saved card or billing date to carry over.");
+
+  const productId = await ensureRecurringProduct(input.churchId, input.stripeAccount);
+  const replacement = await stripeRequest<StripeSubscription>(
+    "POST",
+    "/subscriptions",
+    {
+      customer: current.customer,
+      ...priceData("items[0]", { ...input, productId }),
+      default_payment_method: card,
+      // No charge until the date the old subscription would have billed.
+      trial_end: periodEnd,
+      ...(input.paused ? { "pause_collection[behavior]": "void" } : {}),
+      "metadata[church_id]": input.churchId,
+      "metadata[recurring_gift_id]": input.recurringGiftId,
+    },
+    { stripeAccount: input.stripeAccount },
+  );
+  await stripeRequest(
+    "POST",
+    `/subscriptions/${encodeURIComponent(input.subscriptionId)}`,
+    { cancel_at_period_end: "true" },
+    { stripeAccount: input.stripeAccount },
+  );
+  return { subscriptionId: replacement.id, nextPaymentAt: new Date(periodEnd * 1000).toISOString() };
 }

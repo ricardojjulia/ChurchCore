@@ -11,6 +11,11 @@ import { authFilePath, SEED_CHURCH_ID } from "./fixtures/roles";
  * and owner action O7's real test-mode run).
  */
 
+// These tests share the seed member's recurring gifts and clean up by
+// profile: run them one at a time, never alongside each other (PR #177
+// review; the suite is fullyParallel).
+test.describe.configure({ mode: "serial" });
+
 async function memberProfileId(): Promise<string> {
   const { memberEmail } = getDemoCredentials();
   const { rows } = await queryTenantDb<{ id: string }>(
