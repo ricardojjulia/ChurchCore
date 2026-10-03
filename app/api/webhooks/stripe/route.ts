@@ -13,7 +13,14 @@ import {
 } from "@/lib/stripe/connect";
 import { verifyStripeSignature } from "@/lib/stripe/webhook-signature";
 import { reverseGlEntryForRefund } from "@/lib/stripe/event-registrations";
-import { postDonationToGl, sendDonationReceipt } from "@/lib/stripe/donation-completion";
+import { completeDonation, sendDonationReceipt } from "@/lib/stripe/donation-completion";
+import {
+  handleInvoicePaid,
+  handleInvoicePaymentFailed,
+  syncRecurringGiftFromSubscription,
+  type StripeInvoice,
+  type StripeSubscriptionEvent,
+} from "@/lib/stripe/recurring-webhooks";
 
 
 // ── Core donation-succeeded handler ──────────────────────────
@@ -142,51 +149,11 @@ async function handlePaymentIntentSucceeded(pi: {
       .eq("church_id", churchId);
   }
 
-  const { data: donation } = await supabase
-    .from("donations")
-    .update({ status: "succeeded", updated_at: new Date().toISOString() })
-    .eq("church_id", churchId)
-    .eq("stripe_payment_intent_id", pi.id)
-    .eq("status", "pending")
-    .select("id, donor_email, donor_name, amount_cents, fund_designation")
-    .maybeSingle();
-
-  if (!donation) return;
-
-  await postDonationToGl(
-    supabase,
-    donation.id as string,
-    churchId,
-    (donation as { amount_cents: number }).amount_cents,
-    (donation as { fund_designation: string | null }).fund_designation,
-  );
-
-  const d = donation as {
-    id: string;
-    donor_email: string | null;
-    donor_name: string | null;
-    amount_cents: number;
-    fund_designation: string | null;
-  };
-
-  const recipientEmail = d.donor_email ?? pi.receipt_email;
-  if (recipientEmail) {
-    // Same receipt as the member-side confirm, which names the church
-    // (Council Review 34).
-    const { data: church } = await supabase.from("churches").select("name").eq("id", churchId).maybeSingle();
-    await sendDonationReceipt({
-      to: recipientEmail,
-      donorName: d.donor_name,
-      amountCents: d.amount_cents,
-      fundDesignation: d.fund_designation,
-      donationId: d.id,
-      churchName: (church as { name: string } | null)?.name ?? null,
-    });
-    await supabase
-      .from("donations")
-      .update({ receipt_sent_at: new Date().toISOString() })
-      .eq("id", d.id);
-  }
+  // The gift (one-time, or a recurring installment already recorded by
+  // invoice.paid): marked succeeded, posted, receipted, then completed.
+  // Retry-safe: a failure throws, the route answers 5xx, Stripe retries, and
+  // the gift resumes where it stopped (G3.2).
+  await completeDonation(supabase, churchId, { paymentIntentId: pi.id }, { receiptEmailFallback: pi.receipt_email ?? null });
 }
 
 async function handlePaymentIntentFailed(pi: {
@@ -451,13 +418,29 @@ async function handleSubscriptionDeleted(sub: {
     return;
   }
 
-  // Supabase path
+  // Supabase path. Only a legacy, still-unpaid gift row is cancelled: a
+  // recurring gift's installments are payments that happened, and stay so
+  // (PR #177 review). The recurring gift itself is cancelled by
+  // syncSubscription.
   const supabase = createTenantAdminClient();
-  await supabase
+  const { error } = await supabase
     .from("donations")
     .update({ status: "cancelled", updated_at: new Date().toISOString() })
     .eq("stripe_subscription_id", sub.id)
-    .eq("church_id", churchId);
+    .eq("church_id", churchId)
+    .eq("status", "pending")
+    .is("recurring_gift_id", null);
+  if (error) throw new Error(error.message);
+}
+
+/** Keeps a recurring gift in step with its subscription (G3.2). */
+async function syncSubscription(
+  event: { created?: number },
+  subscription: StripeSubscriptionEvent & { metadata?: { church_id?: string } },
+) {
+  const churchId = subscription.metadata?.church_id;
+  if (!churchId) return;
+  await syncRecurringGiftFromSubscription(createTenantAdminClient(), churchId, subscription, event.created);
 }
 
 // ── GL auto-post ──────────────────────────────────────────────
@@ -617,7 +600,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         await handleSubscriptionDeleted(
           event.data.object as Parameters<typeof handleSubscriptionDeleted>[0],
         );
+        await syncSubscription(event, { ...(event.data.object as StripeSubscriptionEvent), status: "canceled" });
         break;
+
+      case "customer.subscription.updated":
+        await syncSubscription(event, event.data.object as StripeSubscriptionEvent);
+        break;
+
+      case "invoice.paid":
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as StripeInvoice & { metadata?: { church_id?: string } };
+        const churchId = invoice.metadata?.church_id;
+        if (!churchId) break;
+        const supabase = createTenantAdminClient();
+        if (event.type === "invoice.paid") await handleInvoicePaid(supabase, churchId, invoice);
+        else await handleInvoicePaymentFailed(supabase, churchId, invoice);
+        break;
+      }
 
       case "charge.refunded":
         await handleChargeRefunded(
@@ -632,8 +631,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     console.error("[stripe-webhook] Handler error:", msg);
-    // Return 200 so Stripe does not retry — log for investigation
-    return NextResponse.json({ received: true, warning: msg });
+    // 5xx so Stripe retries: every handler is repeatable, and a gift's
+    // completion marker is written last, so a retry resumes where this
+    // attempt stopped (G3.2). Before, a 200 here meant a failed ledger post
+    // or receipt was never retried.
+    return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });

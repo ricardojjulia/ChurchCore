@@ -34,6 +34,13 @@ type Props = {
   onCancel: () => void;
   /** The cancel button's label (a registration's says what it cancels). */
   cancelLabel?: string;
+  /**
+   * "payment" confirms a PaymentIntent (charged now); "setup" confirms a
+   * SetupIntent, saving the card for a recurring gift that starts later.
+   */
+  intentType?: "payment" | "setup";
+  /** The pay button's label; defaults to "Pay <amount>". */
+  submitLabel?: string;
 };
 
 /**
@@ -67,6 +74,8 @@ function CardForm({
   onBack,
   onCancel,
   cancelLabel = "Cancel",
+  intentType = "payment",
+  submitLabel,
 }: Omit<Props, "publishableKey" | "stripeAccount" | "clientSecret">) {
   const stripe = useStripe();
   const elements = useElements();
@@ -77,12 +86,16 @@ function CardForm({
     if (!stripe || !elements) return;
     setPaying(true);
     setError(null);
-    const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
-      elements,
-      // Cards complete here; only methods that need a bank page redirect.
-      redirect: "if_required",
-      confirmParams: { return_url: window.location.href },
-    });
+    // Cards complete here; only methods that need a bank page redirect.
+    const confirmed =
+      intentType === "setup"
+        ? await stripe
+            .confirmSetup({ elements, redirect: "if_required", confirmParams: { return_url: window.location.href } })
+            .then((result) => ({ error: result.error, status: result.setupIntent?.status }))
+        : await stripe
+            .confirmPayment({ elements, redirect: "if_required", confirmParams: { return_url: window.location.href } })
+            .then((result) => ({ error: result.error, status: result.paymentIntent?.status }));
+    const stripeError = confirmed.error;
     setPaying(false);
     if (stripeError) {
       // A declined card, wrong CVC, expired card… Stripe's own wording; the
@@ -93,7 +106,7 @@ function CardForm({
       );
       return;
     }
-    onPaid(paymentIntent?.status ?? "processing");
+    onPaid(confirmed.status ?? "processing");
   }
 
   return (
@@ -134,7 +147,7 @@ function CardForm({
             disabled={!stripe || !elements}
             onClick={pay}
           >
-            Pay {amountLabel}
+            {submitLabel ?? `Pay ${amountLabel}`}
           </Button>
         </Group>
       </Group>

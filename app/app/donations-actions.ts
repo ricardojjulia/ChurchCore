@@ -5,14 +5,13 @@ import { revalidatePath } from "next/cache";
 import { requireChurchSession } from "@/lib/auth";
 import {
   cancelPaymentIntent,
-  cancelStripeSubscription,
   createOrGetStripeCustomer,
   createPaymentIntent,
   onlineGivingNotice,
   onlineGivingStatus,
   retrievePaymentIntentStatus,
 } from "@/lib/stripe/donations";
-import { postDonationToGl, sendDonationReceipt } from "@/lib/stripe/donation-completion";
+import { completeDonation } from "@/lib/stripe/donation-completion";
 import { createTenantAdminClient } from "@/lib/supabase/tenant";
 
 // ── Types ────────────────────────────────────────────────────
@@ -205,41 +204,15 @@ export async function confirmDonationAction(
     return { ok: false, error: "Your payment hasn't completed yet." };
   }
 
-  const supabase = createTenantAdminClient();
-  const { data } = await supabase
-    .from("donations")
-    .update({ status: "succeeded", updated_at: new Date().toISOString() })
-    .eq("id", donationId)
-    .eq("church_id", churchId)
-    .eq("stripe_payment_intent_id", paymentIntentId)
-    .eq("status", "pending")
-    .select("donor_email, donor_name, amount_cents, fund_designation");
-  // No row: already confirmed (by the webhook) or not this church's — nothing to do.
-  const row = (data as Array<{
-    donor_email: string | null;
-    donor_name: string | null;
-    amount_cents: number;
-    fund_designation: string | null;
-  }> | null)?.[0];
-  if (row) {
-    // This call won the pending → succeeded update, so it posts the gift to
-    // the ledger and sends the receipt; the webhook won't (Council Review 22).
-    await postDonationToGl(supabase, donationId, churchId, row.amount_cents, row.fund_designation);
-    if (row.donor_email) {
-      await sendDonationReceipt({
-        to: row.donor_email,
-        donorName: row.donor_name,
-        amountCents: row.amount_cents,
-        fundDesignation: row.fund_designation,
-        donationId,
-        churchName: session.appContext.church.name,
-      });
-      await supabase
-        .from("donations")
-        .update({ receipt_sent_at: new Date().toISOString() })
-        .eq("id", donationId)
-        .eq("church_id", churchId);
-    }
+  // Stripe has the money: record it. Posting, the receipt and the
+  // completion marker are retry-safe and shared with the webhook, which
+  // finishes the gift if anything here fails (G3.2).
+  try {
+    await completeDonation(createTenantAdminClient(), churchId, { id: donationId }, {
+      churchName: session.appContext.church.name,
+    });
+  } catch (error) {
+    console.error("Completing the gift failed; the webhook will finish it:", error instanceof Error ? error.message : error);
   }
   revalidatePath("/app/member/giving");
   return { ok: true };
@@ -311,55 +284,4 @@ export async function cancelPendingDonationAction(
   }
   revalidatePath("/app/member/giving");
   return { ok: true, cancelled: true };
-}
-
-/**
- * cancelRecurringDonationAction
- *
- * Cancels the member's own recurring gift: the Stripe subscription, then the
- * row. Refuses anyone else's.
- */
-export async function cancelRecurringDonationAction(
-  donationId: string,
-): Promise<{ ok: boolean; error?: string }> {
-  const session = await requireChurchSession("/app/member");
-  const churchId = session.appContext.church.id;
-  const profileId = session.churchProfileId;
-  if (!profileId) return { ok: false, error: "Your account has no profile in this church." };
-
-  const supabase = createTenantAdminClient();
-  const { data } = await supabase
-    .from("donations")
-    .select("stripe_subscription_id, stripe_account_id")
-    .eq("id", donationId)
-    .eq("church_id", churchId)
-    .eq("profile_id", profileId)
-    .maybeSingle();
-  if (!data) return { ok: false, error: "That gift isn't yours to cancel." };
-
-  const gift = data as { stripe_subscription_id: string | null; stripe_account_id: string | null };
-  const subscriptionId = gift.stripe_subscription_id;
-  if (subscriptionId) {
-    try {
-      await cancelStripeSubscription(subscriptionId, churchId, gift.stripe_account_id);
-    } catch (error) {
-      // Includes a gift on a Stripe account the church has since
-      // disconnected: only the church can stop it now (ADR 0025).
-      console.error("Couldn't cancel the recurring gift at Stripe:", error instanceof Error ? error.message : error);
-      return { ok: false, error: "Couldn't stop your recurring gift. Please contact the church office." };
-    }
-  }
-
-  const { error } = await supabase
-    .from("donations")
-    .update({ status: "cancelled", updated_at: new Date().toISOString() })
-    .eq("id", donationId)
-    .eq("church_id", churchId)
-    .eq("profile_id", profileId);
-  if (error) {
-    console.error("Failed to mark the recurring gift cancelled:", error.message);
-    return { ok: false, error: "Your recurring gift was stopped, but we couldn't update your records. Please contact the church office." };
-  }
-  revalidatePath("/app/member/giving");
-  return { ok: true };
 }

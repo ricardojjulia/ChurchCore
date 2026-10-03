@@ -5,7 +5,10 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import { MemberBottomNav } from "@/components/application/member-bottom-nav";
 import { requireChurchSession } from "@/lib/auth";
 import { getDonorPortalData } from "@/lib/donations-data";
+import { todayInTimeZone } from "@/lib/church-time";
+import { listOwnRecurringGifts } from "@/lib/recurring-gifts";
 import { onlineGivingNotice, onlineGivingStatus, stripePublishableKey } from "@/lib/stripe/donations";
+import { createTenantAdminClient } from "@/lib/supabase/tenant";
 
 export default async function MemberGivingPage() {
   const session = await requireChurchSession("/app/member/giving");
@@ -14,9 +17,14 @@ export default async function MemberGivingPage() {
     redirect(session.homePath);
   }
 
-  const [data, giving] = await Promise.all([
+  const churchId = session.appContext.church.id;
+  const profileId = session.churchProfileId;
+  const [data, giving, recurringGifts] = await Promise.all([
     getDonorPortalData(session),
-    onlineGivingStatus(session.appContext.church.id),
+    onlineGivingStatus(churchId),
+    // The member's own recurring gifts (G3.1), read on the server for this
+    // church and profile only.
+    profileId ? listOwnRecurringGifts(createTenantAdminClient(), churchId, profileId) : Promise.resolve([]),
   ]);
 
   const navItems = [
@@ -54,6 +62,9 @@ export default async function MemberGivingPage() {
         givingNotice={onlineGivingNotice(giving.mode)}
         publishableKey={giving.mode === "live" ? stripePublishableKey() : null}
         stripeAccount={giving.stripeAccount}
+        recurringGifts={recurringGifts}
+        today={todayInTimeZone(session.appContext.church.timezone ?? null)}
+        timeZone={session.appContext.church.timezone ?? null}
       />
     </ApplicationShell>
   );

@@ -10,7 +10,15 @@ const {
   getStripeWebhookSecretMock,
   sendEmailMock,
   connectMocks,
+  completeDonationMock,
+  recurringMocks,
 } = vi.hoisted(() => ({
+  completeDonationMock: vi.fn(),
+  recurringMocks: {
+    handleInvoicePaid: vi.fn(),
+    handleInvoicePaymentFailed: vi.fn(),
+    syncRecurringGiftFromSubscription: vi.fn(),
+  },
   connectMocks: {
     churchForStripeAccount: vi.fn(),
     markChurchStripeAccountDisconnected: vi.fn(),
@@ -34,6 +42,14 @@ vi.mock("@/lib/stripe/client", () => ({
 }));
 
 vi.mock("@/lib/stripe/connect", () => connectMocks);
+
+// Completing a gift (ledger, receipt, completion marker) and the recurring
+// handlers are tested in their own modules; here, that the route calls them.
+vi.mock("@/lib/stripe/donation-completion", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stripe/donation-completion")>()),
+  completeDonation: completeDonationMock,
+}));
+vi.mock("@/lib/stripe/recurring-webhooks", () => recurringMocks);
 
 vi.mock("@/lib/notifications/send-email", () => ({
   sendEmail: sendEmailMock,
@@ -677,9 +693,12 @@ describe("stripe webhook route", () => {
       expect(updateMock).toHaveBeenCalledWith(
         expect.objectContaining({ status: "succeeded", payment_intent_id: "pi_sb_succ_1" }),
       );
-      // donations update with status: "succeeded"
-      expect(updateMock).toHaveBeenCalledWith(
-        expect.objectContaining({ status: "succeeded" }),
+      // The gift, if any: completed retry-safely by completeDonation (G3.2).
+      expect(completeDonationMock).toHaveBeenCalledWith(
+        chainProxy,
+        "church-sb-1",
+        { paymentIntentId: "pi_sb_succ_1" },
+        { receiptEmailFallback: null },
       );
     });
 
@@ -741,7 +760,7 @@ describe("stripe webhook route", () => {
       );
     });
 
-    it("handlePaymentIntentSucceeded — Supabase: returns 200 when Supabase update errors", async () => {
+    it("handlePaymentIntentSucceeded — Supabase: answers 500 when a write fails, so Stripe retries (G3.2)", async () => {
       const fromMock = vi.fn();
       const selectMock = vi.fn();
       const updateMock = vi.fn();
@@ -787,11 +806,8 @@ describe("stripe webhook route", () => {
         }),
       );
 
-      // Outer handler catch block returns 200 with warning
-      expect(response.status).toBe(200);
-      const body = await response.json() as { received: boolean; warning?: string };
-      expect(body.received).toBe(true);
-      expect(body.warning).toBeDefined();
+      // G3.2: a 5xx makes Stripe retry; a 200 here used to drop the event.
+      expect(response.status).toBe(500);
     });
   });
 
@@ -864,7 +880,7 @@ describe("stripe webhook route", () => {
       );
     });
 
-    it("handlePaymentIntentFailed — Supabase: returns 200 when Supabase update errors", async () => {
+    it("handlePaymentIntentFailed — Supabase: answers 500 when a write fails, so Stripe retries (G3.2)", async () => {
       const fromMock = vi.fn();
       const selectMock = vi.fn();
       const updateMock = vi.fn();
@@ -908,10 +924,7 @@ describe("stripe webhook route", () => {
         }),
       );
 
-      expect(response.status).toBe(200);
-      const body = await response.json() as { received: boolean; warning?: string };
-      expect(body.received).toBe(true);
-      expect(body.warning).toBeDefined();
+      expect(response.status).toBe(500);
     });
   });
 
@@ -949,148 +962,6 @@ describe("stripe webhook route", () => {
 
       return { chainProxy, fromMock, insertMock, updateMock, maybeSingleMock, singleMock };
     }
-
-    it("handlePaymentIntentSucceeded — Supabase: posts to GL when fund mapping found", async () => {
-      const { chainProxy, fromMock, insertMock, maybeSingleMock, singleMock } = makeGlChainProxy();
-
-      // Sequence:
-      // 1. donations update → maybySingle → donation record
-      // 2. autoPostToGlSupabase: donation_gl_posts idempotency → null
-      // 3. autoPostToGlSupabase: giving_fund_accounts fund mapping → found
-      maybeSingleMock
-        .mockResolvedValueOnce({
-          data: { id: "don-gl-1", donor_email: null, donor_name: null, amount_cents: 5000, fund_designation: "General" },
-          error: null,
-        })
-        .mockResolvedValueOnce({ data: null, error: null }) // gl idempotency: not posted yet
-        .mockResolvedValueOnce({
-          data: { asset_account_id: "acc-asset-1", income_account_id: "acc-income-1" },
-          error: null,
-        });
-
-      // autoPostToGlSupabase: finance_journals insert → single → journal id
-      singleMock.mockResolvedValue({ data: { id: "journal-gl-1" }, error: null });
-
-      createTenantAdminClientMock.mockReturnValue(chainProxy);
-
-      const response = await stripeWebhookPost(
-        stripeRequest({
-          method: "POST",
-          body: JSON.stringify({
-            type: "payment_intent.succeeded",
-            data: {
-              object: {
-                id: "pi_gl_post_1",
-                amount: 5000,
-                currency: "usd",
-                metadata: {
-                  church_id: "church-gl-1",
-                  event_registration_id: "reg-gl-1",
-                },
-              },
-            },
-          }),
-        }),
-      );
-
-      expect(response.status).toBe(200);
-      expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
-      // finance_journals and finance_journal_lines were inserted
-      expect(fromMock).toHaveBeenCalledWith("finance_journals");
-      expect(fromMock).toHaveBeenCalledWith("finance_journal_lines");
-      expect(insertMock).toHaveBeenCalledWith(
-        expect.objectContaining({ journal_type: "giving", status: "posted" }),
-      );
-      expect(insertMock).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({ side: "debit", amount_cents: 5000 }),
-          expect.objectContaining({ side: "credit", amount_cents: 5000 }),
-        ]),
-      );
-    });
-
-    it("handlePaymentIntentSucceeded — Supabase: skips GL post when fund mapping missing", async () => {
-      const { chainProxy, fromMock, insertMock, maybeSingleMock } = makeGlChainProxy();
-
-      // donations → donation found; gl idempotency → not posted; fund mapping → null
-      maybeSingleMock
-        .mockResolvedValueOnce({
-          data: { id: "don-gl-2", donor_email: null, donor_name: null, amount_cents: 3000, fund_designation: "Special" },
-          error: null,
-        })
-        .mockResolvedValueOnce({ data: null, error: null }) // gl idempotency
-        .mockResolvedValueOnce({ data: null, error: null }); // fund mapping missing
-
-      createTenantAdminClientMock.mockReturnValue(chainProxy);
-
-      const response = await stripeWebhookPost(
-        stripeRequest({
-          method: "POST",
-          body: JSON.stringify({
-            type: "payment_intent.succeeded",
-            data: {
-              object: {
-                id: "pi_gl_nofund_1",
-                amount: 3000,
-                currency: "usd",
-                metadata: {
-                  church_id: "church-gl-1",
-                  event_registration_id: "reg-gl-2",
-                },
-              },
-            },
-          }),
-        }),
-      );
-
-      expect(response.status).toBe(200);
-      // No journal or line inserts when fund mapping is absent
-      expect(fromMock).not.toHaveBeenCalledWith("finance_journals");
-      expect(insertMock).not.toHaveBeenCalledWith(
-        expect.objectContaining({ journal_type: "giving" }),
-      );
-    });
-
-    it("handlePaymentIntentSucceeded — Supabase: is idempotent when donation_gl_posts row exists", async () => {
-      const { chainProxy, fromMock, insertMock, maybeSingleMock } = makeGlChainProxy();
-
-      // donations → donation found; gl idempotency → already posted (truthy data)
-      maybeSingleMock
-        .mockResolvedValueOnce({
-          data: { id: "don-gl-3", donor_email: null, donor_name: null, amount_cents: 2000, fund_designation: "General" },
-          error: null,
-        })
-        .mockResolvedValueOnce({ data: { id: "existing-gl-post" }, error: null }); // already posted
-
-      createTenantAdminClientMock.mockReturnValue(chainProxy);
-
-      const response = await stripeWebhookPost(
-        stripeRequest({
-          method: "POST",
-          body: JSON.stringify({
-            type: "payment_intent.succeeded",
-            data: {
-              object: {
-                id: "pi_gl_idem_1",
-                amount: 2000,
-                currency: "usd",
-                metadata: {
-                  church_id: "church-gl-1",
-                  event_registration_id: "reg-gl-3",
-                },
-              },
-            },
-          }),
-        }),
-      );
-
-      expect(response.status).toBe(200);
-      // GL was already posted — no new journal insert
-      expect(fromMock).not.toHaveBeenCalledWith("finance_journals");
-      expect(insertMock).not.toHaveBeenCalledWith(
-        expect.objectContaining({ journal_type: "giving" }),
-      );
-    });
 
     it("handleChargeRefunded — Supabase: voids GL journal on refund", async () => {
       const { chainProxy, fromMock, updateMock, maybeSingleMock } = makeGlChainProxy();
@@ -1148,15 +1019,17 @@ describe("stripe webhook route", () => {
       shouldUseLocalTenantFallbackMock.mockReturnValue(false);
     });
 
-    it("handleSubscriptionDeleted — Supabase: cancels donations on subscription deletion", async () => {
+    it("handleSubscriptionDeleted — Supabase: cancels only legacy unpaid donations, never a paid installment, on subscription deletion", async () => {
       const fromMock = vi.fn();
       const updateMock = vi.fn();
       const eqMock = vi.fn();
 
-      const chainProxy = { from: fromMock, update: updateMock, eq: eqMock };
+      const isMock = vi.fn();
+      const chainProxy = { from: fromMock, update: updateMock, eq: eqMock, is: isMock };
       fromMock.mockReturnValue(chainProxy);
       updateMock.mockReturnValue(chainProxy);
       eqMock.mockReturnValue(chainProxy);
+      isMock.mockReturnValue(chainProxy);
 
       createTenantAdminClientMock.mockReturnValue(chainProxy);
 
@@ -1183,6 +1056,16 @@ describe("stripe webhook route", () => {
       );
       expect(eqMock).toHaveBeenCalledWith("stripe_subscription_id", "sub_cancelled_1");
       expect(eqMock).toHaveBeenCalledWith("church_id", "church-sb-1");
+      // Only a legacy, still-unpaid row: paid installments stay paid (PR #177 review).
+      expect(eqMock).toHaveBeenCalledWith("status", "pending");
+      expect(isMock).toHaveBeenCalledWith("recurring_gift_id", null);
+      // The recurring gift is cancelled too, as Stripe reports it (G3.2).
+      expect(recurringMocks.syncRecurringGiftFromSubscription).toHaveBeenCalledWith(
+        chainProxy,
+        "church-sb-1",
+        expect.objectContaining({ id: "sub_cancelled_1", status: "canceled" }),
+        undefined,
+      );
     });
 
     it("handleSubscriptionDeleted — Supabase: skips when no church_id in metadata", async () => {
@@ -1300,5 +1183,46 @@ describe("stripe webhook — events from connected church accounts", () => {
       "acct_church1",
       new Date(1_790_000_000 * 1000),
     );
+  });
+});
+
+// ── Recurring gifts (G3.1/G3.2) ─────────────────────────────────────────────
+describe("stripe webhook — recurring gifts", () => {
+  const client = { marker: "admin-client" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getStripeWebhookSecretMock.mockReturnValue(TEST_SECRET);
+    createTenantAdminClientMock.mockReturnValue(client);
+    shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+  });
+
+  const post = (body: unknown) => stripeWebhookPost(stripeRequest({ method: "POST", body: JSON.stringify(body) }));
+
+  it.each([
+    ["invoice.paid", "handleInvoicePaid"],
+    ["invoice.payment_failed", "handleInvoicePaymentFailed"],
+  ] as const)("hands %s to its handler with the church from the event", async (type, handler) => {
+    const invoice = { id: "in_1", subscription: "sub_1", amount_paid: 2500, metadata: { church_id: "church-1" } };
+    expect((await post({ type, data: { object: invoice } })).status).toBe(200);
+    expect(recurringMocks[handler]).toHaveBeenCalledWith(client, "church-1", invoice);
+  });
+
+  it("ignores an invoice with no church", async () => {
+    expect((await post({ type: "invoice.paid", data: { object: { id: "in_1", metadata: {} } } })).status).toBe(200);
+    expect(recurringMocks.handleInvoicePaid).not.toHaveBeenCalled();
+  });
+
+  it("syncs the gift on customer.subscription.updated, with the event's time for ordering", async () => {
+    const subscription = { id: "sub_1", status: "past_due", metadata: { church_id: "church-1" } };
+    expect((await post({ type: "customer.subscription.updated", created: 1_790_000_000, data: { object: subscription } })).status).toBe(200);
+    expect(recurringMocks.syncRecurringGiftFromSubscription).toHaveBeenCalledWith(client, "church-1", subscription, 1_790_000_000);
+  });
+
+  it("answers 500 when recording an installment fails, so Stripe retries it", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    recurringMocks.handleInvoicePaid.mockRejectedValueOnce(new Error("db down"));
+    const response = await post({ type: "invoice.paid", data: { object: { id: "in_1", metadata: { church_id: "church-1" } } } });
+    expect(response.status).toBe(500);
   });
 });

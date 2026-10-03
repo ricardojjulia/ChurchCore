@@ -9,12 +9,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { getChurchStripeAccountMock } = vi.hoisted(() => ({ getChurchStripeAccountMock: vi.fn() }));
 
 vi.mock("@/lib/stripe/connect", () => ({
+  // The payment's own account, while still connected (tested in connect.test.ts).
+  accountForExistingPayment: async (_churchId: string, account: string | null) => account ?? "acct_current",
   getChurchStripeAccount: getChurchStripeAccountMock,
   stripeConnectClientId: () => process.env.STRIPE_CONNECT_CLIENT_ID || null,
 }));
 
 import {
   cancelPaymentIntent,
+  cancelStripeSubscription,
   createOrGetStripeCustomer,
   createPaymentIntent,
   onlineGivingNotice,
@@ -159,5 +162,17 @@ describe("live Stripe calls run on the church's account (ADR 0025)", () => {
 
     expect(await cancelPaymentIntent("pi_123", "acct_church1")).toBe("succeeded");
     expect(headerOf(fetchMock, 1)["Stripe-Account"]).toBe("acct_church1");
+  });
+
+  it("cancels a recurring gift's subscription with DELETE on the church's account (G3.1: there is no POST /cancel for subscriptions)", async () => {
+    setEnv(LIVE);
+    const fetchMock = stubStripe([{ id: "sub_1", status: "canceled" }]);
+
+    expect(await cancelStripeSubscription("sub_1", "church-1", "acct_church1")).toEqual({ cancelled: true, isStub: false });
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://api.stripe.com/v1/subscriptions/sub_1");
+    expect(init.method).toBe("DELETE");
+    expect(init.body).toBeUndefined();
+    expect((init.headers as Record<string, string>)["Stripe-Account"]).toBe("acct_church1");
   });
 });

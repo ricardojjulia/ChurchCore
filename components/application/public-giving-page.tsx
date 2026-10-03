@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import {
   Alert,
   Button,
@@ -17,7 +17,9 @@ import {
   Title,
 } from "@mantine/core";
 import { Heart, Lock, AlertCircle, Check, FlaskConical } from "lucide-react";
+import { cancelPublicGiftAction, submitPublicGiftAction } from "@/app/give/actions";
 import { useI18n } from "@/components/i18n-provider";
+import { DonationCardStep } from "@/components/portal/donation-card-step";
 
 type PublicGivingPageProps = {
   data: {
@@ -31,7 +33,13 @@ type PublicGivingPageProps = {
   slug: string;
 };
 
-type GivingFrequency = "one_time" | "weekly" | "monthly";
+type Checkout = {
+  donationId: string;
+  paymentIntentId: string;
+  clientSecret: string;
+  publishableKey: string;
+  stripeAccount: string;
+};
 
 export function PublicGivingPage({ data }: PublicGivingPageProps) {
   const { locale, t } = useI18n();
@@ -39,21 +47,16 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
     t("publicGiving", key, values);
   const [amount, setAmount] = useState<number | "">(50);
   const [fund, setFund] = useState(data.funds[0] ?? "General Fund");
-  const [frequency, setFrequency] = useState<GivingFrequency>("one_time");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [note, setNote] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [step, setStep] = useState<"form" | "submitted">("form");
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [checkout, setCheckout] = useState<Checkout | null>(null);
+  const [isLoading, startTransition] = useTransition();
 
   const PRESET_AMOUNTS = [25, 50, 100, 250, 500];
-  const FREQUENCIES: { value: GivingFrequency; label: string }[] = [
-    { value: "one_time", label: tr("frequencyOneTime") },
-    { value: "weekly", label: tr("frequencyWeekly") },
-    { value: "monthly", label: tr("frequencyMonthly") },
-  ];
 
   function formatAmount(value: number | "") {
     const numeric = Number(value || 0);
@@ -75,15 +78,45 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
     }
 
     setError(null);
-    setIsLoading(true);
+    // A real one-time gift on the church's own Stripe account (G3.1). Until
+    // this, the page showed "thank you" without charging or recording
+    // anything. Recurring gifts are for signed-in members.
+    startTransition(async () => {
+      const result = await submitPublicGiftAction({
+        slug: data.slug,
+        amountCents: Math.round(Number(amount) * 100),
+        fund,
+        isAnonymous,
+        donorName: isAnonymous ? null : name,
+        donorEmail: isAnonymous ? null : email,
+        note,
+      });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      if (!result.checkout) {
+        setStep("submitted"); // stubbed (development, demo): recorded already
+        return;
+      }
+      setCheckout({ donationId: result.donationId, paymentIntentId: result.paymentIntentId, ...result.checkout });
+    });
+  }
 
-    // In production: call a server action that creates a Stripe PaymentIntent
-    // and returns a client_secret for Stripe Elements to complete payment.
-    // This scaffold shows the UX flow; Stripe integration wires up here.
-    await new Promise((r) => setTimeout(r, 600));
-
-    setIsLoading(false);
-    setStep("submitted");
+  // Leaving the card step cancels the PaymentIntent and the pending gift;
+  // if Stripe already has the payment, the gift stands.
+  function leaveCheckout() {
+    const open = checkout;
+    if (!open) return;
+    startTransition(async () => {
+      const result = await cancelPublicGiftAction(open.donationId, open.paymentIntentId);
+      if (!result.ok) {
+        setError(result.error ?? "Couldn't cancel the gift. Please try again.");
+        return;
+      }
+      setCheckout(null);
+      if (!result.cancelled) setStep("submitted");
+    });
   }
 
   if (step === "submitted") {
@@ -122,6 +155,30 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
         </div>
 
         <Paper p="xl" radius="md" withBorder style={{ maxWidth: 480, width: "100%" }}>
+          {checkout ? (
+            <Stack gap="md">
+              {error && (
+                <Alert color="red" icon={<AlertCircle size={16} />} onClose={() => setError(null)} withCloseButton>
+                  {error}
+                </Alert>
+              )}
+              <Text fw={600}>
+                {formatAmount(amount)} · {fund}
+              </Text>
+              <DonationCardStep
+                publishableKey={checkout.publishableKey}
+                stripeAccount={checkout.stripeAccount}
+                clientSecret={checkout.clientSecret}
+                amountLabel={formatAmount(amount)}
+                onPaid={() => {
+                  setCheckout(null);
+                  setStep("submitted");
+                }}
+                onBack={leaveCheckout}
+                onCancel={leaveCheckout}
+              />
+            </Stack>
+          ) : (
           <Stack gap="md">
             {error && (
               <Alert color="red" icon={<AlertCircle size={16} />} onClose={() => setError(null)} withCloseButton>
@@ -162,14 +219,6 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
                 onChange={(v) => setFund(v ?? data.funds[0])}
               />
             )}
-
-            {/* Frequency */}
-            <Select
-              label={tr("frequency")}
-              data={FREQUENCIES.map((f) => ({ value: f.value, label: f.label }))}
-              value={frequency}
-              onChange={(v) => setFrequency((v ?? "one_time") as GivingFrequency)}
-            />
 
             <Divider />
 
@@ -240,7 +289,6 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
               fullWidth
             >
               {process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? "Complete Demo Gift — " : `${tr("giveAmountPrefix")} `}{formatAmount(amount)}
-              {frequency !== "one_time" ? ` / ${FREQUENCIES.find((item) => item.value === frequency)?.label ?? frequency}` : ""}
             </Button>
 
             <Group gap={4} justify="center">
@@ -248,6 +296,7 @@ export function PublicGivingPage({ data }: PublicGivingPageProps) {
               <Text size="xs" c="dimmed">{tr("securePayment")}</Text>
             </Group>
           </Stack>
+          )}
         </Paper>
       </Stack>
     </div>

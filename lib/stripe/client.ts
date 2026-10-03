@@ -44,7 +44,7 @@ export type StripeRequestOptions = {
 };
 
 export async function stripeRequest<T>(
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "DELETE",
   path: string,
   body?: Record<string, unknown>,
   options: StripeRequestOptions = {},

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { PublicGivingPage } from "@/components/application/public-giving-page";
+import { getPublicGivingPage } from "@/lib/public-giving";
 
 type GivingPageData = {
   churchName: string;
@@ -11,10 +12,21 @@ type GivingPageData = {
 };
 
 async function getGivingPageData(slug: string): Promise<GivingPageData | null> {
-  // In production: query public_giving_pages by slug via the platform Supabase client.
-  // Returning null triggers notFound(). This scaffold is ready for that query.
+  // The church's live giving page (G3.1). The church id stays on the server;
+  // the gift action looks the page up again by slug.
+  const page = await getPublicGivingPage(slug);
+  if (page) {
+    return {
+      churchName: page.churchName,
+      headline: page.headline,
+      description: page.description,
+      funds: page.funds,
+      allowAnonymous: page.allowAnonymous,
+      slug: page.slug,
+    };
+  }
 
-  // Demo mode: serve Grace Harbor data for any slug so the giving page is reachable.
+  // Demo mode: a page for any slug, so the demo's giving page is reachable.
   if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
     return {
       churchName: "Grace Harbor Church",
@@ -25,8 +37,6 @@ async function getGivingPageData(slug: string): Promise<GivingPageData | null> {
       slug,
     };
   }
-
-  void slug;
   return null;
 }
 

@@ -15,8 +15,7 @@ const {
   cancelPaymentIntentMock,
   onlineGivingNoticeMock,
   onlineGivingStatusMock,
-  postDonationToGlMock,
-  sendDonationReceiptMock,
+  completeDonationMock,
   tableResults,
   calls,
 } = vi.hoisted(() => {
@@ -32,8 +31,7 @@ const {
     cancelPaymentIntentMock: vi.fn(),
     onlineGivingNoticeMock: vi.fn(),
     onlineGivingStatusMock: vi.fn(),
-    postDonationToGlMock: vi.fn(),
-    sendDonationReceiptMock: vi.fn(),
+    completeDonationMock: vi.fn(),
     tableResults,
     calls,
   };
@@ -51,8 +49,7 @@ vi.mock("@/lib/stripe/donations", () => ({
   onlineGivingStatus: onlineGivingStatusMock,
 }));
 vi.mock("@/lib/stripe/donation-completion", () => ({
-  postDonationToGl: postDonationToGlMock,
-  sendDonationReceipt: sendDonationReceiptMock,
+  completeDonation: completeDonationMock,
 }));
 vi.mock("@/lib/supabase/tenant", () => {
   function next(table: string) {
@@ -77,7 +74,6 @@ vi.mock("@/lib/supabase/tenant", () => {
 
 import {
   cancelPendingDonationAction,
-  cancelRecurringDonationAction,
   confirmDonationAction,
   initiateDonationAction,
 } from "@/app/app/donations-actions";
@@ -106,8 +102,7 @@ describe("donations actions", () => {
     retrievePaymentIntentStatusMock.mockResolvedValue("succeeded");
     onlineGivingNoticeMock.mockReturnValue(null);
     onlineGivingStatusMock.mockResolvedValue({ mode: "live", stripeAccount: "acct_church1" });
-    postDonationToGlMock.mockResolvedValue(undefined);
-    sendDonationReceiptMock.mockResolvedValue(undefined);
+    completeDonationMock.mockResolvedValue(true);
   });
 
   describe("initiateDonationAction", () => {
@@ -204,28 +199,22 @@ describe("donations actions", () => {
   });
 
   describe("confirmDonationAction", () => {
-    it("marks the gift succeeded only when Stripe says so, only from pending, then posts it to the GL and sends the receipt", async () => {
-      queue(
-        "donations",
-        { data: { profile_id: "profile-1", stripe_account_id: "acct_church1" }, error: null },
-        { data: [{ donor_email: "maya@example.org", donor_name: "Maya", amount_cents: 2500, fund_designation: "General" }], error: null },
-        { error: null },
-      );
+    it("completes the gift only when Stripe says it succeeded, through the shared retry-safe completion (G3.2)", async () => {
+      queue("donations", { data: { profile_id: "profile-1", stripe_account_id: "acct_church1" }, error: null });
 
       expect(await confirmDonationAction("don-1", "pi_123")).toEqual({ ok: true });
 
       expect(retrievePaymentIntentStatusMock).toHaveBeenCalledWith("pi_123", "acct_church1");
-      expect(calls).toEqual(
-        expect.arrayContaining([
-          { table: "donations", method: "eq", args: ["stripe_payment_intent_id", "pi_123"] },
-          { table: "donations", method: "eq", args: ["status", "pending"] },
-          { table: "donations", method: "eq", args: ["church_id", "church-1"] },
-        ]),
-      );
-      expect(postDonationToGlMock).toHaveBeenCalledWith(expect.anything(), "don-1", "church-1", 2500, "General");
-      expect(sendDonationReceiptMock).toHaveBeenCalledWith(
-        expect.objectContaining({ to: "maya@example.org", donationId: "don-1", churchName: "Grace Harbor" }),
-      );
+      expect(completeDonationMock).toHaveBeenCalledWith(expect.anything(), "church-1", { id: "don-1" }, { churchName: "Grace Harbor" });
+    });
+
+    it("still tells the member their gift went through when completing it fails: the webhook finishes it", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      queue("donations", { data: { profile_id: "profile-1", stripe_account_id: "acct_church1" }, error: null });
+      completeDonationMock.mockRejectedValueOnce(new Error("ledger down"));
+
+      expect(await confirmDonationAction("don-1", "pi_123")).toEqual({ ok: true });
+      errorSpy.mockRestore();
     });
 
     it("returns an error, not a throw, when Stripe can't be reached", async () => {
@@ -248,14 +237,6 @@ describe("donations actions", () => {
         error: "Your payment hasn't completed yet.",
       });
       expect(methodCalls("update")).toHaveLength(0);
-    });
-
-    it("does nothing more when the webhook already confirmed it", async () => {
-      queue("donations", { data: { profile_id: "profile-1", stripe_account_id: "acct_church1" }, error: null }, { data: [], error: null });
-      expect(await confirmDonationAction("don-1", "pi_123")).toEqual({ ok: true });
-      // The webhook won the update, so it posted and receipted; this call must not.
-      expect(postDonationToGlMock).not.toHaveBeenCalled();
-      expect(sendDonationReceiptMock).not.toHaveBeenCalled();
     });
   });
 
@@ -341,46 +322,4 @@ describe("donations actions", () => {
     });
   });
 
-  describe("cancelRecurringDonationAction", () => {
-    it("cancels the member's own subscription and marks the row cancelled", async () => {
-      queue("donations", { data: { stripe_subscription_id: "sub_1", stripe_account_id: "acct_church1" }, error: null }, { error: null });
-
-      expect(await cancelRecurringDonationAction("don-9")).toEqual({ ok: true });
-
-      expect(cancelStripeSubscriptionMock).toHaveBeenCalledWith("sub_1", "church-1", "acct_church1");
-      expect(calls).toEqual(
-        expect.arrayContaining([{ table: "donations", method: "eq", args: ["profile_id", "profile-1"] }]),
-      );
-      expect(methodCalls("update")[0].args[0]).toMatchObject({ status: "cancelled" });
-    });
-
-    it("keeps the gift active, and says whom to contact, when Stripe can't cancel it (e.g. the church has since disconnected that account)", async () => {
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      queue("donations", { data: { stripe_subscription_id: "sub_1", stripe_account_id: "acct_old" }, error: null });
-      cancelStripeSubscriptionMock.mockRejectedValueOnce(new Error("no longer connected"));
-
-      expect(await cancelRecurringDonationAction("don-9")).toEqual({
-        ok: false,
-        error: "Couldn't stop your recurring gift. Please contact the church office.",
-      });
-      expect(methodCalls("update")).toHaveLength(0);
-      errorSpy.mockRestore();
-    });
-
-    it("skips Stripe when the gift has no subscription id", async () => {
-      queue("donations", { data: { stripe_subscription_id: null }, error: null }, { error: null });
-      expect(await cancelRecurringDonationAction("don-9")).toEqual({ ok: true });
-      expect(cancelStripeSubscriptionMock).not.toHaveBeenCalled();
-    });
-
-    it("refuses someone else's gift without touching Stripe", async () => {
-      queue("donations", { data: null, error: null });
-      expect(await cancelRecurringDonationAction("not-mine")).toEqual({
-        ok: false,
-        error: "That gift isn't yours to cancel.",
-      });
-      expect(cancelStripeSubscriptionMock).not.toHaveBeenCalled();
-      expect(methodCalls("update")).toHaveLength(0);
-    });
-  });
 });
