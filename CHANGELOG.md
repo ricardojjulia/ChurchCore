@@ -6,6 +6,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Fixed
+
+- **Server-side Supabase requests now actually open a fresh connection per request** (`lib/supabase/fetch.ts`), the fix #92 intended for "Connection closed" failures on warm Vercel invocations (a reused keep-alive connection Supabase had already closed). #92 never took effect: it `require`d `undici` without it being a dependency, so it silently fell back to the default fetch (the build's long-standing "Can't resolve 'undici'" warning), and its `connect: { keepAlive: false }` only disabled TCP keep-alive probes, not connection reuse. Now `undici` 7 is a dependency (undici 8 needs Node ≥ 22.19; `.nvmrc` is 22.13) and its own `fetch` runs with `new Agent({ pipelining: 0 })`. **Trade-off:** each server-side Supabase call pays a new TCP/TLS handshake. New `lib/supabase/fetch.test.ts` checks the wire, not the options: against a real local HTTP server, plain `fetch` reuses a socket and `supabaseFetch` uses a new one per request (the old code fails it). `vitest.setup.ts`'s browser shims are now guarded so node-environment suites can run.
+
 ## [3.5.0] - 2026-10-03
 
 ### Release Rationale
