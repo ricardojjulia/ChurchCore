@@ -1559,7 +1559,8 @@
       "controlPlane": false,
       "dynamicParams": null,
       "tests": [
-        "tests/e2e/page-role-sweep.spec.ts"
+        "tests/e2e/page-role-sweep.spec.ts",
+        "app/hq/page.test.tsx"
       ],
       "note": "Gated by app/hq/layout.tsx, not lib/auth: it reads the tenant Supabase session and the is_platform_admin() RPC. Project HQ is ChurchCore's internal project dashboard, platform staff only (S5, owner decision 2026-09-30; migration 20260930010000). No church role renders it: since S1 the sweep's church-admin identity is nora, who is not a platform admin. super-admin signed in to the control plane has no tenant session here and ends up on /control.",
       "platformAdminOnly": true

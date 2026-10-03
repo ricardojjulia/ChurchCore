@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import {
   Alert,
   Badge,
@@ -63,14 +63,18 @@ export function VolunteerMatcherPanel({
   const [isMatching, startMatchTransition] = useTransition();
   const [isBurnoutCalc, startBurnoutTransition] = useTransition();
 
-  // Keep state in sync if initial props change (after revalidation)
-  useEffect(() => {
+  // Keep state in sync if initial props change (after revalidation), by
+  // adjusting during render rather than in an effect.
+  const [syncedSuggestions, setSyncedSuggestions] = useState(initialSuggestions);
+  if (syncedSuggestions !== initialSuggestions) {
+    setSyncedSuggestions(initialSuggestions);
     setSuggestions(initialSuggestions);
-  }, [initialSuggestions]);
-
-  useEffect(() => {
+  }
+  const [syncedBurnoutAlerts, setSyncedBurnoutAlerts] = useState(initialBurnoutAlerts);
+  if (syncedBurnoutAlerts !== initialBurnoutAlerts) {
+    setSyncedBurnoutAlerts(initialBurnoutAlerts);
     setBurnoutAlerts(initialBurnoutAlerts);
-  }, [initialBurnoutAlerts]);
+  }
 
   function handleFindVolunteers() {
     startMatchTransition(async () => {
