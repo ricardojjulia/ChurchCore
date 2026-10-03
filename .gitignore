@@ -56,3 +56,6 @@ next-env.d.ts
 
 # Test-only pastoral key for local e2e seed data (supabase/scripts/setup-e2e.sh)
 /.e2e-pastoral-key.local
+
+# Google Drive sync staging (repo folder is Drive-synced)
+.tmp.driveupload/

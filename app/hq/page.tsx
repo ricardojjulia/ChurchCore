@@ -136,7 +136,9 @@ export default function ProjectHQPage() {
   // Platform admins get "admin"; everyone else "member" (S5).
   const [userRole, setUserRole] = useState<"admin" | "member" | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
-  const [dataLoading, setDataLoading] = useState(false);
+  // True from the start: the dashboard only renders for a platform admin,
+  // whose records start loading as soon as the role resolves.
+  const [dataLoading, setDataLoading] = useState(true);
 
   // Table records state
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
@@ -166,9 +168,9 @@ export default function ProjectHQPage() {
   const aiResultRef = useRef<HTMLDivElement>(null);
   const [selectedHistorySession, setSelectedHistorySession] = useState<ChatSessionRecord | null>(null);
 
-  // Fetch tables data once role is validated
-  const fetchRecords = useCallback(async () => {
-    setDataLoading(true);
+  // Loads every table. The initial load relies on dataLoading starting true;
+  // a reload after a change goes through fetchRecords, which raises it first.
+  const loadRecords = useCallback(async () => {
     try {
       const [tasksRes, risksRes, decisionsRes, sessionsRes] = await Promise.all([
         supabase.from("hq_tasks").select("*").order("created_at", { ascending: false }),
@@ -192,6 +194,11 @@ export default function ProjectHQPage() {
       setDataLoading(false);
     }
   }, []);
+
+  const fetchRecords = useCallback(async () => {
+    setDataLoading(true);
+    await loadRecords();
+  }, [loadRecords]);
 
   // Load session & role
   useEffect(() => {
@@ -249,9 +256,12 @@ export default function ProjectHQPage() {
   // Fetch tables data once role is validated
   useEffect(() => {
     if (userRole && userRole !== "member") {
-      fetchRecords();
+      // Every setState in loadRecords runs after its first await, so nothing
+      // cascades synchronously; the rule can't see through the call.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void loadRecords();
     }
-  }, [userRole, fetchRecords]);
+  }, [userRole, loadRecords]);
 
   // Permissions helper
   const canDelete = userRole === "admin";
