@@ -19,7 +19,14 @@ beforeAll(async () => {
     request.on("data", (chunk) => (body += chunk));
     request.on("end", () => {
       response.setHeader("content-type", "application/json");
-      response.end(JSON.stringify({ method: request.method, body }));
+      response.end(
+        JSON.stringify({
+          method: request.method,
+          body,
+          apikey: request.headers.apikey ?? null,
+          authorization: request.headers.authorization ?? null,
+        }),
+      );
     });
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -51,16 +58,17 @@ describe("supabaseFetch", () => {
   it("behaves like fetch for supabase-js: URL inputs, JSON bodies, headers, json()", async () => {
     const response = await supabaseFetch(new URL("/rest/v1/rpc/f", baseUrl), {
       method: "POST",
-      headers: { "content-type": "application/json", apikey: "k" },
+      headers: { "content-type": "application/json", apikey: "anon-key", authorization: "Bearer jwt" },
       body: JSON.stringify({ a: 1 }),
     });
     expect(response.ok).toBe(true);
     expect(response.headers.get("content-type")).toBe("application/json");
-    expect(await response.json()).toEqual({ method: "POST", body: '{"a":1}' });
+    // Supabase's auth headers must reach the server through the new fetch.
+    expect(await response.json()).toEqual({ method: "POST", body: '{"a":1}', apikey: "anon-key", authorization: "Bearer jwt" });
   });
 
   it("hands a Request object to the built-in fetch unchanged", async () => {
-    const response = await supabaseFetch(new Request(`${baseUrl}/auth/v1/user`));
-    expect(await response.json()).toEqual({ method: "GET", body: "" });
+    const response = await supabaseFetch(new Request(`${baseUrl}/auth/v1/user`, { headers: { apikey: "anon-key" } }));
+    expect(await response.json()).toEqual({ method: "GET", body: "", apikey: "anon-key", authorization: null });
   });
 });
