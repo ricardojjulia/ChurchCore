@@ -20,7 +20,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { Heart, RefreshCw } from "lucide-react";
+import { Download, Heart, RefreshCw } from "lucide-react";
 
 import {
   cancelPendingDonationAction,
@@ -71,12 +71,15 @@ export function DonorPortal({
   publishableKey = null,
   stripeAccount = null,
   recurringGifts = [],
+  statementYears = [],
   today = new Date().toISOString().slice(0, 10),
   timeZone = null,
 }: {
   data: DonorPortalData;
   /** The member's recurring gifts (G3.1). */
   recurringGifts?: RecurringGift[];
+  /** Calendar years in which the member has statement-eligible gifts (G3.3), newest first. */
+  statementYears?: number[];
   /** Today in the church's time zone (YYYY-MM-DD). */
   today?: string;
   /** The church's time zone, for payment dates. */
@@ -99,6 +102,11 @@ export function DonorPortal({
   const [note, setNote] = useState("");
   const [checkout, setCheckout] = useState<Checkout | null>(null);
   const [isPending, startTransition] = useTransition();
+  const lastYear = new Date(`${today}T00:00:00Z`).getUTCFullYear() - 1;
+  const years = [...statementYears].sort((a, b) => b - a);
+  const [statementYear, setStatementYear] = useState<string | null>(
+    String(years.includes(lastYear) ? lastYear : (years[0] ?? lastYear)),
+  );
 
   function resetForm() {
     setAmountDollars(25);
@@ -283,6 +291,44 @@ export function DonorPortal({
         timeZone={timeZone}
         givingOff={Boolean(givingNotice)}
       />
+
+      {/* Year-end statement (G3.3) */}
+      <Paper withBorder p="lg" radius="md">
+        <Stack gap="sm">
+          <Text fw={600}>Download statement</Text>
+          {years.length === 0 ? (
+            <Text fz="sm" c="dimmed">
+              No gifts recorded for {lastYear}
+            </Text>
+          ) : (
+            <>
+              <Text fz="sm" c="dimmed">
+                A PDF of your completed gifts for the year, for your tax records.
+              </Text>
+              <Group align="flex-end" gap="sm">
+                <Select
+                  label="Statement year"
+                  value={statementYear}
+                  onChange={setStatementYear}
+                  data={years.map((y) => ({ value: String(y), label: String(y) }))}
+                  allowDeselect={false}
+                  radius="md"
+                  style={{ flex: "1 1 140px" }}
+                />
+                <Button
+                  component="a"
+                  href={`/api/member/giving-statement?year=${encodeURIComponent(statementYear ?? String(years[0]))}`}
+                  radius="xl"
+                  leftSection={<Download size={14} />}
+                  style={{ minHeight: 44 }}
+                >
+                  Download statement
+                </Button>
+              </Group>
+            </>
+          )}
+        </Stack>
+      </Paper>
 
       {/* Giving history */}
       <Paper withBorder radius="md" style={{ overflow: "hidden" }}>

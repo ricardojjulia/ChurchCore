@@ -12,6 +12,10 @@ import { listChurchRecurringGifts } from "@/lib/recurring-gifts";
 import { getChurchPaymentConnection } from "@/lib/stripe/connect";
 import { createTenantAdminClient } from "@/lib/supabase/tenant";
 
+// Sending statements runs inside this page's server action; the batch stops
+// claiming donors at ~40s (BATCH_BUDGET_MS) so it finishes inside this limit.
+export const maxDuration = 60;
+
 export default async function ChurchAdminGivingPage({
   searchParams = Promise.resolve({}),
 }: {

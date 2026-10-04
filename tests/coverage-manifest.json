@@ -570,9 +570,11 @@
       "controlPlane": false,
       "dynamicParams": null,
       "tests": [
+        "components/application/giving-statements-panel.test.tsx",
         "tests/e2e/church-admin-readiness.spec.ts",
         "tests/e2e/page-role-sweep.spec.ts",
-        "tests/e2e/recurring-giving.spec.ts"
+        "tests/e2e/recurring-giving.spec.ts",
+        "tests/e2e/giving-statements.spec.ts"
       ]
     },
     "/app/church-admin/giving/import": {
@@ -1286,11 +1288,13 @@
       "controlPlane": false,
       "dynamicParams": null,
       "tests": [
+        "app/app/member/giving/page.test.tsx",
         "components/portal/donor-portal.test.tsx",
         "tests/e2e/member-mobile-foundation.spec.ts",
         "tests/e2e/member-writes.spec.ts",
         "tests/e2e/page-role-sweep.spec.ts",
-        "tests/e2e/recurring-giving.spec.ts"
+        "tests/e2e/recurring-giving.spec.ts",
+        "tests/e2e/giving-statements.spec.ts"
       ]
     },
     "/app/member/groups": {
@@ -1825,6 +1829,32 @@
         "tests/e2e/api-demo.spec.ts"
       ]
     },
+    "/api/giving/statements/pdf": {
+      "path": "/api/giving/statements/pdf",
+      "file": "app/api/giving/statements/pdf/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "session",
+      "tests": [
+        "tests/e2e/api-session-routes.spec.ts",
+        "app/api/giving/statements/pdf/route.test.ts",
+        "tests/e2e/giving-statements.spec.ts"
+      ]
+    },
+    "/api/member/giving-statement": {
+      "path": "/api/member/giving-statement",
+      "file": "app/api/member/giving-statement/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "session",
+      "tests": [
+        "tests/e2e/api-session-routes.spec.ts",
+        "app/api/member/giving-statement/route.test.ts",
+        "tests/e2e/giving-statements.spec.ts"
+      ]
+    },
     "/api/push/subscribe": {
       "path": "/api/push/subscribe",
       "file": "app/api/push/subscribe/route.ts",
@@ -2088,6 +2118,16 @@
       ],
       "tests": [
         "app/app/church-admin/giving/import/actions.test.ts"
+      ]
+    },
+    "app/app/church-admin/giving/statements-actions.ts": {
+      "module": "app/app/church-admin/giving/statements-actions.ts",
+      "exports": [
+        "previewStatementsAction",
+        "sendStatementsAction"
+      ],
+      "tests": [
+        "app/app/church-admin/giving/statements-actions.test.ts"
       ]
     },
     "app/app/church-admin/groups/import/actions.ts": {

@@ -253,3 +253,62 @@ test.describe("Stripe Connect routes — signed in as church-admin", () => {
     expect(response.headers()["location"]).toContain("/app/church-admin/giving?stripe=cancelled");
   });
 });
+
+// ── Giving statements (G3.3) ─────────────────────────────────────────────────
+// Both routes call requireChurchSession outside any try, so a signed-out caller
+// is redirected to /sign-in (307), never a 500. The admin route is church-admin
+// only; the member route has no donor parameter and serves any signed-in member.
+
+const STATEMENT_RANGE = "start=2025-01-01&end=2025-12-31";
+const STATEMENT_PDF = `/api/giving/statements/pdf?donor=p:00000000-0000-0000-0000-000000000000&${STATEMENT_RANGE}`;
+
+test.describe("giving statement routes — signed out", () => {
+  for (const path of [STATEMENT_PDF, "/api/member/giving-statement?year=2025"]) {
+    test(`GET ${path.split("?")[0]} -> redirect to /sign-in`, async ({ request }) => {
+      const response = await request.get(path, { maxRedirects: 0 });
+      expect(response.status()).toBe(307);
+      expect(response.headers()["location"]).toContain("/sign-in");
+    });
+  }
+});
+
+for (const identity of ["pastor", "secretary", "ministry-leader", "member"] as const) {
+  test.describe(`GET /api/giving/statements/pdf — signed in as ${identity}`, () => {
+    test.use({ storageState: authFilePath(identity) });
+
+    test("-> 403: only a church admin downloads donor statements", async ({ page }) => {
+      const response = await page.request.get(STATEMENT_PDF, { maxRedirects: 0 });
+      expect(response.status()).toBe(403);
+      expect(response.headers()["content-type"]).not.toContain("application/pdf");
+      expect(await response.json()).toEqual({ error: "Unauthorized" });
+    });
+  });
+}
+
+test.describe("GET /api/giving/statements/pdf — signed in as church-admin", () => {
+  test.use({ storageState: authFilePath("church-admin") });
+
+  test("a missing donor -> 400, an unknown donor -> 404, an invalid range -> 400", async ({ page }) => {
+    expect((await page.request.get(`/api/giving/statements/pdf?${STATEMENT_RANGE}`)).status()).toBe(400);
+    expect((await page.request.get(STATEMENT_PDF)).status()).toBe(404);
+    expect(
+      (await page.request.get("/api/giving/statements/pdf?donor=p:00000000-0000-0000-0000-000000000000&start=2025-12-31&end=2025-01-01")).status(),
+    ).toBe(400);
+    expect((await page.request.get("/api/giving/statements/pdf?donor=p:not-a-uuid&start=2025-01-01&end=2025-12-31")).status()).toBe(404);
+  });
+});
+
+for (const identity of ["church-admin", "pastor", "secretary", "ministry-leader", "member"] as const) {
+  test.describe(`GET /api/member/giving-statement — signed in as ${identity}`, () => {
+    test.use({ storageState: authFilePath(identity) });
+
+    test("a year with no gifts -> 404 JSON (never an empty PDF); a bad year -> 400", async ({ page }) => {
+      const none = await page.request.get("/api/member/giving-statement?year=2001", { maxRedirects: 0 });
+      expect([404, 403]).toContain(none.status());
+      expect(none.headers()["content-type"]).not.toContain("application/pdf");
+      expect((await page.request.get("/api/member/giving-statement?year=nope", { maxRedirects: 0 })).status()).toBe(
+        none.status() === 403 ? 403 : 400,
+      );
+    });
+  });
+}
