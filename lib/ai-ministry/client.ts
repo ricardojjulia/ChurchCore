@@ -1,6 +1,7 @@
 import "server-only";
 
 import { completeChat } from "@/lib/ai/gateway";
+import { scrubPII } from "@/lib/ai/scrub";
 import { createTenantServerClient } from "@/lib/supabase/tenant";
 import { type AiFeature } from "./constants";
 
@@ -17,6 +18,7 @@ export async function callMinistryAI(
     system: prompt.system,
     messages: [{ role: "user", content: prompt.user }],
     maxTokens: 1024,
+    timeoutMs: 50_000,
   });
 
   // Audit log — written AFTER a successful API call so failures leave no orphan rows.
@@ -25,7 +27,7 @@ export async function callMinistryAI(
     church_id: churchId,
     profile_id: profileId,
     feature,
-    topic_text: prompt.user.slice(0, 500),
+    topic_text: scrubPII(prompt.user).slice(0, 500),
     disclaimer_shown: true,
     model_used: completion.model,
     provider: completion.provider,

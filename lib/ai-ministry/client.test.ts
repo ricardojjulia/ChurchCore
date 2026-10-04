@@ -85,7 +85,18 @@ describe("callMinistryAI", () => {
       system: PROMPT.system,
       messages: [{ role: "user", content: PROMPT.user }],
       maxTokens: 1024,
+      timeoutMs: 50_000,
     });
+  });
+
+  it("scrubs PII from topic_text before logging, and sends the gateway the raw text to scrub itself", async () => {
+    await callMinistryAI({ ...PROMPT, user: "Note for bob@example.org, call 787-555-0142" }, "sermon_planning", "c", "p");
+    expect(supabaseInsertMock).toHaveBeenCalledWith(expect.objectContaining({ topic_text: "Note for [EMAIL], call [PHONE]" }));
+  });
+
+  it("passes a 50 s time limit", async () => {
+    await callMinistryAI(PROMPT, "bible_study", "c", "p");
+    expect(completeChatMock).toHaveBeenCalledWith(expect.objectContaining({ timeoutMs: 50_000 }));
   });
 
   it("writes the model, provider, tokens and cost to ai_interactions", async () => {

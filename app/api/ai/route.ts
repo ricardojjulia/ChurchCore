@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { completeChat, isAiConfigured, type ChatCompletion } from "@/lib/ai/gateway";
+import { AiProviderError, completeChat, isAiConfigured, providerFailureMessage, type ChatCompletion } from "@/lib/ai/gateway";
+import { scrubPII } from "@/lib/ai/scrub";
 import { ADVISOR_SYSTEM_PROMPT } from "@/lib/council/seats";
 import { runCouncil } from "@/lib/council/run";
 import { isRateLimited } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+// A Council run is five parallel seats then a synthesis (25 s cap each, see lib/council/run.ts).
+export const maxDuration = 60;
 
 // Models come from the gateway's feature registry (lib/ai/models.ts, ADR 0027).
 const MAX_PROMPT_CHARS = 8000;
@@ -45,31 +48,7 @@ export async function loadHqRegister(supabase: ServerClient): Promise<string> {
   );
 }
 
-export function scrubPII(text: string): string {
-  if (!text) return "";
-  
-  // 1. Scrub email addresses. Quantifiers are bounded (RFC 5321-ish limits)
-  // rather than unbounded `+` to avoid polynomial backtracking (ReDoS) on
-  // adversarial input -- this runs on user-controlled prompt text.
-  let scrubbed = text.replace(
-    /[a-zA-Z0-9._%+-]{1,64}@[a-zA-Z0-9.-]{1,255}\.[a-zA-Z]{2,24}/g,
-    "[EMAIL]"
-  );
-
-  // 2. Scrub UUIDs (typically matches user_id, auth_id, record IDs)
-  scrubbed = scrubbed.replace(
-    /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g,
-    "[ID]"
-  );
-
-  // 3. Scrub phone numbers: North American (incl. 787/939) and "+"-prefixed
-  // international. Shaped, so dates like 2026-10-03 survive.
-  scrubbed = scrubbed
-    .replace(/\+\d{1,3}[\s.-]?(?:\(?\d{1,4}\)?[\s.-]?){2,4}\d{2,4}\b/g, "[PHONE]")
-    .replace(/(?:\b1[\s.-]?)?(?:\(\d{3}\)|\b\d{3})[\s.-]?\d{3}[\s.-]?\d{4}\b/g, "[PHONE]");
-
-  return scrubbed;
-}
+export { scrubPII };
 
 export async function POST(request: NextRequest): Promise<Response> {
   const supabase = await createClient("tenant");
@@ -137,6 +116,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       const completion = await completeChat({
         feature: "hq-advisor",
         maxTokens: 1524,
+        timeoutMs: 50_000,
         system: ADVISOR_SYSTEM_PROMPT,
         messages: [{ role: "user", content: `${scrubbedPrompt}\n\nHQ REGISTER (context):\n${register}` }],
       });
@@ -169,6 +149,10 @@ export async function POST(request: NextRequest): Promise<Response> {
   } catch (error) {
     // Provider errors can carry request details; log them, don't return them.
     console.error("[api/ai] error processing request:", error);
+    if (error instanceof AiProviderError) {
+      const friendly = providerFailureMessage(error.status);
+      if (friendly) return NextResponse.json({ error: friendly.message }, { status: friendly.httpStatus });
+    }
     return NextResponse.json({ error: "The AI request failed. Try again." }, { status: 502 });
   }
 }

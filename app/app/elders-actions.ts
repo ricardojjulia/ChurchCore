@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { AiProviderError, providerFailureMessage } from "@/lib/ai/gateway";
 import { requireChurchSession } from "@/lib/auth";
 import {
   callMinistryAI,
@@ -657,9 +658,10 @@ export async function generateSermonOutlineAction(
     if (message.includes("not configured")) {
       return { ok: false, error: "AI features are not configured in this environment." };
     }
+    const friendly = err instanceof AiProviderError ? providerFailureMessage(err.status) : null;
     return {
       ok: false,
-      error: "The AI assistant is temporarily unavailable. Please try again.",
+      error: friendly?.message ?? "The AI assistant is temporarily unavailable. Please try again.",
     };
   }
 }
@@ -707,9 +709,10 @@ export async function generateBibleStudyAnswerAction(
     if (message.includes("not configured")) {
       return { ok: false, error: "AI features are not configured in this environment." };
     }
+    const friendly = err instanceof AiProviderError ? providerFailureMessage(err.status) : null;
     return {
       ok: false,
-      error: "The AI assistant is temporarily unavailable. Please try again.",
+      error: friendly?.message ?? "The AI assistant is temporarily unavailable. Please try again.",
     };
   }
 }

@@ -63,6 +63,7 @@ export async function runCouncil(input: {
       const completion = await input.complete({
         feature: "hq-council-seat",
         maxTokens: 900,
+        timeoutMs: 25_000,
         system: seatSystemPrompt(seat),
         messages: [{ role: "user", content: subject }],
       });
@@ -81,6 +82,7 @@ export async function runCouncil(input: {
   const synthesisCompletion = await input.complete({
     feature: "hq-council-synthesis",
     maxTokens: 1200,
+    timeoutMs: 25_000,
     system: SYNTHESIS_SYSTEM_PROMPT,
     messages: [{ role: "user", content: `${subject}\n\nSEAT REVIEWS:\n${reviews}` }],
   });

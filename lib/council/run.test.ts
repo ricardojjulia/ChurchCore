@@ -74,6 +74,12 @@ describe("runCouncil", () => {
     expect(run.usage.providers).toEqual(["anthropic"]);
   });
 
+  it("gives seats and synthesis 25 s each", async () => {
+    const create = vi.fn(async () => reply("ok"));
+    await runCouncil({ complete: create as never, proposal: "p", register: "r" });
+    expect((create.mock.calls as unknown as Array<[{ timeoutMs: number }]>).every(([params]) => params.timeoutMs === 25_000)).toBe(true);
+  });
+
   it("runs the five seats in parallel, before the synthesis starts", async () => {
     let inFlight = 0;
     let peak = 0;

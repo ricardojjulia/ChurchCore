@@ -94,6 +94,12 @@ export type CouncilForgeData = {
 export const ELDER_AI_DISCLAIMER =
   "This is an assistive tool only. It never replaces prayer, Scripture study, or human pastoral discernment. AI suggestions require elder review before any decision is made or shared.";
 
+// Where a request goes (ADR 0027). Shown next to the disclaimer on every AI
+// input surface; kept out of ELDER_AI_DISCLAIMER because that text is also
+// sent to the model and appended to saved outputs (Council Review 41).
+export const AI_DATA_ROUTING_NOTICE =
+  "Requests are sent through OpenRouter to AI models from Anthropic or Google, routed only to providers that do not retain data. Leave out names and contact details.";
+
 // ── Status metadata ──────────────────────────────────────────
 
 export const SESSION_STATUS_LABEL: Record<DiscernmentSessionStatus, string> = {

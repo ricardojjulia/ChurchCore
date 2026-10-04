@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 import { Button, Modal, Text } from "@mantine/core";
 
-import { ELDER_AI_DISCLAIMER } from "@/lib/elders-types";
+import { AI_DATA_ROUTING_NOTICE, ELDER_AI_DISCLAIMER } from "@/lib/elders-types";
 
 export type AiFeatureKey = "sermon_planning" | "bible_study";
 
@@ -70,7 +70,7 @@ export function DisclaimerGate({
         {ELDER_AI_DISCLAIMER}
       </Text>
       <Text fz="xs" c="dimmed" mb="xl">
-        This tool uses the Anthropic Claude AI model.
+        {AI_DATA_ROUTING_NOTICE}
       </Text>
       <Button fullWidth color="churchBlue" radius="xl" onClick={handleConfirm}>
         I Understand

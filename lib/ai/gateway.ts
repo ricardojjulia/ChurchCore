@@ -2,6 +2,7 @@ import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
 
+import { scrubPII } from "./scrub";
 import { anthropicModelFor, openRouterModelsFor, type AiGatewayFeature } from "./models";
 
 // The one place a model is called (ADR 0027). OpenRouter first, with a ranked
@@ -27,6 +28,8 @@ export type CompleteChat = (request: {
   messages: ChatMessage[];
   maxTokens: number;
   signal?: AbortSignal;
+  /** Per-call time limit in ms; defaults to 60 s. */
+  timeoutMs?: number;
 }) => Promise<ChatCompletion>;
 
 export class AiNotConfiguredError extends Error {
@@ -51,8 +54,23 @@ export function isAiConfigured(): boolean {
   return Boolean(process.env.OPENROUTER_API_KEY || process.env.ANTHROPIC_API_KEY);
 }
 
-function withTimeout(signal?: AbortSignal): AbortSignal {
-  const timeout = AbortSignal.timeout(TIMEOUT_MS);
+/**
+ * What a platform admin or ministry user can act on, for the two provider
+ * failures that have a fix. Never provider text; null means "use the generic message".
+ */
+export function providerFailureMessage(status: number | null): { httpStatus: 502 | 503; message: string } | null {
+  if (status === 402) return { httpStatus: 502, message: "AI credits are exhausted. A platform admin needs to top up the AI account." };
+  // 503, not 429, so it isn't confused with our own rate limit.
+  if (status === 429) return { httpStatus: 503, message: "The AI provider is busy. Try again in a minute." };
+  return null;
+}
+
+// Every message is scrubbed here so no caller can skip it. The system prompt is ours.
+const scrubMessages = (messages: ChatMessage[]): ChatMessage[] =>
+  messages.map((message) => ({ ...message, content: scrubPII(message.content) }));
+
+function withTimeout(signal?: AbortSignal, timeoutMs = TIMEOUT_MS): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs);
   return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
@@ -70,13 +88,13 @@ async function viaOpenRouter(apiKey: string, request: Parameters<CompleteChat>[0
       body: JSON.stringify({
         model: models[0],
         models,
-        messages: [{ role: "system", content: request.system }, ...request.messages],
+        messages: [{ role: "system", content: request.system }, ...scrubMessages(request.messages)],
         max_tokens: request.maxTokens,
         // Fail closed: if no zero-data-retention endpoint serves the model the
         // request errors; it is never retried without this policy.
         provider: { zdr: true, data_collection: "deny", allow_fallbacks: true },
       }),
-      signal: withTimeout(request.signal),
+      signal: withTimeout(request.signal, request.timeoutMs),
     });
   } catch (error) {
     console.error("[ai/gateway] openrouter request failed:", error);
@@ -119,8 +137,8 @@ async function viaAnthropic(apiKey: string, request: Parameters<CompleteChat>[0]
   let message: Anthropic.Message;
   try {
     message = await new Anthropic({ apiKey }).messages.create(
-      { model, max_tokens: request.maxTokens, system: request.system, messages: request.messages },
-      { signal: withTimeout(request.signal) },
+      { model, max_tokens: request.maxTokens, system: request.system, messages: scrubMessages(request.messages) },
+      { signal: withTimeout(request.signal, request.timeoutMs) },
     );
   } catch (error) {
     console.error("[ai/gateway] anthropic request failed:", error);

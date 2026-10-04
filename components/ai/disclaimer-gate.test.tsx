@@ -82,10 +82,10 @@ describe("DisclaimerGate", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows Anthropic model note inside the modal", () => {
+  it("shows the OpenRouter routing note inside the modal", () => {
     renderGate("sermon_planning");
     expect(
-      screen.getByText(/This tool uses the Anthropic Claude AI model/i),
+      screen.getByText(/Requests are sent through OpenRouter to AI models from Anthropic or Google/i),
     ).toBeInTheDocument();
   });
 });

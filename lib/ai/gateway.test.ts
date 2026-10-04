@@ -10,6 +10,7 @@ vi.mock("@anthropic-ai/sdk", () => ({
 }));
 
 import { AiNotConfiguredError, AiProviderError, OPENROUTER_URL, completeChat, isAiConfigured } from "./gateway";
+import { providerFailureMessage } from "./gateway";
 import { anthropicModelFor, openRouterModelsFor } from "./models";
 
 // Shaped like OpenRouter's documented chat-completions response.
@@ -142,6 +143,39 @@ describe("completeChat via OpenRouter", () => {
     spy.mockRestore();
   });
 
+  it("scrubs every message (not the system prompt) before sending", async () => {
+    await completeChat({
+      ...request,
+      system: "Contact help@churchcore.org if stuck.",
+      messages: [
+        { role: "user", content: "Email bob@example.org or call 787-555-0142" },
+        { role: "assistant", content: "id 3fa85f64-5717-4562-b3fc-2c963f66afa6" },
+      ],
+    });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.messages).toEqual([
+      { role: "system", content: "Contact help@churchcore.org if stuck." },
+      { role: "user", content: "Email [EMAIL] or call [PHONE]" },
+      { role: "assistant", content: "id [ID]" },
+    ]);
+  });
+
+  it("applies timeoutMs, defaulting to 60 s", async () => {
+    const spy = vi.spyOn(AbortSignal, "timeout");
+    fetchMock.mockImplementation(async () => json(openRouterResponse));
+    await completeChat(request);
+    await completeChat({ ...request, timeoutMs: 25_000 });
+    expect(spy.mock.calls.map(([ms]) => ms)).toEqual([60_000, 25_000]);
+    spy.mockRestore();
+  });
+
+  it("maps 402 and 429 to friendly messages, others to none", () => {
+    expect(providerFailureMessage(402)).toMatchObject({ httpStatus: 502, message: expect.stringContaining("credits are exhausted") });
+    expect(providerFailureMessage(429)).toMatchObject({ httpStatus: 503, message: expect.stringContaining("busy") });
+    expect(providerFailureMessage(500)).toBeNull();
+    expect(providerFailureMessage(null)).toBeNull();
+  });
+
   it("prefers OpenRouter when both keys are set", async () => {
     vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant");
     await completeChat(request);
@@ -186,6 +220,11 @@ describe("completeChat direct-Anthropic backup", () => {
       provider: "anthropic",
       usage: { promptTokens: 10, completionTokens: 4, costUsd: null },
     });
+  });
+
+  it("scrubs messages on the direct path too", async () => {
+    await completeChat({ ...request, messages: [{ role: "user", content: "mail bob@example.org" }] });
+    expect(anthropicCreateMock.mock.calls[0][0].messages).toEqual([{ role: "user", content: "mail [EMAIL]" }]);
   });
 
   it("wraps SDK errors without their text and treats empty content as an error", async () => {

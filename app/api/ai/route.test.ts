@@ -17,7 +17,8 @@ vi.mock("@/lib/ai/gateway", async (importOriginal) => ({
   completeChat: createMock,
 }));
 
-import { POST, scrubPII } from "@/app/api/ai/route";
+import { AiProviderError } from "@/lib/ai/gateway";
+import { maxDuration, POST, scrubPII } from "@/app/api/ai/route";
 import { resetRateLimits } from "@/lib/rate-limit";
 import { ADVISOR_SYSTEM_PROMPT, COUNCIL_SEATS, SYNTHESIS_SYSTEM_PROMPT } from "@/lib/council/seats";
 
@@ -189,6 +190,27 @@ describe("POST /api/ai modes (Council v2)", () => {
     expect((await post({ prompt: "   " })).status).toBe(400);
     expect((await post({ prompt: "x".repeat(8001) })).status).toBe(400);
     expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it("allows 60 s, gives the advisor 50 s, and still exports scrubPII", async () => {
+    expect(maxDuration).toBe(60);
+    createMock.mockResolvedValue(completion("ok"));
+    await post({ prompt: "hi" });
+    expect(createMock.mock.calls[0][0].timeoutMs).toBe(50_000);
+    expect(scrubPII("a@b.org")).toBe("[EMAIL]");
+  });
+
+  it.each([
+    [402, 502, "AI credits are exhausted. A platform admin needs to top up the AI account."],
+    [429, 503, "The AI provider is busy. Try again in a minute."],
+    [500, 502, "The AI request failed. Try again."],
+  ])("maps provider status %i to HTTP %i with a fixed message", async (status, http, message) => {
+    createMock.mockRejectedValue(new AiProviderError(status));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const response = await post({ prompt: "hi" });
+    expect(response.status).toBe(http);
+    expect(await response.json()).toEqual({ error: message });
+    spy.mockRestore();
   });
 
   it("doesn't return the provider's error text", async () => {
