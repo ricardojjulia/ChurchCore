@@ -1,7 +1,7 @@
 import "server-only";
 
-import Anthropic from "@anthropic-ai/sdk";
-
+import { completeChat } from "@/lib/ai/gateway";
+import { scrubPII } from "@/lib/ai/scrub";
 import { createTenantServerClient } from "@/lib/supabase/tenant";
 import { type AiFeature } from "./constants";
 
@@ -11,40 +11,34 @@ export async function callMinistryAI(
   churchId: string,
   profileId: string,
 ): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error("AI features are not configured in this environment.");
-  }
-
-  const model = process.env.AI_MINISTRY_MODEL ?? "claude-haiku-4-5-20251001";
-
-  const client = new Anthropic({ apiKey });
-  const message = await client.messages.create({
-    model,
-    max_tokens: 1024,
+  // Throws AiNotConfiguredError ("...not configured...") or AiProviderError
+  // (safe message); callers map both to a generic user-facing error.
+  const completion = await completeChat({
+    feature: "ministry",
     system: prompt.system,
     messages: [{ role: "user", content: prompt.user }],
+    maxTokens: 1024,
+    timeoutMs: 50_000,
   });
-
-  const text = message.content
-    .filter((block) => block.type === "text")
-    .map((block) => (block as { type: "text"; text: string }).text)
-    .join("\n");
-
-  if (!text) {
-    throw new Error("AI returned an empty response.");
-  }
 
   // Audit log — written AFTER a successful API call so failures leave no orphan rows.
   const supabase = await createTenantServerClient();
-  await supabase.from("ai_interactions").insert({
+  const { error } = await supabase.from("ai_interactions").insert({
     church_id: churchId,
     profile_id: profileId,
     feature,
-    topic_text: prompt.user.slice(0, 500),
+    topic_text: scrubPII(prompt.user).slice(0, 500),
     disclaimer_shown: true,
-    model_used: model,
+    model_used: completion.model,
+    provider: completion.provider,
+    prompt_tokens: completion.usage.promptTokens,
+    completion_tokens: completion.usage.completionTokens,
+    cost_usd: completion.usage.costUsd,
   });
+  if (error) {
+    // The answer was produced and paid for; don't withhold it over a log failure.
+    console.error("[ai-ministry] failed to log ai_interaction:", error);
+  }
 
-  return text;
+  return completion.text;
 }

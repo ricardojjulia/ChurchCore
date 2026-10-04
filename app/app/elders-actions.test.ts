@@ -56,6 +56,7 @@ import {
   generateSermonOutlineAction,
 } from "@/app/app/elders-actions";
 import { ELDER_AI_DISCLAIMER } from "@/lib/elders-types";
+import { AiProviderError } from "@/lib/ai/gateway";
 
 // ── Shared session fixtures ────────────────────────────────────────────────────
 
@@ -279,5 +280,25 @@ describe("generateBibleStudyAnswerAction", () => {
       ok: false,
       error: "The AI assistant is temporarily unavailable. Please try again.",
     });
+  });
+});
+
+describe("ministry AI provider failures (Council Review 41)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireChurchSessionMock.mockResolvedValue(pastorSession);
+  });
+
+  const outline = () =>
+    generateSermonOutlineAction({ noteId: "n", noteType: "sermon_outline", noteTitle: "T", existingContent: null });
+
+  it.each([
+    [402, "AI credits are exhausted. A platform admin needs to top up the AI account."],
+    [429, "The AI provider is busy. Try again in a minute."],
+    [500, "The AI assistant is temporarily unavailable. Please try again."],
+  ])("maps provider status %i to a friendly message, for both actions", async (status, message) => {
+    callMinistryAIMock.mockRejectedValue(new AiProviderError(status));
+    expect(await outline()).toEqual({ ok: false, error: message });
+    expect(await generateBibleStudyAnswerAction({ query: "John 3:16" })).toEqual({ ok: false, error: message });
   });
 });

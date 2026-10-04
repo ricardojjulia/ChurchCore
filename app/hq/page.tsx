@@ -1161,7 +1161,7 @@ export default function ProjectHQPage() {
                         </Text>
                         
                         <Text size="xs" c="dimmed" mt="md" style={{ borderTop: "1px solid #1e293b", paddingTop: "8px" }}>
-                          Verify references before acting on them. Email addresses, phone numbers and IDs are removed before a prompt is sent or saved; names and other details you type are not, so leave them out. From the register, only titles and statuses are sent, never owners or mitigation notes.
+                          Verify references before acting on them. Email addresses, phone numbers and IDs are removed before a prompt is sent or saved; names and other details you type are not, so leave them out. Prompts go through OpenRouter to Anthropic or Google models with zero data retention. From the register, only titles and statuses are sent, never owners or mitigation notes.
                         </Text>
                       </Stack>
                     </Card>

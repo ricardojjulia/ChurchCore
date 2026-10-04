@@ -157,7 +157,8 @@ ChurchCore follows the ChurchCore Design System: dark-first slate surfaces, an i
 - **Member mobile shell:** phone-first bottom navigation now prioritizes home, calendar, groups, schedule, and family; member home includes quick-action cards for top tasks, and member calendar keeps bottom-nav continuity.
 - **Public portal:** host-aware church resolution plus member account onboarding through `/portal/register`.
 - **ShepherdAI workflow queue:** `/app/church-admin/workflows` for suggested ministry workflows generated from deterministic signals.
-- **AI Ministry Tools:** `/app/pastor/bible-study` for Claude-powered Bible Study Q&A; Council Forge extended with AI Suggest for sermon outline and series plan generation. All AI interactions are server-side, consent-gated, and logged to `ai_interactions`.
+- **AI Ministry Tools:** `/app/pastor/bible-study` for AI-assisted Bible Study Q&A; Council Forge extended with AI Suggest for sermon outline and series plan generation. All AI interactions are server-side, consent-gated, and logged to `ai_interactions`.
+- **AI gateway (ADR 0027):** every LLM call goes through one server-only gateway (`lib/ai/gateway.ts`) to OpenRouter, with per-feature ranked model fallbacks (`lib/ai/models.ts`), zero-data-retention routing that fails closed, PII scrubbing on every message, and token/cost logging. Set `OPENROUTER_API_KEY`; direct Anthropic (`ANTHROPIC_API_KEY`) is the backup when it is unset. Per-feature overrides (`AI_MODELS_<FEATURE>`, `AI_ANTHROPIC_MODEL_<FEATURE>`) are in `.env.example`.
 - **Localization Governance:** `/app/church-admin/localization` for governed translation lifecycle (draft → validated → reviewed → approved → active → stale); CLI via `locgov` binary; runtime fallback to hardcoded i18n catalog.
 
 ## AI-Assisted Development
@@ -169,7 +170,7 @@ ChurchCore includes a repo-local software factory for structured AI-assisted dev
 - **Gemini (Antigravity):** use `.gemini/skills/gemini-feature-factory`, `.gemini/skills/gemini-build-with-tests`, and `.gemini/skills/gemini-pr-review`.
 
 - **The Council (v2):** five read-only audit agents (Data & API, Routes & Pages, UX & Shell, Feature & Plan, Security) plus a Documenter run before every non-trivial merge to `main`; the synthesis opens with a RATIFIED/AMENDED/REJECTED recommendation. See [`improve-software.md`](improve-software.md) and [`docs/reviews/`](docs/reviews/).
-- **Project HQ (`/hq`, platform staff only):** a register of tasks, risks and decisions plus an AI advisor and an in-app Council (five seats in parallel, then a synthesis) on `AI_HQ_MODEL`. Prompts are PII-scrubbed; only register titles and statuses are sent. Portable spec: [`docs/council-and-hq-portable.md`](docs/council-and-hq-portable.md).
+- **Project HQ (`/hq`, platform staff only):** a register of tasks, risks and decisions plus an AI advisor and an in-app Council (five seats in parallel, then a synthesis). Prompts are PII-scrubbed inside the gateway; only register titles and statuses are sent. Portable spec: [`docs/council-and-hq-portable.md`](docs/council-and-hq-portable.md).
 
 Start with [docs/software-factory.md](docs/software-factory.md) for the how-to and [docs/diagrams.md](docs/diagrams.md#claude-code-software-factory) for the visual workflow maps.
 

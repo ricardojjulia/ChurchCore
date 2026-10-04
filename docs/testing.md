@@ -50,7 +50,7 @@ npm run test:e2e:local -- -g "as pastor"                  # one identity's sweep
    - creates the demo users;
    - registers the admin as a platform admin in the control plane;
    - encrypts the seeded pastoral fields. Locally it uses a test-only key kept in the gitignored `.e2e-pastoral-key.local`, which is created on first run and survives `npm ci`.
-2. Exports the same dummy secrets CI uses, with every provider API key empty so SendGrid, Twilio, Resend, Stripe, and Anthropic stay in stub mode.
+2. Exports the same dummy secrets CI uses, with every provider API key empty so SendGrid, Twilio, Resend, Stripe, Anthropic, and OpenRouter stay in stub mode.
 3. Builds the app and runs Playwright against `next start` on port 4200.
 
 To start from clean seed data, run `npm run setup:e2e -- --reset`, then `npm run test:e2e:local`.
