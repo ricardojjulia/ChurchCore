@@ -6,6 +6,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+- **Council synthesis: header block and definition-of-done checklist** (process, docs only; owner request 2026-10-04 after evaluating a pasted "dual-tier governance" prompt). Each synthesis now carries Date, Branch, Related, Tags and Surfaces under its status, and closes with a definition-of-done checklist ticked only with evidence: unit tests, surfaces, lint, types, build, e2e/CI, migration (lint, fresh-reset apply, backwards-compatible, rollback, owner apply row), verified commits, review threads, and the Documenter close-out. Applied to `improve-software.md` (Phase 2 §0 and new §5), the Claude, Codex and Gemini council skills, and `docs/council-and-hq-portable.md`. **Not adopted** from that prompt: a binding 6/6 unanimous vote, one response voting as several seats, its LMS-specific personas, and hidden "easter egg" entry points to `/hq` (which would have let church roles in, against S5). Also corrects G3.3's tracker row to merged (#181).
+
 ### Added
 
 - **Year-end giving statements — G3.3, Council Review 40** (`feat/giving-statements-g3-3`, commits `60d912b` build, `55a2418` Council Review 40 fixes, on top of `0265caf`; no PR yet, CI not yet run): the factory run is `docs/factory-runs/2026-10-04-g3-3-giving-statements.md`, the Council is `docs/reviews/2026-10-04-council-review-40-synthesis.md` (status AMENDED, fixes landed).

@@ -166,6 +166,7 @@ After all five reports arrive, the orchestrator writes `docs/reviews/YYYY-MM-DD-
   - a competitor or legal claim without evidence;
   - our own code comment or ADR describing something that was never built.
 - A finding that isn't verified isn't a finding.
+- **A header block** under the status: Date, Branch (with commit), Related (plan rows, ADRs, migrations, PRs), Tags, and Surfaces (every page, API route and server action the branch adds or changes).
 
 **§1 Consensus.** Findings that more than one seat raised independently. Highest priority.
 
@@ -186,6 +187,8 @@ After all five reports arrive, the orchestrator writes `docs/reviews/YYYY-MM-DD-
 ```
 
 **§4 Execution order.** Dependency order. Mark which prompts can run in parallel.
+
+**§5 Definition-of-done checklist.** The synthesis ends with §5 below as tick boxes, each ticked only with evidence: the command and its result, or a CI link. A line that doesn't apply says why. The checklist records evidence; it doesn't vote.
 
 **Optional: the owner's register.** Record each decision the owner made in the round, with options and a recommendation, so the plan never depends on chat history.
 
