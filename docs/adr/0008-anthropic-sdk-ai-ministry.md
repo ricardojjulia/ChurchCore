@@ -1,6 +1,6 @@
 # ADR 0008: Anthropic SDK for AI Ministry Tools
 
-- Status: Accepted
+- Status: Superseded by ADR 0027
 - Date: 2026-06-08
 - Deciders: Ricardo Julia
 

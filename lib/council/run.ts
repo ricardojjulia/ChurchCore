@@ -1,6 +1,6 @@
 import "server-only";
 
-import type Anthropic from "@anthropic-ai/sdk";
+import type { ChatCompletion, CompleteChat } from "@/lib/ai/gateway";
 
 import { COUNCIL_SEATS, SYNTHESIS_SYSTEM_PROMPT, seatSystemPrompt, type CouncilSeat } from "./seats";
 
@@ -15,14 +15,19 @@ export type CouncilRun = {
   status: CouncilStatus | null;
   synthesis: string;
   seats: Array<{ id: CouncilSeat["id"]; name: string; review: string; recommendation: CouncilStatus | null }>;
+  /** Summed across all six calls; `models`/`providers` are the distinct ones that answered. */
+  usage: { promptTokens: number; completionTokens: number; costUsd: number | null; models: string[]; providers: string[] };
 };
 
-function textOf(message: Anthropic.Message): string {
-  return message.content
-    .filter((block): block is Anthropic.TextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("\n")
-    .trim();
+function sumUsage(calls: ChatCompletion[]): CouncilRun["usage"] {
+  const costs = calls.map((call) => call.usage.costUsd).filter((cost): cost is number => cost !== null);
+  return {
+    promptTokens: calls.reduce((total, call) => total + call.usage.promptTokens, 0),
+    completionTokens: calls.reduce((total, call) => total + call.usage.completionTokens, 0),
+    costUsd: costs.length ? Math.round(costs.reduce((total, cost) => total + cost, 0) * 1e6) / 1e6 : null,
+    models: [...new Set(calls.map((call) => call.model))],
+    providers: [...new Set(calls.map((call) => call.provider))],
+  };
 }
 
 const STATUS = "(RATIFIED|AMENDED|REJECTED)";
@@ -43,24 +48,26 @@ export function parseStatus(text: string, where: "first" | "last"): CouncilStatu
 }
 
 export async function runCouncil(input: {
-  client: Pick<Anthropic, "messages">;
-  model: string;
+  /** The AI gateway's `completeChat`, injected so tests (and callers) own the provider. */
+  complete: CompleteChat;
   /** The proposal under review, PII-scrubbed. */
   proposal: string;
   /** HQ's register, as text, PII-free. */
   register: string;
 }): Promise<CouncilRun> {
   const subject = `PROPOSAL UNDER REVIEW:\n${input.proposal}\n\nHQ REGISTER (context):\n${input.register}`;
+  const calls: ChatCompletion[] = [];
 
   const seats = await Promise.all(
     COUNCIL_SEATS.map(async (seat) => {
-      const message = await input.client.messages.create({
-        model: input.model,
-        max_tokens: 900,
+      const completion = await input.complete({
+        feature: "hq-council-seat",
+        maxTokens: 900,
         system: seatSystemPrompt(seat),
         messages: [{ role: "user", content: subject }],
       });
-      const review = textOf(message);
+      calls.push(completion);
+      const review = completion.text.trim();
       return {
         id: seat.id,
         name: seat.name,
@@ -71,12 +78,13 @@ export async function runCouncil(input: {
   );
 
   const reviews = seats.map((seat) => `=== ${seat.name} ===\n${seat.review}`).join("\n\n");
-  const synthesisMessage = await input.client.messages.create({
-    model: input.model,
-    max_tokens: 1200,
+  const synthesisCompletion = await input.complete({
+    feature: "hq-council-synthesis",
+    maxTokens: 1200,
     system: SYNTHESIS_SYSTEM_PROMPT,
     messages: [{ role: "user", content: `${subject}\n\nSEAT REVIEWS:\n${reviews}` }],
   });
-  const synthesis = textOf(synthesisMessage);
-  return { status: parseStatus(synthesis, "first"), synthesis, seats };
+  calls.push(synthesisCompletion);
+  const synthesis = synthesisCompletion.text.trim();
+  return { status: parseStatus(synthesis, "first"), synthesis, seats, usage: sumUsage(calls) };
 }

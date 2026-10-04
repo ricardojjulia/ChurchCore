@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { completeChat, isAiConfigured, type ChatCompletion } from "@/lib/ai/gateway";
 import { ADVISOR_SYSTEM_PROMPT } from "@/lib/council/seats";
 import { runCouncil } from "@/lib/council/run";
 import { isRateLimited } from "@/lib/rate-limit";
@@ -7,9 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-// Project HQ's model. AI_MINISTRY_MODEL used to double as this, with a
-// retired default; HQ now has its own setting (Council v2, improve-software.md §6).
-export const DEFAULT_HQ_MODEL = "claude-sonnet-5";
+// Models come from the gateway's feature registry (lib/ai/models.ts, ADR 0027).
 const MAX_PROMPT_CHARS = 8000;
 const REGISTER_ROWS = 25;
 // Per person per minute. A Council run is six model calls (Council Review 39).
@@ -89,8 +87,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  if (!isAiConfigured()) {
     return NextResponse.json(
       { error: "AI features are not configured in this environment." },
       { status: 500 }
@@ -123,31 +120,29 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   try {
     const scrubbedPrompt = scrubPII(prompt);
-    const model = process.env.AI_HQ_MODEL || DEFAULT_HQ_MODEL;
-    const client = new Anthropic({ apiKey });
     const register = await loadHqRegister(supabase);
 
     let responseText: string;
     let payload: Record<string, unknown>;
+    let usage: ChatCompletion["usage"] & { models: string[]; providers: string[] };
     if (mode === "council") {
-      const run = await runCouncil({ client, model, proposal: scrubbedPrompt, register });
+      const run = await runCouncil({ complete: completeChat, proposal: scrubbedPrompt, register });
       responseText = [
         run.synthesis,
         ...run.seats.map((seat) => `=== ${seat.name} ===\n${seat.review}`),
       ].join("\n\n");
       payload = { mode, status: run.status, synthesis: run.synthesis, seats: run.seats };
+      usage = run.usage;
     } else {
-      const message = await client.messages.create({
-        model,
-        max_tokens: 1524,
+      const completion = await completeChat({
+        feature: "hq-advisor",
+        maxTokens: 1524,
         system: ADVISOR_SYSTEM_PROMPT,
         messages: [{ role: "user", content: `${scrubbedPrompt}\n\nHQ REGISTER (context):\n${register}` }],
       });
-      responseText = message.content
-        .filter((block): block is Anthropic.TextBlock => block.type === "text")
-        .map((block) => block.text)
-        .join("\n");
+      responseText = completion.text;
       payload = { mode, response: responseText };
+      usage = { ...completion.usage, models: [completion.model], providers: [completion.provider] };
     }
 
     const { error: insertError } = await supabase
@@ -159,6 +154,11 @@ export async function POST(request: NextRequest): Promise<Response> {
         agent_name: mode === "council" ? "HQ Council" : "HQ Governance Advisor",
         prompt: scrubbedPrompt,
         response: responseText,
+        model_used: usage.models.join(", "),
+        provider: usage.providers.join(", "),
+        prompt_tokens: usage.promptTokens,
+        completion_tokens: usage.completionTokens,
+        cost_usd: usage.costUsd,
       });
 
     if (insertError) {

@@ -32,7 +32,7 @@ export RESEND_WEBHOOK_SECRET
 
 # Provider API keys stay empty so every provider runs in stub mode, even if a
 # developer has real keys in .env.local.
-export SENDGRID_API_KEY="" TWILIO_ACCOUNT_SID="" RESEND_API_KEY="" STRIPE_SECRET_KEY="" ANTHROPIC_API_KEY=""
+export SENDGRID_API_KEY="" TWILIO_ACCOUNT_SID="" RESEND_API_KEY="" STRIPE_SECRET_KEY="" ANTHROPIC_API_KEY="" OPENROUTER_API_KEY=""
 export SENTRY_DSN="" NEXT_PUBLIC_SENTRY_DSN=""
 
 ENV_FILE="$(mktemp)"

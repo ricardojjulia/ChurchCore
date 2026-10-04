@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ── Hoisted mocks ──────────────────────────────────────────────────────────────
 const {
-  anthropicCreateMock,
+  completeChatMock,
   supabaseInsertMock,
   supabaseFromMock,
   createTenantServerClientMock,
@@ -13,20 +13,15 @@ const {
   const anthropicCreate = vi.fn();
 
   return {
-    anthropicCreateMock: anthropicCreate,
+    completeChatMock: anthropicCreate,
     supabaseInsertMock: supabaseInsert,
     supabaseFromMock: supabaseFrom,
     createTenantServerClientMock: createTenantServerClient,
   };
 });
 
-vi.mock("@anthropic-ai/sdk", () => {
-  return {
-    default: class MockAnthropic {
-      messages = { create: anthropicCreateMock };
-    },
-  };
-});
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/ai/gateway", () => ({ completeChat: completeChatMock }));
 
 vi.mock("@/lib/supabase/tenant", () => ({
   createTenantServerClient: createTenantServerClientMock,
@@ -43,23 +38,16 @@ const PROMPT = {
 describe("callMinistryAI", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default: API key present
-    process.env.ANTHROPIC_API_KEY = "test-key";
-    delete process.env.AI_MINISTRY_MODEL;
-
-    // Default: SDK returns a text block
-    anthropicCreateMock.mockResolvedValue({
-      content: [{ type: "text", text: "Here is your outline." }],
+    completeChatMock.mockResolvedValue({
+      text: "Here is your outline.",
+      model: "anthropic/claude-haiku-4.5",
+      provider: "openrouter",
+      usage: { promptTokens: 100, completionTokens: 50, costUsd: 0.00035 },
     });
 
     supabaseInsertMock.mockResolvedValue({ error: null });
     createTenantServerClientMock.mockResolvedValue({ from: supabaseFromMock });
     supabaseFromMock.mockReturnValue({ insert: supabaseInsertMock });
-  });
-
-  afterEach(() => {
-    delete process.env.ANTHROPIC_API_KEY;
-    delete process.env.AI_MINISTRY_MODEL;
   });
 
   it("returns the text from a successful API call", async () => {
@@ -90,56 +78,46 @@ describe("callMinistryAI", () => {
     );
   });
 
-  it("uses the model from AI_MINISTRY_MODEL env var when set", async () => {
-    process.env.AI_MINISTRY_MODEL = "claude-custom-model";
+  it("calls the gateway as the ministry feature with the prompt and a 1024-token cap", async () => {
     await callMinistryAI(PROMPT, "bible_study", "church-1", "profile-1");
-    expect(anthropicCreateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "claude-custom-model" }),
-    );
+    expect(completeChatMock).toHaveBeenCalledWith({
+      feature: "ministry",
+      system: PROMPT.system,
+      messages: [{ role: "user", content: PROMPT.user }],
+      maxTokens: 1024,
+    });
   });
 
-  it("falls back to default model when AI_MINISTRY_MODEL is not set", async () => {
+  it("writes the model, provider, tokens and cost to ai_interactions", async () => {
     await callMinistryAI(PROMPT, "sermon_planning", "church-1", "profile-1");
-    expect(anthropicCreateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "claude-haiku-4-5-20251001" }),
+    expect(supabaseInsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model_used: "anthropic/claude-haiku-4.5",
+        provider: "openrouter",
+        prompt_tokens: 100,
+        completion_tokens: 50,
+        cost_usd: 0.00035,
+      }),
     );
   });
 
-  it("throws 'not configured' when ANTHROPIC_API_KEY is missing", async () => {
-    delete process.env.ANTHROPIC_API_KEY;
-    await expect(
-      callMinistryAI(PROMPT, "sermon_planning", "church-1", "profile-1"),
-    ).rejects.toThrow("AI features are not configured in this environment.");
+  it("still returns the answer, and logs, when the audit insert fails", async () => {
+    supabaseInsertMock.mockResolvedValue({ error: { message: "boom" } } as never);
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await callMinistryAI(PROMPT, "sermon_planning", "church-1", "profile-1")).toBe("Here is your outline.");
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 
-  it("does NOT insert an ai_interactions row when API key is missing", async () => {
-    delete process.env.ANTHROPIC_API_KEY;
-    await expect(
-      callMinistryAI(PROMPT, "sermon_planning", "church-1", "profile-1"),
-    ).rejects.toThrow();
+  it("propagates a not-configured error without inserting an ai_interactions row", async () => {
+    completeChatMock.mockRejectedValue(new Error("AI features are not configured in this environment."));
+    await expect(callMinistryAI(PROMPT, "sermon_planning", "church-1", "profile-1")).rejects.toThrow("not configured");
     expect(supabaseInsertMock).not.toHaveBeenCalled();
   });
 
-  it("throws 'empty response' when content array produces no text", async () => {
-    anthropicCreateMock.mockResolvedValue({ content: [] });
-    await expect(
-      callMinistryAI(PROMPT, "sermon_planning", "church-1", "profile-1"),
-    ).rejects.toThrow("AI returned an empty response.");
-  });
-
-  it("does NOT insert an ai_interactions row when SDK returns empty content", async () => {
-    anthropicCreateMock.mockResolvedValue({ content: [] });
-    await expect(
-      callMinistryAI(PROMPT, "sermon_planning", "church-1", "profile-1"),
-    ).rejects.toThrow();
-    expect(supabaseInsertMock).not.toHaveBeenCalled();
-  });
-
-  it("propagates SDK errors without inserting an ai_interactions row", async () => {
-    anthropicCreateMock.mockRejectedValue(new Error("Network timeout"));
-    await expect(
-      callMinistryAI(PROMPT, "sermon_planning", "church-1", "profile-1"),
-    ).rejects.toThrow("Network timeout");
+  it("propagates gateway errors (including empty responses) without inserting a row", async () => {
+    completeChatMock.mockRejectedValue(new Error("AI returned an empty response."));
+    await expect(callMinistryAI(PROMPT, "sermon_planning", "church-1", "profile-1")).rejects.toThrow("empty response");
     expect(supabaseInsertMock).not.toHaveBeenCalled();
   });
 });

@@ -5,7 +5,12 @@ vi.mock("server-only", () => ({}));
 import { parseStatus, runCouncil } from "./run";
 import { COUNCIL_SEATS, SYNTHESIS_SYSTEM_PROMPT, seatSystemPrompt } from "./seats";
 
-const reply = (text: string) => ({ content: [{ type: "text", text }] });
+const reply = (text: string, extra: Partial<{ model: string; provider: "openrouter" | "anthropic"; costUsd: number | null }> = {}) => ({
+  text,
+  model: extra.model ?? "m1",
+  provider: extra.provider ?? ("openrouter" as const),
+  usage: { promptTokens: 10, completionTokens: 5, costUsd: extra.costUsd === undefined ? 0.001 : extra.costUsd },
+});
 
 describe("the in-app Council's seats", () => {
   it("has five distinct audit seats, Security its own", () => {
@@ -25,15 +30,14 @@ describe("the in-app Council's seats", () => {
 
 describe("runCouncil", () => {
   it("makes one call per seat, each with its own brief, then a synthesis that sees all five reviews", async () => {
-    const create = vi.fn(async (params: { system: string }) => {
-      if (params.system === SYNTHESIS_SYSTEM_PROMPT) return reply("Status: AMENDED\n1. Verdict — fix the RLS gap.");
+    const create = vi.fn(async (params: { system: string; feature: string }) => {
+      if (params.system === SYNTHESIS_SYSTEM_PROMPT) return reply("Status: AMENDED\n1. Verdict — fix the RLS gap.", { model: "opus" });
       const seat = COUNCIL_SEATS.find((candidate) => params.system.startsWith(candidate.brief))!;
       return reply(`${seat.name} review.\nSeat recommendation: ${seat.id === "security" ? "AMENDED" : "RATIFIED"}`);
     });
 
     const run = await runCouncil({
-      client: { messages: { create } } as never,
-      model: "claude-test",
+      complete: create as never,
       proposal: "Add a pledges table",
       register: "Open tasks: none recorded",
     });
@@ -43,9 +47,10 @@ describe("runCouncil", () => {
     for (const seat of COUNCIL_SEATS) expect(systems).toContain(seatSystemPrompt(seat));
     const synthesisCall = create.mock.calls.find(([params]) => params.system === SYNTHESIS_SYSTEM_PROMPT)![0] as unknown as {
       messages: Array<{ content: string }>;
-      model: string;
+      feature: string;
     };
-    expect(synthesisCall.model).toBe("claude-test");
+    expect(synthesisCall.feature).toBe("hq-council-synthesis");
+    expect(create.mock.calls.filter(([params]) => params.feature === "hq-council-seat")).toHaveLength(5);
     for (const seat of COUNCIL_SEATS) expect(synthesisCall.messages[0].content).toContain(`=== ${seat.name} ===`);
     expect(synthesisCall.messages[0].content).toContain("Add a pledges table");
 
@@ -54,9 +59,39 @@ describe("runCouncil", () => {
     expect(run.seats.find((seat) => seat.id === "data")?.recommendation).toBe("RATIFIED");
   });
 
+  it("sums tokens and cost across all six calls and lists the distinct models and providers", async () => {
+    const create = vi.fn(async (params: { feature: string }) =>
+      reply("ok", { model: params.feature === "hq-council-synthesis" ? "opus" : "sonnet" }),
+    );
+    const run = await runCouncil({ complete: create as never, proposal: "p", register: "r" });
+    expect(run.usage).toEqual({ promptTokens: 60, completionTokens: 30, costUsd: 0.006, models: ["sonnet", "opus"], providers: ["openrouter"] });
+  });
+
+  it("reports a null cost when no call had one (direct Anthropic)", async () => {
+    const create = vi.fn(async () => reply("ok", { provider: "anthropic", costUsd: null }));
+    const run = await runCouncil({ complete: create as never, proposal: "p", register: "r" });
+    expect(run.usage.costUsd).toBeNull();
+    expect(run.usage.providers).toEqual(["anthropic"]);
+  });
+
+  it("runs the five seats in parallel, before the synthesis starts", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const create = vi.fn(async (params: { feature: string }) => {
+      if (params.feature === "hq-council-synthesis") expect(inFlight).toBe(0);
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      inFlight -= 1;
+      return reply("ok");
+    });
+    await runCouncil({ complete: create as never, proposal: "p", register: "r" });
+    expect(peak).toBe(COUNCIL_SEATS.length);
+  });
+
   it("reports no status when the synthesis doesn't give one, rather than guessing", async () => {
     const create = vi.fn(async () => reply("I think it's probably fine."));
-    const run = await runCouncil({ client: { messages: { create } } as never, model: "m", proposal: "p", register: "r" });
+    const run = await runCouncil({ complete: create as never, proposal: "p", register: "r" });
     expect(run.status).toBeNull();
     expect(run.seats.every((seat) => seat.recommendation === null)).toBe(true);
   });
