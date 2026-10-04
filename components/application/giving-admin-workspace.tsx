@@ -1,8 +1,9 @@
 "use client";
 
 import { Tabs } from "@mantine/core";
-import { BarChart2, DollarSign, Link2, RefreshCw, Settings } from "lucide-react";
+import { BarChart2, DollarSign, FileText, Link2, RefreshCw, Settings } from "lucide-react";
 
+import { GivingStatementsPanel } from "@/components/application/giving-statements-panel";
 import { RecurringGiftsAdminPanel } from "@/components/application/recurring-gifts-admin-panel";
 import { StripeConnectCard } from "@/components/application/stripe-connect-card";
 import { ApplicationShell } from "@/components/application/app-shell";
@@ -96,6 +97,9 @@ export function GivingAdminWorkspace({
           <Tabs.Tab value="recurring" leftSection={<RefreshCw size={14} />}>
             {t("givingAdmin", "tabRecurring")}
           </Tabs.Tab>
+          <Tabs.Tab value="statements" leftSection={<FileText size={14} />}>
+            {t("givingAdmin", "tabStatements")}
+          </Tabs.Tab>
           <Tabs.Tab value="mappings" leftSection={<Link2 size={14} />}>
             {t("givingAdmin", "tabFundMappings")}
           </Tabs.Tab>
@@ -116,6 +120,10 @@ export function GivingAdminWorkspace({
 
         <Tabs.Panel value="recurring">
           <RecurringGiftsAdminPanel gifts={recurringGifts} timeZone={session.appContext.church.timezone ?? null} />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="statements">
+          <GivingStatementsPanel />
         </Tabs.Panel>
 
         <Tabs.Panel value="mappings">

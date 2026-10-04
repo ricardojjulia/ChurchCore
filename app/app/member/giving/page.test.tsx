@@ -11,6 +11,7 @@ const {
   onlineGivingNoticeMock,
   onlineGivingStatusMock,
   listOwnRecurringGiftsMock,
+  listStatementYearsMock,
 } = vi.hoisted(() => ({
   redirectMock: vi.fn((url: string) => {
     throw { url };
@@ -29,6 +30,7 @@ const {
   onlineGivingNoticeMock: vi.fn(),
   onlineGivingStatusMock: vi.fn(),
   listOwnRecurringGiftsMock: vi.fn(),
+  listStatementYearsMock: vi.fn(),
 }));
 
 vi.mock("@/lib/stripe/donations", () => ({
@@ -38,6 +40,7 @@ vi.mock("@/lib/stripe/donations", () => ({
 }));
 
 vi.mock("@/lib/recurring-gifts", () => ({ listOwnRecurringGifts: listOwnRecurringGiftsMock }));
+vi.mock("@/lib/giving-statements/load", () => ({ listStatementYears: listStatementYearsMock }));
 vi.mock("@/lib/supabase/tenant", () => ({ createTenantAdminClient: () => ({}) }));
 
 vi.mock("next/navigation", () => ({
@@ -76,6 +79,7 @@ describe("member giving page", () => {
     getDonorPortalDataMock.mockResolvedValue({ donations: [] });
     onlineGivingNoticeMock.mockReturnValue(null);
     onlineGivingStatusMock.mockResolvedValue({ mode: "stub", stripeAccount: null });
+    listStatementYearsMock.mockResolvedValue([]);
   });
 
   it("redirects non-member roles to their home path", async () => {
@@ -96,7 +100,16 @@ describe("member giving page", () => {
     expect(screen.getByText("Donor Portal")).toBeInTheDocument();
     expect(getDonorPortalDataMock).toHaveBeenCalled();
     expect(onlineGivingStatusMock).toHaveBeenCalledWith("church-1");
-    expect(donorPortalMock).toHaveBeenCalledWith({ data: { donations: [] }, givingNotice: null, publishableKey: null, stripeAccount: null, recurringGifts: [], today: expect.any(String), timeZone: null }, undefined);
+    expect(donorPortalMock).toHaveBeenCalledWith({ data: { donations: [] }, givingNotice: null, publishableKey: null, stripeAccount: null, recurringGifts: [], statementYears: [], today: expect.any(String), timeZone: null }, undefined);
+  });
+
+  it("still renders the page when reading statement years fails", async () => {
+    listStatementYearsMock.mockRejectedValue(new Error("db down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    render(await MemberGivingPage());
+
+    expect(screen.getByText("Donor Portal")).toBeInTheDocument();
+    expect(donorPortalMock).toHaveBeenCalledWith(expect.objectContaining({ statementYears: [] }), undefined);
   });
 
   it("tells members up front when online giving is off (Council Review 22)", async () => {
@@ -104,7 +117,7 @@ describe("member giving page", () => {
     render(await MemberGivingPage());
 
     expect(donorPortalMock).toHaveBeenCalledWith(
-      { data: { donations: [] }, givingNotice: "Online card giving isn't available yet.", publishableKey: null, stripeAccount: null, recurringGifts: [], today: expect.any(String), timeZone: null },
+      { data: { donations: [] }, givingNotice: "Online card giving isn't available yet.", publishableKey: null, stripeAccount: null, recurringGifts: [], statementYears: [], today: expect.any(String), timeZone: null },
       undefined,
     );
   });
@@ -115,7 +128,7 @@ describe("member giving page", () => {
     render(await MemberGivingPage());
 
     expect(donorPortalMock).toHaveBeenCalledWith(
-      { data: { donations: [] }, givingNotice: null, publishableKey: "pk_test_123", stripeAccount: "acct_church1", recurringGifts: [], today: expect.any(String), timeZone: null },
+      { data: { donations: [] }, givingNotice: null, publishableKey: "pk_test_123", stripeAccount: "acct_church1", recurringGifts: [], statementYears: [], today: expect.any(String), timeZone: null },
       undefined,
     );
   });
@@ -132,5 +145,32 @@ describe("member giving page", () => {
 
     expect(listOwnRecurringGiftsMock).toHaveBeenCalledWith(expect.anything(), "church-1", "profile-1");
     expect(donorPortalMock).toHaveBeenCalledWith(expect.objectContaining({ recurringGifts: [gift] }), undefined);
+  });
+
+  it("lists statement years by the church profile id, never the login id, in the church time zone (G3.3)", async () => {
+    requireChurchSessionMock.mockResolvedValueOnce({
+      appContext: { roleId: "member", church: { id: "church-1", name: "Grace Church", timezone: "America/Chicago" } },
+      userId: "login-1",
+      profile: { id: "login-1" },
+      churchProfileId: "profile-1",
+      homePath: "/app/member",
+    });
+    listStatementYearsMock.mockResolvedValueOnce([2025, 2024]);
+    render(await MemberGivingPage());
+
+    expect(listStatementYearsMock).toHaveBeenCalledWith(expect.anything(), "church-1", "profile-1", "America/Chicago");
+    expect(donorPortalMock).toHaveBeenCalledWith(expect.objectContaining({ statementYears: [2025, 2024] }), undefined);
+  });
+
+  it("skips the statement years when the member has no church profile (G3.3)", async () => {
+    requireChurchSessionMock.mockResolvedValueOnce({
+      appContext: { roleId: "member", church: { id: "church-1", name: "Grace Church" } },
+      churchProfileId: null,
+      homePath: "/app/member",
+    });
+    render(await MemberGivingPage());
+
+    expect(listStatementYearsMock).not.toHaveBeenCalled();
+    expect(donorPortalMock).toHaveBeenCalledWith(expect.objectContaining({ statementYears: [] }), undefined);
   });
 });

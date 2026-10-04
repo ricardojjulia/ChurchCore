@@ -148,4 +148,48 @@ describe("DonorPortal", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^Give \$25\.00/ }));
     await waitFor(() => expect(confirmDonationActionMock).toHaveBeenCalledWith("don-2", "pi_stub"));
   });
+
+  describe("year-end statement (G3.3)", () => {
+    function renderWithYears(statementYears: number[]) {
+      return render(
+        <MantineProvider>
+          <DonorPortal data={{ donations: [], totalGiven: 0 }} statementYears={statementYears} today="2026-10-04" />
+        </MantineProvider>,
+      );
+    }
+
+    it("defaults to last calendar year and links to the member download route", () => {
+      renderWithYears([2026, 2025, 2023]);
+      expect(screen.getByLabelText("Statement year", { selector: "input:not([type=hidden])" })).toHaveValue("2025");
+      const link = screen.getByRole("link", { name: /Download statement/ });
+      expect(link).toHaveAttribute("href", "/api/member/giving-statement?year=2025");
+    });
+
+    it("falls back to the newest year when last year has no gifts", () => {
+      renderWithYears([2024, 2023]);
+      expect(screen.getByLabelText("Statement year", { selector: "input:not([type=hidden])" })).toHaveValue("2024");
+      expect(screen.getByRole("link", { name: /Download statement/ })).toHaveAttribute(
+        "href",
+        "/api/member/giving-statement?year=2024",
+      );
+    });
+
+    it("follows the chosen year", async () => {
+      // jsdom lacks scrollIntoView, which the Select's option list calls.
+      Element.prototype.scrollIntoView = vi.fn();
+      renderWithYears([2025, 2024]);
+      fireEvent.click(screen.getByLabelText("Statement year", { selector: "input:not([type=hidden])" }));
+      fireEvent.click(await screen.findByRole("option", { name: "2024" }));
+      expect(screen.getByRole("link", { name: /Download statement/ })).toHaveAttribute(
+        "href",
+        "/api/member/giving-statement?year=2024",
+      );
+    });
+
+    it("shows an empty state and no download when there are no gifts", () => {
+      renderWithYears([]);
+      expect(screen.getByText("No gifts recorded for 2025")).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /Download statement/ })).not.toBeInTheDocument();
+    });
+  });
 });
