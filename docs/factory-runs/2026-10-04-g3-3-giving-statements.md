@@ -191,3 +191,65 @@ Through `logAuditEvent`, wrapped so a failure doesn't block. `tableName "giving_
 
 ### Follow-ups found, out of scope
 `lib/notifications/send-email.ts` sends `idempotencyKey` as an `X-Twilio-Email-Event-Webhook-Signature` header, which SendGrid ignores. It's harmless, but it is no dedupe.
+
+## Validation, Council and verification (added by the Documenter, 2026-10-04)
+
+### Amendments to the decisions above
+
+Two statements earlier in this note were overtaken and are corrected here:
+- **"No migration"** is superseded by the idempotency amendment: migration `20261005000000_giving_statement_claims.sql` adds the partial unique index `communication_logs_statement_claim_uidx`. Rollback: `drop index if exists public.communication_logs_statement_claim_uidx;`.
+- **"Staff-facing lists show 'Anonymous'"** is superseded by the owner decision of 2026-10-04 (below).
+
+### Validator round
+
+The factory's own validator ran before the Council and found two High issues: the staff preview attributed anonymous gifts (an "Anonymous" row per anonymous-only donor, and the un-statementable list), so staff could infer who gave anonymously. Both were fixed, and the member page was given a fallback for a failed statement-year load.
+
+### Owner decision, 2026-10-04: anonymity holds against staff end to end
+
+- The staff preview lists named gifts only. Anonymous gifts are one unattributed aggregate line; an anonymous-only donor has no staff row.
+- The admin PDF is named gifts only.
+- The donor's own statement (member download, and the batch email to that donor) is the full statement, including their anonymous gifts.
+- Statement send records carry no recipient (applied after the Council round; see below).
+- Recorded in `docs/security-role-access-matrix.md` and `docs/application-guide.md`.
+
+### Council Review 40
+
+Five separate read-only seats under Council v2; synthesis `docs/reviews/2026-10-04-council-review-40-synthesis.md`, agent reports `docs/reviews/2026-10-04-council-review-40-agents-1-5.md`. **Status: AMENDED.** Fixes landed in `55a2418`:
+1. `recipient_id: null` on statement send records. **Found by the orchestrator, not a seat:** the Communications history renders `recipient_id` by name to pastors and secretaries, who have no giving access, exposing anonymous-only donors and every named donor.
+2. CR/LF stripped from the email subject (defence in depth).
+3. The migration states its rollback.
+4. Ranges over 10 years are rejected.
+5. A warning is logged when a stale `sending` claim is released.
+
+Seven agent claims were wrong or unsupported against source (listed in the synthesis; they include the Security seat's High "header injection", wrong because both providers take the subject as a JSON field). Score: **84/100** (from 82). Gap 3 is not closed until G3.3b.
+
+### Verification (orchestrator-run, after `55a2418`)
+
+| Command | Result |
+|---|---|
+| `npx vitest run` | 199 files / 2,403 tests pass |
+| `npm run lint` | 0 errors (1 pre-existing warning in `localization-governance.config.mjs`) |
+| `npx tsc --noEmit` | clean |
+| `npm run test:surfaces` | OK |
+| `npm run lint:migrations` | PASS |
+| `npm run setup:e2e -- --reset` | migration `20261005000000` applies cleanly to a fresh database |
+| `npm run test:e2e:local -- tests/e2e/giving-statements.spec.ts tests/e2e/api-session-routes.spec.ts` | 49 passed (the run builds the app) |
+
+**Not verified:** CI (`verify` and the four `e2e` shards) has not run, because no PR exists yet. The Documenter did not re-run these commands (docs-only role); the results are the orchestrator's. Commit signature verification (`gh api ... .commit.verification`) is also not yet checked.
+
+### Residual risk (accepted)
+
+- No cron proactively fails abandoned `sending` claims; they are released lazily on the next claim for that donor and range.
+- No `consent_logs` entry for a bounce or complaint on a statement email, because the rows carry no recipient. The address suppression is still recorded.
+- Most panel and member-card copy is English-only; only the tab label is keyed.
+- One possible duplicate email if a run dies after the provider accepted the message but before the row update.
+- No live test of two concurrent batches; the unique index enforces it and the e2e covers a second send.
+- The hosted database lacks the index until owner action O8 is done after merge.
+
+### Follow-up work
+
+- **G3.3b** (new Must row, ~0.5 day, M3): ChurchCore's own receipt for a paid event registration. Gap 3 stays open until it lands.
+- **O8:** apply migration `20261005000000` to hosted Supabase after merge.
+- `lib/notifications/send-email.ts` sends `idempotencyKey` as an `X-Twilio-Email-Event-Webhook-Signature` header SendGrid ignores (pre-existing, harmless, not a dedupe). Not yet a tracker row; the owner should say whether to add one (Should).
+- i18n of the statements panel and member-card copy, under Should row S13's sweep.
+- Open the G3.3 PR (a draft is enough to get the `e2e` result), check commit signatures, and read GitHub's automated review before merging.
