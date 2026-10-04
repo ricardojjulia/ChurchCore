@@ -13,7 +13,7 @@ Mandate: per `AGENTS.md` and `improve-software.md` §0, the council runs before 
 
 1. Read `AGENTS.md`, `DEVELOPMENT_PLAN.md`, and `improve-software.md` §0–2.
 2. Run the five Phase 1 audit prompts (data/API, routes/pages, UX/shell, feature/competitive, security; Council v2) as read-only exploration passes. These can run in parallel.
-   Synthesis opens with a Status (RATIFIED / AMENDED / REJECTED, the Council's recommendation; the owner decides). Check every agent claim against source before adopting it, and list the claims that proved wrong. A branch with a migration also needs `npm run lint:migrations`, a clean apply to a freshly reset database, backwards-compatibility with the code running before deploy, and a stated rollback.
+   Synthesis opens with a Status (RATIFIED / AMENDED / REJECTED, the Council's recommendation; the owner decides). Check every agent claim against source before adopting it, and list the claims that proved wrong. Use the synthesis header block (Date, Branch, Related, Tags, Surfaces) and close it with the definition-of-done checklist, ticked only with evidence (`improve-software.md` Phase 2, §0 and §5). A branch with a migration also needs `npm run lint:migrations`, a clean apply to a freshly reset database, backwards-compatibility with the code running before deploy, and a stated rollback.
 3. Synthesize consensus findings, draft ADRs under `docs/adr/`, and write the synthesis plus agent reports under `docs/reviews/`.
 4. Get explicit human approval on the synthesis before implementing.
 5. Execute approved prompts via `churchcore-build-with-tests`, using `update_plan` for multi-step work; write phases run sequentially.

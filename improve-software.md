@@ -175,6 +175,19 @@ After receiving all 5 agent reports, the synthesis step must produce:
 ### 0. Status and claim verification
 Open the synthesis with a **Status**: `RATIFIED` (ready as built), `AMENDED` (ready once the listed fixes land), or `REJECTED` (back to design). The status is the Council's recommendation; the owner decides.
 
+Under the Status line, a short header block:
+
+```
+Status: RATIFIED | AMENDED | REJECTED
+Date: YYYY-MM-DD
+Branch: <branch> vs main (<commit>)
+Related: <plan rows, ADRs, migrations, PRs>
+Tags: <domains, e.g. giving, comms, security>
+Surfaces: <every page, API route and server action the branch adds or changes>
+```
+
+"Related" and "Surfaces" make a round traceable without reading the diff: the surfaces line is the same set `tests/coverage-manifest.json` must cover.
+
 Check every agent claim against the source (or by computation, for contrast and wire formats) before adopting it, and list the claims that proved wrong or unsupported. Agents have made wrong claims in nearly every round; a finding that isn't verified isn't a finding.
 
 ### 1. Cross-Agent Consensus
@@ -213,6 +226,24 @@ For every agreed-upon change, write a concrete implementation prompt using this 
 
 ### 4. Execution Order
 List prompts in dependency order. Note which are independent (can run in parallel) and which must be sequential.
+
+### 5. Definition of done checklist
+Close the synthesis with this checklist, ticked only with evidence (a command run and its result, or a CI link), never from an agent's say-so. A line that doesn't apply says why.
+
+```
+- [ ] Unit tests: `npm run test` passes (count)
+- [ ] Surfaces: `npm run test:surfaces` OK; every changed surface in the manifest with its tests
+- [ ] Lint: `npm run lint` 0 errors (pre-existing warnings named)
+- [ ] Types: `npx tsc --noEmit` clean
+- [ ] Build: `npm run build` succeeds
+- [ ] E2E: the touched specs pass locally (`npm run test:e2e:local -- <specs>`); CI `verify` + all `e2e` shards green before merge
+- [ ] Migration (if any): `npm run lint:migrations`; applies to a freshly reset DB; backwards-compatible with the running code; rollback stated; owner action row added to apply it to hosted Supabase
+- [ ] Commits verified on GitHub (`.commit.verification.verified: true`)
+- [ ] GitHub review comments read, fixed or answered, threads resolved
+- [ ] Documenter close-out committed (plan row, CHANGELOG, README/docs, memory)
+```
+
+The status is still the Council's recommendation; the checklist records evidence, it doesn't vote. The Council is never one model filling in several seats' votes in one response (§1).
 
 ---
 
