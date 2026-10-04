@@ -381,7 +381,7 @@ Infrastructure cost at 230 churches: ~$4,500/mo (Vercel Pro + Platform DB + 230 
 **Privacy constraints** (non-negotiable):
 - All inference runs server-side against the tenant's own data only
 - No data crosses tenant boundaries
-- No member data is sent to third-party AI APIs — inference uses Anthropic API with zero data retention policy
+- Member PII is scrubbed before any model call, and AI requests go through OpenRouter (ADR 0027) with zero-data-retention routing that fails closed, to Anthropic or Google models. Feature text is still sent to those third parties, so the consent copy says so (ADR 0027, Council Review 41). The earlier wording, "no member data is sent to third-party AI APIs", overstated this and is superseded; LLM-driven ShepherdAI scoring stays gated on an explicit AI-consent decision
 - Insights are suggestions, not scores displayed to members
 - AI_ASSISTIVE_DISCLAIMER shown on all AI-surfacing views
 
@@ -458,7 +458,7 @@ Infrastructure cost at 230 churches: ~$4,500/mo (Vercel Pro + Platform DB + 230 
 | Investment | Rationale |
 | --- | --- |
 | Supabase silo model (per-tenant DB) | No shared-schema cross-tenant breach possible. Insurance carriers and denomination IT teams require this. |
-| Anthropic API with zero-retention clause | AI insights without being a PHI/PII liability. |
+| AI through OpenRouter with zero-data-retention routing (ADR 0027) | AI insights without being a PHI/PII liability. |
 | Stripe Connect | Churches never touch ChurchCore money. Zero payment processing liability. |
 | bcrypt PIN hashing | The only correct security architecture for child check-in PINs. Structural competitive advantage. |
 | Vercel + Supabase (no self-managed infra) | Keeps the team focused on product, not ops. Both platforms have 99.9%+ SLA. |

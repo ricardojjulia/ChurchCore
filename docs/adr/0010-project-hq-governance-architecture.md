@@ -20,7 +20,7 @@ For administrative and management users, ChurchCore LMS requires a high-level pr
 
 * **Compliance**: Enforce strict data boundaries between public members, leaders, and platform administrators.
 * **Performance**: Avoid recursive joins on profiles tables when verifying permissions during database transactions.
-* **API Key Safety**: Keep `ANTHROPIC_API_KEY` server-side only; never expose it to client-side bundles.
+* **API Key Safety**: Keep `ANTHROPIC_API_KEY` (and, since ADR 0027, `OPENROUTER_API_KEY`) server-side only; never expose it to client-side bundles.
 
 ---
 
@@ -41,7 +41,7 @@ Create `hq_sessions`, `hq_tasks`, `hq_risks`, and `hq_decisions`. Establish stri
 * **Private Sessions**: Users can only see/modify their own AI sessions (`hq_sessions`).
 
 ### 3. Server-Side AI Proxy Route Handler
-Create a server route `/api/ai`. The client sends prompts to the proxy; the server validates the Supabase session, scrubs input strings of email patterns and UUID structures, and makes a server-to-server call to the Anthropic Node SDK. The resulting interaction is logged to `hq_sessions` and returned to the client.
+Create a server route `/api/ai`. The client sends prompts to the proxy; the server validates the Supabase session, scrubs input strings of email patterns and UUID structures, and makes a server-to-server call to the Anthropic Node SDK. (Update, ADR 0027: the call now goes through the OpenRouter gateway `lib/ai/gateway.ts`, with direct Anthropic as the backup, and the scrub runs inside the gateway.) The resulting interaction is logged to `hq_sessions` and returned to the client.
 
 ---
 

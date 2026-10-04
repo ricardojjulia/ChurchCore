@@ -68,3 +68,31 @@
    - The not-configured error.
    - Updated route, council and ministry tests.
    - Cost columns written.
+
+## Council and verification (added by the Documenter, 2026-10-04)
+
+**Intent.** Route every LLM call through one OpenRouter gateway with per-feature ranked model fallbacks, zero-data-retention routing and cost logging, keeping direct Anthropic as a backup (owner decision 2026-10-04).
+
+**Architecture impact.** New server-only `lib/ai/gateway.ts`, `lib/ai/models.ts` and `lib/ai/scrub.ts`; the HQ advisor route, `runCouncil` and the ministry client now call `completeChat`. Additive migration `20261006000000` adds nullable usage and cost columns. ADR 0027 supersedes ADR 0008. No new pages, routes or server actions, so `tests/coverage-manifest.json` is unchanged. OpenRouter is a new sub-processor.
+
+**Council Review 41** (`docs/reviews/2026-10-04-council-review-41-synthesis.md`, agent reports in `...-agents-1-5.md`, status AMENDED, all four required fixes landed in `2137fd1`):
+1. The ministry AI sent unscrubbed text to the new processor (A5 High, also found by the orchestrator): `scrubPII` moved to `lib/ai/scrub.ts` and runs inside the gateway on every message on both paths; ministry `topic_text` scrubbed.
+2. Consent copy named the wrong processor: new `AI_DATA_ROUTING_NOTICE` shown in `components/ai/disclaimer-gate.tsx`; `/hq` note updated; `ELDER_AI_DISCLAIMER` kept pastoral-only.
+3. A Council run could outlive the function: `maxDuration = 60` on `/api/ai`, per-call `timeoutMs` (seats and synthesis 25 s, advisor and ministry 50 s).
+4. Every provider failure read the same: 402 maps to "AI credits are exhausted" and 429 to "The AI provider is busy"; provider text never reaches the client.
+Six agent claims were wrong or unsupported (listed in the synthesis and the changelog).
+
+**Verification (orchestrator-run, after `2137fd1`).** `npx vitest run` 200 files / 2,438 tests pass; `npm run lint` 0 errors (1 pre-existing warning); `npx tsc --noEmit` clean; `npm run test:surfaces` OK; `npm run build` compiled; `npm run test:e2e:local -- tests/e2e/api-session-routes.spec.ts` 43 passed. Builder (earlier, same migration): `npm run lint:migrations` PASS; `npm run setup:e2e -- --reset` applied all migrations including `20261006000000`; the column-references DB test passed. **Not done:** no live call to OpenRouter (contract checked against its documentation with fixtures only); CI has not run (no PR yet); commit signatures not yet checked on GitHub.
+
+**Residual risk.**
+- The OpenRouter wire format is unproven against the live service until owner action O9.
+- The Gemini 2.5 Pro fallback may return an empty reply under a 900-token cap (it counts reasoning tokens), which fails visibly.
+- The legacy `AI_HQ_MODEL` alias also sets the synthesis model on the direct path.
+- The direct path logs no cost.
+- No per-seat progress during a Council run.
+- ZDR can leave a ranked model with no eligible endpoint, in which case that request fails rather than weakening privacy.
+
+**Follow-up work.**
+- O9: set `OPENROUTER_API_KEY` in Vercel (keep `ANTHROPIC_API_KEY` as backup), make one live call from `/hq`, confirm `hq_sessions.cost_usd` is filled.
+- O10: apply migration `20261006000000` to hosted Supabase after merge (rollback is in the migration).
+- Post-MVP rows (DEVELOPMENT_PLAN §0.5): the AI model evaluation harness; LLM-driven ShepherdAI scoring and drafts, gated on an explicit AI-consent decision and privacy note.

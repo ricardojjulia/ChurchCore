@@ -327,7 +327,7 @@ The order of operations:
    - council: `{ mode, status, synthesis, seats: [{ id, name, review, recommendation }] }`.
    - A model error returns 502 with a generic message. The provider's error text can carry request details, so it is logged, never returned.
 
-**The model** is configurable: `AI_HQ_MODEL`, defaulting to a current model. In ChurchCore the default is `claude-sonnet-5`. Never default to a dated model id without checking that it hasn't been retired. ChurchCore's original default had been retired, and nobody noticed because the endpoint had no test that exercised the model id.
+**The model** is configurable. In ChurchCore, per-feature ranked model lists live in `lib/ai/models.ts` behind the OpenRouter gateway (ADR 0027), overridable with `AI_MODELS_<FEATURE>`; `AI_HQ_MODEL` is now only an alias for the direct-Anthropic backup path. Never default to a dated model id without checking that it hasn't been retired. ChurchCore's original default had been retired, and nobody noticed because the endpoint had no test that exercised the model id.
 
 ### The page
 

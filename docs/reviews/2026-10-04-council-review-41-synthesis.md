@@ -95,18 +95,18 @@ MVP readiness **holds at 84/100**. S22 is a Should row and infrastructure, with 
 
 ## Definition of done
 
-- [ ] Unit tests pass (count)
-- [ ] Surfaces: `npm run test:surfaces` OK
-- [ ] Lint: 0 errors
-- [ ] Types: `npx tsc --noEmit` clean
-- [ ] Build succeeds
-- [ ] E2E: `api-session-routes.spec.ts` passes locally; CI `verify` and 4 `e2e` shards green before merge
-- [ ] Migration `20261006000000`:
-  - `lint:migrations` passes;
-  - it applies to a fresh reset (done by the builder);
-  - it is additive and nullable;
-  - its rollback is stated;
-  - an owner action row is added to apply it to hosted Supabase.
-- [ ] Commits verified on GitHub
-- [ ] GitHub review comments read, fixed or answered, and threads resolved
-- [ ] Documenter close-out committed
+- [x] Unit tests pass (count): `npx vitest run` 200 files / 2,438 tests pass (orchestrator-run, after `2137fd1`)
+- [x] Surfaces: `npm run test:surfaces` OK (no new page, route or server action; manifest unchanged)
+- [x] Lint: 0 errors (`npm run lint`; 1 pre-existing warning)
+- [x] Types: `npx tsc --noEmit` clean
+- [x] Build succeeds (`npm run build` compiled)
+- [ ] E2E: `api-session-routes.spec.ts` passes locally (43 passed); CI `verify` and 4 `e2e` shards green before merge: pending PR
+- [x] Migration `20261006000000`:
+  - [x] `lint:migrations` passes (builder);
+  - [x] it applies to a fresh reset (`setup:e2e -- --reset`, builder);
+  - [x] it is additive and nullable (new nullable columns, `add column if not exists`, no policy change);
+  - [x] its rollback is stated (in the migration; revert the code first);
+  - [x] an owner action row is added to apply it to hosted Supabase (O10)
+- [ ] Commits verified on GitHub: pending PR
+- [ ] GitHub review comments read, fixed or answered, and threads resolved: pending PR
+- [x] Documenter close-out committed (this commit; Documenter sign-off is withheld for the e2e CI result until a PR exists)
