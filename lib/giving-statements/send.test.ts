@@ -99,7 +99,11 @@ describe("sendStatementBatch", () => {
     const keys = rows.map((r) => (r.segment_criteria as Row).statementKey);
     expect(keys).toContain(idempotencyKey(CHURCH, "p:p1", range));
     expect(keys).toContain(idempotencyKey(CHURCH, "e:guest@x.org", range));
-    expect(rows.find((r) => (r.segment_criteria as Row).statementKey === idempotencyKey(CHURCH, "e:guest@x.org", range))?.recipient_id).toBeNull();
+    // No row names its recipient: Communications history would show it to
+    // pastors and secretaries (Council Review 40). The send still carries the
+    // profile id for consent and the unsubscribe link.
+    expect(rows.every((r) => r.recipient_id === null)).toBe(true);
+    expect(sendWithSuppressionMock).toHaveBeenCalledWith(expect.objectContaining({ recipientProfileId: "p1" }));
   });
 
   it("a second run emails nobody again (23505 becomes already_sent)", async () => {

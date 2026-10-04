@@ -47,6 +47,11 @@ describe("renderStatementEmail", () => {
     expect(email.text).toContain("12 Harbor Rd");
   });
 
+  it("keeps the subject on one line whatever the church name holds", () => {
+    const evil = renderStatementEmail({ church: { ...church, name: "Evil\r\nBcc: x@y.z" }, statement, range });
+    expect(evil.subject).toBe("Your giving statement from Evil Bcc: x@y.z");
+  });
+
   it("carries the same content as escaped HTML", () => {
     expect(email.html).toContain("$123.45");
     expect(email.html).toContain("$124.45");

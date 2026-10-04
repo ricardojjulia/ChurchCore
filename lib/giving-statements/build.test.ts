@@ -44,6 +44,11 @@ describe("resolveStatementRange", () => {
     expect(later).toEqual({ ok: true, range: { start: "2025-01-01", end: "2025-12-31" } });
   });
 
+  it("rejects a range of ten years or more, and accepts one just under", () => {
+    expect(resolveStatementRange({ start: "2015-01-01", end: "2025-01-01" }, "UTC").ok).toBe(false);
+    expect(resolveStatementRange({ start: "2015-01-01", end: "2024-12-31" }, "UTC").ok).toBe(true);
+  });
+
   it("accepts a valid custom range, inclusive on both ends", () => {
     expect(resolveStatementRange({ start: "2025-03-01", end: "2025-03-01" }, NY)).toEqual({
       ok: true,

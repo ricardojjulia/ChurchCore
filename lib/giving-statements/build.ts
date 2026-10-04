@@ -115,6 +115,8 @@ export type ResolvedRange = { ok: true; range: StatementRange } | { ok: false; e
  * The default is the last calendar year in the church's own zone. Both ends are
  * inclusive. A custom range needs both ends, real dates, start on or before end.
  */
+export const MAX_RANGE_YEARS = 10;
+
 export function resolveStatementRange(
   input: { start?: string | null; end?: string | null },
   timeZone: string | null,
@@ -137,6 +139,10 @@ export function resolveStatementRange(
   }
   if (start < "2000-01-01") {
     return { ok: false, error: "The start date is too far in the past." };
+  }
+  // Bounds the work one request can ask for (Council Review 40).
+  if (end >= `${Number(start.slice(0, 4)) + MAX_RANGE_YEARS}${start.slice(4)}`) {
+    return { ok: false, error: `A statement range can be at most ${MAX_RANGE_YEARS} years.` };
   }
   return { ok: true, range: { start, end } };
 }

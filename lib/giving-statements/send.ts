@@ -62,7 +62,12 @@ async function claim(
       .insert({
         church_id: churchId,
         sent_by: session.churchProfileId,
-        recipient_id: statement.profileId,
+        // No recipient on statement rows: the Communications history renders
+        // recipient names to pastors and secretaries, which would expose who
+        // gives (and anonymous-only givers) to roles without giving access
+        // (Council Review 40). Consent and unsubscribe use recipientProfileId
+        // on the send itself; delivery webhooks match by provider message id.
+        recipient_id: null,
         channel: "email",
         subject,
         body_preview: PREVIEW,
@@ -91,6 +96,9 @@ async function claim(
   if (rows.length > 0 && stale.length !== rows.length) return { kind: "already_sent" };
 
   for (const row of stale) {
+    // Visible in the logs: a takeover means an earlier run died mid-send, so
+    // this donor may get a second copy (Council Review 40). No donor PII.
+    console.warn(`[giving-statements] releasing stale statement claim ${row.id} (key ${key})`);
     const { data: updated, error: staleError } = await admin
       .from("communication_logs")
       .update({

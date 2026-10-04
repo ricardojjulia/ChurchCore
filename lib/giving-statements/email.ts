@@ -38,7 +38,9 @@ export function renderStatementEmail(input: {
   const { church, statement, range } = input;
   const header = headerLines(church);
   const multi = statement.grandTotals.length > 1;
-  const subject = `Your giving statement from ${church.name}`;
+  // One line, whatever the stored church name holds (defence in depth: the
+  // providers take the subject as a JSON field, not a raw header).
+  const subject = `Your giving statement from ${church.name}`.replace(/[\r\n]+/g, " ");
 
   const text = [
     ...header,

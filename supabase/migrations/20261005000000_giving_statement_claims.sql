@@ -8,6 +8,8 @@
 -- are outside the index, so a re-run can claim them again. All five values are
 -- allowed by communication_logs_status_check (20260528101500).
 -- Additive and idempotent; no existing row has a statementKey.
+-- Rollback: drop index if exists public.communication_logs_statement_claim_uidx;
+-- (the send path then loses its duplicate guard; no data changes).
 
 create unique index if not exists communication_logs_statement_claim_uidx
   on public.communication_logs (church_id, (segment_criteria->>'statementKey'))
