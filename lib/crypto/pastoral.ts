@@ -6,6 +6,7 @@ const IV_LENGTH = 12;
 const TAG_LENGTH = 16;
 const KEY_LENGTH = 32;
 const MIN_ENCRYPTED_BYTE_LENGTH = IV_LENGTH + TAG_LENGTH + 1; // at least 1 byte of ciphertext
+const STRICT_BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 
 function getKey(): Buffer | null {
   const raw = process.env.PASTORAL_ENCRYPTION_KEY;
@@ -48,9 +49,13 @@ export function encryptPastoralField(plaintext: string): string {
 export function decryptPastoralField(stored: string): string {
   if (!stored) return stored;
 
-  const raw = Buffer.from(stored, "base64");
+  // Ciphertext is strict base64 (iv | tag | ciphertext). Buffer.from(..., "base64")
+  // silently skips characters outside the alphabet, so a long plaintext value
+  // ("Follow up with the family next week.") used to decode to enough bytes to
+  // pass the length check, fail decryption and take the whole page down.
+  const raw = STRICT_BASE64.test(stored) ? Buffer.from(stored, "base64") : null;
 
-  if (raw.length < MIN_ENCRYPTED_BYTE_LENGTH) {
+  if (!raw || raw.length < MIN_ENCRYPTED_BYTE_LENGTH) {
     console.warn(
       "[ChurchCore] decryptPastoralField: value appears to be plaintext (too short to be encrypted). " +
         "Run the backfill script to encrypt existing rows."
