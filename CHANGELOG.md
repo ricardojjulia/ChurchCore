@@ -6,11 +6,41 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
-- **Resend live, with shared provider error codes (G5.1 / F2, ADR 0006):** one `selectEmailProvider()` now chooses the email provider for both the communications queue and the direct `sendEmail()` (receipts, notices): Resend when `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are set, else SendGrid, else not configured (stub in dev/demo, `provider_not_configured` in production, unchanged).
-  - Resend sends follow its API contract, with an `Idempotency-Key` (donation id for receipts, `comm-log:<id>:attempt:<n>` for cron retries). The invented SendGrid "idempotency" header is removed.
-  - Resend and SendGrid failures map to one set of codes: `rate_limited`, `provider_unavailable`, `temporary_failure`, `network_error` and `timeout` are retried; `invalid_request`, `provider_auth_error` and `provider_config_error` are not. The transient list is one shared constant used by the retry cron and `shouldRetryDelivery`. Provider calls time out after 15 s.
-  - The provider used is recorded on `communication_logs.provider`.
-  - New one-off `scripts/resend-unsent-receipts.mjs` (dry run by default, `--apply` to send, counts only) re-sends unsent donation receipts through the same claim/lease code (`deliverDonationReceipt`, extracted from `completeDonation`).
+- **Resend live, with shared provider error codes (G5.1 / F2, ADR 0006, Council Review 43)** (`feat/resend-live-g5-1`, commits `93e883c` build, `a961d21` Council Review 43 fixes, on top of `6e15b8f`; no PR yet, CI not yet run; no migration): the factory run is `docs/factory-runs/2026-10-05-g5-1-resend-live.md`, the Council is `docs/reviews/2026-10-05-council-review-43-synthesis.md` (AMENDED, all three required fixes landed). **Gap 5 does not close on merge; it closes when owner action O12 confirms one live Resend send** (the M3 line is "Resend live").
+
+  **Added**
+  - **One provider choice for both email paths** ([`lib/communications/select-email-provider.ts`](lib/communications/select-email-provider.ts), [`lib/communications/provider-adapter.ts`](lib/communications/provider-adapter.ts), [`lib/notifications/queue-communication.ts`](lib/notifications/queue-communication.ts), [`lib/notifications/send-email.ts`](lib/notifications/send-email.ts)): `selectEmailProvider()` picks Resend when `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are both set, else SendGrid when both of its are set, else not configured (a stub in development and demo, `provider_not_configured` in production, unchanged). It serves the communications queue and the direct `sendEmail()` (donation and registration receipts, recurring failure notices), which Council Review 16 had found never selected Resend. The provider used is recorded on `communication_logs.provider`.
+  - **Resend contract verified against Resend's docs** ([`lib/communications/resend-adapter.ts`](lib/communications/resend-adapter.ts)): `POST /emails`, bearer auth, JSON body, an optional `Idempotency-Key` (1-256 characters, kept 24 hours). The invented SendGrid "idempotency" header, which was sent as a Twilio signature header SendGrid ignored, is removed.
+  - **Status to code table**, one for both providers; the transient list is one shared constant used by the adapters, the retry cron and `shouldRetryDelivery`. Provider calls time out after 15 s.
+
+    | Outcome | Code | Retried |
+    |---|---|---|
+    | 429 | `rate_limited` | yes |
+    | 500, 502, 503 | `provider_unavailable` | yes |
+    | 409 (request in flight) | `temporary_failure` | yes |
+    | network failure, abort | `network_error` | yes |
+    | timeout | `timeout` | yes |
+    | 400, 422 | `invalid_request` | no |
+    | 401, 403 | `provider_auth_error` | no |
+    | 404, 405 | `provider_config_error` | no |
+
+  - **Per-message `Idempotency-Key`** ([`lib/notifications/queue-communication.ts`](lib/notifications/queue-communication.ts)): the log row's id is generated before the first send and `comm-log:<id>` is the key for the first send and every cron retry. Other keys are prefixed by kind (`donation:<id>`, `registration-payment:<id>`, `recurring-failure:<invoice id>`) so keys from different sources cannot collide. Giving statements ([`lib/giving-statements/send.ts`](lib/giving-statements/send.ts)) use `comm-log:<claimRowId>`, a fresh key per claim (an orchestrator change on top of the builder's statement key; see residual risk).
+  - **History shows why a send failed** ([`app/app/communications-actions.ts`](app/app/communications-actions.ts), [`components/application/communications-history-workspace.tsx`](components/application/communications-history-workspace.tsx), [`lib/communications/delivery-failure.ts`](lib/communications/delivery-failure.ts)): `listCommunicationLogsAction` now selects `error_code` and `provider`, computes retry eligibility on the server with `shouldRetryDelivery`, shows a one-line plain-language reason ("Email provider rejected the API key: check RESEND_API_KEY", "Rate limited: will retry automatically") and offers Retry only when it can work.
+  - **One-off re-send script** `scripts/resend-unsent-receipts.mjs` (owner decision; dry run by default, `--apply` to send, prints the host and counts only, refuses without a provider) re-sends receipts for succeeded donations with `receipt_sent_at` null through the same claim/lease code (`deliverDonationReceipt`, extracted from `completeDonation`), so it is idempotent. Production had 2 such donations on 2026-10-05.
+  - **Docs:** ADR 0006's "not implemented" note is resolved; `.env.example` and [`docs/runbooks/communications.md`](docs/runbooks/communications.md) say which env selects which provider and how the idempotency key works.
+
+  **Fixed (Council Review 43, `a961d21`)**
+  - **A delivered-but-timed-out email could be sent twice** (found by the orchestrator from Resend's idempotency docs; all five seats missed it, and Agent 1 marked the per-attempt key "PASS idempotent"): the first draft used a random UUID on the first send and `comm-log:<id>:attempt:<n>` on each retry, so a send that reached Resend but timed out on our side was sent again under a new key. Resend replays a success for a repeated key without sending again (a request still in flight returns 409, safe to retry later), so the key must be one per message and exist before the first send. Test: the first send and the retry use the same key.
+  - `lib/notifications/send-email.ts` now has `import "server-only"`.
+  - Operators could not see why a send failed, and Retry was offered when the server would refuse it (see "History shows why a send failed" above).
+
+  **Council and verification**
+  - **7 agent claims were wrong or unsupported** (synthesis): that this branch adds migrations (it has none); that the per-attempt retry key is idempotent (it is the duplicate-send path); that `/app/member` has no page (`app/app/[role]/page.tsx` serves it); a nonexistent `npm run provision:resend-receipts` command and a reused "O11"; that Gap 5 closes on merge; unsourced "50% cost savings vs. SendGrid" and "PCO has no native email send"; and that the Resend webhook's Svix verification changed (it did not).
+  - Owner decisions: re-send the 2 unsent receipts once (the script); Resend primary with SendGrid fallback (ADR 0006).
+  - Orchestrator, after `a961d21`: `npx vitest run` 206 files / 2,544 tests pass; `npm run lint` 0 errors (1 pre-existing warning); `npx tsc --noEmit` clean; `npm run test:surfaces` OK; `npm run build` compiled. Builder: e2e `api-cron` + `api-webhooks` + `church-admin-readiness` 45 passed; the re-send script's dry run against local Supabase counted 2 and sent nothing. **Not verified: CI (no PR yet), GitHub's PR review, and no live Resend call.**
+  - **Residual risk:** no live call to Resend has been made (O12 is the live check); the JSON field carrying Resend's error type (`name` or `type`) is unverified (the code reads both; only the 409 `invalid_idempotent_request` distinction depends on it); Resend's behaviour for a reused key after a failed (not successful) request is undocumented, mitigated for statements by a fresh key per claim; no in-app indicator of which provider is active (S12); a malformed `RESEND_FROM_EMAIL` fails at the first send as a non-retryable `invalid_request`, now visible in history.
+  - **Score:** MVP readiness 87/100 on merge, 88 when O12 confirms a live send.
+
 - **`docs/prompts/replicate-project-hq.md`**: a self-contained prompt for an AI coding agent to build Project HQ in any codebase. It covers:
   - the staff-only gate, enforced in three places;
   - the four tables with RLS and cost columns;

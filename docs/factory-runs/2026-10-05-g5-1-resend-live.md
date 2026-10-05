@@ -85,3 +85,41 @@
    - The idempotency header present and correctly sourced.
    - The retry cron picks up `rate_limited` / `provider_unavailable` rows and skips the non-transient ones.
    - The script's dry run versus `--apply`, with mocks.
+
+## Council and verification
+
+**Council Review 43** (five separate read-only agents, Council v2): synthesis `docs/reviews/2026-10-05-council-review-43-synthesis.md`, reports `docs/reviews/2026-10-05-council-review-43-agents-1-5.md`. Status AMENDED; all three required fixes landed in `a961d21`.
+
+**Intent.** Make Resend the live email provider on both email paths (ADR 0006), with SendGrid as fallback, correct provider error codes, and a one-off re-send of the 2 unsent production receipts.
+
+**Architecture impact.** One `selectEmailProvider()` serves the queue and the direct `sendEmail()`. Shared transient-code constant. `communication_logs.provider` records the provider. Idempotency key is one per message, `comm-log:<id>`, created before the first send; direct-path keys are kind-prefixed. `sendEmail` is `server-only`. History shows failure reasons and gates Retry on server-side eligibility. No migration, no new route or page.
+
+**Fixes from the Council (all landed):**
+1. The retry key differed per attempt (`comm-log:<id>:attempt:<n>`; a random UUID on the first send), so a delivered-but-timed-out email could be re-sent under a new key. Resend replays a success for a repeated key without sending again. The log id is now generated before the send and `comm-log:<id>` is the key for the first send and every retry; test that both use the same key. Found by the orchestrator from Resend's docs; all five seats missed it.
+2. `lib/notifications/send-email.ts` gained `import "server-only"`.
+3. History selects `error_code` and `provider`, computes `isRetryEligible` server-side, shows a one-line reason and offers Retry only when eligible.
+
+**Orchestrator change on top of the builder:** giving statements use `comm-log:<claimRowId>` as the Idempotency-Key (a fresh key per claim) instead of the statement key.
+
+**7 wrong or unsupported agent claims** (listed in the synthesis): a migration that does not exist; the per-attempt key marked idempotent; `/app/member` "no page"; a nonexistent npm script and a reused O11; "Gap 5 closes on merge"; unsourced cost and PCO claims; the Svix verification "changed".
+
+**Verification (orchestrator, after `a961d21`):**
+- `npx vitest run`: 206 files / 2,544 tests pass.
+- `npm run lint`: 0 errors (1 pre-existing warning).
+- `npx tsc --noEmit`: clean.
+- `npm run test:surfaces`: OK.
+- `npm run build`: compiled.
+- Builder: e2e `api-cron` + `api-webhooks` + `church-admin-readiness` 45 passed; the re-send script's dry run against local Supabase counted 2 and sent nothing.
+
+**Not verified:** CI (`verify`, 4 `e2e` shards): no PR yet. GitHub's PR review: not run. No live Resend call. Commit signature verification on GitHub: not checked (no push).
+
+**Residual risk:**
+- No live Resend call has been made; O12 is the live check.
+- Resend's error-type field (`name` or `type`) is unverified; only the 409 `invalid_idempotent_request` distinction depends on it.
+- Resend's caching of a failed response for a reused key is undocumented; mitigated for statements by a fresh key per claim.
+- No in-app indicator of the active provider (S12).
+- Until O12 is done, production email does not send and receipts stay unsent.
+
+**Follow-up work:**
+- **O12** (owner): verify a sending domain in Resend; set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` in Vercel Production; register `https://church-core-ops.vercel.app/api/webhooks/resend` in Resend and set `RESEND_WEBHOOK_SECRET`; redeploy; run `node scripts/resend-unsent-receipts.mjs` (dry run), then `--apply`; confirm a `communication_logs` row with `provider = 'resend'` and a delivery event. Gap 5 closes then; readiness 87 to 88.
+- S12 (provider-status indicator), S11, T1a (M3).

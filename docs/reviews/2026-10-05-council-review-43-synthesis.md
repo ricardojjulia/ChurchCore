@@ -103,13 +103,13 @@ New owner action O12:
 
 ## Definition of done
 
-- [ ] Unit tests pass (count)
-- [ ] Surfaces: `npm run test:surfaces` OK
-- [ ] Lint: 0 errors
-- [ ] Types: `npx tsc --noEmit` clean
-- [ ] Build succeeds
-- [ ] E2E: touched specs pass locally; CI `verify` and 4 `e2e` shards green before merge
-- [ ] Migration: none on this branch
-- [ ] Commits verified on GitHub
-- [ ] GitHub review comments read, fixed or answered, threads resolved
-- [ ] Documenter close-out committed, including owner action O12
+- [x] Unit tests pass: `npx vitest run` 206 files / 2,544 tests (orchestrator, after `a961d21`)
+- [x] Surfaces: `npm run test:surfaces` OK (orchestrator)
+- [x] Lint: 0 errors, 1 pre-existing warning (orchestrator)
+- [x] Types: `npx tsc --noEmit` clean (orchestrator)
+- [x] Build succeeds: compiled (orchestrator)
+- [ ] E2E: touched specs pass locally (builder: `api-cron`, `api-webhooks`, `church-admin-readiness`, 45 passed; re-send script dry run counted 2, sent nothing); CI `verify` and 4 `e2e` shards: pending PR
+- [x] Migration: none on this branch
+- [ ] Commits verified on GitHub: pending PR (no push yet)
+- [ ] GitHub review comments read, fixed or answered, threads resolved: pending PR
+- [x] Documenter close-out committed, including owner action O12 (plan row O12, CHANGELOG, README, runbook, factory-run note, memory)
