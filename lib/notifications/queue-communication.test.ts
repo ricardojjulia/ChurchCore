@@ -361,9 +361,14 @@ describe("queueCommunicationAction", () => {
       expect(resendSendMock.mock.calls[0][0].idempotencyKey).toBe("comm-log:abc:attempt:2");
     });
 
-    it("generates a UUID key when the caller has none (the log row is written after the send)", async () => {
+    it("keys the first send by the log row's id, generated before the send and used as the row's id", async () => {
       await queueCommunicationAction({ ...base, session: makeSession() });
-      expect(resendSendMock.mock.calls[0][0].idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
+      const key = resendSendMock.mock.calls[0][0].idempotencyKey as string;
+      expect(key).toMatch(/^comm-log:[0-9a-f-]{36}$/);
+      expect(key.length).toBeLessThanOrEqual(256);
+      const insert = queryTenantLocalDbMock.mock.calls[1];
+      expect(insert[0]).toContain("id)");
+      expect(insert[1][15]).toBe(key.slice("comm-log:".length));
     });
   });
 

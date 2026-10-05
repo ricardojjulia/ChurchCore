@@ -87,6 +87,9 @@ function buildLog(overrides: Partial<CommunicationLogSummary> = {}): Communicati
     retryCount: 0,
     segmentCriteria: null,
     sentByName: "Pastor John",
+    errorCode: null,
+    provider: null,
+    isRetryEligible: false,
     ...overrides,
   };
 }

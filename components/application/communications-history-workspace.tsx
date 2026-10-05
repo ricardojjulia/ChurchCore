@@ -21,6 +21,7 @@ import {
   retryCommunicationAction,
 } from "@/app/app/communications-actions";
 import { ApplicationShell } from "@/components/application/app-shell";
+import { describeDeliveryFailure } from "@/lib/communications/delivery-failure";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { CommunicationLogSummary } from "@/lib/communications-types";
 
@@ -220,6 +221,16 @@ export function CommunicationsHistoryWorkspace({
                       >
                         {log.status}
                       </Badge>
+                      {log.status === "failed" || log.status === "bounced" ? (
+                        <Text fz="xs" c="dimmed" mt={2}>
+                          {describeDeliveryFailure(log.errorCode)}
+                        </Text>
+                      ) : null}
+                      {log.provider ? (
+                        <Badge size="xs" variant="outline" color="gray" radius="sm" mt={2}>
+                          {log.provider}
+                        </Badge>
+                      ) : null}
                     </Table.Td>
                     <Table.Td>
                       <Text fz="xs" c="dimmed">
@@ -249,8 +260,7 @@ export function CommunicationsHistoryWorkspace({
                             Cancel
                           </Button>
                         ) : null}
-                        {(log.status === "failed" || log.status === "bounced") &&
-                        log.retryCount < 3 ? (
+                        {log.isRetryEligible ? (
                           <Button
                             size="compact-xs"
                             variant="light"

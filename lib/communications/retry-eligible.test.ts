@@ -569,15 +569,24 @@ describe("retry cron and the shared provider error codes (G5.1)", () => {
     },
   );
 
-  it("sends the log id and attempt number as the idempotency key", async () => {
+  it("keys every retry by the message (log id) alone, the same key as the first send", async () => {
     mockAdminClient({});
     sendWithSuppressionMock.mockResolvedValue({ sent: true, skipped: false });
 
     await attemptRetry(makeEligibleRow({ id: "log-77", retry_count: 1 }), "a@example.com", {} as never);
 
     expect(sendWithSuppressionMock).toHaveBeenCalledWith(
-      expect.objectContaining({ idempotencyKey: "comm-log:log-77:attempt:2" }),
+      expect.objectContaining({ idempotencyKey: "comm-log:log-77" }),
     );
+  });
+
+  it("uses the same key on a later attempt of the same row", async () => {
+    mockAdminClient({});
+    sendWithSuppressionMock.mockResolvedValue({ sent: true, skipped: false });
+    await attemptRetry(makeEligibleRow({ id: "log-77", retry_count: 0 }), "a@example.com", {} as never);
+    await attemptRetry(makeEligibleRow({ id: "log-77", retry_count: 1 }), "a@example.com", {} as never);
+    const keys = sendWithSuppressionMock.mock.calls.map((c) => c[0].idempotencyKey);
+    expect(keys).toEqual(["comm-log:log-77", "comm-log:log-77"]);
   });
 
   it("records the provider that actually sent on the source row (resend)", async () => {

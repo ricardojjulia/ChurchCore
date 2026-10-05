@@ -219,7 +219,7 @@ export async function handleInvoicePaymentFailed(supabase: AdminClient, churchId
         html: `<p>${escapeHtml(person.full_name ? `Dear ${person.full_name},` : "Dear Friend,")}</p>
 <p>We couldn't process this installment of your recurring gift of <strong>$${dollars}</strong> to ${escapeHtml(churchName)}. Stripe will try again over the next few days.</p>
 <p>If your card has changed or expired, please contact your bank or the church office. You can pause or cancel the gift any time from your giving page.</p>`,
-        idempotencyKey: `recurring-failed-${invoice.id}`,
+        idempotencyKey: `recurring-failure:${invoice.id}`,
       });
     } catch (sendError) {
       await release();

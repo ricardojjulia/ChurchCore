@@ -60,7 +60,7 @@ describe("donation completion", () => {
     expect(html).not.toContain("<img");
     expect(html).toContain("&lt;a href=&quot;https://evil.example&quot;&gt;");
     expect(html).toContain("Grace &amp; Harbor");
-    expect(idempotencyKey).toBe("don-1");
+    expect(idempotencyKey).toBe("donation:don-1");
   });
 
   it("throws when the email provider refuses the receipt, so the caller can retry (G3.2)", async () => {

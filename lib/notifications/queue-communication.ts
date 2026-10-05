@@ -58,9 +58,10 @@ export interface QueueCommunicationInput {
    */
   recordLog?: boolean;
   /**
-   * Stable id for this send, used as Resend's `Idempotency-Key`. The retry
-   * cron passes one per attempt of its log row. Without one, a fresh UUID is
-   * generated, because the log row is only written after the send.
+   * Resend `Idempotency-Key` for this message. The retry cron passes
+   * `comm-log:<its log id>`. Without one, `comm-log:<new log id>` is used: the
+   * log row's id is generated before the send and the row inserted with it, so
+   * the first send and every retry share one key per message.
    */
   idempotencyKey?: string;
 }
@@ -99,6 +100,8 @@ export async function queueCommunicationAction(
   }
 
   // ── 2. Dispatch (unless scheduled for the future) ────────────
+  // The log row's id is chosen before the send so it can key the send.
+  const newLogId = randomUUID();
   let externalId: string | undefined;
   let sendError: string | undefined;
   let errorCode: string | undefined;
@@ -126,7 +129,7 @@ export async function queueCommunicationAction(
         subject: input.subject,
         body: finalBody,
         html: finalHtml,
-        idempotencyKey: input.idempotencyKey ?? randomUUID(),
+        idempotencyKey: input.idempotencyKey ?? `comm-log:${newLogId}`,
       });
       externalId = result.providerMessageId;
       errorCode = result.errorCode;
@@ -159,6 +162,7 @@ export async function queueCommunicationAction(
 
   // ── 3. Write audit log ────────────────────────────────────────
   const logId = input.recordLog === false ? undefined : await writeLog({
+    id: newLogId,
     churchId,
     sentBy: callerProfileId,
     recipientId: input.recipientProfileId,
@@ -305,6 +309,7 @@ async function checkOptIn(
 }
 
 interface LogInput {
+  id: string;
   churchId: string;
   sentBy: string | null;
   recipientId: string | null;
@@ -328,9 +333,9 @@ async function writeLog(log: LogInput): Promise<string | undefined> {
       `insert into public.communication_logs
          (church_id, sent_by, recipient_id, channel, subject, body_preview,
           external_id, provider, provider_message_id, status, error_message, error_code,
-          scheduled_for, sent_at, retry_count, last_retry_at)
+          scheduled_for, sent_at, retry_count, last_retry_at, id)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
-         case when $15 > 0 then now() else null end)
+         case when $15 > 0 then now() else null end, $16)
        returning id`,
       [
         log.churchId,
@@ -348,6 +353,7 @@ async function writeLog(log: LogInput): Promise<string | undefined> {
         log.scheduledFor ?? null,
         log.sentAt ?? null,
         log.retryCount ?? 0,
+        log.id,
       ],
     );
     return result.rows[0]?.id;
@@ -359,6 +365,7 @@ async function writeLog(log: LogInput): Promise<string | undefined> {
   const { data, error } = await supabase
     .from("communication_logs")
     .insert({
+      id: log.id,
       church_id: log.churchId,
       sent_by: log.sentBy,
       recipient_id: log.recipientId,

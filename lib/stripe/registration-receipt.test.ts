@@ -55,7 +55,7 @@ describe("sendRegistrationReceipt (G3.3b)", () => {
     expect(sendEmailMock).toHaveBeenCalledTimes(1);
     const mail = sendEmailMock.mock.calls[0][0];
     expect(mail.to).toBe("maya@example.org");
-    expect(mail.idempotencyKey).toBe("pay-1");
+    expect(mail.idempotencyKey).toBe("registration-payment:pay-1");
     for (const body of [mail.text, mail.html]) {
       expect(body).toContain("Grace Chapel");
       expect(body).toContain("1 Main St, Ponce, PR");

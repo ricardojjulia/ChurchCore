@@ -56,6 +56,16 @@ export type CommunicationLogSummary = {
   retryCount: number;
   segmentCriteria: SegmentFilter | null;
   sentByName: string | null;
+  /** Shared provider error code of a failed send (see `lib/communications/provider-adapter.ts`). */
+  errorCode: string | null;
+  /** Provider that handled the send ("resend", "sendgrid", "twilio"), when known. */
+  provider: string | null;
+  /**
+   * Whether Retry can succeed: a failed row with a transient error code and
+   * budget left. Computed on the server with the same rule the retry action
+   * enforces, so the button is only offered when it can work.
+   */
+  isRetryEligible: boolean;
 };
 
 export type CommunicationLogDetail = CommunicationLogSummary & {

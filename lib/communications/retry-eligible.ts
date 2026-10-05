@@ -223,9 +223,12 @@ export async function attemptRetry(
       body: row.body_preview ?? "",
       retryCount: claimedCount,
       recordLog: false,
-      // Per attempt, not per row: a provider may replay a cached failure for a
-      // reused key, which would defeat the retry.
-      idempotencyKey: `comm-log:${row.id}:attempt:${claimedCount}`,
+      // Per message, not per attempt: Resend answers a repeat of a key it
+      // already sent with the original response instead of sending again, so
+      // a send that reached it but timed out here is not sent twice. A request
+      // still in flight answers 409 (temporary_failure), safe to retry. Same
+      // key as the first send (`comm-log:<id>`, set in queueCommunicationAction).
+      idempotencyKey: `comm-log:${row.id}`,
     });
   } catch (err) {
     // A throw here is usually a lookup or network failure (consent reads fail

@@ -77,7 +77,7 @@ export async function sendDonationReceipt(receipt: DonationReceipt): Promise<voi
       <p style="color:#666;font-size:12px;">Donation reference: ${escapeHtml(receipt.donationId)}</p>
       <p style="color:#666;font-size:12px;">This receipt is for your records. Please retain it for tax purposes.</p>
     `,
-    idempotencyKey: receipt.donationId,
+    idempotencyKey: `donation:${receipt.donationId}`,
   });
   if (isProviderNotConfigured(sent)) throw new EmailProviderNotConfiguredError();
   if (!sent.accepted) throw new Error(`Receipt email refused: ${sent.error ?? "unknown error"}`);

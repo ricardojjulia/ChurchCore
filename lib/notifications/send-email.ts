@@ -1,3 +1,5 @@
+import "server-only";
+
 /**
  * sendEmail — the direct email path (receipts and notices that don't go
  * through the communications queue).
