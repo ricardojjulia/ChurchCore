@@ -6,6 +6,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Fixed
+
+- **`/app/church-admin` crashed for every Grace Harbor admin in production** with `decryptPastoralField: decryption failed — bad key or corrupted ciphertext` (React error #441 in the browser). Cause: `decryptPastoralField` (`lib/crypto/pastoral.ts`) treated a value as plaintext only when its base64-decoded length was under 29 bytes. `Buffer.from(…, "base64")` silently skips non-base64 characters, so any **plaintext** value of roughly 40+ characters passed the length check, failed AES-GCM and threw. Grace Harbor's 2 `care_assignments.summary` rows were seeded as plaintext on 2026-06-06 and never encrypted in production. Local e2e setup encrypts them, so no test hit it. Now a value that isn't strict base64 is treated as legacy plaintext and returned with the existing warning; genuine ciphertext under a wrong key still throws. New tests cover a long plaintext value (fails on the old code) and wrong-key ciphertext. **Owner follow-up:** run `scripts/backfill-pastoral-encryption.mjs` against production with the production `PASTORAL_ENCRYPTION_KEY` to encrypt those 2 rows at rest.
+
 - **G3.3b: ChurchCore's own receipt for a paid event registration; `sendEmail()` no longer fakes success in production; Gap 3 closes on merge** (Must row G3.3b, Council Review 42, AMENDED, both required fixes landed; branch `feat/registration-receipt-g3-3b`, `18ed864` build, `149af55` fixes; no PR yet, CI not run). See [`docs/factory-runs/2026-10-05-g3-3b-registration-receipt.md`](docs/factory-runs/2026-10-05-g3-3b-registration-receipt.md) and [`docs/reviews/2026-10-05-council-review-42-synthesis.md`](docs/reviews/2026-10-05-council-review-42-synthesis.md).
 
   **Added**

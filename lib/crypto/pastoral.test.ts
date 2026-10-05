@@ -144,6 +144,33 @@ describe("encryptPastoralField + decryptPastoralField", () => {
         warnSpy.mockRestore();
       });
     });
+
+    it("returns a long plaintext value with a warn instead of throwing (legacy unencrypted rows)", () => {
+      withKey(() => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+        // Long enough that its base64-alphabet characters alone decode past the
+        // minimum ciphertext length: this used to throw and crash the page.
+        const legacy = "Follow up with the Martinez family after the hospital visit next week.";
+        expect(decryptPastoralField(legacy)).toBe(legacy);
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("appears to be plaintext"));
+        warnSpy.mockRestore();
+      });
+    });
+
+    it("still throws for genuine ciphertext under the wrong key", () => {
+      let ciphertext = "";
+      withKey(() => {
+        ciphertext = encryptPastoralField("Confidential care summary.");
+      });
+      const original = process.env.PASTORAL_ENCRYPTION_KEY;
+      process.env.PASTORAL_ENCRYPTION_KEY = Buffer.alloc(32, 0xcd).toString("base64");
+      try {
+        expect(() => decryptPastoralField(ciphertext)).toThrow(/decryption failed/);
+      } finally {
+        if (original === undefined) delete process.env.PASTORAL_ENCRYPTION_KEY;
+        else process.env.PASTORAL_ENCRYPTION_KEY = original;
+      }
+    });
   });
 
   describe("key wrong length", () => {
