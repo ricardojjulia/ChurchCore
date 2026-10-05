@@ -159,6 +159,10 @@ async function sendOne(
       body: rendered.text,
       html: rendered.html,
       recordLog: false,
+      // One key per claim (its communication_logs row): the unique index already
+      // stops a second claim for the same statement, and a fresh claim after a
+      // failure gets a fresh key, so a provider-cached failure can't block it.
+      idempotencyKey: `comm-log:${claimed.id}`,
     });
 
     if (result.skipped) {

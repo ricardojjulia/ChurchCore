@@ -81,6 +81,9 @@ describe("sendStatementBatch", () => {
     for (const [input] of sendWithSuppressionMock.mock.calls) {
       expect(input).toMatchObject({ channel: "email", recordLog: false });
       expect(input.session).toBe(session);
+      // One key per statement, prefixed by kind and within Resend's 256 characters.
+      expect(input.idempotencyKey).toMatch(/^comm-log:/);
+      expect(input.idempotencyKey.length).toBeLessThanOrEqual(256);
     }
 
     const rows = logs(tables);

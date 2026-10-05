@@ -17,7 +17,7 @@ import type {
   SegmentFilter,
 } from "@/lib/communications-types";
 import { resolveRecipients, resolveRecipientsByIds } from "@/lib/communications/recipient-resolver";
-import { shouldRetryDelivery } from "@/lib/communications/provider-adapter";
+import { type CommunicationDeliveryStatus, shouldRetryDelivery } from "@/lib/communications/provider-adapter";
 import {
   attemptRetry,
   type RetryEligibleResult,
@@ -889,7 +889,7 @@ export async function listCommunicationLogsAction(): Promise<
     .from("communication_logs")
     .select(
       `id, channel, subject, body_preview, status, scheduled_for, sent_at,
-       created_at, retry_count, segment_criteria,
+       created_at, retry_count, segment_criteria, error_code, provider,
        profiles!communication_logs_sent_by_fkey(full_name)`,
     )
     .eq("church_id", churchId)
@@ -913,6 +913,10 @@ export async function listCommunicationLogsAction(): Promise<
       retryCount: row.retry_count ?? 0,
       segmentCriteria: (row.segment_criteria as SegmentFilter | null) ?? null,
       sentByName: profileJoin?.full_name ?? null,
+      errorCode: row.error_code ?? null,
+      provider: row.provider ?? null,
+      isRetryEligible:
+        (row.retry_count ?? 0) < 3 && shouldRetryDelivery(row.status as CommunicationDeliveryStatus, row.error_code ?? undefined),
     };
   });
 

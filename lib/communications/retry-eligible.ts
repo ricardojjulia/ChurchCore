@@ -4,6 +4,7 @@ import {
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
+import { TRANSIENT_PROVIDER_ERROR_CODES } from "@/lib/communications/provider-adapter";
 import { sendWithSuppression } from "@/lib/communications/send-with-suppression";
 import type { QueueCommunicationResult } from "@/lib/notifications/queue-communication";
 
@@ -30,13 +31,8 @@ type ContactRow = {
   phone: string | null;
 };
 
-const TRANSIENT_ERROR_CODES = [
-  "timeout",
-  "rate_limited",
-  "provider_unavailable",
-  "network_error",
-  "temporary_failure",
-];
+const TRANSIENT_ERROR_CODES = [...TRANSIENT_PROVIDER_ERROR_CODES];
+
 
 export async function retryEligibleCommunications(
   options?: { churchId?: string },
@@ -227,6 +223,12 @@ export async function attemptRetry(
       body: row.body_preview ?? "",
       retryCount: claimedCount,
       recordLog: false,
+      // Per message, not per attempt: Resend answers a repeat of a key it
+      // already sent with the original response instead of sending again, so
+      // a send that reached it but timed out here is not sent twice. A request
+      // still in flight answers 409 (temporary_failure), safe to retry. Same
+      // key as the first send (`comm-log:<id>`, set in queueCommunicationAction).
+      idempotencyKey: `comm-log:${row.id}`,
     });
   } catch (err) {
     // A throw here is usually a lookup or network failure (consent reads fail

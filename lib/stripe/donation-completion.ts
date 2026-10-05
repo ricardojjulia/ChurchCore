@@ -77,7 +77,7 @@ export async function sendDonationReceipt(receipt: DonationReceipt): Promise<voi
       <p style="color:#666;font-size:12px;">Donation reference: ${escapeHtml(receipt.donationId)}</p>
       <p style="color:#666;font-size:12px;">This receipt is for your records. Please retain it for tax purposes.</p>
     `,
-    idempotencyKey: receipt.donationId,
+    idempotencyKey: `donation:${receipt.donationId}`,
   });
   if (isProviderNotConfigured(sent)) throw new EmailProviderNotConfiguredError();
   if (!sent.accepted) throw new Error(`Receipt email refused: ${sent.error ?? "unknown error"}`);
@@ -99,6 +99,69 @@ type CompletionRow = {
   receipt_sent_at: string | null;
   completed_at: string | null;
 };
+
+/** What `deliverDonationReceipt` did. */
+export type ReceiptDelivery = "sent" | "not_configured";
+
+/**
+ * Sends one gift's receipt: claims it with a lease (receipt_claimed_at),
+ * separate from proof of delivery (receipt_sent_at, written once the provider
+ * accepts it). Another caller holding a fresh claim means "not done yet": this
+ * throws. A claim older than the lease is from a worker that stopped, and is
+ * taken over (PR #177 review). Throws when the provider refuses, after
+ * releasing the claim so the next attempt sends at once. With no email
+ * provider configured it releases the claim and returns "not_configured": the
+ * receipt stays unsent and no retry is requested (Council Review 42).
+ * Shared by `completeDonation` and the one-off re-send script (G5.1).
+ */
+export async function deliverDonationReceipt(
+  supabase: AdminClient,
+  churchId: string,
+  gift: Pick<CompletionRow, "id" | "amount_cents" | "fund_designation" | "donor_name">,
+  to: string,
+  churchNameHint: string | null = null,
+): Promise<ReceiptDelivery> {
+  const staleBefore = new Date(Date.now() - RECEIPT_LEASE_MS).toISOString();
+  const { data: claimed, error: claimError } = await supabase
+    .from("donations")
+    .update({ receipt_claimed_at: new Date().toISOString() })
+    .eq("id", gift.id)
+    .eq("church_id", churchId)
+    .is("receipt_sent_at", null)
+    .or(`receipt_claimed_at.is.null,receipt_claimed_at.lt."${staleBefore}"`)
+    .select("id");
+  if (claimError) throw new Error(claimError.message);
+  if (!claimed?.length) throw new Error("Another attempt is sending this receipt; retry later.");
+
+  let churchName = churchNameHint;
+  if (churchName === null) {
+    const { data: church } = await supabase.from("churches").select("name").eq("id", churchId).maybeSingle();
+    churchName = (church as { name: string } | null)?.name ?? null;
+  }
+  try {
+    await sendDonationReceipt({
+      to,
+      donorName: gift.donor_name,
+      amountCents: gift.amount_cents,
+      fundDesignation: gift.fund_designation,
+      donationId: gift.id,
+      churchName,
+    });
+  } catch (sendError) {
+    // Release the claim so the next attempt sends it at once.
+    await supabase.from("donations").update({ receipt_claimed_at: null }).eq("id", gift.id).eq("church_id", churchId);
+    if (!(sendError instanceof EmailProviderNotConfiguredError)) throw sendError;
+    console.warn("[donation-completion] email provider not configured; receipt left unsent", { donationId: gift.id });
+    return "not_configured";
+  }
+  const { error: sentError } = await supabase
+    .from("donations")
+    .update({ receipt_sent_at: new Date().toISOString() })
+    .eq("id", gift.id)
+    .eq("church_id", churchId);
+  if (sentError) throw new Error(sentError.message);
+  return "sent";
+}
 
 /**
  * Completes a gift Stripe has charged: marks it succeeded, posts it to the
@@ -145,56 +208,7 @@ export async function completeDonation(
 
   const to = gift.donor_email ?? options.receiptEmailFallback ?? null;
   if (to && !gift.receipt_sent_at) {
-    // Claim the send with a lease (receipt_claimed_at), separate from proof
-    // of delivery (receipt_sent_at, written once the provider accepts it).
-    // Another caller holding a fresh claim means "not done yet": this one
-    // throws, and completed_at waits until the receipt really went out. A
-    // claim older than the lease is from a worker that stopped, and is
-    // taken over (PR #177 review).
-    const staleBefore = new Date(Date.now() - RECEIPT_LEASE_MS).toISOString();
-    const { data: claimed, error: claimError } = await supabase
-      .from("donations")
-      .update({ receipt_claimed_at: new Date().toISOString() })
-      .eq("id", gift.id)
-      .eq("church_id", churchId)
-      .is("receipt_sent_at", null)
-      .or(`receipt_claimed_at.is.null,receipt_claimed_at.lt."${staleBefore}"`)
-      .select("id");
-    if (claimError) throw new Error(claimError.message);
-    if (!claimed?.length) throw new Error("Another attempt is sending this receipt; retry later.");
-
-    let churchName = options.churchName ?? null;
-    if (churchName === null) {
-      const { data: church } = await supabase.from("churches").select("name").eq("id", churchId).maybeSingle();
-      churchName = (church as { name: string } | null)?.name ?? null;
-    }
-    let delivered = true;
-    try {
-      await sendDonationReceipt({
-        to,
-        donorName: gift.donor_name,
-        amountCents: gift.amount_cents,
-        fundDesignation: gift.fund_designation,
-        donationId: gift.id,
-        churchName,
-      });
-    } catch (sendError) {
-      // Release the claim so the next attempt sends it at once.
-      await supabase.from("donations").update({ receipt_claimed_at: null }).eq("id", gift.id).eq("church_id", churchId);
-      // No email provider yet: the gift still completes, its receipt stays
-      // unsent (receipt_sent_at unset), and no retry is requested (Council Review 42).
-      if (!(sendError instanceof EmailProviderNotConfiguredError)) throw sendError;
-      console.warn("[donation-completion] email provider not configured; receipt left unsent", { donationId: gift.id });
-      delivered = false;
-    }
-    if (delivered) {
-      const { error: sentError } = await supabase
-        .from("donations")
-        .update({ receipt_sent_at: new Date().toISOString() })
-        .eq("id", gift.id)
-        .eq("church_id", churchId);
-      if (sentError) throw new Error(sentError.message);
-    }
+    await deliverDonationReceipt(supabase, churchId, gift, to, options.churchName ?? null);
   }
 
   const { error: markError } = await supabase

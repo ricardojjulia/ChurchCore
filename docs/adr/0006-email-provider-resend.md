@@ -14,7 +14,7 @@ Resend is purpose-built for transactional email from code. It offers simpler dom
 
 Resend is the primary email provider. SendGrid remains as a documented fallback — no SendGrid code is removed.
 
-Active provider is selected by the presence of `RESEND_API_KEY`. If absent, the system falls back to `SENDGRID_API_KEY`. If both are absent, stub mode is used (safe for local development).
+Active provider is selected by the presence of both `RESEND_API_KEY` and `RESEND_FROM_EMAIL`. If either is absent, the system falls back to SendGrid when both `SENDGRID_API_KEY` and `SENDGRID_FROM_EMAIL` are set. If both are absent, stub mode is used (safe for local development).
 
 A new `resendAdapter` is added to `lib/communications/resend-adapter.ts` following the existing `ProviderAdapter` interface. A new webhook route is added at `/api/webhooks/resend`. The `svix` npm package is introduced for webhook signature verification.
 
@@ -36,6 +36,8 @@ Rejected — pricing tier is less favorable at scale for the church-SaaS model.
 
 Rejected — API ergonomics are inferior for Next.js fetch-native usage; webhook signing is a custom HMAC scheme that does not align with existing provider patterns.
 
-## Implementation status (2026-09-23)
+## Implementation status
 
-Council Review 16 (`docs/reviews/2026-09-23-council-review-16-synthesis.md`, Agent 4) found the code does not implement this decision: `lib/notifications/queue-communication.ts` always sends email through the SendGrid adapter (falling back to a stub when `SENDGRID_API_KEY` is unset), never selecting Resend even when `RESEND_API_KEY` is present. `resendAdapter` (`lib/communications/resend-adapter.ts`) is currently only imported by its own inbound webhook route (`app/api/webhooks/resend/route.ts`). This decision is not being reversed here — follow-up **F2** (tracked in `DEVELOPMENT_PLAN.md` and `docs/factory-runs/2026-09-23-comms-retry-dlq-copilot-findings.md`) will either implement provider selection as written above or amend this ADR to match a different decision. Until F2 ships, treat the "Decision" section as aspirational, not as a description of current behavior.
+**Resolved by F2 / G5.1 (2026-10-05).** `selectEmailProvider()` (`lib/communications/select-email-provider.ts`) now implements the Decision as written (with the From address required alongside the key), and both email paths use it: `queueCommunicationAction` and the direct `sendEmail()`. The provider used is recorded on `communication_logs.provider`. Resend sends follow its API contract (`POST /emails`, `Idempotency-Key` header), and Resend and SendGrid failures map to one set of error codes (`rate_limited`, `provider_unavailable`, `network_error`, `timeout`, `temporary_failure` are retried; `invalid_request`, `provider_auth_error`, `provider_config_error` are not).
+
+*History (2026-09-23).* Council Review 16 (`docs/reviews/2026-09-23-council-review-16-synthesis.md`, Agent 4) had found the code did not implement this decision: the queue always sent through the SendGrid adapter and `resendAdapter` was used only by its own webhook route.

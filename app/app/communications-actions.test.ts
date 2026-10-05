@@ -1028,6 +1028,41 @@ describe("CC-COMM-001: listCommunicationLogsAction (actions.test)", () => {
     }
   });
 
+  it("G5.1: selects error_code and provider and computes isRetryEligible on the server", async () => {
+    const base = {
+      channel: "email", subject: "S", body_preview: "B", scheduled_for: null, sent_at: null,
+      created_at: "2026-01-01T09:00:00.000Z", segment_criteria: null, profiles: null,
+    };
+    const selectMock = vi.fn().mockReturnThis();
+    createTenantServerClientMock.mockResolvedValue({
+      from: vi.fn(() => ({
+        select: selectMock,
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn(async () => ({
+          data: [
+            { ...base, id: "a", status: "failed", retry_count: 1, error_code: "rate_limited", provider: "resend" },
+            { ...base, id: "b", status: "failed", retry_count: 1, error_code: "provider_auth_error", provider: "resend" },
+            { ...base, id: "c", status: "failed", retry_count: 3, error_code: "timeout", provider: "sendgrid" },
+            { ...base, id: "d", status: "bounced", retry_count: 0, error_code: null, provider: null },
+            { ...base, id: "e", status: "sent", retry_count: 0, error_code: null, provider: "resend" },
+          ],
+          error: null,
+        })),
+      })),
+    });
+
+    const result = await listCommunicationLogsAction();
+    expect(selectMock.mock.calls[0][0]).toContain("error_code, provider");
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.logs.map((l) => [l.id, l.isRetryEligible, l.errorCode, l.provider])).toEqual([
+      ["a", true, "rate_limited", "resend"],
+      ["b", false, "provider_auth_error", "resend"],
+      ["c", false, "timeout", "sendgrid"],
+      ["d", false, null, null],
+      ["e", false, null, "resend"],
+    ]);
+  });
+
   it("AC1: ministry_leader role is denied", async () => {
     requireChurchSessionMock.mockResolvedValue({
       appContext: { roleId: "ministry-leader", church: { id: "church-1" } },

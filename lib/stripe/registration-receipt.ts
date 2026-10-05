@@ -163,7 +163,7 @@ export async function sendRegistrationReceipt(
       subject: `Your registration receipt — ${eventTitle}`,
       text: textLines.join("\n"),
       html,
-      idempotencyKey: payment.id,
+      idempotencyKey: `registration-payment:${payment.id}`,
     });
     if (isProviderNotConfigured(sent)) {
       // No email provider yet: leave the receipt unsent, release the claim and

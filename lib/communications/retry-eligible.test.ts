@@ -22,6 +22,7 @@ vi.mock("@/lib/communications/send-with-suppression", () => ({
   sendWithSuppression: sendWithSuppressionMock,
 }));
 
+import { TRANSIENT_PROVIDER_ERROR_CODES, shouldRetryDelivery } from "@/lib/communications/provider-adapter";
 import { attemptRetry, retryEligibleCommunications } from "@/lib/communications/retry-eligible";
 
 // ── Shared fixture helpers ─────────────────────────────────────────────────────
@@ -504,5 +505,96 @@ describe("attemptRetry", () => {
     expect(outcome).toEqual({ kind: "not_claimed" });
     expect(sendWithSuppressionMock).not.toHaveBeenCalled();
     consoleErrorSpy.mockRestore();
+  });
+});
+
+// ── G5.1: provider error codes drive the retry cron ───────────────────────────
+
+describe("retry cron and the shared provider error codes (G5.1)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+  });
+
+  it("selects exactly the shared transient codes, from the one constant", async () => {
+    const inMock = vi.fn().mockResolvedValue({ data: [], error: null });
+    const chain = { select: vi.fn(), eq: vi.fn(), lt: vi.fn(), in: inMock };
+    chain.select.mockReturnValue(chain);
+    chain.eq.mockReturnValue(chain);
+    chain.lt.mockReturnValue(chain);
+    createTenantAdminClientMock.mockReturnValue({ from: vi.fn().mockReturnValue(chain) });
+
+    await retryEligibleCommunications();
+
+    const [column, codes] = inMock.mock.calls[0];
+    expect(column).toBe("error_code");
+    expect(codes).toEqual([...TRANSIENT_PROVIDER_ERROR_CODES]);
+    for (const transient of ["rate_limited", "provider_unavailable", "network_error", "timeout", "temporary_failure"]) {
+      expect(codes).toContain(transient);
+    }
+    for (const permanent of ["invalid_request", "provider_auth_error", "provider_config_error", "provider_not_configured"]) {
+      expect(codes).not.toContain(permanent);
+    }
+  });
+
+  it("agrees with shouldRetryDelivery for every code", () => {
+    for (const code of [...TRANSIENT_PROVIDER_ERROR_CODES, "invalid_request", "provider_auth_error", "provider_config_error"]) {
+      expect(shouldRetryDelivery("failed", code)).toBe(TRANSIENT_PROVIDER_ERROR_CODES.includes(code));
+    }
+  });
+
+  it.each(["rate_limited", "provider_unavailable"])(
+    "a re-failure with %s stays retryable (not dead-lettered while budget remains)",
+    async (code) => {
+      const { upsertMock } = mockAdminClient({});
+      sendWithSuppressionMock.mockResolvedValue({ sent: false, skipped: false, error: "x", errorCode: code });
+
+      await attemptRetry(makeEligibleRow({ retry_count: 0 }), "a@example.com", {} as never);
+
+      expect(upsertMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["invalid_request", "provider_auth_error", "provider_config_error"])(
+    "a re-failure with %s is dead-lettered at once (never retried)",
+    async (code) => {
+      const { upsertMock } = mockAdminClient({});
+      sendWithSuppressionMock.mockResolvedValue({ sent: false, skipped: false, error: "x", errorCode: code });
+
+      await attemptRetry(makeEligibleRow({ retry_count: 0 }), "a@example.com", {} as never);
+
+      expect(upsertMock).toHaveBeenCalledWith(expect.objectContaining({ last_error_code: code }), {
+        onConflict: "communication_log_id",
+      });
+    },
+  );
+
+  it("keys every retry by the message (log id) alone, the same key as the first send", async () => {
+    mockAdminClient({});
+    sendWithSuppressionMock.mockResolvedValue({ sent: true, skipped: false });
+
+    await attemptRetry(makeEligibleRow({ id: "log-77", retry_count: 1 }), "a@example.com", {} as never);
+
+    expect(sendWithSuppressionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: "comm-log:log-77" }),
+    );
+  });
+
+  it("uses the same key on a later attempt of the same row", async () => {
+    mockAdminClient({});
+    sendWithSuppressionMock.mockResolvedValue({ sent: true, skipped: false });
+    await attemptRetry(makeEligibleRow({ id: "log-77", retry_count: 0 }), "a@example.com", {} as never);
+    await attemptRetry(makeEligibleRow({ id: "log-77", retry_count: 1 }), "a@example.com", {} as never);
+    const keys = sendWithSuppressionMock.mock.calls.map((c) => c[0].idempotencyKey);
+    expect(keys).toEqual(["comm-log:log-77", "comm-log:log-77"]);
+  });
+
+  it("records the provider that actually sent on the source row (resend)", async () => {
+    const { updates } = mockAdminClient({});
+    sendWithSuppressionMock.mockResolvedValue({ sent: true, skipped: false, provider: "resend", externalId: "re-1" });
+
+    await attemptRetry(makeEligibleRow({ retry_count: 0 }), "a@example.com", {} as never);
+
+    expect(updates[1].patch).toEqual(expect.objectContaining({ provider: "resend", provider_message_id: "re-1" }));
   });
 });

@@ -58,7 +58,7 @@ describe("sendgridAdapter", () => {
     });
 
     expect(result.accepted).toBe(false);
-    expect(result.errorCode).toBe("sendgrid_400");
+    expect(result.errorCode).toBe("invalid_request");
   });
 
   it("rejects webhook when required signature is invalid", () => {

@@ -143,7 +143,7 @@ describe("recurring gift webhooks", () => {
       expect(db.tables.donations).toHaveLength(1);
       expect(db.tables.donations[0]).toMatchObject({ status: "failed", stripe_invoice_id: "in_1" });
       expect(sendEmailMock).toHaveBeenCalledTimes(1);
-      expect(sendEmailMock.mock.calls[0][0]).toMatchObject({ to: "maya@example.org", subject: "Your recurring gift to Grace Harbor couldn't be processed" });
+      expect(sendEmailMock.mock.calls[0][0]).toMatchObject({ to: "maya@example.org", subject: "Your recurring gift to Grace Harbor couldn't be processed", idempotencyKey: "recurring-failure:in_1" });
       expect(db.tables.recurring_gifts[0].status).toBe("past_due");
     });
 

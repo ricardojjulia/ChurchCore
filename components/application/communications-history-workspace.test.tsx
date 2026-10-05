@@ -97,6 +97,9 @@ function buildLog(overrides: Partial<CommunicationLogSummary> = {}): Communicati
     retryCount: 0,
     segmentCriteria: null,
     sentByName: "Pastor John",
+    errorCode: null,
+    provider: null,
+    isRetryEligible: false,
     ...overrides,
   };
 }
@@ -151,17 +154,22 @@ describe("CommunicationsHistoryWorkspace — AC11 (Cancel for scheduled)", () =>
 
 describe("CommunicationsHistoryWorkspace — AC15 (Retry for failed)", () => {
   it("shows Retry button for a failed message with retryCount < 3", () => {
-    renderWorkspace([buildLog({ status: "failed", retryCount: 0 })]);
+    renderWorkspace([buildLog({ status: "failed", retryCount: 0, errorCode: "rate_limited", isRetryEligible: true })]);
     expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
   });
 
-  it("shows Retry button for a bounced message with retryCount < 3", () => {
-    renderWorkspace([buildLog({ status: "bounced", retryCount: 1 })]);
-    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
+  it("does NOT show Retry for a bounced message the server marks not eligible", () => {
+    renderWorkspace([buildLog({ status: "bounced", retryCount: 1, isRetryEligible: false })]);
+    expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
+  });
+
+  it("does NOT show Retry for a failed message with a permanent error code, even under 3 retries", () => {
+    renderWorkspace([buildLog({ status: "failed", retryCount: 0, errorCode: "provider_auth_error", isRetryEligible: false })]);
+    expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
   });
 
   it("does NOT show Retry for a failed message with retryCount >= 3", () => {
-    renderWorkspace([buildLog({ status: "failed", retryCount: 3 })]);
+    renderWorkspace([buildLog({ status: "failed", retryCount: 3, errorCode: "timeout", isRetryEligible: false })]);
     expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
   });
 
@@ -178,6 +186,31 @@ describe("CommunicationsHistoryWorkspace — AC15 (Retry for failed)", () => {
   });
 });
 
+describe("CommunicationsHistoryWorkspace — failure reasons (G5.1)", () => {
+  it.each([
+    ["rate_limited", /will retry automatically/],
+    ["provider_unavailable", /will retry automatically/],
+    ["network_error", /will retry automatically/],
+    ["timeout", /will retry automatically/],
+    ["temporary_failure", /will retry automatically/],
+    ["provider_auth_error", /check RESEND_API_KEY/],
+    ["provider_config_error", /sending domain and RESEND_FROM_EMAIL/],
+    ["invalid_request", /provider rejected this message/],
+    ["provider_not_configured", /No email provider configured/],
+    ["something_else", /Delivery failed/],
+    [null, /Delivery failed/],
+  ])("shows a plain-language reason for %s", (errorCode, text) => {
+    renderWorkspace([buildLog({ status: "failed", errorCode })]);
+    expect(screen.getByText(text)).toBeInTheDocument();
+  });
+
+  it("shows no reason for a sent message, and a provider badge when known", () => {
+    renderWorkspace([buildLog({ status: "sent", provider: "resend", errorCode: "timeout" })]);
+    expect(screen.queryByText(/Temporary provider problem/)).not.toBeInTheDocument();
+    expect(screen.getByText("resend")).toBeInTheDocument();
+  });
+});
+
 describe("CommunicationsHistoryWorkspace — empty state", () => {
   it("shows empty state message when there are no logs", () => {
     renderWorkspace([]);
@@ -190,7 +223,7 @@ describe("CommunicationsHistoryWorkspace — multiple logs", () => {
     renderWorkspace([
       buildLog({ id: "log-scheduled", status: "scheduled", sentAt: null, scheduledFor: "2030-06-01T09:00:00Z" }),
       buildLog({ id: "log-sent", status: "sent" }),
-      buildLog({ id: "log-failed", status: "failed", retryCount: 0 }),
+      buildLog({ id: "log-failed", status: "failed", retryCount: 0, errorCode: "timeout", isRetryEligible: true }),
     ]);
     // Exactly one Cancel action (for the scheduled row)
     const cancelButtons = screen

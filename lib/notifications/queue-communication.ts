@@ -4,6 +4,8 @@ import "server-only";
 // must never be a POST-callable Server Action (ADR 0022). Callers authenticate
 // first and pass their own session in.
 
+import { randomUUID } from "node:crypto";
+
 import { revalidatePath } from "next/cache";
 import webpush from "web-push";
 
@@ -13,7 +15,7 @@ import {
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
-import { sendgridAdapter } from "@/lib/communications/sendgrid-adapter";
+import { selectEmailProvider } from "@/lib/communications/select-email-provider";
 import { twilioAdapter } from "@/lib/communications/twilio-adapter";
 import { generateUnsubscribeLink } from "@/lib/communications/unsubscribe";
 
@@ -55,6 +57,13 @@ export interface QueueCommunicationInput {
    * Defaults to true.
    */
   recordLog?: boolean;
+  /**
+   * Resend `Idempotency-Key` for this message. The retry cron passes
+   * `comm-log:<its log id>`. Without one, `comm-log:<new log id>` is used: the
+   * log row's id is generated before the send and the row inserted with it, so
+   * the first send and every retry share one key per message.
+   */
+  idempotencyKey?: string;
 }
 
 export interface QueueCommunicationResult {
@@ -64,7 +73,7 @@ export interface QueueCommunicationResult {
   /** Why the send was skipped, for callers that record it (e.g. the DLQ). */
   skipCode?: "opted_out" | "suppressed";
   externalId?: string;
-  provider?: "sendgrid" | "twilio";
+  provider?: "sendgrid" | "resend" | "twilio";
   logId?: string;
   error?: string;
   /** Provider error code (e.g. "timeout"), distinct from the `error` message. */
@@ -91,10 +100,12 @@ export async function queueCommunicationAction(
   }
 
   // ── 2. Dispatch (unless scheduled for the future) ────────────
+  // The log row's id is chosen before the send so it can key the send.
+  const newLogId = randomUUID();
   let externalId: string | undefined;
   let sendError: string | undefined;
   let errorCode: string | undefined;
-  let provider: "sendgrid" | "twilio" | undefined;
+  let provider: "sendgrid" | "resend" | "twilio" | undefined;
 
   const isScheduled =
     input.scheduledFor != null && new Date(input.scheduledFor) > new Date();
@@ -111,12 +122,14 @@ export async function queueCommunicationAction(
       const finalBody =
         input.body +
         `\n\nTo unsubscribe: ${unsubLink}`;
-      provider = "sendgrid";
-      const result = await sendgridAdapter.send({
+      const selected = selectEmailProvider();
+      provider = selected.provider;
+      const result = await selected.adapter.send({
         to: input.recipientContact,
         subject: input.subject,
         body: finalBody,
         html: finalHtml,
+        idempotencyKey: input.idempotencyKey ?? `comm-log:${newLogId}`,
       });
       externalId = result.providerMessageId;
       errorCode = result.errorCode;
@@ -149,6 +162,7 @@ export async function queueCommunicationAction(
 
   // ── 3. Write audit log ────────────────────────────────────────
   const logId = input.recordLog === false ? undefined : await writeLog({
+    id: newLogId,
     churchId,
     sentBy: callerProfileId,
     recipientId: input.recipientProfileId,
@@ -295,6 +309,7 @@ async function checkOptIn(
 }
 
 interface LogInput {
+  id: string;
   churchId: string;
   sentBy: string | null;
   recipientId: string | null;
@@ -302,7 +317,7 @@ interface LogInput {
   subject?: string;
   bodyPreview: string;
   externalId?: string;
-  provider?: "sendgrid" | "twilio";
+  provider?: "sendgrid" | "resend" | "twilio";
   providerMessageId?: string;
   status: string;
   errorMessage?: string;
@@ -318,9 +333,9 @@ async function writeLog(log: LogInput): Promise<string | undefined> {
       `insert into public.communication_logs
          (church_id, sent_by, recipient_id, channel, subject, body_preview,
           external_id, provider, provider_message_id, status, error_message, error_code,
-          scheduled_for, sent_at, retry_count, last_retry_at)
+          scheduled_for, sent_at, retry_count, last_retry_at, id)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
-         case when $15 > 0 then now() else null end)
+         case when $15 > 0 then now() else null end, $16)
        returning id`,
       [
         log.churchId,
@@ -338,6 +353,7 @@ async function writeLog(log: LogInput): Promise<string | undefined> {
         log.scheduledFor ?? null,
         log.sentAt ?? null,
         log.retryCount ?? 0,
+        log.id,
       ],
     );
     return result.rows[0]?.id;
@@ -349,6 +365,7 @@ async function writeLog(log: LogInput): Promise<string | undefined> {
   const { data, error } = await supabase
     .from("communication_logs")
     .insert({
+      id: log.id,
       church_id: log.churchId,
       sent_by: log.sentBy,
       recipient_id: log.recipientId,
