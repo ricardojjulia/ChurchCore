@@ -78,13 +78,13 @@ describe("callMinistryAI", () => {
     );
   });
 
-  it("calls the gateway as the ministry feature with the prompt and a 1024-token cap", async () => {
+  it("calls the gateway as the ministry feature with the prompt and a 2048-token cap", async () => {
     await callMinistryAI(PROMPT, "bible_study", "church-1", "profile-1");
     expect(completeChatMock).toHaveBeenCalledWith({
       feature: "ministry",
       system: PROMPT.system,
       messages: [{ role: "user", content: PROMPT.user }],
-      maxTokens: 1024,
+      maxTokens: 2048,
       timeoutMs: 50_000,
     });
   });
