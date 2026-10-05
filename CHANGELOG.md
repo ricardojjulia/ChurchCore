@@ -6,6 +6,16 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+- **`docs/prompts/replicate-project-hq.md`**: a self-contained prompt for an AI coding agent to build Project HQ in any codebase. It covers:
+  - the staff-only gate, enforced in three places;
+  - the four tables with RLS and cost columns;
+  - the OpenRouter gateway contract, with zero data retention, failing closed, per-feature fallbacks, cost logging, and an optional backup provider;
+  - the `/api/ai` order of operations;
+  - PII scrubbing in the gateway;
+  - the advisor and five-seat Council prompts, with strict status parsing;
+  - the page UX, the limits copy, the tests and the definition of done.
+
+  It folds in the lessons from Council Reviews 39–42 and the O9 live check: truncation at the token cap, the retired default model, unscrubbed callers, one source of truth for platform staff, and not returning provider text.
 - **HQ advisor answers are no longer cut off.** The first live OpenRouter call (O9, 2026-10-05: `anthropic/claude-sonnet-5.5`, 678 prompt / 1,524 completion tokens, $0.0164) stopped exactly at the advisor's 1,524-token cap. The advisor now allows 3,000 tokens with a 55 s timeout, inside `/api/ai`'s `maxDuration = 60`. The elders' sermon-outline and Bible-study AI goes from 1,024 to 2,048 tokens. Council seats (900) and synthesis (1,200) are unchanged: six calls must fit the same 60 s window.
 
 ### Fixed
