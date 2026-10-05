@@ -13,6 +13,7 @@ import {
 } from "@/lib/stripe/connect";
 import { verifyStripeSignature } from "@/lib/stripe/webhook-signature";
 import { reverseGlEntryForRefund } from "@/lib/stripe/event-registrations";
+import { sendRegistrationReceipt } from "@/lib/stripe/registration-receipt";
 import { completeDonation, sendDonationReceipt } from "@/lib/stripe/donation-completion";
 import {
   handleInvoicePaid,
@@ -137,7 +138,7 @@ async function handlePaymentIntentSucceeded(pi: {
       .eq("church_id", churchId);
     if (registrationError) throw new Error(registrationError.message);
 
-    await supabase
+    const { error: paymentError } = await supabase
       .from("event_registration_payments")
       .update({
         status: "succeeded",
@@ -147,6 +148,11 @@ async function handlePaymentIntentSucceeded(pi: {
       })
       .eq("registration_id", resolvedRegistrationId)
       .eq("church_id", churchId);
+    if (paymentError) throw new Error(paymentError.message);
+
+    // ChurchCore's own receipt (G3.3b): claimed, sent once; a refusal throws,
+    // so the route answers 5xx and Stripe retries (the updates above repeat safely).
+    await sendRegistrationReceipt(supabase, churchId, resolvedRegistrationId);
   }
 
   // The gift (one-time, or a recurring installment already recorded by

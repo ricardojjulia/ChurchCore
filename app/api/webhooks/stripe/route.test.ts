@@ -3,6 +3,8 @@ import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
+import { fakeDb } from "@/lib/stripe/fake-db.testing";
+
 const {
   queryTenantLocalDbMock,
   shouldUseLocalTenantFallbackMock,
@@ -12,7 +14,9 @@ const {
   connectMocks,
   completeDonationMock,
   recurringMocks,
+  sendRegistrationReceiptMock,
 } = vi.hoisted(() => ({
+  sendRegistrationReceiptMock: vi.fn(),
   completeDonationMock: vi.fn(),
   recurringMocks: {
     handleInvoicePaid: vi.fn(),
@@ -50,6 +54,8 @@ vi.mock("@/lib/stripe/donation-completion", async (importOriginal) => ({
   completeDonation: completeDonationMock,
 }));
 vi.mock("@/lib/stripe/recurring-webhooks", () => recurringMocks);
+// The registration receipt (claim, send, content) is tested in its own module.
+vi.mock("@/lib/stripe/registration-receipt", () => ({ sendRegistrationReceipt: sendRegistrationReceiptMock }));
 
 vi.mock("@/lib/notifications/send-email", () => ({
   sendEmail: sendEmailMock,
@@ -808,6 +814,66 @@ describe("stripe webhook route", () => {
 
       // G3.2: a 5xx makes Stripe retry; a 200 here used to drop the event.
       expect(response.status).toBe(500);
+    });
+  });
+
+  describe("registration receipt (G3.3b)", () => {
+    const succeededBody = (metadata: Record<string, string>) =>
+      JSON.stringify({
+        type: "payment_intent.succeeded",
+        data: { object: { id: "pi_rcpt", amount: 2500, currency: "usd", metadata } },
+      });
+    const seedDb = () =>
+      fakeDb({
+        event_registrations: [{ id: "reg-r1", church_id: "church-r" }],
+        event_registration_payments: [{ id: "pay-r1", church_id: "church-r", registration_id: "reg-r1" }],
+      });
+
+    beforeEach(() => {
+      shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+      sendRegistrationReceiptMock.mockResolvedValue(undefined);
+    });
+
+    it("sends the receipt for a registration payment, after the registration and payment are updated", async () => {
+      const db = seedDb();
+      createTenantAdminClientMock.mockReturnValue(db.client);
+      const response = await stripeWebhookPost(
+        stripeRequest({ method: "POST", body: succeededBody({ church_id: "church-r", event_registration_id: "reg-r1" }) }),
+      );
+      expect(response.status).toBe(200);
+      expect(sendRegistrationReceiptMock).toHaveBeenCalledTimes(1);
+      expect(sendRegistrationReceiptMock).toHaveBeenCalledWith(db.client, "church-r", "reg-r1");
+      expect(db.tables.event_registration_payments[0]).toMatchObject({ status: "succeeded", payment_intent_id: "pi_rcpt" });
+    });
+
+    it("sends no registration receipt for a pure donation payment", async () => {
+      createTenantAdminClientMock.mockReturnValue(fakeDb({ event_registration_payments: [] }).client);
+      const response = await stripeWebhookPost(stripeRequest({ method: "POST", body: succeededBody({ church_id: "church-r" }) }));
+      expect(response.status).toBe(200);
+      expect(sendRegistrationReceiptMock).not.toHaveBeenCalled();
+      expect(completeDonationMock).toHaveBeenCalled();
+    });
+
+    it("answers 500 when the receipt send throws, so Stripe retries", async () => {
+      createTenantAdminClientMock.mockReturnValue(seedDb().client);
+      sendRegistrationReceiptMock.mockRejectedValue(new Error("Receipt email refused: bounced"));
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const response = await stripeWebhookPost(
+        stripeRequest({ method: "POST", body: succeededBody({ church_id: "church-r", event_registration_id: "reg-r1" }) }),
+      );
+      expect(response.status).toBe(500);
+    });
+
+    it("answers 500 when the payment update fails, and sends no receipt", async () => {
+      const db = seedDb();
+      db.failOn.add("event_registration_payments");
+      createTenantAdminClientMock.mockReturnValue(db.client);
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const response = await stripeWebhookPost(
+        stripeRequest({ method: "POST", body: succeededBody({ church_id: "church-r", event_registration_id: "reg-r1" }) }),
+      );
+      expect(response.status).toBe(500);
+      expect(sendRegistrationReceiptMock).not.toHaveBeenCalled();
     });
   });
 

@@ -1953,6 +1953,7 @@
       "tests": [
         "app/api/webhooks/stripe/route.test.ts",
         "lib/stripe/recurring-webhooks.test.ts",
+        "lib/stripe/registration-receipt.test.ts",
         "tests/e2e/api-webhooks.spec.ts",
         "tests/e2e/recurring-giving.spec.ts"
       ]
