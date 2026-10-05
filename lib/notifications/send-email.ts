@@ -5,10 +5,13 @@
  *   SENDGRID_API_KEY   — SendGrid API key (sg.…)
  *   SENDGRID_FROM_EMAIL — verified sender address
  *
- * When the env vars are absent (local dev without SendGrid),
- * the message is logged to the console and the function returns
- * a stub result so callers do not blow up.
+ * When the env vars are absent and stubs are allowed (local dev, demo), the
+ * message is logged and a stub success is returned. In production the send is
+ * refused with `provider_not_configured`, never faked as delivered.
  */
+
+import { EMAIL_PROVIDER_NOT_CONFIGURED } from "@/lib/notifications/email-provider";
+import { stubsAllowed } from "@/lib/stub-mode";
 
 export interface SendEmailInput {
   to: string | string[];
@@ -34,6 +37,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   const fromEmail = process.env.SENDGRID_FROM_EMAIL;
 
   if (!apiKey || !fromEmail) {
+    if (!stubsAllowed()) return { accepted: false, error: EMAIL_PROVIDER_NOT_CONFIGURED };
     // Local-dev stub — log to console, treat as accepted
     console.info("[sendEmail] stub (no SENDGRID_API_KEY):", {
       to: input.to,

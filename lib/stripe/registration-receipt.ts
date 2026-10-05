@@ -1,6 +1,7 @@
 import "server-only";
 
 import { isValidTimeZone } from "@/lib/church-time";
+import { isProviderNotConfigured } from "@/lib/notifications/email-provider";
 import { sendEmail } from "@/lib/notifications/send-email";
 import type { createTenantAdminClient } from "@/lib/supabase/tenant";
 import { escapeHtml, RECEIPT_LEASE_MS } from "@/lib/stripe/donation-completion";
@@ -164,6 +165,13 @@ export async function sendRegistrationReceipt(
       html,
       idempotencyKey: payment.id,
     });
+    if (isProviderNotConfigured(sent)) {
+      // No email provider yet: leave the receipt unsent, release the claim and
+      // don't throw, so the webhook isn't retried for days (Council Review 42).
+      await release();
+      console.warn("[registration-receipt] email provider not configured; receipt left unsent", { paymentId: payment.id });
+      return;
+    }
     if (!sent.accepted) throw new Error(`Receipt email refused: ${sent.error ?? "unknown error"}`);
   } catch (error) {
     await release();

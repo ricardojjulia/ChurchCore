@@ -136,6 +136,17 @@ describe("sendRegistrationReceipt (G3.3b)", () => {
     expect(db.tables.event_registration_payments[0].receipt_sent_at).toBeTruthy();
   });
 
+  it("leaves the receipt unsent, releases the claim and does not throw when no email provider is configured (Council Review 42)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const db = seed();
+    sendEmailMock.mockResolvedValueOnce({ accepted: false, error: "provider_not_configured" });
+    await expect(sendRegistrationReceipt(db.client, "church-1", "reg-1")).resolves.toBeUndefined();
+    expect(db.tables.event_registration_payments[0].receipt_claimed_at).toBeNull();
+    expect(db.tables.event_registration_payments[0].receipt_sent_at).toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("not configured"), { paymentId: "pay-1" });
+    warn.mockRestore();
+  });
+
   it("sends nothing and does not throw when the registration has no email, and releases the claim", async () => {
     const db = seed({ registration: { registrant_email: null } });
     await expect(sendRegistrationReceipt(db.client, "church-1", "reg-1")).resolves.toBeUndefined();

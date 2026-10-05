@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isProviderNotConfigured } from "@/lib/notifications/email-provider";
 import { sendEmail } from "@/lib/notifications/send-email";
 import type { createTenantAdminClient } from "@/lib/supabase/tenant";
 
@@ -226,14 +227,18 @@ export async function handleInvoicePaymentFailed(supabase: AdminClient, churchId
     }
     if (!sent.accepted) {
       await release();
-      throw new Error(`Failure notice refused: ${sent.error ?? "unknown error"}`);
+      if (!isProviderNotConfigured(sent)) throw new Error(`Failure notice refused: ${sent.error ?? "unknown error"}`);
+      // No email provider yet: leave the notice unsent and carry on, so the
+      // webhook isn't retried for days (Council Review 42).
+      console.warn("[recurring-webhooks] email provider not configured; failure notice left unsent", { invoiceId: invoice.id });
+    } else {
+      const { error: sentError } = await supabase
+        .from("donations")
+        .update({ failure_notice_sent_at: new Date().toISOString() })
+        .eq("church_id", churchId)
+        .eq("stripe_invoice_id", invoice.id);
+      if (sentError) throw new Error(sentError.message);
     }
-    const { error: sentError } = await supabase
-      .from("donations")
-      .update({ failure_notice_sent_at: new Date().toISOString() })
-      .eq("church_id", churchId)
-      .eq("stripe_invoice_id", invoice.id);
-    if (sentError) throw new Error(sentError.message);
   }
 
   const { error } = await supabase

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { EmailProviderNotConfiguredError, isProviderNotConfigured } from "@/lib/notifications/email-provider";
 import { sendEmail } from "@/lib/notifications/send-email";
 import type { createTenantAdminClient } from "@/lib/supabase/tenant";
 
@@ -78,6 +79,7 @@ export async function sendDonationReceipt(receipt: DonationReceipt): Promise<voi
     `,
     idempotencyKey: receipt.donationId,
   });
+  if (isProviderNotConfigured(sent)) throw new EmailProviderNotConfiguredError();
   if (!sent.accepted) throw new Error(`Receipt email refused: ${sent.error ?? "unknown error"}`);
 }
 
@@ -166,6 +168,7 @@ export async function completeDonation(
       const { data: church } = await supabase.from("churches").select("name").eq("id", churchId).maybeSingle();
       churchName = (church as { name: string } | null)?.name ?? null;
     }
+    let delivered = true;
     try {
       await sendDonationReceipt({
         to,
@@ -178,14 +181,20 @@ export async function completeDonation(
     } catch (sendError) {
       // Release the claim so the next attempt sends it at once.
       await supabase.from("donations").update({ receipt_claimed_at: null }).eq("id", gift.id).eq("church_id", churchId);
-      throw sendError;
+      // No email provider yet: the gift still completes, its receipt stays
+      // unsent (receipt_sent_at unset), and no retry is requested (Council Review 42).
+      if (!(sendError instanceof EmailProviderNotConfiguredError)) throw sendError;
+      console.warn("[donation-completion] email provider not configured; receipt left unsent", { donationId: gift.id });
+      delivered = false;
     }
-    const { error: sentError } = await supabase
-      .from("donations")
-      .update({ receipt_sent_at: new Date().toISOString() })
-      .eq("id", gift.id)
-      .eq("church_id", churchId);
-    if (sentError) throw new Error(sentError.message);
+    if (delivered) {
+      const { error: sentError } = await supabase
+        .from("donations")
+        .update({ receipt_sent_at: new Date().toISOString() })
+        .eq("id", gift.id)
+        .eq("church_id", churchId);
+      if (sentError) throw new Error(sentError.message);
+    }
   }
 
   const { error: markError } = await supabase

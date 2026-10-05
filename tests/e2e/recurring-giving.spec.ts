@@ -32,7 +32,7 @@ test.describe("a member's recurring gift", () => {
     await queryTenantDb("delete from public.recurring_gifts where profile_id = $1", [await memberProfileId()]);
   });
 
-  test("sets one up, pauses and resumes it, then cancels it", async ({ page }) => {
+  test("sets one up, pauses and resumes it, changes it, then cancels it", async ({ page }) => {
     await page.goto("/app/member/giving");
     await page.getByRole("button", { name: "Set up a recurring gift" }).click();
     const drawer = page.getByRole("dialog");
@@ -53,10 +53,31 @@ test.describe("a member's recurring gift", () => {
     await gift.getByRole("button", { name: "Resume" }).click();
     await expect(gift.getByText("Active")).toBeVisible();
 
-    await gift.getByRole("button", { name: "Cancel" }).click();
-    await gift.getByRole("button", { name: "Yes, cancel it" }).click();
-    await expect(page.getByText("Recurring gift cancelled")).toBeVisible();
+    // Change: a new amount and frequency (G3 definition of done: create,
+    // change and cancel). The gift is a dev-mode stub with no Stripe
+    // subscription, so the change is recorded locally with no Stripe call.
+    await gift.getByRole("button", { name: "Change" }).click();
+    const changeDrawer = page.getByRole("dialog");
+    await expect(changeDrawer.getByText("Change recurring gift")).toBeVisible();
+    await changeDrawer.getByRole("textbox", { name: "Amount" }).fill("55");
+    await changeDrawer.getByRole("combobox", { name: "How often" }).click();
+    await page.getByRole("option", { name: "Every two weeks" }).click();
+    await changeDrawer.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByText("Recurring gift updated")).toBeVisible();
+
+    const changed = page.locator(".mantine-Paper-root", { hasText: "$55.00 / two weeks" }).last();
+    await expect(changed.getByText("Active")).toBeVisible();
     await expect(page.locator(".mantine-Paper-root", { hasText: "$40.00 / month" })).toHaveCount(0);
+    const after = await queryTenantDb<{ status: string; frequency: string; amount_cents: number; fund_designation: string }>(
+      "select status, frequency, amount_cents, fund_designation from public.recurring_gifts where profile_id = $1",
+      [await memberProfileId()],
+    );
+    expect(after.rows).toEqual([{ status: "active", frequency: "biweekly", amount_cents: 5500, fund_designation: "General" }]);
+
+    await changed.getByRole("button", { name: "Cancel" }).click();
+    await changed.getByRole("button", { name: "Yes, cancel it" }).click();
+    await expect(page.getByText("Recurring gift cancelled")).toBeVisible();
+    await expect(page.locator(".mantine-Paper-root", { hasText: "$55.00 / two weeks" })).toHaveCount(0);
   });
 });
 
