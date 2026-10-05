@@ -118,6 +118,18 @@ describe("donation completion", () => {
       expect(sendEmailMock).toHaveBeenCalledTimes(2); // the refused attempt, then the one that went out
     });
 
+    it("completes the gift without a receipt, and does not throw, when no email provider is configured (Council Review 42)", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const db = dbWithLedger({ donations: [pendingGift()], giving_fund_accounts: [MAPPING], churches: [] });
+      sendEmailMock.mockResolvedValueOnce({ accepted: false, error: "provider_not_configured" });
+
+      expect(await completeDonation(db.client, "church-1", { id: "don-1" })).toBe(true);
+      expect(db.tables.donations[0]).toMatchObject({ receipt_claimed_at: null, receipt_sent_at: null });
+      expect(db.tables.donations[0].completed_at).toBeTruthy();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("not configured"), { donationId: "don-1" });
+      warn.mockRestore();
+    });
+
     it("recovers when the send itself throws (a network error), not only when the provider refuses", async () => {
       const db = dbWithLedger({ donations: [pendingGift()], churches: [] });
       sendEmailMock.mockRejectedValueOnce(new Error("fetch failed"));

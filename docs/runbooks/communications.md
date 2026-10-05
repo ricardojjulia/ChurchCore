@@ -26,7 +26,7 @@ Generate `UNSUBSCRIBE_SECRET` with:
 openssl rand -hex 32
 ```
 
-When `RESEND_API_KEY` is absent the Resend adapter returns stub results — safe for local development. When both `RESEND_API_KEY` and `SENDGRID_API_KEY` are absent, all email sends return stub results.
+When `RESEND_API_KEY` is absent the Resend adapter returns stub results — safe for local development. When both `RESEND_API_KEY` and `SENDGRID_API_KEY` are absent, all email sends return stub results. This applies only where provider stubs are allowed (local development and demo, `lib/stub-mode.ts`). In production, the direct `sendEmail()` path (donation receipts, recurring-gift failure notices, event-registration receipts) returns `provider_not_configured` when `SENDGRID_API_KEY` or `SENDGRID_FROM_EMAIL` is unset (Council Review 42): the receipt stays unsent (`receipt_sent_at` unset), a warning is logged, and the Stripe webhook still answers 200 instead of being retried. Set the provider keys (G5.1) for those messages to actually send.
 
 **Every webhook below fails closed (S2, Council Review 29, 2026-10-01).** While its secret or verification key is unset, the route rejects every request — in every environment, including production. This used to be backwards for three of the four: SendGrid, Twilio and Resend accepted an unsigned request as valid whenever their secret was unset ("verification is disabled"), and Stripe only checked a signature at all when a secret existed. A deploy that forgets to set a webhook secret doesn't get a quieter, unverified webhook anymore — it gets no working webhook at all, so confirm the relevant secret is set (and, for Stripe, that payments actually reconcile) right after any deploy. This is also owner action **O4** in `DEVELOPMENT_PLAN.md` §0.3.
 

@@ -191,7 +191,7 @@ The communications workspace is used for church messaging and operational follow
 
 Paths: `/app/giving`, `/app/church-admin/giving`
 
-Admins can review donation activity, giving analytics, fund mappings, receipt gaps, and GL posting status. Public giving is available through `/give/[churchSlug]` when a giving page is configured and live.
+Admins can review donation activity, giving analytics, fund mappings, receipt gaps, and GL posting status. Donation receipts, recurring-gift failure notices and paid event-registration receipts are emailed from the Stripe webhook. A paid registration's receipt names the church, the event and its local time, and the amount, and says the fee is not a tax-deductible donation (registration fees never appear on a giving statement). In production, until an email provider is configured, these messages are not sent and stay visibly unsent (the "unsent receipts" count below); they are never reported as delivered. Public giving is available through `/give/[churchSlug]` when a giving page is configured and live.
 
 The readiness link `/app/church-admin/giving?view=exceptions` opens a focused exception view for failed gifts, unposted gifts, unsent receipts, draft journal count, and public giving page status. Mapped unposted gifts can be posted to the general ledger from the readiness view; failed gifts and receipt gaps link to the next review workflow.
 

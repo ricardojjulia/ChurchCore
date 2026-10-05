@@ -157,6 +157,18 @@ describe("recurring gift webhooks", () => {
       expect(sendEmailMock).not.toHaveBeenCalled();
     });
 
+    it("leaves the notice unsent, releases the claim and does not throw when no email provider is configured (Council Review 42)", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const db = seed();
+      sendEmailMock.mockResolvedValueOnce({ accepted: false, error: "provider_not_configured" });
+      await handleInvoicePaymentFailed(db.client, "church-1", INVOICE);
+      expect(db.tables.donations[0]).toMatchObject({ failure_notice_claimed_at: null });
+      expect(db.tables.donations[0].failure_notice_sent_at ?? null).toBeNull();
+      expect(db.tables.recurring_gifts[0].status).toBe("past_due");
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("not configured"), { invoiceId: "in_1" });
+      warn.mockRestore();
+    });
+
     it("sends the notice again on a retry when the first send was refused or threw", async () => {
       for (const failure of [() => sendEmailMock.mockResolvedValueOnce({ accepted: false, error: "SendGrid 503" }), () => sendEmailMock.mockRejectedValueOnce(new Error("fetch failed"))]) {
         vi.clearAllMocks();
