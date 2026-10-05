@@ -115,8 +115,10 @@ export async function POST(request: NextRequest): Promise<Response> {
     } else {
       const completion = await completeChat({
         feature: "hq-advisor",
-        maxTokens: 1524,
-        timeoutMs: 50_000,
+        // 1,524 truncated real answers (the first live call stopped exactly at
+        // the cap). 3,000 fits inside maxDuration = 60 at typical Sonnet speed.
+        maxTokens: 3000,
+        timeoutMs: 55_000,
         system: ADVISOR_SYSTEM_PROMPT,
         messages: [{ role: "user", content: `${scrubbedPrompt}\n\nHQ REGISTER (context):\n${register}` }],
       });

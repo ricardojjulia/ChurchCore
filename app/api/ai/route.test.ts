@@ -196,7 +196,8 @@ describe("POST /api/ai modes (Council v2)", () => {
     expect(maxDuration).toBe(60);
     createMock.mockResolvedValue(completion("ok"));
     await post({ prompt: "hi" });
-    expect(createMock.mock.calls[0][0].timeoutMs).toBe(50_000);
+    expect(createMock.mock.calls[0][0].timeoutMs).toBe(55_000);
+    expect(createMock.mock.calls[0][0].maxTokens).toBe(3000);
     expect(scrubPII("a@b.org")).toBe("[EMAIL]");
   });
 

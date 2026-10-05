@@ -6,6 +6,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+- **HQ advisor answers are no longer cut off.** The first live OpenRouter call (O9, 2026-10-05: `anthropic/claude-sonnet-5.5`, 678 prompt / 1,524 completion tokens, $0.0164) stopped exactly at the advisor's 1,524-token cap. The advisor now allows 3,000 tokens with a 55 s timeout, inside `/api/ai`'s `maxDuration = 60`. The elders' sermon-outline and Bible-study AI goes from 1,024 to 2,048 tokens. Council seats (900) and synthesis (1,200) are unchanged: six calls must fit the same 60 s window.
+
 ### Fixed
 
 - **`/app/church-admin` crashed for every Grace Harbor admin in production** with `decryptPastoralField: decryption failed — bad key or corrupted ciphertext` (React error #441 in the browser). Cause: `decryptPastoralField` (`lib/crypto/pastoral.ts`) treated a value as plaintext only when its base64-decoded length was under 29 bytes. `Buffer.from(…, "base64")` silently skips non-base64 characters, so any **plaintext** value of roughly 40+ characters passed the length check, failed AES-GCM and threw. Grace Harbor's 2 `care_assignments.summary` rows were seeded as plaintext on 2026-06-06 and never encrypted in production. Local e2e setup encrypts them, so no test hit it. Now a value that isn't strict base64 is treated as legacy plaintext and returned with the existing warning; genuine ciphertext under a wrong key still throws. New tests cover a long plaintext value (fails on the old code) and wrong-key ciphertext. **Owner follow-up:** run `scripts/backfill-pastoral-encryption.mjs` against production with the production `PASTORAL_ENCRYPTION_KEY` to encrypt those 2 rows at rest.

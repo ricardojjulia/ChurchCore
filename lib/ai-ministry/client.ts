@@ -17,7 +17,8 @@ export async function callMinistryAI(
     feature: "ministry",
     system: prompt.system,
     messages: [{ role: "user", content: prompt.user }],
-    maxTokens: 1024,
+    // Room for a full sermon outline or study; Haiku stays well inside the timeout.
+    maxTokens: 2048,
     timeoutMs: 50_000,
   });
 
