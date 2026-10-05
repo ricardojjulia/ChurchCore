@@ -92,13 +92,15 @@ Five separate read-only agents ran (Council v2). Their reports are in `2026-10-0
 
 ## Definition of done
 
-- [ ] Unit tests pass (count)
-- [ ] Surfaces: `npm run test:surfaces` OK
-- [ ] Lint: 0 errors
-- [ ] Types: `npx tsc --noEmit` clean
-- [ ] Build succeeds
-- [ ] E2E: the touched specs pass locally; CI `verify` and 4 `e2e` shards green before merge
-- [ ] Migration `20261007000000`: lint, fresh-reset apply (builder: done), additive and nullable, rollback stated, owner action row to apply it to hosted Supabase
-- [ ] Commits verified on GitHub
-- [ ] GitHub review comments read, fixed or answered, threads resolved
-- [ ] Documenter close-out committed
+Evidence recorded by the Documenter on 2026-10-05, after `149af55`. Unticked means not yet verified.
+
+- [x] Unit tests pass (count): `npx vitest run` 202 files / 2,459 tests (orchestrator-run)
+- [x] Surfaces: `npm run test:surfaces` OK (orchestrator-run)
+- [x] Lint: 0 errors (1 pre-existing warning in `localization-governance.config.mjs`)
+- [x] Types: `npx tsc --noEmit` clean
+- [x] Build succeeds (builder-run)
+- [ ] E2E: the touched specs pass locally (builder: `recurring-giving`, `api-webhooks`, `giving-statements`, 31/31, including the new "change" step); CI `verify` and 4 `e2e` shards: pending PR
+- [x] Migration `20261007000000`: `lint:migrations` PASS, fresh-reset apply done (builder), additive and nullable, rollback stated in the file and in the plan; owner action row O11 added to apply it to hosted Supabase after merge
+- [ ] Commits verified on GitHub: pending PR
+- [ ] GitHub review comments read, fixed or answered, threads resolved: pending PR
+- [x] Documenter close-out committed (this commit: plan, changelog, README, application guide, communications runbook, factory-run note, memory)

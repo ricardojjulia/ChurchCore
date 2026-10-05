@@ -36,3 +36,28 @@ As someone who paid for an event registration, I get one receipt from my church,
    - no email;
    - the webhook calling it only for a registration.
    - The webhook route's manifest entry gains the new test file.
+
+## Council and verification
+
+**Council Review 42** (`docs/reviews/2026-10-05-council-review-42-synthesis.md`, agents in `...-agents-1-5.md`): five separate read-only agents under Council v2. Status **AMENDED**; both required fixes landed in `149af55`. Readiness 86/100, up from 84. The Documenter close-out commit follows `149af55`.
+
+**Intent.** One ChurchCore receipt per paid event registration, sent from the Stripe webhook, never duplicated, never recorded as sent unless the provider accepted it.
+
+**Architecture impact.**
+- New `lib/stripe/registration-receipt.ts`, called from `handlePaymentIntentSucceeded`. It uses claim-before-send with a 5-minute lease on `event_registration_payments`.
+- Migration `20261007000000` adds nullable `receipt_claimed_at` and `receipt_sent_at`, with no backfill. Rollback: drop both columns (the receipt path then loses its duplicate guard).
+- Council fix 1: `sendEmail()` (`lib/notifications/send-email.ts`) returns `provider_not_configured` in production when the SendGrid keys are unset, instead of a fake success (pre-existing, found by the Security seat). A small helper in `lib/notifications/email-provider.ts` is shared by the three callers. Donation receipts, recurring failure notices and registration receipts treat it as non-retryable: release the claim, warn, leave the sent marker unset, answer the webhook 200. Any other refusal still throws and is retried.
+- Council fix 2: `tests/e2e/recurring-giving.spec.ts` gains the "change" step that Gap 3's definition of done required and the spec lacked.
+- No new page, route or server action; the webhook route's manifest entry lists the new test.
+
+**Verification.**
+- Orchestrator, after `149af55`: `npx vitest run` 202 files / 2,459 tests pass; `npm run lint` 0 errors (1 pre-existing warning); `npx tsc --noEmit` clean; `npm run test:surfaces` OK.
+- Builder: `npm run build` succeeds; `npm run lint:migrations` PASS; migration `20261007000000` applied on a fresh reset; `recurring-giving.spec.ts` + `api-webhooks.spec.ts` + `giving-statements.spec.ts` 31/31 pass locally (including the new "change" step); column-references DB test passes.
+- **Not done:** CI (`verify`, 4 `e2e` shards), because no PR exists; commit signature check on GitHub; GitHub review comments. No real SendGrid or Stripe call has been made, so the receipt has never been sent to a real inbox.
+
+**Residual risk.**
+- Until G5.1 configures an email provider, receipts and failure notices stay unsent in production by design; unsent receipts are not yet visible to operators (S12).
+- A church that enables Stripe's emailed receipts sends the registrant a second receipt (same as donations).
+- Receipts are English only (S13). They skip `communication_suppressions`, as donation receipts do, on purpose.
+
+**Follow-up work.** O11 (apply the migration after merge); G5.1 (receipts actually send in production, and decide whether to re-send receipts left unsent); S12; S13; then S11 and T1a for M3. Gap 3 closes when this PR merges.
