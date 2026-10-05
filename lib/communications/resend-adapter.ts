@@ -7,7 +7,13 @@ import type {
   ProviderSendResult,
 } from "@/lib/communications/provider-adapter";
 import { stubsAllowed } from "@/lib/stub-mode";
-import { PROVIDER_NOT_CONFIGURED } from "@/lib/communications/provider-adapter";
+import {
+  PROVIDER_NOT_CONFIGURED,
+  PROVIDER_REQUEST_TIMEOUT_MS,
+  mapProviderFetchError,
+  mapProviderHttpError,
+  readProviderError,
+} from "@/lib/communications/provider-adapter";
 
 function parseJson(rawBody: string): unknown {
   try {
@@ -44,38 +50,41 @@ export const resendAdapter: ProviderAdapter = {
       body.html = payload.html;
     }
 
-    try {
-      const response = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (response.status === 200 || response.status === 201) {
-        const json = (await response.json()) as { id?: string };
-        return {
-          accepted: true,
-          providerMessageId: json.id,
-        };
-      }
-
-      const text = await response.text().catch(() => "");
-      return {
-        accepted: false,
-        errorCode: `resend_${response.status}`,
-        errorMessage: text || `Resend request failed (${response.status})`,
-      };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return {
-        accepted: false,
-        errorCode: "network_error",
-        errorMessage: message,
-      };
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    };
+    // Resend accepts 1-256 characters.
+    if (payload.idempotencyKey) {
+      headers["Idempotency-Key"] = payload.idempotencyKey.slice(0, 256);
     }
+
+    let response: Response;
+    try {
+      response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
+      });
+    } catch (err) {
+      return { accepted: false, ...mapProviderFetchError(err) };
+    }
+
+    if (response.ok) {
+      const json = (await response.json().catch(() => ({}))) as { id?: string };
+      return { accepted: true, providerMessageId: json.id };
+    }
+
+    const text = await response.text().catch(() => "");
+    // Resend's SDKs call the error type `name`; the HTTP reference doesn't name
+    // the field, so `type` is read as a fallback.
+    const error = readProviderError(text, response.status, "Resend");
+    return {
+      accepted: false,
+      errorCode: mapProviderHttpError(response.status, error.type),
+      errorMessage: error.message,
+    };
   },
 
   verifyWebhookSignature(rawBody: string, headers: Record<string, string>): boolean {

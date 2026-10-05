@@ -7,7 +7,13 @@ import type {
   ProviderSendResult,
 } from "@/lib/communications/provider-adapter";
 import { stubsAllowed } from "@/lib/stub-mode";
-import { PROVIDER_NOT_CONFIGURED } from "@/lib/communications/provider-adapter";
+import {
+  PROVIDER_NOT_CONFIGURED,
+  PROVIDER_REQUEST_TIMEOUT_MS,
+  mapProviderFetchError,
+  mapProviderHttpError,
+  readProviderError,
+} from "@/lib/communications/provider-adapter";
 
 // SendGrid's Event Webhook signs timestamp + raw body with ECDSA (P-256,
 // SHA-256). The verification key in its settings is the base64 DER public
@@ -82,23 +88,30 @@ export const sendgridAdapter: ProviderAdapter = {
         : { accepted: false, errorCode: PROVIDER_NOT_CONFIGURED, errorMessage: "Sendgrid isn't configured." };
     }
 
-    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        personalizations: [{ to: [{ email: payload.to }] }],
-        from: { email: fromEmail },
-        subject: payload.subject ?? "(no subject)",
-        content: [
-          { type: "text/plain", value: payload.body },
-          ...(payload.html ? [{ type: "text/html", value: payload.html }] : []),
-        ],
-        custom_args: payload.metadata,
-      }),
-    });
+    // SendGrid has no idempotency header, so payload.idempotencyKey is unused.
+    let response: Response;
+    try {
+      response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          personalizations: [{ to: [{ email: payload.to }] }],
+          from: { email: fromEmail },
+          subject: payload.subject ?? "(no subject)",
+          content: [
+            { type: "text/plain", value: payload.body },
+            ...(payload.html ? [{ type: "text/html", value: payload.html }] : []),
+          ],
+          custom_args: payload.metadata,
+        }),
+        signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
+      });
+    } catch (err) {
+      return { accepted: false, ...mapProviderFetchError(err) };
+    }
 
     if (response.ok) {
       return {
@@ -108,10 +121,11 @@ export const sendgridAdapter: ProviderAdapter = {
     }
 
     const text = await response.text().catch(() => "");
+    const error = readProviderError(text, response.status, "SendGrid");
     return {
       accepted: false,
-      errorCode: `sendgrid_${response.status}`,
-      errorMessage: text || `SendGrid request failed (${response.status})`,
+      errorCode: mapProviderHttpError(response.status, error.type),
+      errorMessage: error.message,
     };
   },
 

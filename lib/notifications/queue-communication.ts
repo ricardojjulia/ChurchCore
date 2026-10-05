@@ -4,6 +4,8 @@ import "server-only";
 // must never be a POST-callable Server Action (ADR 0022). Callers authenticate
 // first and pass their own session in.
 
+import { randomUUID } from "node:crypto";
+
 import { revalidatePath } from "next/cache";
 import webpush from "web-push";
 
@@ -13,7 +15,7 @@ import {
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
-import { sendgridAdapter } from "@/lib/communications/sendgrid-adapter";
+import { selectEmailProvider } from "@/lib/communications/select-email-provider";
 import { twilioAdapter } from "@/lib/communications/twilio-adapter";
 import { generateUnsubscribeLink } from "@/lib/communications/unsubscribe";
 
@@ -55,6 +57,12 @@ export interface QueueCommunicationInput {
    * Defaults to true.
    */
   recordLog?: boolean;
+  /**
+   * Stable id for this send, used as Resend's `Idempotency-Key`. The retry
+   * cron passes one per attempt of its log row. Without one, a fresh UUID is
+   * generated, because the log row is only written after the send.
+   */
+  idempotencyKey?: string;
 }
 
 export interface QueueCommunicationResult {
@@ -64,7 +72,7 @@ export interface QueueCommunicationResult {
   /** Why the send was skipped, for callers that record it (e.g. the DLQ). */
   skipCode?: "opted_out" | "suppressed";
   externalId?: string;
-  provider?: "sendgrid" | "twilio";
+  provider?: "sendgrid" | "resend" | "twilio";
   logId?: string;
   error?: string;
   /** Provider error code (e.g. "timeout"), distinct from the `error` message. */
@@ -94,7 +102,7 @@ export async function queueCommunicationAction(
   let externalId: string | undefined;
   let sendError: string | undefined;
   let errorCode: string | undefined;
-  let provider: "sendgrid" | "twilio" | undefined;
+  let provider: "sendgrid" | "resend" | "twilio" | undefined;
 
   const isScheduled =
     input.scheduledFor != null && new Date(input.scheduledFor) > new Date();
@@ -111,12 +119,14 @@ export async function queueCommunicationAction(
       const finalBody =
         input.body +
         `\n\nTo unsubscribe: ${unsubLink}`;
-      provider = "sendgrid";
-      const result = await sendgridAdapter.send({
+      const selected = selectEmailProvider();
+      provider = selected.provider;
+      const result = await selected.adapter.send({
         to: input.recipientContact,
         subject: input.subject,
         body: finalBody,
         html: finalHtml,
+        idempotencyKey: input.idempotencyKey ?? randomUUID(),
       });
       externalId = result.providerMessageId;
       errorCode = result.errorCode;
@@ -302,7 +312,7 @@ interface LogInput {
   subject?: string;
   bodyPreview: string;
   externalId?: string;
-  provider?: "sendgrid" | "twilio";
+  provider?: "sendgrid" | "resend" | "twilio";
   providerMessageId?: string;
   status: string;
   errorMessage?: string;

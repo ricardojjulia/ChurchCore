@@ -5,6 +5,7 @@ const {
   queryTenantLocalDbMock,
   shouldUseLocalTenantFallbackMock,
   sendgridAdapterSendMock,
+  selectEmailProviderMock,
   twilioAdapterSendMock,
   generateUnsubscribeLinkMock,
   createTenantAdminClientMock,
@@ -15,6 +16,7 @@ const {
   queryTenantLocalDbMock: vi.fn(),
   shouldUseLocalTenantFallbackMock: vi.fn(),
   sendgridAdapterSendMock: vi.fn(),
+  selectEmailProviderMock: vi.fn(),
   twilioAdapterSendMock: vi.fn(),
   generateUnsubscribeLinkMock: vi.fn(),
   createTenantAdminClientMock: vi.fn(),
@@ -40,8 +42,9 @@ vi.mock("web-push", () => ({
   },
 }));
 
-vi.mock("@/lib/communications/sendgrid-adapter", () => ({
-  sendgridAdapter: { send: sendgridAdapterSendMock },
+// Provider selection has its own tests; here the selected adapter is the mock.
+vi.mock("@/lib/communications/select-email-provider", () => ({
+  selectEmailProvider: selectEmailProviderMock,
 }));
 
 vi.mock("@/lib/communications/twilio-adapter", () => ({
@@ -69,6 +72,11 @@ describe("queueCommunicationAction", () => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     shouldUseLocalTenantFallbackMock.mockReturnValue(true);
+    selectEmailProviderMock.mockReturnValue({
+      provider: "sendgrid",
+      adapter: { send: sendgridAdapterSendMock },
+      configured: true,
+    });
     // Simulate consent opt-in by default (no prefs row → email/push on)
     queryTenantLocalDbMock.mockResolvedValue({ rows: [] });
   });
@@ -309,6 +317,53 @@ describe("queueCommunicationAction", () => {
 
       delete process.env.VAPID_PUBLIC_KEY;
       delete process.env.VAPID_PRIVATE_KEY;
+    });
+  });
+
+  describe("provider selection and Idempotency-Key (G5.1)", () => {
+    const resendSendMock = vi.fn();
+    beforeEach(() => {
+      vi.stubEnv("UNSUBSCRIBE_SECRET", "test-secret-key");
+      generateUnsubscribeLinkMock.mockReturnValue("https://example.com/api/unsubscribe?sig=abc");
+      resendSendMock.mockReset();
+      resendSendMock.mockResolvedValue({ accepted: true, providerMessageId: "resend-msg-1" });
+      selectEmailProviderMock.mockReturnValue({
+        provider: "resend",
+        adapter: { send: resendSendMock },
+        configured: true,
+      });
+      queryTenantLocalDbMock
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ id: "log-9" }] });
+    });
+
+    const base = {
+      recipientProfileId: "profile-2",
+      recipientContact: "member@example.com",
+      channel: "email" as const,
+      body: "Hello",
+    };
+
+    it("sends through the selected provider and records it, with the message id the delivery webhook matches", async () => {
+      const result = await queueCommunicationAction({ ...base, session: makeSession() });
+
+      expect(resendSendMock).toHaveBeenCalledTimes(1);
+      expect(sendgridAdapterSendMock).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ sent: true, provider: "resend", externalId: "resend-msg-1", logId: "log-9" });
+      const insert = queryTenantLocalDbMock.mock.calls[1];
+      // provider and provider_message_id columns of the communication_logs insert
+      expect(insert[1][7]).toBe("resend");
+      expect(insert[1][8]).toBe("resend-msg-1");
+    });
+
+    it("passes the caller's idempotencyKey through to the provider", async () => {
+      await queueCommunicationAction({ ...base, session: makeSession(), idempotencyKey: "comm-log:abc:attempt:2" });
+      expect(resendSendMock.mock.calls[0][0].idempotencyKey).toBe("comm-log:abc:attempt:2");
+    });
+
+    it("generates a UUID key when the caller has none (the log row is written after the send)", async () => {
+      await queueCommunicationAction({ ...base, session: makeSession() });
+      expect(resendSendMock.mock.calls[0][0].idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
     });
   });
 

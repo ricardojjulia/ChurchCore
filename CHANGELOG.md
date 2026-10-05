@@ -6,6 +6,11 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+- **Resend live, with shared provider error codes (G5.1 / F2, ADR 0006):** one `selectEmailProvider()` now chooses the email provider for both the communications queue and the direct `sendEmail()` (receipts, notices): Resend when `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are set, else SendGrid, else not configured (stub in dev/demo, `provider_not_configured` in production, unchanged).
+  - Resend sends follow its API contract, with an `Idempotency-Key` (donation id for receipts, `comm-log:<id>:attempt:<n>` for cron retries). The invented SendGrid "idempotency" header is removed.
+  - Resend and SendGrid failures map to one set of codes: `rate_limited`, `provider_unavailable`, `temporary_failure`, `network_error` and `timeout` are retried; `invalid_request`, `provider_auth_error` and `provider_config_error` are not. The transient list is one shared constant used by the retry cron and `shouldRetryDelivery`. Provider calls time out after 15 s.
+  - The provider used is recorded on `communication_logs.provider`.
+  - New one-off `scripts/resend-unsent-receipts.mjs` (dry run by default, `--apply` to send, counts only) re-sends unsent donation receipts through the same claim/lease code (`deliverDonationReceipt`, extracted from `completeDonation`).
 - **`docs/prompts/replicate-project-hq.md`**: a self-contained prompt for an AI coding agent to build Project HQ in any codebase. It covers:
   - the staff-only gate, enforced in three places;
   - the four tables with RLS and cost columns;

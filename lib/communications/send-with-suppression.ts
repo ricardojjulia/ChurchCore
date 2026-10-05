@@ -23,6 +23,8 @@ export type SendWithSuppressionInput = {
   retryCount?: number;
   /** Passed through to queueCommunicationAction — see its doc comment. */
   recordLog?: boolean;
+  /** Passed through to queueCommunicationAction (Resend `Idempotency-Key`). */
+  idempotencyKey?: string;
 };
 
 type SuppressionMatch = {
@@ -177,6 +179,7 @@ export async function sendWithSuppression(
     scheduledFor: input.scheduledFor,
     retryCount: input.retryCount,
     recordLog: input.recordLog,
+    idempotencyKey: input.idempotencyKey,
   });
 }
 

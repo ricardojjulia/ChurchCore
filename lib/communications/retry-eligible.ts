@@ -4,6 +4,7 @@ import {
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
+import { TRANSIENT_PROVIDER_ERROR_CODES } from "@/lib/communications/provider-adapter";
 import { sendWithSuppression } from "@/lib/communications/send-with-suppression";
 import type { QueueCommunicationResult } from "@/lib/notifications/queue-communication";
 
@@ -30,13 +31,8 @@ type ContactRow = {
   phone: string | null;
 };
 
-const TRANSIENT_ERROR_CODES = [
-  "timeout",
-  "rate_limited",
-  "provider_unavailable",
-  "network_error",
-  "temporary_failure",
-];
+const TRANSIENT_ERROR_CODES = [...TRANSIENT_PROVIDER_ERROR_CODES];
+
 
 export async function retryEligibleCommunications(
   options?: { churchId?: string },
@@ -227,6 +223,9 @@ export async function attemptRetry(
       body: row.body_preview ?? "",
       retryCount: claimedCount,
       recordLog: false,
+      // Per attempt, not per row: a provider may replay a cached failure for a
+      // reused key, which would defeat the retry.
+      idempotencyKey: `comm-log:${row.id}:attempt:${claimedCount}`,
     });
   } catch (err) {
     // A throw here is usually a lookup or network failure (consent reads fail

@@ -64,7 +64,7 @@ describe("resendAdapter", () => {
     process.env.RESEND_FROM_EMAIL = "noreply@example.com";
 
     global.fetch = vi.fn().mockResolvedValue(
-      new Response("unprocessable entity", { status: 422 }),
+      new Response(JSON.stringify({ name: "invalid_parameter", message: "Bad `to`" }), { status: 422 }),
     ) as typeof fetch;
 
     const result = await resendAdapter.send({
@@ -74,7 +74,7 @@ describe("resendAdapter", () => {
     });
 
     expect(result.accepted).toBe(false);
-    expect(result.errorCode).toBe("resend_422");
+    expect(result.errorCode).toBe("invalid_request");
   });
 
   it("returns network_error when fetch throws", async () => {

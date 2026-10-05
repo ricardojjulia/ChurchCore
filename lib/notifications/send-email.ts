@@ -1,83 +1,87 @@
 /**
- * sendEmail — wraps SendGrid Mail Send API.
+ * sendEmail — the direct email path (receipts and notices that don't go
+ * through the communications queue).
  *
- * Requires env vars:
- *   SENDGRID_API_KEY   — SendGrid API key (sg.…)
- *   SENDGRID_FROM_EMAIL — verified sender address
+ * The provider is chosen by `selectEmailProvider()`, the same selection the
+ * queue uses: Resend when RESEND_API_KEY and RESEND_FROM_EMAIL are set, else
+ * SendGrid when SENDGRID_API_KEY and SENDGRID_FROM_EMAIL are set.
  *
- * When the env vars are absent and stubs are allowed (local dev, demo), the
+ * When neither is configured and stubs are allowed (local dev, demo), the
  * message is logged and a stub success is returned. In production the send is
  * refused with `provider_not_configured`, never faked as delivered.
+ *
+ * `idempotencyKey` is sent as Resend's `Idempotency-Key` header; SendGrid has
+ * no such header, so it is not sent there.
  */
 
+import type { CommunicationProvider } from "@/lib/communications/provider-adapter";
+import { selectEmailProvider } from "@/lib/communications/select-email-provider";
 import { EMAIL_PROVIDER_NOT_CONFIGURED } from "@/lib/notifications/email-provider";
 import { stubsAllowed } from "@/lib/stub-mode";
 
 export interface SendEmailInput {
   to: string | string[];
   subject: string;
-  /** Plain-text fallback (required by SendGrid for deliverability). */
+  /** Plain-text fallback (required for deliverability). */
   text: string;
   /** Optional HTML body. */
   html?: string;
-  /** Caller-supplied idempotency key (e.g. communication_logs row id). */
+  /** Caller-supplied stable id (donation id, payment id) for provider-side deduplication. */
   idempotencyKey?: string;
 }
 
 export interface SendEmailResult {
   /** True when the message was accepted by the provider. */
   accepted: boolean;
-  /** SendGrid X-Message-Id header value (for logging external_id). */
+  /** The provider's message id (for logging external_id). */
   messageId?: string;
   error?: string;
+  /** Shared provider error code (e.g. "rate_limited"), when the provider refused. */
+  errorCode?: string;
+  /** Which provider handled the send. */
+  provider?: CommunicationProvider;
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
-  const apiKey = process.env.SENDGRID_API_KEY;
-  const fromEmail = process.env.SENDGRID_FROM_EMAIL;
+  const selected = selectEmailProvider();
 
-  if (!apiKey || !fromEmail) {
+  if (!selected.configured) {
     if (!stubsAllowed()) return { accepted: false, error: EMAIL_PROVIDER_NOT_CONFIGURED };
     // Local-dev stub — log to console, treat as accepted
-    console.info("[sendEmail] stub (no SENDGRID_API_KEY):", {
+    console.info("[sendEmail] stub (no email provider keys):", {
       to: input.to,
       subject: input.subject,
     });
     return { accepted: true, messageId: `stub-${Date.now()}` };
   }
 
-  const toList = Array.isArray(input.to) ? input.to : [input.to];
+  const recipients = Array.isArray(input.to) ? input.to : [input.to];
+  let messageId: string | undefined;
 
-  const payload = {
-    personalizations: [{ to: toList.map((email) => ({ email })) }],
-    from: { email: fromEmail },
-    subject: input.subject,
-    content: [
-      { type: "text/plain", value: input.text },
-      ...(input.html ? [{ type: "text/html", value: input.html }] : []),
-    ],
-  };
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${apiKey}`,
-  };
-  if (input.idempotencyKey) {
-    headers["X-Twilio-Email-Event-Webhook-Signature"] = input.idempotencyKey;
+  // The adapters send to one address; each recipient gets its own request and
+  // its own idempotency key.
+  for (const [index, to] of recipients.entries()) {
+    const result = await selected.adapter.send({
+      to,
+      subject: input.subject,
+      body: input.text,
+      html: input.html,
+      idempotencyKey:
+        input.idempotencyKey && recipients.length > 1
+          ? `${input.idempotencyKey}:${index}`
+          : input.idempotencyKey,
+    });
+    if (!result.accepted) {
+      console.error("[sendEmail] provider error", selected.provider, result.errorCode, result.errorMessage);
+      return {
+        accepted: false,
+        error: result.errorMessage ?? "Email provider refused the message.",
+        errorCode: result.errorCode,
+        provider: selected.provider,
+      };
+    }
+    messageId ??= result.providerMessageId;
   }
 
-  const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload),
-  });
-
-  if (res.ok) {
-    const messageId = res.headers.get("X-Message-Id") ?? undefined;
-    return { accepted: true, messageId };
-  }
-
-  const body = await res.text().catch(() => "");
-  console.error("[sendEmail] SendGrid error", res.status, body);
-  return { accepted: false, error: `SendGrid ${res.status}: ${body}` };
+  return { accepted: true, messageId, provider: selected.provider };
 }
