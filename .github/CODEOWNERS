@@ -1,1 +1,16 @@
-* @ricardojjulia
+# Default owner for everything in the repository.
+*                         @ricardojjulia
+
+# Security- and infrastructure-critical paths. Listed explicitly so review
+# ownership stays obvious if the default owner above ever changes.
+/supabase/migrations/     @ricardojjulia
+/supabase/scripts/        @ricardojjulia
+/.github/workflows/       @ricardojjulia
+/.github/CODEOWNERS       @ricardojjulia
+/lib/supabase/            @ricardojjulia
+/lib/ai/                  @ricardojjulia
+/lib/stripe/              @ricardojjulia
+/lib/crypto/              @ricardojjulia
+/app/api/webhooks/        @ricardojjulia
+/app/api/cron/            @ricardojjulia
+/tests/coverage-manifest.json @ricardojjulia
