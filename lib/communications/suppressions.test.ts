@@ -10,7 +10,7 @@ vi.mock("@/lib/supabase/tenant", () => ({
   createTenantServerClient: createTenantServerClientMock,
 }));
 
-import { listChurchSuppressions } from "@/lib/communications/suppressions";
+import { listChurchSuppressions, MAX_SUPPRESSION_ROWS } from "@/lib/communications/suppressions";
 import type { ChurchAppSession } from "@/lib/auth";
 
 function session(roleId: string) {
@@ -53,7 +53,7 @@ describe("listChurchSuppressions", () => {
   it.each(["church-admin", "pastor", "secretary"])("allows %s and reads through the user client scoped to the church", async (role) => {
     const suppressions = builder({ data: [], error: null });
     createTenantServerClientMock.mockResolvedValue({ from: () => suppressions.proxy });
-    expect(await listChurchSuppressions(session(role))).toEqual([]);
+    expect(await listChurchSuppressions(session(role))).toEqual({ rows: [], truncated: false });
     expect(suppressions.calls).toContainEqual(["eq", "church_id", "church-1"]);
     expect(suppressions.calls).toContainEqual(["order", "created_at", { ascending: false }]);
     expect(createTenantAdminClientMock).not.toHaveBeenCalled();
@@ -76,7 +76,7 @@ describe("listChurchSuppressions", () => {
     const lookups = [emailLookup, phoneLookup, adderLookup];
     createTenantAdminClientMock.mockReturnValue({ from: () => lookups.shift()!.proxy });
 
-    const rows = await listChurchSuppressions(session("pastor"));
+    const { rows } = await listChurchSuppressions(session("pastor"));
 
     expect(rows.map((r) => [r.id, r.memberName, r.addedByName])).toEqual([
       ["s1", "Ann Member", null],
@@ -89,6 +89,18 @@ describe("listChurchSuppressions", () => {
     }
   });
 
+  it("reports truncation when more than the cap exist, returning only the cap", async () => {
+    const many = Array.from({ length: MAX_SUPPRESSION_ROWS + 1 }, (_, i) => raw({ id: `s${i}`, contact: `x${i}@example.com` }));
+    const suppressions = builder({ data: many, error: null });
+    createTenantServerClientMock.mockResolvedValue({ from: () => suppressions.proxy });
+    const lookups = () => builder({ data: [], error: null }).proxy;
+    createTenantAdminClientMock.mockReturnValue({ from: lookups });
+    const result = await listChurchSuppressions(session("church-admin"));
+    expect(result.truncated).toBe(true);
+    expect(result.rows).toHaveLength(MAX_SUPPRESSION_ROWS);
+    expect(suppressions.calls).toContainEqual(["limit", MAX_SUPPRESSION_ROWS + 1]);
+  });
+
   it("propagates a read error", async () => {
     const suppressions = builder({ data: null, error: { message: "rls says no" } });
     createTenantServerClientMock.mockResolvedValue({ from: () => suppressions.proxy });
@@ -99,7 +111,7 @@ describe("listChurchSuppressions", () => {
     const suppressions = builder({ data: [raw({ contact: 'we,ird"@example.com' })], error: null });
     createTenantServerClientMock.mockResolvedValue({ from: () => suppressions.proxy });
     createTenantAdminClientMock.mockReturnValue({ from: () => { throw new Error("should not query"); } });
-    const rows = await listChurchSuppressions(session("church-admin"));
+    const { rows } = await listChurchSuppressions(session("church-admin"));
     expect(rows[0].memberName).toBeNull();
   });
 });

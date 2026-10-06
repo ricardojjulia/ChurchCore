@@ -52,10 +52,10 @@ const rows: SuppressionRow[] = [
   row({ id: "s4", channel: "sms", contact: "+15550100", reason: "manual", addedByName: "Nora Admin", notes: "Asked by phone" }),
 ];
 
-function renderIt(canManage: boolean, data = rows) {
+function renderIt(canManage: boolean, data = rows, truncated = false) {
   return render(
     <MantineProvider>
-      <CommunicationsSuppressionsWorkspace session={session} suppressions={data} canManage={canManage} />
+      <CommunicationsSuppressionsWorkspace session={session} suppressions={data} truncated={truncated} canManage={canManage} />
     </MantineProvider>,
   );
 }
@@ -156,5 +156,22 @@ describe("CommunicationsSuppressionsWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add suppression" }));
     expect(await screen.findByText("That contact is already suppressed.")).toBeInTheDocument();
     expect(routerMock.refresh).not.toHaveBeenCalled();
+  });
+
+  it("announces feedback in a polite live region", async () => {
+    renderIt(true);
+    const region = screen.getByRole("status");
+    expect(region).toHaveAttribute("aria-live", "polite");
+    fireEvent.change(screen.getByLabelText(/^Contact/), { target: { value: "new@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add suppression" }));
+    await waitFor(() => expect(region).toHaveTextContent("Contact suppressed."));
+  });
+
+  it("shows the truncation notice only when the list was capped", () => {
+    const { unmount } = renderIt(true, rows, true);
+    expect(screen.getByText(/search to find others/)).toBeInTheDocument();
+    unmount();
+    renderIt(true);
+    expect(screen.queryByText(/search to find others/)).toBeNull();
   });
 });

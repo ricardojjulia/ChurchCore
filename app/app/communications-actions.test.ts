@@ -1259,7 +1259,10 @@ describe("removeSuppressionAction (S11)", () => {
     logAuditEventMock.mockRejectedValueOnce(new Error("audit down"));
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const result = await removeSuppressionAction({ id: "supp-1", reason: "Mailbox fixed" });
-    expect(result.ok).toBe(false);
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringMatching(/removed and the removal was recorded.*detailed audit entry.*platform team/),
+    });
     errorSpy.mockRestore();
   });
 });

@@ -8,7 +8,7 @@ import { createTenantAdminClient, createTenantServerClient } from "@/lib/supabas
 
 import type { SuppressionChannel, SuppressionReason, SuppressionRow } from "./suppression-types";
 
-const MAX_ROWS = 1000;
+export const MAX_SUPPRESSION_ROWS = 1000;
 const LOOKUP_CHUNK = 50;
 // PostgREST .or() filters are comma/paren-delimited, so a contact containing
 // these can't be matched safely that way; such a row simply shows no member name.
@@ -38,7 +38,7 @@ function chunk<T>(items: T[], size: number): T[][] {
  * who added it. The suppressions are read through the user's own client, so
  * RLS (`can_manage_communications`) applies as well as the church filter.
  */
-export async function listChurchSuppressions(session: ChurchAppSession): Promise<SuppressionRow[]> {
+export async function listChurchSuppressions(session: ChurchAppSession): Promise<{ rows: SuppressionRow[]; truncated: boolean }> {
   const role = session.appContext.roleId;
   if (role !== "church-admin" && role !== "pastor" && role !== "secretary") {
     throw new Error("Only church staff may view suppressions.");
@@ -51,11 +51,13 @@ export async function listChurchSuppressions(session: ChurchAppSession): Promise
     .select("id, channel, contact, reason, notes, suppressed_by, created_at")
     .eq("church_id", churchId)
     .order("created_at", { ascending: false })
-    .limit(MAX_ROWS);
+    .limit(MAX_SUPPRESSION_ROWS + 1);
 
   if (error) throw new Error(error.message);
-  const rows = (data ?? []) as RawSuppression[];
-  if (rows.length === 0) return [];
+  const fetched = (data ?? []) as RawSuppression[];
+  const truncated = fetched.length > MAX_SUPPRESSION_ROWS;
+  const rows = truncated ? fetched.slice(0, MAX_SUPPRESSION_ROWS) : fetched;
+  if (rows.length === 0) return { rows: [], truncated: false };
 
   // Name lookups use the church-scoped admin client: a pastor or secretary may
   // not be able to read every profile directly, but the page needs only a name.
@@ -116,7 +118,7 @@ export async function listChurchSuppressions(session: ChurchAppSession): Promise
     }
   }
 
-  return rows.map((row) => ({
+  const result = rows.map((row) => ({
     id: row.id,
     channel: row.channel,
     contact: row.contact,
@@ -126,4 +128,5 @@ export async function listChurchSuppressions(session: ChurchAppSession): Promise
     addedByName: row.reason === "manual" && row.suppressed_by ? (names.get(row.suppressed_by) ?? null) : null,
     createdAt: row.created_at,
   }));
+  return { rows: result, truncated };
 }

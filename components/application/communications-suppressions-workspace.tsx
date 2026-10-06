@@ -77,10 +77,13 @@ function formatDate(iso: string) {
 export function CommunicationsSuppressionsWorkspace({
   session,
   suppressions,
+  truncated = false,
   canManage,
 }: {
   session: ChurchAppSession;
   suppressions: SuppressionRow[];
+  /** True when the church has more suppressions than the page loads. */
+  truncated?: boolean;
   canManage: boolean;
 }) {
   const router = useRouter();
@@ -178,9 +181,16 @@ export function CommunicationsSuppressionsWorkspace({
           blocked until they opt back in themselves.
         </Text>
 
-        {feedback ? (
-          <Alert color={feedback.color} variant="light" radius="md" withCloseButton onClose={() => setFeedback(null)}>
-            {feedback.message}
+        <div role="status" aria-live="polite">
+          {feedback ? (
+            <Alert color={feedback.color} variant="light" radius="md" withCloseButton onClose={() => setFeedback(null)}>
+              {feedback.message}
+            </Alert>
+          ) : null}
+        </div>
+        {truncated ? (
+          <Alert color="yellow" variant="light" radius="md">
+            Showing the newest {suppressions.length.toLocaleString("en-US")} suppressions; search to find others.
           </Alert>
         ) : null}
 
@@ -252,6 +262,7 @@ export function CommunicationsSuppressionsWorkspace({
           </Paper>
         ) : (
           <Paper withBorder radius="md" style={{ overflow: "hidden" }}>
+            <Table.ScrollContainer minWidth={720}>
             <Table striped highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
@@ -323,6 +334,7 @@ export function CommunicationsSuppressionsWorkspace({
                 ))}
               </Table.Tbody>
             </Table>
+            </Table.ScrollContainer>
           </Paper>
         )}
       </Stack>

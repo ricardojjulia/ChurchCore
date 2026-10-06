@@ -12,12 +12,13 @@ export default async function CommunicationsSuppressionsPage() {
     redirect(session.homePath);
   }
 
-  const suppressions = await listChurchSuppressions(session);
+  const { rows: suppressions, truncated } = await listChurchSuppressions(session);
 
   return (
     <CommunicationsSuppressionsWorkspace
       session={session}
       suppressions={suppressions}
+      truncated={truncated}
       canManage={role === "church-admin"}
     />
   );

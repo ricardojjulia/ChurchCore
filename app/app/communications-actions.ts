@@ -525,11 +525,12 @@ export async function removeSuppressionAction(input: {
       },
     });
   } catch (error) {
-    // The row is already gone; losing the audit entry must be loud, not silent.
+    // The row is already gone. The table's audit trigger recorded the delete;
+    // only the detailed entry (actor and reason) is missing. Say so loudly.
     console.error("[communications] Suppression removal audit failed:", error);
     return {
       ok: false,
-      error: "The suppression was removed but the audit entry could not be written. Tell a platform administrator.",
+      error: "The suppression was removed and the removal was recorded, but the detailed audit entry (who removed it and why) could not be written. Tell the platform team.",
     };
   }
 
