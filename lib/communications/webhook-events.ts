@@ -21,7 +21,33 @@ type ResolvedLog = {
   id: string;
   church_id: string;
   recipient_id: string | null;
+  status?: string | null;
 };
+
+// Delivery events can arrive late or out of order (a delivery_delayed after
+// delivered, a sent after delivered). Progress only moves forward
+// (queued → sending → sent → delivered); a failure outcome (bounced, failed,
+// suppressed, unsubscribed) always applies, and nothing moves a failure back
+// to progress. The delivery event itself is recorded either way.
+const PROGRESS_RANK: Record<string, number> = {
+  draft: 0,
+  scheduled: 0,
+  queued: 0,
+  sending: 1,
+  sent: 2,
+  delivered: 3,
+};
+const FAILURE_STATUSES = new Set(["failed", "bounced", "suppressed", "unsubscribed", "cancelled"]);
+
+export function shouldApplyStatus(current: string | null | undefined, next: string): boolean {
+  if (!current) return true;
+  if (FAILURE_STATUSES.has(next)) return true;
+  if (FAILURE_STATUSES.has(current)) return false;
+  const from = PROGRESS_RANK[current];
+  const to = PROGRESS_RANK[next];
+  if (from === undefined || to === undefined) return true;
+  return to > from;
+}
 
 type SuppressionReason = "unsubscribe" | "bounce" | "complaint";
 
@@ -56,7 +82,7 @@ async function resolveCommunicationLog(
   if (shouldUseLocalTenantFallback()) {
     const result = await queryTenantLocalDb<ResolvedLog>(
       `
-        select id, church_id, recipient_id
+        select id, church_id, recipient_id, status
         from public.communication_logs
         where provider_message_id = $1
            or external_id = $1
@@ -75,7 +101,7 @@ async function resolveCommunicationLog(
   for (const column of ["provider_message_id", "external_id"] as const) {
     const { data, error } = await supabase
       .from("communication_logs")
-      .select("id, church_id, recipient_id")
+      .select("id, church_id, recipient_id, status")
       .eq(column, providerMessageId)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -139,7 +165,7 @@ export async function recordProviderWebhookEvent(input: {
       return { recorded: false, churchId: resolvedLog.church_id, communicationLogId: resolvedLog.id };
     }
 
-    await queryTenantLocalDb(
+    if (shouldApplyStatus(resolvedLog.status, input.event.status)) await queryTenantLocalDb(
       `
         update public.communication_logs
         set status = $3,
@@ -241,14 +267,16 @@ export async function recordProviderWebhookEvent(input: {
     updatePayload.error_message = input.event.reason;
   }
 
-  const { error: updateError } = await supabase
-    .from("communication_logs")
-    .update(updatePayload)
-    .eq("church_id", resolvedLog.church_id)
-    .eq("id", resolvedLog.id);
+  if (shouldApplyStatus(resolvedLog.status, input.event.status)) {
+    const { error: updateError } = await supabase
+      .from("communication_logs")
+      .update(updatePayload)
+      .eq("church_id", resolvedLog.church_id)
+      .eq("id", resolvedLog.id);
 
-  if (updateError) {
-    throw new Error(updateError.message);
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
   }
 
   if (suppressionReason && normalizedRecipient) {

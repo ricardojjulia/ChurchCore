@@ -25,7 +25,7 @@ vi.mock("@/lib/consent-log", () => ({
   insertConsentLogEntries: insertConsentLogEntriesMock,
 }));
 
-import { recordProviderWebhookEvent } from "@/lib/communications/webhook-events";
+import { recordProviderWebhookEvent, shouldApplyStatus } from "@/lib/communications/webhook-events";
 
 describe("recordProviderWebhookEvent", () => {
   beforeEach(() => {
@@ -114,7 +114,7 @@ describe("recordProviderWebhookEvent", () => {
 type Call = { table: string; op: string; args: unknown[] };
 
 function fakeAdmin(
-  log: { id: string; church_id: string; recipient_id: string | null } | null,
+  log: { id: string; church_id: string; recipient_id: string | null; status?: string } | null,
   logColumn = "provider_message_id",
   options: { eventExists?: boolean; suppressionExists?: boolean; failSuppression?: boolean } = {},
 ) {
@@ -174,6 +174,26 @@ const bounce = {
   reason: "Mailbox unavailable",
 };
 
+describe("shouldApplyStatus (events can arrive late or out of order)", () => {
+  it("moves progress forward only", () => {
+    expect(shouldApplyStatus("sent", "delivered")).toBe(true);
+    expect(shouldApplyStatus("delivered", "sent")).toBe(false);
+    expect(shouldApplyStatus("delivered", "sending")).toBe(false);
+    expect(shouldApplyStatus("sending", "sent")).toBe(true);
+    expect(shouldApplyStatus("delivered", "delivered")).toBe(false);
+  });
+  it("always applies a failure, and never moves a failure back to progress", () => {
+    expect(shouldApplyStatus("delivered", "bounced")).toBe(true);
+    expect(shouldApplyStatus("sent", "suppressed")).toBe(true);
+    expect(shouldApplyStatus("bounced", "delivered")).toBe(false);
+    expect(shouldApplyStatus("bounced", "sent")).toBe(false);
+  });
+  it("applies when the current status is unknown", () => {
+    expect(shouldApplyStatus(null, "sent")).toBe(true);
+    expect(shouldApplyStatus("mystery", "sent")).toBe(true);
+  });
+});
+
 describe("recordProviderWebhookEvent on Supabase (S2, F4)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -204,6 +224,17 @@ describe("recordProviderWebhookEvent on Supabase (S2, F4)", () => {
 
     const consent = admin.calls.find((c) => c.table === "consent_logs");
     expect(consent?.args[0]).toMatchObject({ church_id: "church-1", profile_id: "profile-1", consented: false });
+  });
+
+  it("records a late 'sent' event but doesn't move a delivered log back to sent", async () => {
+    const admin = fakeAdmin({ id: "log-1", church_id: "church-1", recipient_id: "profile-1", status: "delivered" });
+    createTenantAdminClientMock.mockReturnValue(admin.client);
+
+    const result = await recordProviderWebhookEvent({ event: { ...bounce, status: "sent" }, rawBody: JSON.stringify({ type: "email.sent" }) });
+
+    expect(result).toMatchObject({ recorded: true, communicationLogId: "log-1" });
+    expect(admin.calls.some((c) => c.table === "communication_delivery_events" && c.op === "insert")).toBe(true);
+    expect(admin.calls.some((c) => c.table === "communication_logs" && c.op === "update")).toBe(false);
   });
 
   it("falls back to external_id with a second exact match, and records nothing for an unknown message", async () => {

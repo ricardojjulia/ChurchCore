@@ -6,6 +6,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+- **Email delivery status no longer moves backwards.** `recordProviderWebhookEvent` (`lib/communications/webhook-events.ts`) overwrote `communication_logs.status` with every provider event. So a late or out-of-order event, such as an `email.delivery_delayed` or `email.sent` after `email.delivered`, or an `email.opened`/`email.clicked` (both map to "sent"), turned a delivered email back into "sent" or "sending". Now:
+  - progress only moves forward (queued → sending → sent → delivered);
+  - a failure (bounced, failed, suppressed, unsubscribed) always applies, so a bounce after delivery still suppresses the address;
+  - nothing moves a failure back to progress;
+  - the delivery event itself is always recorded.
+
+  The rule covers both the Supabase path and the deprecated local path. Open and click events stay unsubscribed in Resend: tracking needs explicit consent (§7). Found while setting up the production Resend webhook (O12).
+
 - **Resend live, with shared provider error codes (G5.1 / F2, ADR 0006, Council Review 43)** (`feat/resend-live-g5-1`, commits `93e883c` build, `a961d21` Council Review 43 fixes, on top of `6e15b8f`; no PR yet, CI not yet run; no migration): the factory run is `docs/factory-runs/2026-10-05-g5-1-resend-live.md`, the Council is `docs/reviews/2026-10-05-council-review-43-synthesis.md` (AMENDED, all three required fixes landed). **Gap 5 does not close on merge; it closes when owner action O12 confirms one live Resend send** (the M3 line is "Resend live").
 
   **Added**

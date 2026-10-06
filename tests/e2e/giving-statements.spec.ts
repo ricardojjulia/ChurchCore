@@ -184,10 +184,13 @@ test.describe("church admin: statements journey", () => {
 
     // Staff see NAMED gifts only: member 100 (their anonymous 50 at 11:30 pm Dec 31 is not attributed), guest 75,
     // opted out 30, suppressed 20 = 225. Anonymous gifts are one unattributed line: 50 + the 11.11 un-statementable.
-    await expect(page.getByText(`${lastYear}-01-01 to ${lastYear}-12-31`)).toBeVisible();
-    await expect(page.getByText("4 donors", { exact: true })).toBeVisible();
-    await expect(page.getByText("Named gifts total $225.00; anonymous gifts $61.11 (2)")).toBeVisible();
-    await expect(page.getByText("2 will be emailed · 2 skipped")).toBeVisible();
+    // Scoped to the Statements panel: the (hidden) Analytics tab also counts
+    // donors over a rolling window, so a bare "4 donors" can match twice.
+    const panel = page.getByRole("tabpanel", { name: "Statements" });
+    await expect(panel.getByText(`${lastYear}-01-01 to ${lastYear}-12-31`)).toBeVisible();
+    await expect(panel.getByText("4 donors", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Named gifts total $225.00; anonymous gifts $61.11 (2)")).toBeVisible();
+    await expect(panel.getByText("2 will be emailed · 2 skipped")).toBeVisible();
 
     const table = page.getByRole("table", { name: "Statement recipients" });
     const member = table.getByRole("row", { name: new RegExp(memberName) });
@@ -222,7 +225,7 @@ test.describe("church admin: statements journey", () => {
     await page.goto("/app/church-admin/giving");
     await page.getByRole("tab", { name: "Statements" }).click();
     await page.getByRole("button", { name: "Preview" }).click();
-    await expect(page.getByText("4 donors", { exact: true })).toBeVisible();
+    await expect(page.getByRole("tabpanel", { name: "Statements" }).getByText("4 donors", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Send statements" }).click();
     const modal = page.getByRole("dialog", { name: "Email statements?" });
