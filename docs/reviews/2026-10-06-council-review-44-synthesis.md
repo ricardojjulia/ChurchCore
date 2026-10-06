@@ -76,13 +76,16 @@ Five separate read-only agents reviewed the branch. Their reports are in `2026-1
 
 ## Definition of done
 
-- [ ] Unit tests pass (count)
-- [ ] Surfaces: `npm run test:surfaces` OK
-- [ ] Lint: 0 errors
-- [ ] Types: `npx tsc --noEmit` clean
-- [ ] Build succeeds
-- [ ] E2E: suppressions spec passes locally; CI `verify` and 4 `e2e` shards green before merge
-- [ ] Migration: none on this branch
-- [ ] Commits verified on GitHub
-- [ ] GitHub review comments read, fixed or answered, threads resolved
-- [ ] Documenter close-out committed. It must also record G5.1 merged (#188), O12 done and Gap 5 closed (2026-10-06), #189 merged, and S11.
+Evidence recorded by the Documenter on 2026-10-06 (after `5954465`). Items that need a PR are marked pending.
+
+- [x] Unit tests pass: `npx vitest run` 208 files / 2,589 tests (orchestrator run)
+- [x] Surfaces: `npm run test:surfaces` OK (orchestrator run)
+- [x] Lint: 0 errors (1 pre-existing warning)
+- [x] Types: `npx tsc --noEmit` clean
+- [x] Build succeeds (builder run: `npm run build` clean; theme ratchet 2/2)
+- [ ] E2E: suppressions spec 10/10 locally (`npm run test:e2e:local -- tests/e2e/communications-suppressions.spec.ts --workers=1`) and the communications slice of the page-role sweep 69/69. **CI `verify` and 4 `e2e` shards: pending PR** (no PR exists; a full combined local run had auth-redirect flakes on unrelated pages, so CI is the judge)
+- [x] Migration: none on this branch
+- [ ] Commits verified on GitHub: **pending PR** (no push yet; `gh api .../commits/<sha> --jq '.commit.verification'` to be run per commit)
+- [ ] GitHub review comments read, fixed or answered, threads resolved: **pending PR**
+- [x] Documenter close-out committed: `DEVELOPMENT_PLAN.md` (S11 row, G5.1 `Done (#188)`, O12 done, new O13, Gap 5 DoD met, M3 line, progress line, readiness 88 now and 89 on merge, new deferred rows), `CHANGELOG.md` (one S11 entry, Gap 5 entry, #189 and G5.1 entries corrected), `README.md`, `docs/security-role-access-matrix.md`, the factory-run note, and memory. G5.1 merged (#188), O12 done and Gap 5 closed (2026-10-06), #189 merged, S11 recorded. The synthesis and agent reports were committed in `5954465`.
+- Not verified: a phone-width visual check of the scrolling table.
