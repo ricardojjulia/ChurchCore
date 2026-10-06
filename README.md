@@ -1,700 +1,254 @@
+<!-- markdownlint-disable MD001 MD036 MD041 -->
+<div align="center">
+
+<img src="docs/assets/brand/hero-banner.svg" alt="ChurchCore — secure, multi-tenant church operations platform" width="760" style="border-radius: 14px;" />
+
 # ChurchCore
 
-ChurchCore is a secure, multi-tenant church operations platform for member records, ministries, events, volunteer coordination, giving, financial stewardship, communications, reporting, and guardrailed ministry workflow recommendations.
+### Secure, Multi-Tenant Church Operations Platform
 
-ChurchCore is part of a broader product family:
-- ChurchCore: core church operations platform (this repository)
-- ChurchCore Care: Christian counseling workflows and care journeys
-- ChurchCore Academy: Christian LMS and administration software
+**Built for church administrators, pastors, office staff, ministry leaders, volunteers and members**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-f97316.svg)](LICENSE)
-[![Next.js](https://img.shields.io/badge/Next.js-16-111827.svg)](package.json)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-2563eb.svg)](tsconfig.json)
-[![Supabase](https://img.shields.io/badge/Supabase-split%20control%2Ftenant-16a34a.svg)](docs/adr/0002-control-plane-and-tenant-separation.md)
-[![Vercel](https://img.shields.io/badge/Vercel-ready-000000.svg)](vercel.json)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](./LICENSE)
+[![Version](https://img.shields.io/badge/version-3.5.0-brightgreen)](./CHANGELOG.md)
+[![Next.js](https://img.shields.io/badge/Next.js-16.3.8-black?logo=next.js)](https://nextjs.org)
+[![React](https://img.shields.io/badge/React-19.2.4-61DAFB?logo=react&logoColor=black)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Mantine](https://img.shields.io/badge/Mantine-9.6-339AF0?logo=mantine&logoColor=white)](https://mantine.dev)
+[![Supabase](https://img.shields.io/badge/supabase--js-2.117-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
+[![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](./.github/workflows/ci.yml)
+[![Governance](https://img.shields.io/badge/Governance-Council%20v2-6366F1)](./improve-software.md)
 
-## Product Position & Competitive Analysis
+**[🌐 www.churchcore.io](https://www.churchcore.io)**
 
-> **MVP status: 88/100 (2026-10-06, Gap 5 closed), 89 when S11 merges (Council Review 44). MVP target: November 6, 2026.** Milestones M1 (service planning, Gap 1 closed) and M2 (the Week 2 production-safety track) are met. Giving and paid event registration both run on each church's own Stripe account (Stripe Connect, [ADR 0025](docs/adr/0025-stripe-connect-standard-direct-charges.md)), with Stripe's card form for online gifts and for paid registrations (G3.0c). **Recurring giving and installments (G3.1 + G3.2) are merged to `main` as PR #177, migration applied to the hosted database:** members set up, change, pause, resume and cancel a recurring gift as a Stripe subscription on the church's own account, each installment is recorded and receipted from the webhook, the webhook is retry-safe, and the public giving page (`/give/[slug]`) now takes real one-time gifts in production instead of a demo-only mock-up. **Year-end giving statements (G3.3) are merged as PR #181:** admins preview, download and idempotently email per-donor statements, and members download their own; anonymity holds against staff. **G3.3b (ChurchCore's own receipt for a paid event registration) is merged as #184, so Gap 3 (online and recurring giving, and statements) is closed.** **G5.1 (Resend live) is merged as #188, and Gap 5 (provider breadth) is closed (2026-10-06):** production email now goes out through Resend (SendGrid is the fallback), failures map to shared retry codes, each message carries one idempotency key so a retry cannot double-send, the history page shows why a send failed, a delivery status never moves backwards on a late provider event (#189), and the two receipts that had never been sent were re-sent. The Resend key in use is temporary (owner action O13). **S11 (the church-admin Suppressions page) is built and Council Review 44-clean, pending merge (no PR yet, CI not yet run):** church admin, pastor and secretary can see why each address is suppressed; church admin can add one and lift a bounce or manual one with a reason, while unsubscribe and spam-complaint suppressions stay locked because only the person can opt back in. Milestone M3 (Oct 23) then needs only T1a (untested giving, finance and comms exports). The app runs on the ChurchCore design system — dark-first, through the Mantine theme ([ADR 0026](docs/adr/0026-churchcore-design-system-parity.md), D1, merged as #176). Live giving is not announced until the platform's Stripe setup and one real test-mode run are done (owner action O7, which now also covers recurring giving's webhook events). Readiness history, round by round, is in [`DEVELOPMENT_PLAN.md`](DEVELOPMENT_PLAN.md) and [`docs/reviews/`](docs/reviews/). MVP is defined as closing five ranked competitive gaps against Planning Center, Breeze and Tithe.ly: service planning depth (Gap 1, closed), phone-first mobile, recurring giving and statements, migration reconciliation, and provider breadth, plus a production-safety track. All open work, milestones and status are tracked in one place: [`DEVELOPMENT_PLAN.md` §0](DEVELOPMENT_PLAN.md#0-mvp-roadmap-to-november-6-2026-tracker).
+[Quick Start](#-quick-start) · [HOWTO](./HOWTO.md) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md) · [Support](./SUPPORT.md) · [Versioning](./VERSIONING.md) · [Docs Hub](./docs/README.md) · [Changelog](./CHANGELOG.md)
 
-Key facts at a glance:
+</div>
 
-- **30–45% cheaper** than Planning Center for a comparable feature set — with a full double-entry GL that Planning Center cannot match at any price
-- **Structural child-safety moat:** bcrypt-hashed check-in PINs, custody-restriction UI enforcement, two-adult rule enforcement, and session-controlled check-in — enforced at the database layer, not by policy
-- **Per-tenant Supabase isolation:** each church's data lives in a completely separate database; cross-tenant exposure is architecturally impossible
-- **Giving → GL auto-posting:** every donation creates a balanced journal entry automatically — no manual QuickBooks import
-- **All five import entity types ready:** people, groups, events, attendance, and giving at dry-run + commit with vendor adapters for Planning Center, Breeze, and generic CSV
+<!-- markdownlint-enable MD001 MD036 MD041 -->
 
-**[Read the full MVP and competitive analysis →](docs/mvp-competitive-analysis.md)**
+---
 
-## Try the Demo
+## 💡 Why This Exists
 
-The hosted demo is available at `https://church-core-ops.vercel.app`. No installation required — open it in any modern browser.
+A church runs on more than a member list. In a single week its staff plan services and rosters, check children in and out safely, take gifts, keep the books, message the congregation, and care for people in confidence. Most churches spread that work across several tools, each with its own copy of the people data.
+
+**ChurchCore** puts that work on one platform, with every church's data isolated from every other church's:
+
+- **People and ministry:** members, households, ministries, groups, events and registrations, and a weekly readiness path for the church admin.
+- **Sunday operations:** service plans with setlists and a song library, volunteer rotation with blockout dates, and children's check-in with PIN/QR pickup and custody restrictions.
+- **Stewardship:** online and recurring giving on each church's own Stripe account, year-end statements, and a double-entry general ledger that giving posts into.
+- **Care and communication:** pastoral notes encrypted at rest, consent- and suppression-aware email and SMS, and reports for leadership.
+- **Assistive AI, not autopilot:** deterministic ShepherdAI workflow suggestions and AI ministry tools that keep a person in the loop.
+
+ChurchCore is part of a product family with **ChurchCore Care** (Christian counseling workflows) and **ChurchCore Academy** (Christian LMS and administration).
+
+> **MVP status:** readiness **89/100** (Council Review 44, 2026-10-06), MVP target **November 6, 2026**. Milestones M1 and M2 are met, and Gaps 1, 3 and 5 are closed. All open work is tracked in [`DEVELOPMENT_PLAN.md` §0](./DEVELOPMENT_PLAN.md#0-mvp-roadmap-to-november-6-2026-tracker). Summary: [docs/roadmap.md](./docs/roadmap.md).
+
+---
+
+## 🧭 Capabilities by Module
+
+| Module | What it covers | Main routes |
+| :--- | :--- | :--- |
+| **👥 People & households** | Search, filter, bulk update, household reassignment, duplicate merge, account-request approval, member directory and family views | `/app/church-admin/people`, `/app/church-admin/accounts`, `/app/member/directory` |
+| **📅 Events & registrations** | Categorized calendar (month/week/day), RSVP, rosters and check-in, public and member registration with card payment | `/app/calendar`, `/app/church-admin/events`, `/portal/events/register` |
+| **🎵 Service planning & volunteers** | Song library and setlists, role taxonomy and roster, fatigue-aware rotation planner, blockout dates, assignment notifications | `/app/church-admin/volunteers/schedules`, `/app/church-admin/volunteers/role-types`, `/app/member/schedule` |
+| **🧒 Children's ministry** | Check-in and checkout kiosks, rooms and ratios, PIN/QR pickup, custody restrictions, emergency roster, incidents | `/app/church-admin/children/*`, `/portal/children/*` |
+| **💳 Giving** | One-time and recurring gifts on the church's own Stripe account (Connect, Standard, direct charges, no platform fee), public giving page, receipts, year-end statements | `/app/member/giving`, `/app/church-admin/giving`, `/give/[slug]` |
+| **📒 Finance** | Chart of accounts, journals (draft → posted → voided), budgets and variance, CSV/Excel/IIF/OFX import, income statement and balance sheet | `/app/church-admin/finance/*` |
+| **✉️ Communications** | Segmented email and SMS, scheduling, templates, history with retry and failure reasons, suppressions; Resend primary, SendGrid fallback, Twilio SMS | `/app/communications/*` |
+| **🙏 Pastoral care** | Pastor-only notes and care assignments, Elders Discernment Room, Council Forge | `/app/pastor/people`, `/app/elders/discernment`, `/app/council/forge` |
+| **📊 Reports** | Member, event and giving dashboards for pastors and church admins | `/app/reports/*`, `/app/giving` |
+| **🤖 ShepherdAI & AI tools** | Deterministic workflow suggestions from church signals; Bible Study Q&A and sermon-outline assist, consent-gated and logged | `/app/church-admin/workflows`, `/app/pastor/bible-study` |
+| **📥 Migration** | Dry-run and commit imports for people, groups, events, attendance and giving | `/app/church-admin/*/import` |
+| **🛠️ Platform operations** | Control plane for ChurchCore staff (tenants, provisioning, launch checklist, demo feedback); Project HQ with an AI advisor and in-app Council | `/control`, `/hq` |
+
+The full route map and per-feature notes are in [docs/application-surface.md](./docs/application-surface.md), and a guided product walkthrough is in [docs/application-guide.md](./docs/application-guide.md).
+
+---
+
+## 🏗️ Architecture & Topology
+
+ChurchCore keeps a hard boundary between **platform operations** and **church runtime data** ([ADR 0002](./docs/adr/0002-control-plane-and-tenant-separation.md)). Inside the tenant data plane, every church's rows carry a `church_id` and **PostgreSQL Row-Level Security** is the enforcement boundary ([tenant data segmentation](./docs/tenant-data-segmentation.md)).
+
+```mermaid
+flowchart TB
+    subgraph Users ["Who signs in"]
+        Staff["ChurchCore staff"]
+        Church["Church admin · pastor · secretary · leader · member"]
+        Public["Signed-out visitors"]
+    end
+
+    subgraph App ["Next.js 16 App Router on Vercel"]
+        Control["/control and /hq<br/>control plane"]
+        Tenant["/app<br/>church workspaces"]
+        Portal["/portal and /give<br/>public surfaces"]
+        Actions["Server actions and API routes<br/>role gates, server-only modules"]
+        Gateway["AI gateway<br/>lib/ai/gateway.ts"]
+        Hooks["Webhooks and crons<br/>fail closed"]
+    end
+
+    subgraph Data ["Supabase (Postgres, Auth)"]
+        CP[("Control-plane project<br/>tenants, staff, support audit")]
+        TP[("Tenant data plane<br/>church_id on every row + RLS")]
+    end
+
+    subgraph Providers ["External providers"]
+        Stripe["Stripe Connect<br/>each church's own account"]
+        Mail["Resend (primary) · SendGrid (fallback)<br/>Twilio SMS"]
+        OR["OpenRouter<br/>zero-data-retention routing"]
+    end
+
+    Staff --> Control
+    Church --> Tenant
+    Public --> Portal
+    Control --> Actions
+    Tenant --> Actions
+    Portal --> Actions
+    Actions --> CP
+    Actions --> TP
+    Actions --> Stripe
+    Actions --> Mail
+    Actions --> Gateway --> OR
+    Stripe --> Hooks
+    Mail --> Hooks
+    Hooks --> TP
+```
+
+- **Control plane vs. tenant app:** `/control` is for ChurchCore staff only; `/app` is the church runtime. Each has its own Supabase auth surface and project. See [docs/control-plane.md](./docs/control-plane.md).
+- **Payments:** each church connects its own Stripe account; every call for that church's money carries `Stripe-Account`, so the church is merchant of record ([ADR 0025](./docs/adr/0025-stripe-connect-standard-direct-charges.md)).
+- **AI:** every LLM call goes through one server-only gateway to OpenRouter, with PII scrubbing and zero-data-retention routing that fails closed ([ADR 0027](./docs/adr/0027-openrouter-ai-gateway.md)).
+- **Design system:** dark-first slate surfaces, indigo primary and Inter, delivered through the Mantine theme ([ADR 0026](./docs/adr/0026-churchcore-design-system-parity.md)).
+
+Start with [docs/architecture.md](./docs/architecture.md); the full diagram set is in [docs/diagrams.md](./docs/diagrams.md).
+
+<details>
+<summary>System architecture diagram (SVG)</summary>
+
+![ChurchCore system architecture](docs/assets/diagrams/system-architecture.svg)
+
+</details>
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- **Node.js 22.13.0** or newer (see `.nvmrc`) and **npm**
+- **Docker** for the local Supabase backend (optional for preview mode)
+
+### 1. Clone & Install
+
+```bash
+git clone https://github.com/ricardojjulia/ChurchCore.git
+cd ChurchCore
+npm ci
+```
+
+### 2. Run in Preview Mode
+
+```bash
+npm run dev
+```
+Open **[http://localhost:4200](http://localhost:4200)**. Without backend environment variables the app runs in preview mode with in-memory demo data.
+
+### 3. Add the Local Supabase Backend
+
+```bash
+cp .env.example .env.local   # fill Supabase keys from: npx supabase status --output env
+npm run setup:local          # starts Supabase, resets and migrates the DB, seeds Grace Harbor Church
+npm run dev
+```
+Demo credentials are generated into the gitignored `.demo-credentials.local`. Environment variables, the e2e stack, scripts and troubleshooting are in **[HOWTO.md](./HOWTO.md)**.
+
+---
+
+## 🎬 Try the Demo
+
+The app is live at **[www.churchcore.io](https://www.churchcore.io)** (the same production deployment also answers at [church-core-ops.vercel.app](https://church-core-ops.vercel.app)) — no installation required.
 
 **All demo accounts use the password: `ChurchCoreDemo2026!`**
 
 | Role | Email | Access |
-|------|-------|--------|
+| :--- | :--- | :--- |
 | Church Administrator | `admin@graceharbor.church` | Full dashboard, readiness, finance, reports, settings |
 | Secretary / Office Admin | `secretary@graceharbor.church` | Daily desk, task queue, account approvals, calendar |
 | Pastor / Elder | `pastor@graceharbor.church` | Care assignments, pastoral notes, ministry oversight |
 | Ministry Leader | `leader@graceharbor.church` | Ministry Forge, volunteer scheduling, service plan |
 | Member / Volunteer | `member@graceharbor.church` | Member portal, giving history, groups, events |
 
-The demo church is **Grace Harbor Church** with pre-seeded data across all modules.
+The demo church is **Grace Harbor Church**, with pre-seeded data across all modules. A guided 30-minute tour is in [docs/setup/demo-install.md](./docs/setup/demo-install.md).
 
-> **Demo mode is for demos only.** A demo deploy runs with `NEXT_PUBLIC_DEMO_MODE=true`, which enables the demo-only routes (`/api/demo/*`, e.g. completing a stubbed event payment) and lets provider stubs report payments and messages as succeeded when Stripe or email/SMS keys are missing (`lib/stub-mode.ts`). A deploy that serves a real church must leave `NEXT_PUBLIC_DEMO_MODE` unset — see [docs/setup/production-deployment.md](docs/setup/production-deployment.md). For a full guided walkthrough — weekly readiness, children's ministry safety, GL posting, ShepherdAI workflows, and more — see [docs/setup/demo-install.md](docs/setup/demo-install.md).
-
-## Technical Blueprint
-
-ChurchCore is built around a hard boundary between platform operations and church runtime data:
-
-- **Control plane:** ChurchCore staff surface for tenant lifecycle, billing metadata, platform staff identity, support audit, and provisioning.
-- **Tenant app:** Church-facing runtime for admins, pastors, secretaries, ministry leaders, volunteers, members, and public portal visitors.
-- **Data boundary:** Control-plane and tenant data live in separate Supabase projects. Cross-boundary support access must be explicit, audited, and intentionally designed.
-- **Workflow intelligence:** ShepherdAI is Ops-only and deterministic-first. It recommends ministry workflows from signals; it is not a chatbot and does not replace pastoral discernment.
-
-![ChurchCore system architecture](docs/assets/diagrams/system-architecture.svg)
-
-Full diagram set: [docs/diagrams.md](docs/diagrams.md)
-
-## Quick Start
-
-Recommended runtime: Node `22.13.0` or newer.
-
-```bash
-npm ci
-npm run dev
-```
-
-Open `http://localhost:4200`. Without backend environment variables, the app runs in preview mode with in-memory demo data.
-
-For a full local Supabase-backed evaluation:
-
-```bash
-npm run setup:local
-npm run dev
-```
-
-In another terminal:
-
-```bash
-npm run smoke:preview
-npm run smoke:local
-npm run test:e2e:install
-npm run test:e2e:readiness
-```
-
-The Playwright readiness check starts the Next.js dev server automatically, but it still expects the local Supabase demo setup and generated `.demo-credentials.local` from `npm run setup:local`.
-That local setup now generates tenant demo users for ChurchAdmin, Secretary / Office Admin, Pastor / Elder, Ministry Leader, and Member role-access checks.
-
-### Startup Troubleshooting
-
-If `npm run dev` exits unexpectedly, use the fast recovery checklist in [docs/setup/dev-startup-troubleshooting.md](docs/setup/dev-startup-troubleshooting.md).
-
-Most common clean reset flow:
-
-```bash
-rm -rf node_modules .next
-npm cache clean --force
-npm cache verify
-npm ci
-npm run dev
-```
-
-## Stack
-
-- Next.js 16 App Router with TypeScript
-- Tailwind CSS v4 and Mantine UI
-- Supabase for split control-plane and tenant data surfaces
-- Stripe-oriented giving and finance flows
-- GitHub Actions for lint, build, CodeQL, dependency review, and secret scanning
-- Vercel hosting with scheduled ShepherdAI evaluation support
-
-## Design System
-
-ChurchCore follows the ChurchCore Design System: dark-first slate surfaces, an indigo primary, Inter type, and `rounded-2xl`/`rounded-xl` radii — adopted ecosystem-wide for visual parity with sister apps ChurchCore LMS and Orthos, through the Mantine theme rather than a stack rewrite ([ADR 0026](docs/adr/0026-churchcore-design-system-parity.md)).
-
-- **Theme:** `components/theme-provider.tsx` maps the spec's slate/indigo roles onto Mantine's `dark` palette and forces the dark scheme. `app/globals.css` carries the matching CSS variables.
-- **Rule for new screens:** colours come from the theme (`c="dimmed"`, `color="indigo"`, etc.) or a CSS variable in `app/globals.css` — never a new hard-coded colour literal.
-- **Enforced in CI:** `components/theme-provider.test.ts` is a ratchet — the count of colour literals in `app/` and `components/` may only go down from its recorded baseline, and the pre-ADR-0026 light theme's palette is banned outright, so a copied light-theme snippet fails the build instead of rendering unreadable.
-
-## Repository Map
-
-| Start here | Purpose |
-| --- | --- |
-| [docs/mvp-competitive-analysis.md](docs/mvp-competitive-analysis.md) | MVP status, competitive positioning, pricing, go-to-market readiness, and structural moat. |
-| [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) | Source of truth for scope, stack, security posture, roadmap, and release discipline. |
-| [docs/development-plan-visual.md](docs/development-plan-visual.md) | Visual companion for the plan: strategy map, roadmap, security model, and Sprint 1 flow. |
-| [docs/diagrams.md](docs/diagrams.md) | Mermaid architecture, role, workflow, and documentation diagrams with SVG companions. |
-| [docs/application-guide.md](docs/application-guide.md) | End-to-end product walkthrough and operator guide. |
-| [docs/software-factory.md](docs/software-factory.md) | How to use the Claude Code and Codex software-factory workflows, including agents, skills, hooks, role contracts, and diagrams. |
-| [docs/factory-runs](docs/factory-runs) | Durable tracker for meaningful software-factory runs, including story, brief, implementation, verification, residual risk, and commit evidence. |
-| [docs/setup/local-supabase.md](docs/setup/local-supabase.md) | Full local Supabase setup, seed, reset, and smoke-test path. |
-| [docs/setup/dev-startup-troubleshooting.md](docs/setup/dev-startup-troubleshooting.md) | Fast triage for local `npm run dev` startup failures and clean reset steps. |
-| [docs/mvp-readiness-audit.md](docs/mvp-readiness-audit.md) | Current MVP verdict, navigation fit, verification gaps, and readiness queue. |
-| [docs/plans/competitive-readiness-roadmap.md](docs/plans/competitive-readiness-roadmap.md) | Next major-release roadmap for closing competitive gaps across operator, member, communications, service planning, import, and security proof workflows. |
-| [docs/plans/mvp-competitive-go-no-go-checklist.md](docs/plans/mvp-competitive-go-no-go-checklist.md) | Weekly go/no-go gates for MVP today, MVP +2 weeks, and competitive 30/60-day execution. |
-| [docs/plans/2026-06-05-execution-brief.md](docs/plans/2026-06-05-execution-brief.md) | Weekly execution brief assigning owners, deliverables, and verification commands for the 2026-06-05 checkpoint. |
-| [docs/plans/member-mobile-pwa-foundation-audit.md](docs/plans/member-mobile-pwa-foundation-audit.md) | Phase 2 mobile baseline audit for member routes and calendar, including route verdicts, workflow order, and first implementation slices. |
-| [docs/security-assessment.md](docs/security-assessment.md) | Security and privacy assessment for sensitive church data. |
-| [docs/security-role-access-matrix.md](docs/security-role-access-matrix.md) | Living role-access matrix linking sensitive routes/actions to executable evidence. |
-| [docs/adr/0002-control-plane-and-tenant-separation.md](docs/adr/0002-control-plane-and-tenant-separation.md) | Approved architecture for separated control-plane and tenant data boundaries. |
-| [docs/adr/0004-competitive-readiness-architecture.md](docs/adr/0004-competitive-readiness-architecture.md) | Architecture decision governing readiness contracts, mobile member workflows, communications adapters, import staging, and security evidence. |
-| [.claude/agents](.claude/agents) and [.claude/skills](.claude/skills) | Claude Code software-factory setup: focused agents, feature orchestration, build-with-tests workflow, and safety hook example. |
-| [.codex/skills](.codex/skills) | Codex-compatible software-factory setup mirroring the Claude workflow through repo-local skills and role contracts. |
-
-## Current Product Surface
-
-- **Control plane:** `/control` for platform staff.
-- **ChurchAdmin workspace:** people, households, accounts, ministries, events, readiness, giving ops, finance, communications, workflows, reports, and settings.
-- **Church Operations:** `/app/church-admin/operations` for church documents (vision/mission, faith stance, policy, elder council notes encrypted at rest) and new-member onboarding workflow with task templates and progress tracking.
-- **Communications:** `/app/communications` for compose/send email and SMS to segmented audiences, schedule delivery, manage templates, view delivery history and analytics, and retry failures.
-- **Weekly readiness path:** shared readiness summaries now carry status, severity, issue count, recommended action, route target, query target, and completion state metadata for the operator path. Setup, account requests, people, events, children's ministry, volunteers, giving/finance, communications, reports, and suggested workflows now use module-owned readiness builders. The standardized target-state pattern is live for settings, account approvals, people readiness filters, event roster review, volunteer service plans, giving/finance exceptions, and suggested workflows.
-- **Daily Desk:** `/app/daily-desk` for calls, notes, visits, calendar items, checkups, and operational signals.
-- **Secretary portal:** `/app/secretary` for office work without full church-admin authority.
-- **Member portal:** profile, family, directory, giving, schedule, groups, privacy/data rights, and preferences.
-- **Member mobile shell:** phone-first bottom navigation now prioritizes home, calendar, groups, schedule, and family; member home includes quick-action cards for top tasks, and member calendar keeps bottom-nav continuity.
-- **Public portal:** host-aware church resolution plus member account onboarding through `/portal/register`.
-- **ShepherdAI workflow queue:** `/app/church-admin/workflows` for suggested ministry workflows generated from deterministic signals.
-- **AI Ministry Tools:** `/app/pastor/bible-study` for AI-assisted Bible Study Q&A; Council Forge extended with AI Suggest for sermon outline and series plan generation. All AI interactions are server-side, consent-gated, and logged to `ai_interactions`.
-- **AI gateway (ADR 0027):** every LLM call goes through one server-only gateway (`lib/ai/gateway.ts`) to OpenRouter, with per-feature ranked model fallbacks (`lib/ai/models.ts`), zero-data-retention routing that fails closed, PII scrubbing on every message, and token/cost logging. Set `OPENROUTER_API_KEY`; direct Anthropic (`ANTHROPIC_API_KEY`) is the backup when it is unset. Per-feature overrides (`AI_MODELS_<FEATURE>`, `AI_ANTHROPIC_MODEL_<FEATURE>`) are in `.env.example`.
-- **Localization Governance:** `/app/church-admin/localization` for governed translation lifecycle (draft → validated → reviewed → approved → active → stale); CLI via `locgov` binary; runtime fallback to hardcoded i18n catalog.
-
-## AI-Assisted Development
-
-ChurchCore includes a repo-local software factory for structured AI-assisted development:
-
-- **Claude Code:** use `.claude/agents/`, `.claude/skills/feature-factory`, `.claude/skills/build-with-tests`, and `.claude/hooks/pre-commit.sh`.
-- **Codex:** use `.codex/skills/churchcore-feature-factory`, `.codex/skills/churchcore-build-with-tests`, and `.codex/skills/churchcore-pr-review`.
-- **Gemini (Antigravity):** use `.gemini/skills/gemini-feature-factory`, `.gemini/skills/gemini-build-with-tests`, and `.gemini/skills/gemini-pr-review`.
-
-- **The Council (v2):** five read-only audit agents (Data & API, Routes & Pages, UX & Shell, Feature & Plan, Security) plus a Documenter run before every non-trivial merge to `main`; the synthesis opens with a RATIFIED/AMENDED/REJECTED recommendation. See [`improve-software.md`](improve-software.md) and [`docs/reviews/`](docs/reviews/).
-- **Project HQ (`/hq`, platform staff only):** a register of tasks, risks and decisions plus an AI advisor and an in-app Council (five seats in parallel, then a synthesis). Prompts are PII-scrubbed inside the gateway; only register titles and statuses are sent. Portable spec: [`docs/council-and-hq-portable.md`](docs/council-and-hq-portable.md).
-
-Start with [docs/software-factory.md](docs/software-factory.md) for the how-to and [docs/diagrams.md](docs/diagrams.md#claude-code-software-factory) for the visual workflow maps.
-
-### Preferred Factory Workflow
-
-ChurchCore is intentionally transparent: every meaningful change should leave enough documentation for a future maintainer, church evaluator, or security reviewer to understand what changed, why it changed, and how it was verified.
-
-Use this workflow for non-trivial work in Claude Code, Codex, or Gemini:
-
-1. Read `DEVELOPMENT_PLAN.md`, `AGENTS.md`, relevant docs, and relevant ADRs.
-2. Run the factory research phase before implementation.
-3. Write or confirm the user story and acceptance criteria.
-4. Write or confirm the technical brief, including tenant boundaries, RBAC, sensitive data, tests, and documentation impact.
-5. Implement in the smallest coherent vertical slice.
-6. Update `README.md`, `CHANGELOG.md`, and the relevant document under `docs/`.
-7. Run `npm run lint` and `npm run build` when feasible; run focused tests for touched behavior.
-8. Use the validator or PR-review workflow before commit or PR handoff.
-9. Commit on a feature branch, push the branch, open a pull request, merge through GitHub after required checks/review, then pull `main`.
-
-Claude Code should run this through the `feature-factory` and `build-with-tests` skills. Codex should run the same sequence through `churchcore-feature-factory`, `churchcore-build-with-tests`, and `churchcore-pr-review`. Gemini (Antigravity) should run the sequence through `gemini-feature-factory`, `gemini-build-with-tests`, and `gemini-pr-review` (integrating the native Planning Mode).
-
-## Plan Highlights
-
-- Role-based portals with least-privilege enforcement for platform, church, ministry, and member workflows.
-- Explicit separation between the ChurchCore control plane and tenant-facing church app.
-- Sensitive-data posture for PII, PHI-adjacent pastoral data, donations, child safety, care records, and audit logs.
-- Categorized calendar, RSVP, volunteer scheduling, burnout guardrails, and ministry stewardship metrics.
-- Giving, double-entry finance, reporting, communications, and ministry pathway intelligence.
-- Assistive AI only, with consent, auditability, theological guardrails, and human approval where ministry content is generated.
-
-## ShepherdAI Ops Foundation
-
-- Core module location: `lib/shepherd-ai/`
-- Workflow operations module: `lib/ministry-workflows/`
-- Church-admin workflow queue route: `/app/church-admin/workflows`
-- Scheduled evaluation endpoint: `/api/cron/shepherd-ai`
-- Data persistence tables: `ai_signals`, `ai_suggestions`, `workflows`, `workflow_actions`, `workflow_feedback`
-- Product boundary: Ops-only data and logic; no Academy or Care cross-product inference
-
-For recurring evaluation, configure `CRON_SECRET` and deploy `vercel.json` cron schedule. Every `/api/cron/*` route fails closed (S4, `lib/cron-auth.ts`): without `CRON_SECRET` it rejects every request on any built deploy (production, preview, demo), and only `next dev` runs it unauthenticated. Vercel Cron sends the secret as `Authorization: Bearer <CRON_SECRET>`; `x-cron-secret` also works for manual runs.
-The endpoint supports scoped runs with `tenantId` and bounded runs with `maxTenants`.
-Hosted rollout reference: [docs/setup/hosted-shepherdai-rollout.md](docs/setup/hosted-shepherdai-rollout.md).
-
-See [docs/shepherd-ai-ops.md](docs/shepherd-ai-ops.md) for architecture and guardrails.
-
-## Demo Feedback
-
-- Demo-mode users can report bugs, errors, unexpected results, and improvement
-  ideas from the global feedback button.
-- Unhandled React errors are captured without blocking the current UI.
-- The server derives authenticated identity, validates bounded context, computes
-  normalized fingerprints, and writes through the control-plane service role.
-- Control-plane Postgres atomically deduplicates reports, tracks hit counts,
-  reopens repeated issues, and enforces 20 submissions per session per minute.
-- Platform staff review and resolve reports at `/control/demo-feedback`.
-- Replication guide: [docs/prompts/replicate-demo-feedback-system.md](docs/prompts/replicate-demo-feedback-system.md).
-
-## Evaluation Snapshot
-
-- Current repo version: `3.5.0`
-- License: [MIT](LICENSE)
-- Included demo scope: preview mode without a backend, or local Supabase with seeded Grace Harbor Church data
-- Local credential material is not committed; demo credentials are generated locally by the bootstrap script and saved to gitignored `.demo-credentials.local`
-- Evaluator helpers: `npm run setup:local`, `npm run smoke:preview`, `npm run smoke:local`, `npm run test:e2e:readiness`, and `npm run test:e2e:member-mobile`
-- Spanish UI support has started with cookie-backed English/Spanish selection; track rollout in [docs/plans/spanish-ui-coverage.md](docs/plans/spanish-ui-coverage.md)
-
-## Release 3.5.0 Highlights
-
-Release 3.5.0 (2026-10-03) collects the work since June toward the November 6 MVP. Full notes: [CHANGELOG.md](CHANGELOG.md).
-
-- **Service planning:** song library and setlists, role taxonomy and roster, a fatigue-aware rotation planner, volunteer blockout dates, assignment notifications, and church-timezone days (Gap 1 closed).
-- **Production safety:** webhooks and crons fail closed and verify the providers' real signatures; member writes, profile ids, `SECURITY DEFINER` actors and public registration hardened.
-- **Giving on each church's own Stripe account:** card form for gifts and paid registrations, Stripe Connect (Standard, direct charges), recurring giving with installments, and real public gifts at `/give/[slug]`.
-- **Design system:** dark-first slate, indigo primary, Inter, through the Mantine theme (ADR 0026).
-- **Quality gates:** a blocking e2e suite (every page × role, every API route) and the surface-coverage manifest; Council v2 with a Security seat, plus Project HQ's in-app AI Council.
-- **Dependencies** refreshed within their semver ranges; majors deferred until after the MVP.
-
-## Release 3.4.0 Highlights
-
-Release 3.4.0 introduces a portable localization governance framework adapted from ChurchCore Care.
-
-- **Localization governance:** translations graduate from hardcoded TypeScript to an audited, lifecycle-managed catalog; `draft → translated → validated → in_linguistic_review → approved → active → stale` state machine enforced at the service layer; automated translation and validation can never approve or activate.
-- **Tenant-scoped PostgreSQL storage:** six additive migration tables with `tenant_id FK → churches`, full RLS, and a custom audit trigger that excludes catalog text from `audit_log`.
-- **Human review gates:** reviewer assignment required per church/locale/role before `submitReview`; separation of duties enforced when multiple roles configured; `approveVersion` and `activateVersion` require `church_admin`.
-- **Runtime fallback:** `getRuntimeCatalog` serves the active governance catalog or falls back to the existing hardcoded `messages[locale]` — zero change to existing runtime behavior when governance catalog is absent.
-- **CLI:** `locgov` operator commands for status, translate, validate, review, approve, activate, rollback, and CI policy evaluation (`localization-governance.config.mjs` at repo root).
-- **Test suite:** 1,209 passing tests (up from 1,153 at v3.3.0); includes full E2E lifecycle and packed-tarball consumer test.
-
-## Release 3.3.0 Highlights
-
-Release 3.3.0 delivers three major feature sprints and two production hardening tracks since v3.2.0.
-
-- **Church Operations module:** church documents (vision/mission, faith stance, policy, elder council notes encrypted at rest) and a full new-member onboarding workflow with task templates, assignable steps, and progress tracking — accessible to church_admin and pastor.
-- **Communications send lifecycle:** compose, schedule, and send segmented email and SMS through real providers (Resend + Twilio); audience builder with role, ministry, membership, and attendance filters; delivery history, analytics, retry, and cancel; templates; all production environment variables now wired.
-- **AI Ministry Tools — first LLM integration:** Claude-powered sermon outline generation in Council Forge (sermon_outline and series_plan note types); Bible Study Q&A at `/app/pastor/bible-study`; theological guardrails, per-session disclaimer gate, server-side API calls, and full audit trail in `ai_interactions`.
-- **Production hardening:** PGRST201 FK disambiguation across 16 tables fixed; VAPID push, Resend, Twilio, and unsubscribe HMAC fully configured in production.
-- **Test suite:** 1,153 passing tests (up from 708 at v3.2.0).
-
-## Release 3.0.0 Highlights
-
-Release 3.0.0 is the correct SemVer position for the accumulated work after the last tagged 2.11.1 snapshot. The scope moved beyond patch hardening and routine feature delivery: it added new operator workspaces, new role surfaces, ShepherdAI operational persistence, split-backend security posture, bilingual UI foundations, readiness contracts, and the documented Claude/Codex software factory. Under the `DEVELOPMENT_PLAN.md` rules, that combination is a major release because it includes major operational modules and significant AI/sensitive-workflow changes.
-
-- **Operator path:** ChurchAdmin weekly readiness, Daily Desk, live operations lanes, account onboarding, readiness resolution actions, and module-owned readiness builders now make the weekly church-admin path more explicit.
-- **Role and member surfaces:** Secretary / Office Admin, member portal refinements, public portal account requests, English/Spanish shell coverage, member mobile baseline audit, and phone-first member shell/navigation hardening are now documented and partially implemented.
-- **AI and workflow operations:** ShepherdAI now has deterministic signal persistence, workflow recommendation/promotion services, scheduled evaluation, and guardrail documentation.
-- **Security and delivery posture:** control-plane and tenant backend separation is hardened, vulnerable dependencies were remediated, branch protection now enforces PR delivery, and factory runs are tracked as durable evidence.
-- **Software factory:** Claude Code and Codex workflows are documented with agents/skills, visual diagrams, approval gates, validation, and preferred transparent delivery steps.
-
-## Release 2.12.1 Highlights
-
-Release 2.12.1 hardens the ADR 0002 control-plane and tenant split. Backend configuration is now explicit per surface, and the completed split removes the shared local database fallback path from the active configuration.
-
-- **Boundary-aware backend checks:** control-plane and tenant wrappers recognize either Supabase REST envs or direct DB fallback URLs as valid backend configuration.
-- **Completed split posture:** control-plane registry tables live in the control-plane project only, and tenant runtime migrations remove the vestigial registry tables from the tenant project.
-- **Current product baseline:** includes the 2.12.0 Phase 1 product strategy implementation: Small Groups, public giving, church-admin events, attendance tracking, Giving GL auto-posting, and first-time visitor workflow scaffolding.
-
-## Release 2.11.1 Highlights
-
-Release 2.11.1 packages the new **Children's Church Ministry (CCM)** module together with private-repo hardening for invited evaluation. The main product addition is the full child check-in and safety workflow; the repo addition is safer local bootstrap and stronger GitHub-side validation.
-
-- **CCM module:** check-in and checkout kiosks, service dashboard, child profiles, emergency roster, volunteer coordination, custody restrictions, incidents, PIN/QR pickup verification, and seeded demo service data.
-- **Private-repo hardening:** local fonts instead of live Google font fetches, env-driven local bootstrap, generated demo credentials, and removal of committed local token-shaped values from docs and seed metadata.
-
-## Release 2.10.0 Highlights
-
-Release 2.10.0 is the largest single feature release in the project's history. It ships two major system expansions simultaneously: a full church **Financial Management module** and an **Advanced Ministry Forge** that brings all ten ministry track kinds to full panel coverage with active Kingdom Stewardship metrics.
-
-### Financial Management Module
-
-Church admins now have a complete internal bookkeeping system at `/app/church-admin/finance`, independent of the existing Stripe donations flow. It is designed to satisfy 501(c)(3) annual reporting requirements, stewardship accountability, and annual audits.
-
-**Database (`supabase/migrations/20260417000000_financial_management.sql`):**
-Six new tables, all church-scoped with RLS enforced via `can_manage_church()` (church-admin only). All monetary values are stored as `amount_cents integer` — no floating point, consistent with the `donations` table.
-
-- `finance_accounts` — hierarchical chart of accounts with `parent_id` self-reference for multi-level account trees (e.g. `5000 Expenses → 5100 Salaries → 5110 Pastoral Salaries`). Account type constrained to `asset`, `liability`, `equity`, `income`, or `expense`.
-- `finance_journals` — journal batch records with `draft → posted → voided` status lifecycle. Tracks who posted and voided with timestamps.
-- `finance_journal_lines` — individual debit and credit lines. The app layer validates `sum(debits) = sum(credits)` before any journal persists.
-- `finance_budgets` — named budget versions per fiscal year with `is_active` flag.
-- `finance_budget_lines` — per-account budgeted amount within a budget.
-- `finance_imports` — import job log with filename, detected format, row counts, status (`pending → processing → completed / failed`), and error details.
-- Audit triggers on `finance_journals` and `finance_accounts` write to `audit_log`.
-
-**Data and actions layer:**
-
-- `lib/finance-types.ts` — comprehensive shared TypeScript types: enums (`AccountType`, `JournalStatus`, `JournalType`, `ImportFormat`), entity types, report aggregates (`FinanceDashboardData`, `IncomeStatementData`, `BalanceSheetData`, `BudgetVarianceRow`), and import wizard types.
-- `lib/finance-data.ts` — server-only data fetchers following the dual-path pattern (`shouldUseLocalTenantFallback()` → direct Postgres vs. Supabase REST). Functions: `getFinanceAccounts`, `getFinanceJournals`, `getFinanceJournalWithLines`, `getFinanceBudgets`, `getBudgetVariance`, `getFinanceImports`, `getFinanceDashboardData`, `getIncomeStatement`, `getBalanceSheet`, `getFinanceBudgetLines`.
-- `app/app/finance-actions.ts` — role-guarded server actions: `createAccountAction`, `updateAccountAction`, `createJournalAction` (validates balance before insert), `postJournalAction`, `voidJournalAction`, `deleteJournalDraftAction`, `createBudgetAction`, `upsertBudgetLinesAction`, `importFinanceRowsAction`.
-- `lib/finance-import.ts` — client-safe import parsers: CSV via `papaparse` with fallback, Excel `.xlsx`/`.xls` via `xlsx` library, QuickBooks IIF (tab-delimited `!TRNS`/`ENDTRNS` parser), OFX/QFX (SGML `<STMTTRN>` block extractor), and plain-text auto-detection. Format auto-detected from filename extension and content sniffing.
-
-**Routes (11 new, all church-admin only):**
-`finance/dashboard` · `finance/accounts` · `finance/accounts/[id]` · `finance/journals` · `finance/journals/new` · `finance/journals/[id]` · `finance/budgets` · `finance/budgets/[id]` · `finance/import` · `finance/reports`
-
-**UI Components (7 new):**
-
-- `finance-dashboard.tsx` — summary cards (total income, expenses, net position), `RingProgress` budget utilization, income/expense breakdown tables, recent journals table.
-- `finance-accounts-workspace.tsx` — hierarchical chart of accounts grouped by type; add-account modal with type selector and parent account picker.
-- `finance-journal-workspace.tsx` — journal list with `Badge` status indicators (draft / posted / voided) and journal type badges.
-- `finance-journal-editor.tsx` — editable debit/credit line table with running balance display (green when balanced, red when not); read-only mode for posted/voided journals.
-- `finance-budget-workspace.tsx` — budget list and line-by-line detail view showing budgeted, actual year-to-date, variance, and a heat-map color indicator per line.
-- `finance-import-wizard.tsx` — four-step `Stepper`: file upload with auto-format detection → column mapping (CSV/Excel only) → 20-row preview with per-row error badges → completion with link to the created draft journal.
-- `finance-reports-workspace.tsx` — tabbed reports: Income Statement, Balance Sheet, Budget Variance.
-
-**Dependencies added:** `xlsx` (Apache-licensed Excel parsing), `papaparse` + `@types/papaparse` (robust CSV parsing with quoted-field support).
-
-**ADR:** `docs/adr/0003-financial-management-module.md` documents the decision to build full double-entry accounting (rather than a simple expense tracker), the choice to add `xlsx` and `papaparse`, and the integer-cents monetary storage policy.
+> **Demo mode is for demos only.** A demo deploy runs with `NEXT_PUBLIC_DEMO_MODE=true`, which enables the demo-only `/api/demo/*` routes and lets provider stubs report payments and messages as succeeded when Stripe or email/SMS keys are missing (`lib/stub-mode.ts`). A deploy that serves a real church must leave it unset — see [docs/setup/production-deployment.md](./docs/setup/production-deployment.md).
 
 ---
 
-### Advanced Ministry Forge — 10 Specialized Track Panels
+## 🧪 Quality Gates
 
-The Ministry Forge previously had dedicated management panels for worship, men's, women's, marriage, and missions. This release adds five more, expanding full panel coverage to all ten ministry track kinds. It also introduces stewardship-level metrics — Burnout Guardian, Discipleship Velocity, Safety Index — and schema-level security guardrails for sensitive ministry data.
+Every change ships its tests, and CI blocks the merge:
 
-**Database (`supabase/migrations/20260430000000_advanced_ministry_forge.sql`):**
+```bash
+npm run test:surfaces   # every page, API route and server action is in tests/coverage-manifest.json with real tests
+npm run lint            # ESLint
+npm run build           # type-checked production build
+npm run test            # Vitest unit suite
+npm run test:e2e:local  # full Playwright suite against local Supabase, as CI runs it
+```
 
-Profile extensions: `profiles.member_number` (unique human-readable ID), `profiles.safety_clearance_date` (background check date for Children's Safety Index), `profiles.specialized_tags` (interest/career tags for life-stage and mentorship matching).
+| Gate | Where | What it checks | Blocks merge |
+| :--- | :--- | :--- | :---: |
+| **Surface manifest** | CI `verify` · `npm run test:surfaces` | No unregistered, stale or untested page, API route or server action | ✅ |
+| **Lint, typecheck, build** | CI `verify` · `npm run check` | ESLint, `tsc --noEmit`, `next build` | ✅ |
+| **Unit tests** | CI `verify` · `npm run test` | Vitest suite | ✅ |
+| **RLS audit and DB tests** | CI `verify` · `npm run audit:rls`, `npm run test:db` | No `church_id` table without RLS; real-Postgres tests on a fresh local Supabase | ✅ |
+| **End-to-end** | CI `e2e` (4 shards) · `npm run test:e2e:local` | Every page × every role, every API route, key journeys, server-reference check | ✅ |
+| **Security scans** | CodeQL, gitleaks, dependency review | Code scanning, committed secrets, vulnerable dependencies on PRs | — |
+| **The Council** | [`improve-software.md`](./improve-software.md) | 5 read-only audit seats (data/API, routes, UX, feature, security) + Documenter, before every non-trivial merge | Mandate |
+| **Verified signatures** | Branch protection on `main` | Every commit signed and from a verified email | ✅ |
 
-Ministry type expansion: `ministries.ministry_type` constraint updated to include `young_adult` and `education`.
-
-New table groups by ministry kind:
-
-- **Children's Ministry:** `children_rooms` (classroom definitions with capacity and `target_ratio`), `children_checkins` (per-service check-in/out log), `children_sensitive_data` (pickup codes, medical alerts, authorized guardians — `can_manage_church` RLS only, full audit trigger, Vault encryption noted for production).
-- **Youth Ministry:** `youth_milestones` (milestone catalog per ministry — Baptism, First Serve, Faith Class, Student Leader), `youth_graduation_tracking` (per-student per-milestone completion with graduation year).
-- **Young Adults Ministry:** `young_adult_career_mentorships` (career-kingdom mentor/mentee pairs with industry and focus area; status: `active`, `completed`, `paused`, `seeking`).
-- **Education / Discipleship:** `education_courses` (course catalog with 10 constrained `curriculum_area` values), `education_enrollments` (per-member course enrollment with completion tracking).
-- **Outreach Ministry:** `outreach_events` (community events with GPS coordinates, volunteer count, people served), `outreach_zones` (neighborhood heatmap summary with `coverage_level`: `low`, `medium`, `high`).
-- **Marriage Ministry:** `marriage_pulse_entries` — completely anonymous weekly sentiment entries. **No `profile_id` column — anonymity is enforced at the schema level, not just by policy.**
-- **Stewardship views:** `discipleship_velocity` (avg days from church join to first leader role), `burnout_category_counts` (members active in more than 3 distinct track kinds).
-
-**Type system (`lib/ministry-forge-types.ts`):**
-
-- `MinistryType` union and `TRACK_PANEL_TYPES` set are the single source of truth. Any addition propagates automatically to the data layer, dashboard, and list components.
-- New data types for all five track kinds: `ChildrenRoomSafety` (with `ratioStatus: "safe" | "warning" | "alert"`), `YouthStudent` (with `readinessPercent` 0–100 and `alertLevel: "on_track" | "at_risk" | "critical"`), `CareerMentorship`, `MemberDoctrinalProgress` (with `coveragePercent`), `OutreachZone`, plus stewardship types `DiscipleshipVelocity` and `BurnoutCandidate`.
-
-**Data layer (`lib/ministry-forge-data.ts`) — 7 new functions:**
-
-- `getChildrenTrackData` — rooms, check-ins, background check status; computes `safetySnapshot[]` with real-time ratio alerts.
-- `getYouthTrackData` — milestones and per-student tracking; computes `readinessPercent` and alert levels (critical when < 50% ready and graduation ≤ 1 year).
-- `getYoungAdultTrackData` — mentorship pairs with names; derives `seekingMentors` list.
-- `getEducationTrackData` — course catalog with enrollment/completion counts; per-member `coveragePercent` across curriculum areas.
-- `getOutreachTrackData` — events and zone summaries; computes `totalVolunteerHours` and `totalPeopleServed`.
-- `getDiscipleshipVelocity` — reads the `discipleship_velocity` view for stewardship reporting.
-- `getBurnoutCandidates` — reads `burnout_category_counts` filtered to > 3 active track kinds.
-
-**New UI components (5):**
-
-- `ministry-track-children.tsx` — red alert banner when any room exceeds target ratio; safety index grid with color-coded `Progress` bars; background check expiry table; recent check-ins.
-- `ministry-track-youth.tsx` — graduation readiness table sorted critical-first with `Progress` bars and alert badges; milestone catalog.
-- `ministry-track-young-adult.tsx` — career–kingdom mentorship pairs table; seeking-a-mentor table; industry coverage stats.
-- `ministry-track-education.tsx` — course catalog with curriculum area badges; doctrinal blueprint showing per-member theological coverage `Progress` bar and completed area badges.
-- `ministry-track-outreach.tsx` — neighborhood density zone table with coverage level badges; low-coverage zone callout; event log.
-
-Every new track panel component renders `AI_ASSISTIVE_DISCLAIMER` in its footer, consistent with the project-wide canonical disclaimer.
-
-**Seed data:** `supabase/seed.sql` extended to 10 ministries with demo data for all 10 panel types — 22 profiles, 8 households, 5 children's rooms, 4 youth milestones, 4 career mentorship pairs, 7 education courses with enrollments, 5 outreach zones, 5 events with registrations, care assignments, giving records, communication logs, and 8 anonymous marriage pulse entries.
-
-**Security guardrails:**
-
-- Children's PII is in an isolated table (`children_sensitive_data`) with `can_manage_church` RLS and a write-audit trigger. No member role can read this data under any circumstance. The migration comments specify Supabase Vault (`pgsodium`) encryption before production deployment.
-- Marriage pulse entries have anonymity enforced at the schema level — no `profile_id` column exists.
-- Every track panel that surfaces AI-derived or computed stewardship data carries the canonical AI assistive disclaimer.
+`verify` and the four `e2e` shards are the required status checks on `main` (a repository setting; see [docs/testing.md](./docs/testing.md)).
 
 ---
 
-## Release 2.9.0 Highlights
+## 🤖 AI-Assisted Software Factory
 
-- **Financial Management module.** Church admins now have a full double-entry accounting system at `/app/church-admin/finance`. Create a chart of accounts, post journal entries (draft → posted), set annual budgets with per-account lines, view actuals vs. budget, and import transactions from CSV, Excel, QuickBooks IIF, OFX/QFX bank feeds, or plain text. Financial reports include income statement, balance sheet, and budget variance.
-- **Import wizard.** A multi-step wizard auto-detects file format, allows column mapping for CSV/Excel, previews rows with error flagging, and posts imported rows as a draft journal entry ready for review.
-- **Access controls.** The finance module is church-admin only. All routes include role guards consistent with the existing pattern.
+ChurchCore is built with a documented, repo-local software factory for Claude Code (`.claude/`), Codex (`.codex/`) and Gemini (`.gemini/`): feature planning, build-with-tests, PR review, the Council and the Testing Council. Every meaningful run leaves its intent, verification and residual risk in [`docs/factory-runs/`](./docs/factory-runs/) and [`docs/reviews/`](./docs/reviews/).
 
-## Release 2.8.0 Highlights
-
-- **Local Supabase fully operational.** Running `npm run setup:local` gives you a complete local environment with Grace Harbor Church, 22 profiles, 10 ministries, full Ministry Forge track data, operations data, giving data, events, and seeded CCM data. See `docs/setup/local-supabase.md` for the complete guide.
-- **Ministry Forge Phase 4 — five specialized track panels.** Worship, men's, women's, marriage, and missions ministry types now each have a dedicated tab in the Ministry Forge dashboard, surfacing type-specific management data (song library, rehearsal schedule, mentorship pairs, discipleship groups, life-stage circles, support pairings, mentor couples, enrichment cohorts, mission partners, and trip roster with impact metrics).
-- **Ministry Forge index page.** `/app/church-admin/ministry` now exists as a proper grid index showing all ministries with health-band indicators, type badges, member counts, and track-panel callouts. The previous nav link (which targeted a non-existent route) is fixed.
-- **Three schema bugs fixed.** `platform_admins.user_id` and `church_memberships.user_id` FKs now correctly reference `auth.users(id)` instead of `profiles(id)`. The `audit_mentorship_pairs` trigger column name typo is corrected. All three fixes are applied as non-destructive migrations.
-- **Preview mode fully populated.** All six demo ministries (one per track type) now show realistic stub data in preview mode — health history, kingdom impacts, and all five track panel tabs — without requiring a backend connection.
-
-## Getting Started
-
-Recommended runtime: Node `22.13.0` or newer.
-
-```bash
-npm ci
-npm run dev
+```mermaid
+flowchart LR
+    Plan["DEVELOPMENT_PLAN §0 row"] --> Build["Feature branch<br/>build with tests"]
+    Build --> Gates["test:surfaces · lint · build<br/>unit · e2e"]
+    Gates --> Council["Council v2<br/>5 audit seats"]
+    Council --> Doc["Documenter<br/>plan, changelog, docs"]
+    Doc --> PR["Pull request<br/>signed commits, required checks"]
+    PR --> Main["main"]
 ```
 
-For automated verification beyond lint and build:
+How to use it: [docs/software-factory.md](./docs/software-factory.md). Portable Council and Project HQ spec: [docs/council-and-hq-portable.md](./docs/council-and-hq-portable.md).
 
-```bash
-npm run test
-npm run test:coverage
-```
+---
 
-Open `http://localhost:4200`. The app runs in **preview mode** with no backend — all data is in-memory stubs.
+## 📚 Documentation & Governance
 
-Quick local evaluator path:
+- 📘 **[HOWTO](./HOWTO.md)** — Local setup, environment variables, local Supabase, tests, scripts and troubleshooting.
+- 🧭 **[Documentation Hub](./docs/README.md)** — Categorized index of everything in `docs/`.
+- 📐 **[Architecture](./docs/architecture.md)** — Control plane, tenant data plane, RLS, providers and the AI gateway.
+- 📜 **[Architecture Decision Records](./docs/adr/)** — ADR 0001–0027.
+- 🗺️ **[Roadmap](./docs/roadmap.md)** — Milestones to the November 6 MVP and what comes after.
+- 📋 **[Development Plan](./DEVELOPMENT_PLAN.md)** — Source of truth for scope, stack, the §0 tracker and release discipline.
+- 🧪 **[Testing](./docs/testing.md)** — The surface manifest, the e2e suite and CI.
+- 🏛️ **[Council Protocol](./improve-software.md)** and **[Agent Rules](./AGENTS.md)** — Review mandates and repository rules.
+- 🛡️ **[Security Policy](./SECURITY.md)** — Supported versions, security boundaries and private reporting.
+- 🤝 **[Contributing](./CONTRIBUTING.md)** — Branches, signed commits, test surfaces and migrations.
+- 🏷️ **[Versioning](./VERSIONING.md)** — SemVer classes and release discipline.
+- ✅ **[Release Checklist](./RELEASE_CHECKLIST.md)** — Pre-merge, pre-release and post-deploy gates.
+- 📝 **[Changelog](./CHANGELOG.md)** — Release history, including every release's highlights.
+- 💬 **[Support](./SUPPORT.md)** · 🤲 **[Code of Conduct](./CODE_OF_CONDUCT.md)**
 
-```bash
-npm run setup:local
-npm run dev
-```
+---
 
-In another terminal:
+## ⚖️ License
 
-```bash
-npm run smoke:preview
-npm run smoke:local
-```
-
-### Local Supabase (full backend)
-
-For a fully operational local environment with real data:
-
-```bash
-npm run setup:local
-```
-
-Equivalent manual flow:
-
-```bash
-# 1. Start Docker, then:
-npx supabase start
-
-# 2. Apply all migrations and seed demo data:
-npx supabase db reset && ./supabase/scripts/create-dev-users.sh
-```
-
-If you pull a new schema migration such as the CCM module, rerun the reset command before opening the new routes locally.
-
-Your `.env.local` needs these four variables (use JWT-format keys from `npx supabase status --output env`):
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:4201
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJ...   # ANON_KEY from supabase status --output env
-SUPABASE_SERVICE_ROLE_KEY=eyJ...              # SERVICE_ROLE_KEY from supabase status --output env
-SUPABASE_DB_URL=postgresql://postgres:<local-db-password>@127.0.0.1:4202/postgres
-```
-
-> **Important:** Use the `eyJ…` JWT key, not the `sb_publishable_*` key shown in the default `supabase status` output. The JWT key comes from `npx supabase status --output env`.
-> **Optional:** Set `CHURCHCORE_OPS_DEV_PASSWORD` before running `./supabase/scripts/create-dev-users.sh` if you want deterministic demo credentials. Otherwise the script generates a password and writes it to `.demo-credentials.local`.
-> The generated credentials file also includes `CHURCHCORE_OPS_DEMO_ADMIN_EMAIL` and `CHURCHCORE_OPS_DEMO_MEMBER_EMAIL` for smoke-test automation.
-
-**Dev accounts after seeding:**
-
-| Email                         | Role                          |
-|-------------------------------|-------------------------------|
-| `sarah@churchcoreops.app`       | Church Admin + Platform Admin |
-| `david@graceharbor.church`    | Member                        |
-
-See `docs/setup/local-supabase.md` for the complete local setup guide.
-For repository creation and GitHub-side hardening after the first push, use `docs/setup/private-repo-launch-checklist.md`.
-For the application-specific route, action, and domain coverage map, see `docs/testing-schema.md`.
-
-For voluntary donations (Sprint 7+), also supply:
-
-- `STRIPE_SECRET_KEY` — Stripe **platform** secret key (`sk_live_…` or `sk_test_…`). It authenticates ChurchCore to Stripe for the Connect OAuth handshake and reading a connected account's status; it never receives a church's money.
-- `STRIPE_WEBHOOK_SECRET` — webhook signing secret (`whsec_…`) for the platform's own webhook endpoint
-- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` — for Stripe Elements on the frontend (loaded on the church's own connected account)
-- `STRIPE_CONNECT_CLIENT_ID` — Connect OAuth client id (`ca_…`), from Stripe Dashboard → Connect → Settings → OAuth settings
-- `STRIPE_CONNECT_WEBHOOK_SECRET` — signing secret for a **separate** webhook endpoint subscribed to events from connected accounts
-- When absent, donation actions return stub results **outside production** (or with `NEXT_PUBLIC_DEMO_MODE=true`), so local dev is unaffected — a production deploy without these keys refuses to give, rather than recording gifts that were never actually charged (Council Review 22, S8). **Online card giving is live with `STRIPE_SECRET_KEY` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` set, and the church connected** — the Give drawer's card step (Stripe Elements' Payment Element) collects the card and confirms the PaymentIntent in the browser, on the church's own Stripe account (G3.0, Council Review 34; G3.0b, Council Review 35, ADR 0025). **A paid event registration — from the public portal or a member — is paid by card the same way, on the church's own connected account** (G3.0c, Council Review 36): the registration form gives way to Stripe's card form right after registering, and leaving without paying cancels the PaymentIntent and the registration, freeing its place. An admin adding a walk-in doesn't take a card for them; the registration records the payment as due, to collect in person.
-- **Each church connects its own Stripe account (Stripe Connect, Standard accounts, direct charges — G3.0b, ADR 0025) from `/app/church-admin/giving` ("Connect with Stripe").** Connect is required for live payments, with no platform fallback: until a church has connected and Stripe reports it can take charges, that church's online giving and paid event registration say payment isn't set up. Every Stripe call for that church's money carries `Stripe-Account`, so the church is merchant of record. ChurchCore takes **no platform fees** — 100% of every donation goes directly to the church (Stripe's own standard processing fees still apply). See `docs/adr/0025-stripe-connect-standard-direct-charges.md`. **Before live giving is announced, the platform needs its own Connect setup and one Stripe test-mode run with a real connected account (owner action O7, `DEVELOPMENT_PLAN.md` §0.3) — no automated test exercises real Stripe.**
-- **Recurring giving (G3.1 + G3.2, Council Review 38, merged as PR #177):** a member sets up a recurring gift (amount, fund, weekly/biweekly/monthly, start date) as a Stripe subscription on the church's own connected account from `/app/member/giving`. Starting today charges the first installment immediately; a start date up to a year ahead saves the card now (a SetupIntent) and first charges at the church's own midnight on that day. Members change the amount, fund or frequency, pause, resume and cancel their own gift; church admins see a Recurring tab (never naming an anonymous giver) and can pause, resume or cancel, audited. Each installment (`invoice.paid`) is recorded as its own donation, keyed by its Stripe invoice so a provider retry can't double-record it, and is completed — ledger-posted and receipted — the same way a one-time gift is. A failed installment (`invoice.payment_failed`) notifies the donor once and marks the gift past due.
-- **Year-end giving statements (G3.3, Council Review 40, pending merge):** on the Statements tab of `/app/church-admin/giving` an admin picks a date range (default: last calendar year), previews who will be emailed and why anyone is skipped, downloads a donor's PDF (`pdf-lib`), and sends an idempotent batch email whose body is the statement, with consent and suppression honored; a member downloads their own statement from `/app/member/giving`. Staff never see an anonymous giver (the admin PDF is named gifts only; anonymous gifts are one unattributed line), the donor's own statement includes their anonymous gifts, and statement send records carry no recipient. Migration `20261005000000` (a partial unique index) must be applied to the hosted database after merge (owner action O8).
-- **Registration receipts (G3.3b, Council Review 42, merged as #184):** when a paid event registration's card payment succeeds, the Stripe webhook emails the registrant one ChurchCore receipt (church, event and its church-local time, amount, and a line saying the fee is not a tax-deductible donation). It is claimed before sending and marked sent only after the provider accepts, so a webhook retry never double-sends. Migration `20261007000000` (two nullable columns on `event_registration_payments`) must be applied to the hosted database after merge (owner action O11). **`sendEmail()` no longer reports a fake success in production:** with no `SENDGRID_API_KEY`/`SENDGRID_FROM_EMAIL` it returns `provider_not_configured` (stubs are still allowed locally and in demo); donation receipts, recurring failure notices and registration receipts then stay visibly unsent and the Stripe webhook still answers 200. Until an email provider is configured (G5.1), those receipts do not go out in production.
-- **The public giving page, `/give/[slug]`, now takes real one-time gifts in production** (G3.1) — rate-limited, fund-validated, and cancellable while unpaid. Before this, in production it returned `notFound`, and in demo mode its "Thank you" confirmation didn't actually charge or record anything.
-- **The Stripe webhook (`/api/webhooks/stripe`) is retry-safe (G3.2):** it answers 5xx on a handler failure, so Stripe retries, instead of always answering 200; every step (the ledger post, the receipt) is repeatable on retry, and the donation's `completed_at` marker is written last, after every other write succeeds. The platform's Connect webhook subscription needs three events for recurring giving beyond the one-time set: `invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated` (see `docs/setup/production-deployment.md` and owner action O7).
-- `/api/webhooks/stripe` fails closed: with `STRIPE_WEBHOOK_SECRET` unset, every event is rejected, in every environment, and a signature older (or newer) than 5 minutes is rejected as a replay (S2, Council Review 29). Set the secret on every deploy that takes Stripe payments — without it, donations stop reconciling, silently. A connected church's events arrive separately, signed with `STRIPE_CONNECT_WEBHOOK_SECRET`.
-
-For Communications Hub (Phase 6), also supply:
-
-- `SENDGRID_API_KEY` and `SENDGRID_FROM_EMAIL` — outbound email via SendGrid
-- `SENDGRID_WEBHOOK_VERIFICATION_KEY` — the Event Webhook's ECDSA public key, for verifying delivery/bounce/complaint webhooks
-- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM_NUMBER` — outbound SMS via Twilio
-- `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `RESEND_WEBHOOK_SECRET` — outbound email via Resend (ADR 0006's primary provider, chosen over SendGrid when the key and from-address are both set, on both the communications queue and the direct receipt path; G5.1, merged as #188; live in production since 2026-10-06)
-- When these vars are absent, the adapters return a stub "sent" result **outside production** (or with `NEXT_PUBLIC_DEMO_MODE=true`), so local dev and demos are unaffected — a production deploy without them returns `provider_not_configured` instead of reporting a message as delivered that never was (Council Reviews 22 and 23; `lib/stub-mode.ts`). Volunteer assignment notifications (`DEVELOPMENT_PLAN.md` row G1.5) and the giving flow (row S8) both depend on this rule. Outbound links (e.g. a volunteer's confirm link) use `NEXT_PUBLIC_APP_URL`; in production without it, the send is skipped rather than mailing a dead `localhost` link.
-- **Every delivery webhook fails closed too** (`/api/webhooks/sendgrid`, `/api/webhooks/twilio`, `/api/webhooks/resend`): with its secret unset, the route rejects every request rather than accepting it unverified. SendGrid and Twilio verify the providers' real signature schemes — ECDSA P-256 for SendGrid, HMAC-SHA1 over the exact called URL for Twilio. Twilio's signature check needs `NEXT_PUBLIC_APP_URL` to be the exact public URL Twilio calls; set it before relying on SMS bounce/STOP handling in production (S2, Council Review 29; see `docs/runbooks/communications.md`).
-
-Architectural note:
-
-- ADR 0002 now makes separate control-plane and tenant databases the target architecture and the active configuration path.
-- Control-plane registry data belongs in the control-plane project; church runtime data belongs in the tenant project.
-
-For the current local Supabase development endpoints, setup steps, and local security notes, see `docs/setup/local-supabase.md`.
-
-Primary routes:
-
-- `/` marketing and product-direction overview
-- `/sign-in` preview sign-in and protected-route entry
-- `/control` platform control plane for ChurchCore staff
-- `/controll` compatibility redirect to `/control`
-- `/app` tenant-facing church application entry
-- `/app/[role]` church role workspace
-- `/app/church-admin` church-admin home — live tenant summary cards for people, ministries, events, and giving plus operations lanes for live care, weekend, communications, and giving work
-- `/app/calendar` tenant-facing working calendar hub backed by Supabase event reads when configured
-- `/portal` public member-portal landing page with sign-in and request-access entry points
-- `/portal/register` public member portal request form
-- `/portal/events/register` public event registration: a church's public events open for registration, for signed-out visitors
-- `/app/church-admin/settings` church-admin setup profile — tenant church name, legal name, timezone, website, contact, mailing address, and public summary
-- `/app/church-admin/people` church-admin people-management — search, filter, household/account/request visibility, edit, role management, bulk update, add person (offline record), invite user (Supabase auth email), deactivate
-- `/app/church-admin/accounts` church-admin account-request approval queue
-- `/app/church-admin/events/[id]` event-specific attendance and roster workspace with quick check-in, burnout warnings, and visitor add flow
-- `/app/church-admin/ministry` Ministry Forge index — grid of all ministries with health-band indicators, type badges, and member counts
-- `/app/church-admin/ministry/[id]` Ministry Forge detail dashboard — health score, vision board, volunteer matcher, and type-specific track panel for all ten ministry kinds (worship, men's, women's, marriage, missions, children's, youth, young adults, education/discipleship, outreach)
-- `/app/church-admin/finance` Financial Management hub — redirects to dashboard
-- `/app/church-admin/finance/dashboard` Finance dashboard — income/expense summary cards, budget utilization, recent journals
-- `/app/church-admin/finance/accounts` Chart of accounts — hierarchical account list grouped by type; add/edit accounts
-- `/app/church-admin/finance/accounts/[id]` Account ledger — all journal lines for the selected account
-- `/app/church-admin/finance/journals` Journal list — status badges (draft / posted / voided), journal type indicators
-- `/app/church-admin/finance/journals/new` New journal entry — debit/credit line editor with live balance checker
-- `/app/church-admin/finance/journals/[id]` Journal detail — edit draft lines, post, void, or view read-only
-- `/app/church-admin/finance/budgets` Budget list — all budget versions by fiscal year
-- `/app/church-admin/finance/budgets/[id]` Budget detail — per-account budgeted vs. actual vs. variance
-- `/app/church-admin/finance/import` Import wizard — CSV, Excel, QuickBooks IIF, OFX/QFX, plain text
-- `/app/church-admin/finance/reports` Financial reports — Income Statement, Balance Sheet, Budget Variance tabs
-- `/app/reports` graphical reporting suite overview for pastor and church-admin
-- `/app/reports/members` member intelligence dashboard with attendance, engagement, and drift reporting
-- `/app/reports/events` event intelligence dashboard with turnout, staffing pressure, and visitor-touch reporting
-- `/app/reports/giving` giving intelligence dashboard with fund, donor-journey, and generosity-mix reporting
-- `/app/member/directory` member-facing directory route
-- `/app/member/family` member-facing household route
-- `/app/member/ministries` member-facing ministry assignments route
-- `/app/pastor/people` pastor-facing people route with the initial pastoral-care workflow
-- `/app/elders/discernment` Elders Discernment Room — pastor-only private session and notes workspace
-- `/app/elders/discernment/[sessionId]` per-session prayer wall, elder notes, and AI Wisdom Prompt
-- `/app/council/forge` Pastor Council Forge — versioned collaborative notes for pastor and church-admin
-- `/app/communications` communications for pastor, church-admin and secretary — redirects to `history` (message log, cancel, retry); `compose` sends email/SMS to a segment (role, ministry, membership status, recent attendance) with per-recipient consent and suppression checks; `templates` manages reusable messages; `suppressions` lists who is suppressed and why (S11: church admin, pastor and secretary view; church admin adds, and lifts bounce and manual entries with an audited reason; unsubscribe and spam-complaint entries are locked)
-- `/app/member/giving` member donor portal — giving history, active recurring, Give drawer (voluntary, anonymous option)
-- `/app/member/data-rights` member data rights — GDPR/CCPA export and deletion request
-- `/app/giving` giving reporting dashboard for pastors and church-admins (fund breakdown, totals, recurring count)
-- `/control/launch-checklist` interactive pre-launch checklist for platform operators (47 items across 8 sections)
-- `/workspace` compatibility redirect to the new split entry
-- `/calendar` compatibility redirect to the new split entry
-- `/plan` development-plan summary
-- `/adr/backend-platform` backend ADR summary
-
-## Scripts
-
-- `npm run dev` starts the local development server.
-- `npm run lint` runs ESLint across the repo.
-- `npm run build` creates the production build.
-- `npm run start` serves the production build locally.
-- `npm run check` runs lint plus production build.
-- `npm run test` runs the Vitest unit suite.
-- `npm run test:surfaces` checks that every page, API route, and server action is registered in `tests/coverage-manifest.json` with real tests.
-- `npm run test:e2e:local` runs the full Playwright suite (every page × every role, every API route, key journeys) against local Supabase, exactly as CI does. See [docs/testing.md](docs/testing.md).
-
-## Project Structure
-
-```text
-app/                  Next.js App Router entrypoints, layouts, and pages
-components/           Shared UI primitives plus marketing and application components
-docs/                 Architecture notes, ADRs, and feature documentation
-lib/                  Shared utilities, site configuration, and portal mock data
-lib/supabase/         Supabase SSR client and configuration helpers
-supabase/             SQL migrations and backend foundation assets
-public/               Static assets
-.github/workflows/    CI automation
-```
-
-## Current Application Surface
-
-- Service planning now includes a song library and setlist builder, role taxonomy and a team roster, and a rotation planner — Stories 1–3 of a 5-story split closing the top-ranked "no setlist builder, song library, or volunteer-role matching" competitive gap (Story 3 merged via PR #152). Church-admin, pastor, and ministry-leader roles can search or create songs into a church-wide catalog, add them to a service plan, drag-and-drop reorder the setlist alongside the existing move-up/down controls, and see a non-blocking warning when a song was used within the church's configurable repeat window (default 12 weeks). They can also define church-specific role types (with required skills) at `/app/church-admin/volunteers/role-types`, see a consolidated roster view of every position on a service plan with unassigned slots flagged, and get skill-matched volunteer suggestions when filling a role. The rotation planner adds ranked, fatigue- and history-aware volunteer suggestions per position, a reviewable whole-plan auto-fill, and a per-volunteer monthly service limit. Volunteers can now also mark days they can't serve (blockout dates) — signed in on `/app/member/schedule`, from their emailed confirm link without a login, or entered by an admin in the volunteer directory — and the roster flags anyone assigned on a day they've since blocked (PR #156). A service plan now always has its own staff-only event, so it can always be staffed: a new plan gets one at creation, and an older plan gets one the first time someone is assigned to it (G1.11, Council Review 25). Rehearsal scheduling and the remaining event-required schema work (backfilling old plans and adding the `NOT NULL` constraint) remain future stories in the same split.
-- The landing page (`/`) is now a full marketing overview again ("Sacred Clarity" dark/gold visual direction: hero with live-product preview cards, a platform capability grid, a product-family ecosystem section, and a closing CTA), reversing the 1.0.0-era decision to keep it a minimal entry surface now that the product has enough shipped to show. All copy is localized (`en`/`es`/`es-PR`) via the existing `publicHome` namespace in `lib/i18n.ts`.
-- The sign-in route is intentionally minimal and now chooses the control-plane or tenant Supabase auth surface from the requested redirect target, with preview auth retained only as a local fallback.
-- The control-plane routes provide a protected platform-operator surface for tenant lifecycle, billing, support, and provisioning.
-- The church-app routes provide protected role-based portals for ChurchAdmin, Secretary / Office Admin, Pastor / Elder, MinistryAdmin / Leader, and Volunteer / Member flows.
-- Auth sessions now resolve an explicit app context from control-plane access plus church membership data, so actor identity and active product surface are no longer conflated.
-- The backend access layer is now split in code between control-plane and tenant wrappers under `lib/supabase/control-plane.ts` and `lib/supabase/tenant.ts`, with the old single-project local Supabase setup retained only as transitional fallback.
-- Shared Supabase helper boundaries are now explicit as well: browser/SSR helpers require a named surface, and local direct-DB fallback pooling lives only behind the control-plane or tenant wrappers instead of a generic shared pool.
-- `proxy.ts`, `/sign-in`, and session hydration now refresh and resolve auth against explicit surface-aware Supabase clients instead of a generic shared selector, which keeps `/control` and `/app` aligned to ADR 0002 even while shared local env vars remain supported.
-- Tenant launch from `/control` is now registry-driven, with the control plane resolving the tenant runtime target through `tenants` and `tenant_connections` before entering `/app`.
-- Control-plane routing now resolves the tenant runtime church target from `tenant_connections.metadata.runtime_church_id`, which keeps platform tenant IDs separate from tenant-runtime church IDs.
-- Platform admins can now launch an explicit tenant view from the control plane and return to ChurchCore Control without implicit cross-over.
-- When Supabase is configured, the control plane now reads live church and membership counts plus recent tenant-view audit events from database records instead of relying only on mock tenant lists.
-- Local development can now fall back to direct Postgres reads and writes for app-owned Supabase tables when the local REST schema cache is unavailable.
-- The church app session now hydrates from real `profiles` rows when available, so `/app` and the app shell resolve live church-scoped user data instead of relying only on preview profile templates.
-- The member portal under `/app/member` now reads real profile, ministry-assignment, and upcoming-event data from Supabase instead of using only the generic preview workspace.
-- Tenant membership reads now resolve from the active church-scoped `profiles.id`, which keeps member and ministry data aligned across merged-profile cleanup, local SQL fallback, and live Supabase relation reads.
-- The church-admin side now includes a real `/app/church-admin/people` screen for church-scoped record management and status updates.
-- ChurchAdmin people management now includes bulk updates for membership status, directory visibility, and contact permission across selected records.
-- ChurchAdmin people management now includes household reassignment and duplicate-profile merge tooling, with merged profiles retired from downstream member and pastor views.
-- The church-admin side now includes `/app/church-admin/accounts` for reviewing public portal requests, approving them with generated member numbers, and sending member invites when the tenant service-role key is configured.
-- The church-admin and pastor flows now include `/app/church-admin/events/[id]`, an event-specific attendance and roster workspace with quick check-in, visitor capture, roster confirmation, and seven-day burnout warnings.
-- The church-admin events list now shows live roster counts in both direct SQL fallback mode and the normal Supabase tenant path.
-- Tenant write actions for calendar events, event rosters/check-ins, registration settings, and ministry membership now explicitly validate church ownership on incoming record IDs before writing, instead of relying on implicit downstream constraints alone.
-- Church leadership roles now also have `/app/reports`, `/app/reports/members`, `/app/reports/events`, and `/app/reports/giving`, a first reporting-suite foundation with graphical stewardship dashboards and preview-safe fallback behavior.
-- The churchgoer portal now has a public `/portal` landing page plus `/portal/register`, where prospective members can request portal access and be linked to an existing profile by email when possible. Account requests go only through the `submit_account_request` database function (Council Review 33 dropped the direct anon insert).
-- Public event registration (`/portal/events/register`) runs on the server (S10): the page reads a church's own public events open for registration, and `submitPublicEventRegistrationAction` checks the event's church, visibility, deadline, capacity, waitlist and required custom fields (a required checkbox needs a real tick) before writing with the church-scoped admin client. Signed-out visitors can't write to `event_registrations` directly (the anon insert policy is gone), the database refuses a registration row whose church differs from its event's, and each address is limited to 10 submissions a minute. Event times are shown in the church's time zone. Members see only their own registrations' payments.
-- The member experience is now split further into dedicated directory and household routes, and the main member home now includes attendance history, upcoming serving assignments, and interest / contact-preference self-service.
-- The pastor role now resolves to a pastor-specific workspace backed by tenant profile, ministry, and follow-up data instead of the generic role shell.
-- The pastor experience now includes a dedicated people view with search, status filtering, household context, contact visibility, and last-attendance signals.
-- The pastor people route now includes a first pastoral-care workflow with pastor-only notes, church-scoped care assignments, and assignment status updates.
-- The protected shell now uses a light-only Mantine direction with less chrome, less copy, and a simpler hierarchy across control-plane and church-app surfaces.
-- The protected shell now exposes an explicit visible logout action in the header instead of hiding sign-out only inside the profile menu.
-- The current UI direction is now formally documented in `docs/UI-UPDATES.md`, with a blue-neutral palette, higher-contrast hierarchy, and dark mode intentionally deferred until token work is complete.
-- The pastoral-care workflow is documented in `docs/pastoral-care-foundation.md` so future confidentiality and governance work has a concrete baseline.
-- The church-app calendar route now reads live categorized `events` rows from Supabase and presents them as a simple upcoming-events board with category filters and a detail drawer.
-- Church management roles can now create, edit, and delete categorized events from the tenant calendar route, and all church users can persist RSVP responses against live `event_rsvps` rows.
-- The tenant calendar now renders full Month, Week, and Day calendar views with an event-kind filter that can target a single category or show all categories.
-- The ChurchAdmin workspace uses segmented operation lanes with slide-over detail drawers, while the heavier preview metrics and promo-style copy have been removed.
-- The repo now includes Supabase SSR auth foundations, a root proxy, and an initial SQL schema scaffold for multi-tenant church data.
-- Preview auth remains available only as a fallback when Supabase environment variables are not configured locally.
-- Ministry Forge (Phases 1–3) adds per-ministry health scoring, vision boards, scriptural anchors, kingdom impact logging, and a rule-based AI Volunteer Matcher with human-gated approve/reject and a Burnout Guardian.
-- The Elders Discernment Room at `/app/elders/discernment` is a pastor-only workspace with open/prayer/voting session tracking, a per-session prayer wall with "I Prayed" acknowledgements, elder notes with confidentiality controls, and a theological guardrail AI Wisdom Prompt that surfaces Scripture and reflection questions only — never decisions.
-- The Pastor Council Forge at `/app/council/forge` provides versioned collaborative notes (auto-incrementing version on each save) across five note types: general, sermon outline, series plan, council minutes, and sabbath reflection.
-- Communications at `/app/communications` (pastor, church-admin, secretary) has four pages: `history`, `compose` (by segment, with per-recipient consent and suppression checks via `notification_preferences` and `communication_suppressions`), `templates`, and `suppressions` (S11), with a full `communication_logs` audit trail. Hand-picked recipients aren't in the UI yet (tracker row S15); the server action for them, `broadcastMessageAction`, reads each recipient's contact on the server from their id (S6). The suppressions page (S11) is built and pending merge: only church admins add or remove, only bounce and manual entries can be lifted, and unsubscribe and spam-complaint entries are locked.
-- The member portal bottom nav now includes a Ministries tab alongside Home, Calendar, Directory, and Family, with all five routes pre-cached by the service worker for offline access.
-- The voluntary donations system at `/app/member/giving` lets members give one-time or recurring gifts with fund designation and anonymous option. ChurchCore takes no platform fee — 100% goes to the church. Receipt emails sent via SendGrid.
-- Members can download a full JSON export of their personal data or request account deletion with a 30-day grace period from `/app/member/data-rights` (GDPR/CCPA aligned).
-- Pastors and church-admins have a giving reporting dashboard at `/app/giving` with fund breakdown, monthly and all-time totals, and recurring-gift counts. Anonymous donations are never de-anonymised in the UI.
-- Platform operators have a `/control/launch-checklist` with 47 interactive verification items across RLS, donations, AI guardrails, communications, data rights, security, mobile/PWA, and role access.
-- Church admins now have a full double-entry accounting system at `/app/church-admin/finance` for internal bookkeeping, 501(c)(3) reporting, and annual audits. The finance module is isolated from Stripe donations and is accessible to the church-admin role only. It includes a chart of accounts, journal entries (draft → posted → voided), annual budgets with per-account lines, actuals vs. budget reporting, a multi-step import wizard supporting CSV/Excel/QuickBooks IIF/OFX/QFX, and three financial report views.
-- Ministry Forge now covers all ten ministry track kinds with dedicated management panels. In addition to the original five (worship, men's, women's, marriage, missions), v2.10.0 adds: Children's (safety index with real-time ratio alerts, background check expiry tracking, check-in log), Youth (graduation readiness tracker with milestone-completion progress), Young Adults (career-kingdom mentorship map), Education (doctrinal blueprint showing per-member theological coverage), and Outreach (neighborhood density heatmap and event log). Stewardship metrics include Discipleship Velocity (avg days to first leader role) and Burnout Guardian (members active across > 3 track kinds).
-- Children's sensitive data (pickup codes, medical alerts, authorized guardians) is stored in an isolated table with `can_manage_church`-only RLS and a write-audit trigger. Marriage pulse entries are schema-level anonymous — no profile ID column exists. All new track panels carry the canonical AI assistive disclaimer.
-
-## Documentation Discipline
-
-Every significant change must keep these files current:
-
-- `README.md`
-- `CHANGELOG.md`
-- `DEVELOPMENT_PLAN.md`
-- `docs/UI-UPDATES.md` for visual-system decisions
-- Relevant feature or architecture docs in `docs/`
-
-Current tracked follow-up:
-
-- See `docs/plans/reporting-implementation.md` for the reporting-suite implementation plan covering member, event, giving, ministry, communications, outreach, and executive dashboards.
-- See `docs/plans/ministry-spec.md` for the repo-level ministry source-of-truth and doc index for Ministry Forge planning.
-- See `docs/todo.md` for the remaining Supabase project hookup steps.
-- See `docs/church-admin-people.md` for the current ChurchAdmin people-management scope.
-- See `docs/church-admin-workspace.md` for the current ChurchAdmin operations, accounts, and event-management scope.
-- See `docs/sprint2-attendance-identity-flow.md` for the detailed Sprint 2 engineering description covering schema, routes, actions, and current constraints.
-- See `docs/advanced-ministry-forge-research-spec.md` for the reconciled engineering direction for specialized ministry tracks, stewardship metrics, children safety, mentorship visibility, and confidentiality guardrails.
-- See `docs/setup/local-supabase.md` for the complete local Supabase setup guide, dev account credentials, seeded demo data reference, and troubleshooting.
-- See `docs/plans/advanced-ministry-elders-pastor.md` for the advanced ministries, elders, and pastor-council feature direction.
-- See `docs/plans/churchgoer-data.md` for the churchgoer data and self-service portal source of truth.
-- See `docs/churchgoer-pastor-execution-plan.md` for the current execution sequence across churchgoer and pastor data work.
-- See `docs/pastoral-care-foundation.md` for the current pastoral notes and care assignment scope.
-- Phase 6 Communications Hub requires `SENDGRID_*` and `TWILIO_*` env vars for live sends; see `.env.example` for the full list.
-
-## GitHub Workflow Discipline
-
-- Feature and bug issues should cite the relevant `DEVELOPMENT_PLAN.md` sections before implementation starts.
-- Pull requests should explain plan alignment, validation performed, and any security, AI, or sensitive-data implications.
-- Use the checked-in templates in `.github/` so planning and review stay consistent with the development plan.
-
-## Architecture Notes
-
-- ADR 0001 is now accepted in favor of Supabase with Postgres, Auth, Realtime, and Storage.
-- ADR 0002 is now accepted in favor of separating control-plane and tenant data boundaries, including separate databases.
-- The current repo establishes the frontend shell, Supabase SSR auth foundation, boundary-aware control-plane and tenant data access wrappers, member portal, live calendar read path, initial multi-tenant schema scaffold, design system baseline, and release discipline expected for future feature work across RBAC portals, ministry operations, calendar workflows, and AI-assisted features.
-- Route-segment recovery: `app/{app,portal,control}/loading.tsx` render a shared `PageLoadingSkeleton` during server-side data fetches, and `app/{app,portal,control}/error.tsx` render a shared `PageErrorBoundary` (Sentry-reported, retryable via Next's `reset()`) for runtime errors at those three roots. A root `app/global-error.tsx` still catches anything that escapes all of the above, including errors in the root layout itself.
-- Communications retry: the retry cron and the operator's per-row Retry button both go through the same exported `attemptRetry()` (`lib/communications/retry-eligible.ts`), which claims the attempt — a guarded `retry_count` increment — before dispatch, then dispatches with `recordLog: false` and records the outcome on the original `communication_logs` row, so a retry never creates a second retry-eligible row and two overlapping attempts can't both send. A message is dead-lettered to `communication_dlq` once its 3-attempt budget is spent or it fails with a non-transient code, and only after the source-row update succeeds. Known gap: no code path currently selects Resend or maps SendGrid/Twilio failures to a transient error code in production, so this pipeline currently receives no real input — see `docs/adr/0006-email-provider-resend.md`'s implementation-status note and `DEVELOPMENT_PLAN.md`.
-- Communications compliance lookups (ADR 0022): `findSuppression`, `checkOptIn`, `communication_logs` writes, `resolveRecipients`, and the compose parent-log insert all use the admin (service-role) client, explicitly scoped by `church_id` from the server-side session or a DB row — never the cookie-bound client, whose RLS visibility depends on who (or what) is calling. This is what lets crons (no user session) and secretary sends (outside `can_manage_church`) get correct suppression/consent answers and write their own audit rows; it is also why scheduled broadcasts can actually deliver on Supabase. **Rule:** a module whose exported functions take a trusted `session` or tenant id as an argument must be `import "server-only"`, never `"use server"` — a `"use server"` export is a POST-callable endpoint reachable by anyone holding its (encrypted, build-rotated) action ID, and one that trusts a caller-supplied session/tenant id can be made to act as any church. Only a module whose exports authenticate their own caller (`requireChurchSession` plus a role check) may be `"use server"`.
-  - **RLS boundary on the three communications tables (S1, Council Review 28):** `communication_logs`, `communication_delivery_events`, and `communication_suppressions` grant `authenticated` **reads only** — church admin, pastor, and secretary, via `can_manage_communications`, matching the `/app/communications/*` page gates — and **no insert policy at all**. Every writer (queue, send, compose, cancel, suppress, unsubscribe, and the retry and scheduled crons) goes through the church-scoped admin client above; mapping insert to the readers' roles would let a secretary fabricate logs, delivery events, or suppressions directly through PostgREST.
-  - **Cancel and the scheduled cron share the same claim semantics.** `cancelScheduledMessageAction` updates `communication_logs` through the admin client with `status = 'scheduled'` as a condition and checks the row count, failing ("already being sent") instead of silently succeeding if it loses the race with the cron. The scheduled-send cron claims each row the same way (`scheduled` → `sending`, conditioned on `status = 'scheduled'`) and now checks that the claim actually changed a row before dispatching — skipping it otherwise — so a message cancelled between the cron's fetch and its claim, or claimed by an overlapping run, is no longer sent anyway.
-
-## CI
-
-`.github/workflows/ci.yml` runs on every PR and push to `main`:
-
-- **`verify`:** `test:surfaces`, lint, typecheck, build, unit tests, and the RLS audit against a freshly reset local Supabase.
-- **`e2e`** (4 shards): both local Supabase stacks with seed data and demo users, then the full Playwright suite.
-
-Both block merge. **Every change that adds or changes a page, API route, or server action ships its manifest entry and tests**; see [docs/testing.md](docs/testing.md).
+ChurchCore is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0-only)**. See [LICENSE](./LICENSE).

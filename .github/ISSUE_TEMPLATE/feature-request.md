@@ -6,6 +6,8 @@ labels: ["feature"]
 assignees: []
 ---
 
+<!-- Never paste real church, member, child or donor data. Security concerns go through SECURITY.md, not an issue. -->
+
 ## Summary
 
 - Describe the requested feature.
@@ -39,4 +41,5 @@ assignees: []
 ## Validation Notes
 
 - Expected tests, screenshots, or manual checks:
+- Pages, API routes, or server actions that will need `tests/coverage-manifest.json` entries:
 - ADR required:

@@ -6,9 +6,19 @@ labels: ["bug"]
 assignees: []
 ---
 
+<!-- Security vulnerability? Do not file it here — report it privately (see SECURITY.md).
+     Never paste real church, member, child or donor data, API keys, or .env contents. -->
+
 ## Summary
 
 - Describe the bug clearly and briefly.
+
+## Environment
+
+- Commit SHA or release tag:
+- Preview mode, local Supabase, or hosted deploy:
+- Signed-in role and exact route:
+- Browser and device (for UI bugs):
 
 ## Development Plan Alignment
 
@@ -45,4 +55,4 @@ assignees: []
 ## Validation Notes
 
 - Logs, screenshots, or recordings:
-- Tests or manual checks that should cover the fix:
+- Tests or manual checks that should cover the fix (unit, `tests/coverage-manifest.json` entry, e2e spec):

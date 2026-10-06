@@ -6,6 +6,21 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+- **Developer-experience refresh: repository docs brought to parity with ChurchCore Orthos** (`docs/developer-experience-orthos-parity`; docs and repo files only, no application code, no migration).
+
+  **Added**
+  - [`HOWTO.md`](HOWTO.md): local setup, local Supabase and ports, environment variables, testing and e2e, a full scripts reference, troubleshooting, project structure, crons and ShepherdAI, the software factory, and documentation/GitHub discipline.
+  - [`SUPPORT.md`](SUPPORT.md), [`VERSIONING.md`](VERSIONING.md) (ChurchCore's SemVer classes and the 3.x history), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) (Contributor Covenant 2.1, adapted).
+  - [`docs/README.md`](docs/README.md) (Documentation Hub indexing every doc), [`docs/architecture.md`](docs/architecture.md) (architecture entry point with Mermaid diagrams), [`docs/roadmap.md`](docs/roadmap.md) (milestones M0–M5 pointing into `DEVELOPMENT_PLAN.md` §0), [`docs/application-surface.md`](docs/application-surface.md) (route map and per-feature notes), and [`docs/assets/brand/hero-banner.svg`](docs/assets/brand/hero-banner.svg).
+
+  **Changed**
+  - `README.md` rewritten from ~700 to ~250 lines: hero banner, badges, quick-link bar, capability table by module, Mermaid architecture, a 3-step Quick Start, the demo accounts, a quality-gate table, the MVP status line and a documentation index. The long sections moved, not deleted: setup, local Supabase, environment variables, scripts, CI, project structure, crons, the software factory and documentation discipline to `HOWTO.md`; the product surface, primary routes, current application surface, plan highlights, design system and demo feedback to `docs/application-surface.md`; the technical blueprint, stack and architecture notes to `docs/architecture.md`; the repository map to `docs/README.md`. Release highlights are linked to this CHANGELOG rather than repeated.
+  - `CONTRIBUTING.md` and `SECURITY.md` restructured in the Orthos shape, keeping every existing rule (branches, verified signatures, the Council, test surfaces, the migration workflow) and adding the supported-versions table, the security boundaries (RLS and `church_id`, control-plane separation, ADR 0022 and ADR 0024 rules, fail-closed webhooks and crons, Stripe Connect, the OpenRouter gateway, pastoral encryption) and private vulnerability reporting.
+  - `.github/pull_request_template.md` now carries ChurchCore's real gates (manifest entry, `test:surfaces`, e2e, migration definition-of-done line, verified signatures, Council synthesis and Documenter sign-off, CHANGELOG). `.github/CODEOWNERS` lists security-critical paths explicitly under the existing owner. The issue templates gain environment fields and a sensitive-data warning.
+
+  **Fixed**
+  - **License badge:** the README badge and "Evaluation Snapshot" said MIT; the repository's `LICENSE` and `package.json` are AGPL-3.0 (`AGPL-3.0-only`). The README now says AGPL-3.0.
+
 - **Church-admin Suppressions page (S11, Council Review 44)** (`feat/suppressions-page-s11`, commits `ad2219f` build, `5954465` Council Review 44 fixes; no PR yet, CI not yet run; no migration). Factory run: [`docs/factory-runs/2026-10-06-s11-suppressions-page.md`](docs/factory-runs/2026-10-06-s11-suppressions-page.md); Council: [`docs/reviews/2026-10-06-council-review-44-synthesis.md`](docs/reviews/2026-10-06-council-review-44-synthesis.md) (AMENDED, all four required fixes landed).
 
   **Added**
