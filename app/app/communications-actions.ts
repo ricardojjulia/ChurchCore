@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { logAuditEvent } from "@/lib/actions/audit";
 import { requireChurchSession } from "@/lib/auth";
 import {
   type CommunicationDeliveryEvent,
@@ -24,6 +25,11 @@ import {
   retryEligibleCommunications,
 } from "@/lib/communications/retry-eligible";
 import { sendWithSuppression } from "@/lib/communications/send-with-suppression";
+import {
+  isRemovableSuppressionReason,
+  MIN_REMOVAL_REASON_LENGTH,
+  REMOVABLE_SUPPRESSION_REASONS,
+} from "@/lib/communications/suppression-types";
 import { insertConsentLogEntries } from "@/lib/consent-log";
 import { hasTenantBackendEnv } from "@/lib/supabase/tenant";
 
@@ -301,12 +307,25 @@ export async function getCommunicationDeliveryEventsAction(input: {
   return getCommunicationDeliveryEvents(session, input.logId);
 }
 
+const DUPLICATE_SUPPRESSION_MESSAGE =
+  "That contact is already suppressed. Remove the existing suppression first if you need to change it.";
+const SIMPLE_EMAIL = /^[^\s@,()"\\]+@[^\s@,()"\\]+\.[^\s@,()"\\]+$/;
+
+/**
+ * Adds a manual suppression. Role denial throws; a bad contact, a duplicate or
+ * a database error is returned as `{ ok: false, error }` so the page can show
+ * the message (a thrown Server Action error is masked in production).
+ *
+ * A duplicate is refused rather than overwritten (S11): the old upsert would
+ * have turned an existing unsubscribe, STOP or spam-complaint row into a
+ * removable "manual" one, defeating the lock on those reasons.
+ */
 export async function suppressContactAction(input: {
   channel: "email" | "sms";
   contact: string;
   reason: "manual";
   notes?: string;
-}): Promise<void> {
+}): Promise<{ ok: true } | { ok: false; error: string }> {
   const session = await requireChurchSession("/app/church-admin/people");
   if (session.appContext.roleId !== "church-admin") {
     throw new Error("Only church administrators may suppress contacts.");
@@ -318,8 +337,15 @@ export async function suppressContactAction(input: {
     input.channel === "email" ? input.contact.trim().toLowerCase() : input.contact.trim();
 
   if (!normalizedContact) {
-    throw new Error("A valid contact is required.");
+    return { ok: false, error: "Enter an email address or phone number." };
   }
+  if (input.channel === "email" && !SIMPLE_EMAIL.test(normalizedContact)) {
+    return { ok: false, error: "Enter a valid email address." };
+  }
+  if (input.channel === "sms" && normalizedContact.replace(/\D/g, "").length < 7) {
+    return { ok: false, error: "Enter a valid phone number." };
+  }
+  const notes = input.notes?.trim() ? input.notes.trim() : null;
 
   const {
     queryTenantLocalDb,
@@ -330,19 +356,19 @@ export async function suppressContactAction(input: {
   let matchedProfileId: string | null = null;
 
   if (shouldUseLocalTenantFallback()) {
-    await queryTenantLocalDb(
+    const inserted = await queryTenantLocalDb<{ id: string }>(
       `
         insert into public.communication_suppressions
           (church_id, channel, contact, reason, notes, suppressed_by)
         values ($1, $2, $3, $4, $5, $6)
-        on conflict (church_id, channel, contact) do update
-          set reason = excluded.reason,
-              notes = excluded.notes,
-              suppressed_by = excluded.suppressed_by,
-              created_at = timezone('utc', now())
+        on conflict (church_id, channel, contact) do nothing
+        returning id
       `,
-      [churchId, input.channel, normalizedContact, input.reason, input.notes ?? null, profileId],
+      [churchId, input.channel, normalizedContact, input.reason, notes, profileId],
     );
+    if (inserted.rows.length === 0) {
+      return { ok: false, error: DUPLICATE_SUPPRESSION_MESSAGE };
+    }
 
     const matchResult = await queryTenantLocalDb<{ id: string }>(
       `
@@ -365,23 +391,20 @@ export async function suppressContactAction(input: {
     // their church (ADR 0022). authenticated has no insert or update policy on
     // communication_suppressions (Council Review 28).
     const supabase = createTenantAdminClient();
-    const { error } = await supabase.from("communication_suppressions").upsert(
-      {
-        church_id: churchId,
-        channel: input.channel,
-        contact: normalizedContact,
-        reason: input.reason,
-        notes: input.notes ?? null,
-        suppressed_by: profileId,
-        created_at: new Date().toISOString(),
-      },
-      {
-        onConflict: "church_id,channel,contact",
-      },
-    );
+    const { error } = await supabase.from("communication_suppressions").insert({
+      church_id: churchId,
+      channel: input.channel,
+      contact: normalizedContact,
+      reason: input.reason,
+      notes,
+      suppressed_by: profileId,
+    });
 
     if (error) {
-      throw new Error(error.message);
+      return {
+        ok: false,
+        error: error.code === "23505" ? DUPLICATE_SUPPRESSION_MESSAGE : error.message,
+      };
     }
 
     const { data: profileData, error: profileError } = await supabase
@@ -416,6 +439,103 @@ export async function suppressContactAction(input: {
   }
 
   revalidatePath("/app/communications");
+  revalidatePath("/app/communications/suppressions");
+  return { ok: true };
+}
+
+/**
+ * Lifts a bounce or manual suppression (S11). Church admin only. Unsubscribe
+ * and spam-complaint suppressions are consent records: only the person can opt
+ * back in, so they are refused here. Removal needs a reason and is audited.
+ * Every failure is returned, not thrown, so the page can show it.
+ */
+export async function removeSuppressionAction(input: {
+  id: string;
+  reason: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await requireChurchSession("/app/church-admin/people");
+  if (session.appContext.roleId !== "church-admin") {
+    return { ok: false, error: "Only church administrators may remove suppressions." };
+  }
+
+  const reason = (input.reason ?? "").trim();
+  if (reason.length < MIN_REMOVAL_REASON_LENGTH) {
+    return {
+      ok: false,
+      error: `Give a reason of at least ${MIN_REMOVAL_REASON_LENGTH} characters.`,
+    };
+  }
+
+  const churchId = session.appContext.church.id;
+  const { createTenantAdminClient } = await import("@/lib/supabase/tenant");
+  // Authenticated church admin, checked above; every query below is scoped to
+  // their church. authenticated has no delete policy on this table.
+  const supabase = createTenantAdminClient();
+
+  const { data: existing, error: loadError } = await supabase
+    .from("communication_suppressions")
+    .select("id, channel, contact, reason, notes")
+    .eq("id", input.id)
+    .eq("church_id", churchId)
+    .maybeSingle();
+
+  if (loadError) {
+    return { ok: false, error: loadError.message };
+  }
+  if (!existing) {
+    return { ok: false, error: "Suppression not found." };
+  }
+  if (!isRemovableSuppressionReason(existing.reason)) {
+    return {
+      ok: false,
+      error:
+        "This contact unsubscribed or reported a message as spam. Only the person can opt back in, so staff cannot remove it.",
+    };
+  }
+
+  const { data: deleted, error: deleteError } = await supabase
+    .from("communication_suppressions")
+    .delete()
+    .eq("id", existing.id)
+    .eq("church_id", churchId)
+    .in("reason", [...REMOVABLE_SUPPRESSION_REASONS])
+    .select("id");
+
+  if (deleteError) {
+    return { ok: false, error: deleteError.message };
+  }
+  if (!deleted || deleted.length === 0) {
+    return { ok: false, error: "Suppression not found." };
+  }
+
+  try {
+    await logAuditEvent({
+      tableName: "communication_suppressions",
+      recordId: existing.id,
+      operation: "DELETE",
+      actorId: session.userId,
+      churchId,
+      actorRole: session.appContext.roleId,
+      oldValues: {
+        channel: existing.channel,
+        reason: existing.reason,
+        contact: existing.contact,
+        notes: existing.notes,
+        removal_reason: reason,
+      },
+    });
+  } catch (error) {
+    // The row is already gone. The table's audit trigger recorded the delete;
+    // only the detailed entry (actor and reason) is missing. Say so loudly.
+    console.error("[communications] Suppression removal audit failed:", error);
+    return {
+      ok: false,
+      error: "The suppression was removed and the removal was recorded, but the detailed audit entry (who removed it and why) could not be written. Tell the platform team.",
+    };
+  }
+
+  revalidatePath("/app/communications/suppressions");
+  return { ok: true };
 }
 
 /**

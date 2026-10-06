@@ -17,7 +17,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { Mail, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { Ban, Mail, MessageSquare, Plus, Trash2 } from "lucide-react";
 
 import { deleteTemplateAction } from "@/app/app/communications-actions";
 import { ApplicationShell } from "@/components/application/app-shell";
@@ -43,6 +43,12 @@ const navItems = [
     description: "Manage message templates",
     icon: MessageSquare,
     active: true,
+  },
+  {
+    href: "/app/communications/suppressions",
+    label: "Suppressions",
+    description: "Contacts that won't receive messages",
+    icon: Ban,
   },
 ];
 
