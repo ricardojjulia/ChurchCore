@@ -14,7 +14,9 @@ const {
   resolveRecipientsMock,
   resolveRecipientsByIdsMock,
   createTenantAdminClientMock,
+  logAuditEventMock,
 } = vi.hoisted(() => {
+  const logAuditEvent = vi.fn(async () => undefined);
   const revalidatePath = vi.fn();
   const requireChurchSession = vi.fn();
   const queryTenantLocalDb = vi.fn();
@@ -43,6 +45,7 @@ const {
     resolveRecipientsMock: resolveRecipients,
     resolveRecipientsByIdsMock: resolveRecipientsByIds,
     createTenantAdminClientMock: createTenantAdminClient,
+    logAuditEventMock: logAuditEvent,
   };
 });
 
@@ -60,6 +63,10 @@ vi.mock("@/lib/supabase/tenant", () => ({
   shouldUseLocalTenantFallback: shouldUseLocalTenantFallbackMock,
   createTenantServerClient: createTenantServerClientMock,
   createTenantAdminClient: () => createTenantAdminClientMock() ?? makeInsertClient(),
+}));
+
+vi.mock("@/lib/actions/audit", () => ({
+  logAuditEvent: logAuditEventMock,
 }));
 
 vi.mock("@/lib/consent-log", () => ({
@@ -87,6 +94,7 @@ import {
   getMessageAnalyticsAction,
   listCommunicationLogsAction,
   retryCommunicationAction,
+  removeSuppressionAction,
   retryAllEligibleAction,
   suppressContactAction,
   updateNotificationPreferencesAction,
@@ -214,7 +222,7 @@ describe("communications actions", () => {
     });
 
     queryTenantLocalDbMock
-      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "supp-1" }] })
       .mockResolvedValueOnce({ rows: [{ id: "profile-2" }] });
 
     await suppressContactAction({
@@ -364,7 +372,7 @@ describe("communications actions", () => {
     });
 
     queryTenantLocalDbMock
-      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "supp-2" }] })
       .mockResolvedValueOnce({ rows: [] });
 
     await suppressContactAction({
@@ -785,7 +793,7 @@ describe("suppressContactAction on Supabase (Council Review 28)", () => {
       source: "supabase",
       userId: "admin-1",
     });
-    const upsert = vi.fn(async () => ({ error: null }));
+    const insert = vi.fn(async () => ({ error: null }));
     const profileLookup = {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
@@ -794,14 +802,13 @@ describe("suppressContactAction on Supabase (Council Review 28)", () => {
       maybeSingle: vi.fn(async () => ({ data: null, error: null })),
     };
     createTenantAdminClientMock.mockReturnValueOnce({
-      from: vi.fn((table: string) => (table === "communication_suppressions" ? { upsert } : profileLookup)),
+      from: vi.fn((table: string) => (table === "communication_suppressions" ? { insert } : profileLookup)),
     });
 
     await suppressContactAction({ channel: "email", contact: " Member@Example.com ", reason: "manual" });
 
-    expect(upsert).toHaveBeenCalledWith(
+    expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({ church_id: "church-1", contact: "member@example.com", suppressed_by: "profile-admin" }),
-      { onConflict: "church_id,channel,contact" },
     );
     expect(profileLookup.eq).toHaveBeenCalledWith("church_id", "church-1");
     expect(createTenantServerClientMock).not.toHaveBeenCalled();
@@ -1074,5 +1081,185 @@ describe("CC-COMM-001: listCommunicationLogsAction (actions.test)", () => {
     const result = await listCommunicationLogsAction();
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe("Access denied.");
+  });
+});
+
+function adminSession(overrides: Record<string, unknown> = {}) {
+  return {
+    appContext: { roleId: "church-admin", church: { id: "church-1" } },
+    churchProfileId: "profile-admin",
+    profile: { id: "profile-admin-login" },
+    source: "supabase",
+    userId: "admin-login-1",
+    ...overrides,
+  };
+}
+
+describe("suppressContactAction validation and duplicates (S11)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+    hasTenantBackendEnvMock.mockReturnValue(true);
+    requireChurchSessionMock.mockResolvedValue(adminSession());
+  });
+
+  it.each(["pastor", "secretary", "ministry-leader", "member"])("denies %s", async (roleId) => {
+    requireChurchSessionMock.mockResolvedValue(
+      adminSession({ appContext: { roleId, church: { id: "church-1" } } }),
+    );
+    await expect(
+      suppressContactAction({ channel: "email", contact: "a@b.co", reason: "manual" }),
+    ).rejects.toThrow("Only church administrators may suppress contacts.");
+  });
+
+  it("returns an error for an empty contact, a bad email and a bad phone, writing nothing", async () => {
+    const empty = await suppressContactAction({ channel: "email", contact: "   ", reason: "manual" });
+    const badEmail = await suppressContactAction({ channel: "email", contact: "not-an-email", reason: "manual" });
+    const badPhone = await suppressContactAction({ channel: "sms", contact: "12", reason: "manual" });
+    expect(empty).toEqual({ ok: false, error: expect.stringContaining("email address or phone") });
+    expect(badEmail).toEqual({ ok: false, error: "Enter a valid email address." });
+    expect(badPhone).toEqual({ ok: false, error: "Enter a valid phone number." });
+    expect(createTenantAdminClientMock).not.toHaveBeenCalled();
+  });
+
+  it("reports a duplicate (unique violation) instead of overwriting the existing reason", async () => {
+    const insert = vi.fn(async () => ({ error: { code: "23505", message: "duplicate key" } }));
+    createTenantAdminClientMock.mockReturnValueOnce({ from: vi.fn(() => ({ insert })) });
+    const result = await suppressContactAction({ channel: "email", contact: "dup@example.com", reason: "manual" });
+    expect(result).toEqual({ ok: false, error: expect.stringContaining("already suppressed") });
+    expect(insertConsentLogEntriesMock).not.toHaveBeenCalled();
+  });
+
+  it("returns other database errors rather than throwing", async () => {
+    const insert = vi.fn(async () => ({ error: { code: "XX000", message: "boom" } }));
+    createTenantAdminClientMock.mockReturnValueOnce({ from: vi.fn(() => ({ insert })) });
+    const result = await suppressContactAction({ channel: "email", contact: "x@example.com", reason: "manual" });
+    expect(result).toEqual({ ok: false, error: "boom" });
+  });
+});
+
+describe("removeSuppressionAction (S11)", () => {
+  function clientFor(options: {
+    existing?: Record<string, unknown> | null;
+    loadError?: { message: string } | null;
+    deleted?: Array<{ id: string }>;
+    deleteError?: { message: string } | null;
+  }) {
+    const loadChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn(async () => ({ data: options.existing ?? null, error: options.loadError ?? null })),
+    };
+    const deleteChain = {
+      delete: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
+      select: vi.fn(async () => ({ data: options.deleted ?? [{ id: "supp-1" }], error: options.deleteError ?? null })),
+    };
+    let call = 0;
+    const from = vi.fn(() => (call++ === 0 ? loadChain : deleteChain));
+    createTenantAdminClientMock.mockReturnValueOnce({ from });
+    return { loadChain, deleteChain, from };
+  }
+
+  const bounce = { id: "supp-1", channel: "email", contact: "gone@example.com", reason: "bounce", notes: "hard bounce" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+    hasTenantBackendEnvMock.mockReturnValue(true);
+    requireChurchSessionMock.mockResolvedValue(adminSession());
+  });
+
+  it.each(["pastor", "secretary", "ministry-leader", "member"])("denies %s without touching the database", async (roleId) => {
+    requireChurchSessionMock.mockResolvedValue(
+      adminSession({ appContext: { roleId, church: { id: "church-1" } } }),
+    );
+    const result = await removeSuppressionAction({ id: "supp-1", reason: "A good reason" });
+    expect(result).toEqual({ ok: false, error: "Only church administrators may remove suppressions." });
+    expect(createTenantAdminClientMock).not.toHaveBeenCalled();
+    expect(logAuditEventMock).not.toHaveBeenCalled();
+  });
+
+  it("requires a reason of at least 5 characters", async () => {
+    const result = await removeSuppressionAction({ id: "supp-1", reason: " abc " });
+    expect(result.ok).toBe(false);
+    expect(createTenantAdminClientMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["unsubscribe", "complaint"])("refuses to remove a %s suppression", async (reason) => {
+    const { from } = clientFor({ existing: { ...bounce, reason } });
+    const result = await removeSuppressionAction({ id: "supp-1", reason: "Please lift it" });
+    expect(result).toEqual({ ok: false, error: expect.stringContaining("Only the person can opt back in") });
+    expect(from).toHaveBeenCalledTimes(1); // never reached the delete
+    expect(logAuditEventMock).not.toHaveBeenCalled();
+  });
+
+  it("returns not-found for an id from another church (load is scoped to the session's church)", async () => {
+    const { loadChain } = clientFor({ existing: null });
+    const result = await removeSuppressionAction({ id: "other-church-id", reason: "Please lift it" });
+    expect(result).toEqual({ ok: false, error: "Suppression not found." });
+    expect(loadChain.eq).toHaveBeenCalledWith("church_id", "church-1");
+    expect(logAuditEventMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes a bounce scoped to the church and writes the audit entry with the login id", async () => {
+    const { deleteChain } = clientFor({ existing: bounce });
+    const result = await removeSuppressionAction({ id: "supp-1", reason: "  Mailbox fixed  " });
+    expect(result).toEqual({ ok: true });
+    expect(deleteChain.eq).toHaveBeenCalledWith("church_id", "church-1");
+    expect(deleteChain.in).toHaveBeenCalledWith("reason", ["bounce", "manual"]);
+    expect(logAuditEventMock).toHaveBeenCalledWith({
+      tableName: "communication_suppressions",
+      recordId: "supp-1",
+      operation: "DELETE",
+      actorId: "admin-login-1",
+      churchId: "church-1",
+      actorRole: "church-admin",
+      oldValues: {
+        channel: "email",
+        reason: "bounce",
+        contact: "gone@example.com",
+        notes: "hard bounce",
+        removal_reason: "Mailbox fixed",
+      },
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/communications/suppressions");
+  });
+
+  it("removes a manual suppression", async () => {
+    clientFor({ existing: { ...bounce, reason: "manual" } });
+    expect(await removeSuppressionAction({ id: "supp-1", reason: "Added by mistake" })).toEqual({ ok: true });
+  });
+
+  it("returns the database error and writes no audit entry when the delete fails", async () => {
+    clientFor({ existing: bounce, deleteError: { message: "delete failed" } });
+    const result = await removeSuppressionAction({ id: "supp-1", reason: "Mailbox fixed" });
+    expect(result).toEqual({ ok: false, error: "delete failed" });
+    expect(logAuditEventMock).not.toHaveBeenCalled();
+  });
+
+  it("reports not-found when the delete matched no row (row vanished or turned locked)", async () => {
+    clientFor({ existing: bounce, deleted: [] });
+    const result = await removeSuppressionAction({ id: "supp-1", reason: "Mailbox fixed" });
+    expect(result).toEqual({ ok: false, error: "Suppression not found." });
+    expect(logAuditEventMock).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a load error", async () => {
+    clientFor({ loadError: { message: "load failed" } });
+    expect(await removeSuppressionAction({ id: "supp-1", reason: "Mailbox fixed" })).toEqual({
+      ok: false,
+      error: "load failed",
+    });
+  });
+
+  it("reports an audit failure loudly after the delete", async () => {
+    clientFor({ existing: bounce });
+    logAuditEventMock.mockRejectedValueOnce(new Error("audit down"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const result = await removeSuppressionAction({ id: "supp-1", reason: "Mailbox fixed" });
+    expect(result.ok).toBe(false);
+    errorSpy.mockRestore();
   });
 });

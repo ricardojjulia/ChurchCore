@@ -88,26 +88,11 @@ openssl rand -hex 32
 
 ### View suppressions
 
-Run the following query in the Supabase SQL editor (tenant project):
-
-```sql
-select church_id, channel, contact, reason, notes, created_at
-from public.communication_suppressions
-where church_id = '<church-id>'
-order by created_at desc;
-```
-
-Or use the Church Admin → Communications → Suppressions UI (when available).
+Open **Communications → Suppressions** (`/app/communications/suppressions`). Church admin, pastor and secretary can view the list: channel, contact, the member name when a church profile has that email or phone, the reason in words, notes, who added it (manual only) and the date. Filter by channel or search by contact or name.
 
 ### Manually add a suppression
 
-```sql
-insert into public.communication_suppressions
-  (church_id, channel, contact, reason, notes, suppressed_by)
-values
-  ('<church-id>', 'email', 'member@example.com', 'unsubscribe', 'Manual operator add', null)
-on conflict (church_id, channel, contact) do nothing;
-```
+Church admin only: use the "Add a suppression" form on the page (channel, contact, optional notes). A bad email, an empty contact or a contact that is already suppressed is refused with a message; an existing suppression is never overwritten, so an unsubscribe cannot be turned into a removable one.
 
 ### Automatic suppression (bounce/complaint flow)
 
@@ -120,9 +105,16 @@ on conflict (church_id, channel, contact) do nothing;
 
 ### Remove a suppression
 
-**There is no in-app way to remove a suppression yet** — tracked as `DEVELOPMENT_PLAN.md` row **S11** (a church-admin "remove suppression" action, audited, with a reason), sequenced before G5.1. Until S11 ships, this is a SQL-only operation. S2 (2026-10-01) made bounce and STOP suppressions real for the first time — before it, webhook writes silently failed, so this SOP had nothing to undo in practice.
+Church admin only, on the Suppressions page: **Remove** on a row, then give a reason of at least 5 characters. The removal is written to `audit_log` (actor, contact, channel, original reason, notes and your removal reason).
 
-To un-suppress a contact (for example after a member confirms their email address is valid):
+| Reason shown | Can staff remove it? |
+|---|---|
+| Bounced | Yes, for example once the member confirms the address is valid |
+| Added by staff | Yes |
+| Unsubscribed (link or STOP) | **No.** Locked. Only the person can opt back in. |
+| Marked as spam | **No.** Locked. Only the person can opt back in. |
+
+Unsubscribe and spam-complaint rows are consent records (and, for SMS, STOP is a TCPA-style obligation). The page deliberately has no button for them. SQL is the exception path, and only with the person's documented consent (for example a written request to be re-subscribed). Record that consent first, then:
 
 ```sql
 delete from public.communication_suppressions
@@ -131,7 +123,7 @@ where church_id = '<church-id>'
   and contact = 'member@example.com';
 ```
 
-Audit the removal reason in the consent log or a note in the member record as appropriate.
+Also add an `audit_log` entry describing the consent and who ran the SQL.
 
 ---
 

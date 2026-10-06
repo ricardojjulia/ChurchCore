@@ -6,6 +6,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+- **Church-admin Suppressions page (S11).** New `/app/communications/suppressions`, with a "Suppressions" item in the Communications sub-navigation (History, Compose, Templates and the template form).
+  - Church admin, pastor and secretary can view every suppression, newest first: channel, contact, the matching member's name, the reason in words, notes, who added it and the date. Filter by channel, search by contact or name.
+  - Church admin only can add a manual suppression and remove one. `removeSuppressionAction({ id, reason })` lifts bounce and manual suppressions only, needs a reason of at least 5 characters, is scoped to the session's church, and writes an `audit_log` entry. Unsubscribe/STOP and spam-complaint suppressions are shown locked: only the person can opt back in.
+  - `suppressContactAction` now rejects an invalid email or phone and a duplicate, returning `{ ok: false, error }` instead of throwing (a thrown Server Action error is masked in production). It used to upsert, which let an admin overwrite an existing unsubscribe or complaint row with a removable "manual" one.
+  - `docs/runbooks/communications.md` §3 now points at the page; SQL remains only for locked types, with the person's documented consent.
+
 - **Email delivery status no longer moves backwards.** `recordProviderWebhookEvent` (`lib/communications/webhook-events.ts`) overwrote `communication_logs.status` with every provider event. So a late or out-of-order event, such as an `email.delivery_delayed` or `email.sent` after `email.delivered`, or an `email.opened`/`email.clicked` (both map to "sent"), turned a delivered email back into "sent" or "sending". Now:
   - progress only moves forward (queued → sending → sent → delivered);
   - a failure (bounced, failed, suppressed, unsubscribed) always applies, so a bounce after delivery still suppresses the address;

@@ -14,7 +14,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { Mail, RefreshCcw, Send, XCircle } from "lucide-react";
+import { Ban, Mail, RefreshCcw, Send, XCircle } from "lucide-react";
 
 import {
   cancelScheduledMessageAction,
@@ -44,6 +44,12 @@ const navItems = [
     label: "Templates",
     description: "Manage message templates",
     icon: Mail,
+  },
+  {
+    href: "/app/communications/suppressions",
+    label: "Suppressions",
+    description: "Contacts that won't receive messages",
+    icon: Ban,
   },
 ];
 

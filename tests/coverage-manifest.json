@@ -1120,6 +1120,23 @@
       ],
       "seedSource": "communication_logs rows get random ids on every seed, so the sweep resolves one at run time via $sql."
     },
+    "/app/communications/suppressions": {
+      "path": "/app/communications/suppressions",
+      "file": "app/app/communications/suppressions/page.tsx",
+      "allowedRoles": [
+        "pastor",
+        "church-admin",
+        "secretary"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/communications-suppressions.spec.ts"
+      ],
+      "note": "Gate matches /app/communications/history. Only church-admin sees the add and remove controls; removeSuppressionAction and suppressContactAction enforce church-admin themselves."
+    },
     "/app/communications/templates": {
       "path": "/app/communications/templates",
       "file": "app/app/communications/templates/page.tsx",
@@ -2222,6 +2239,7 @@
         "listTemplatesAction",
         "previewRecipientsAction",
         "retryAllEligibleAction",
+        "removeSuppressionAction",
         "retryCommunicationAction",
         "suppressContactAction",
         "updateNotificationPreferencesAction",
