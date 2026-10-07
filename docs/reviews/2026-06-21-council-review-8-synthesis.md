@@ -51,10 +51,10 @@ The council has approved the next execution roadmap focusing on **Option B (Onbo
 ---
 
 ## 3. ADR References
-* [ADR 0017: Multi-Tenant Sandbox Onboarding and Demo Simulation](file:///Users/rjulia/ChurchCore/docs/adr/0017-sandbox-onboarding-simulation.md)
-* [ADR 0018: Incumbent Import Schema Mapping and Hardening](file:///Users/rjulia/ChurchCore/docs/adr/0018-import-adapter-hardening.md)
-* [ADR 0019: Volunteer Burnout Analytics and Ministry Vitality Scoring](file:///Users/rjulia/ChurchCore/docs/adr/0019-burnout-vitality-scoring.md)
-* [ADR 0020: Custom Dashboard Report Builder and General Ledger Exports](file:///Users/rjulia/ChurchCore/docs/adr/0020-custom-reporting-ledger-export.md)
+* [ADR 0017: Multi-Tenant Sandbox Onboarding and Demo Simulation](../../docs/adr/0017-sandbox-onboarding-simulation.md)
+* [ADR 0018: Incumbent Import Schema Mapping and Hardening](../../docs/adr/0018-import-adapter-hardening.md)
+* [ADR 0019: Volunteer Burnout Analytics and Ministry Vitality Scoring](../../docs/adr/0019-burnout-vitality-scoring.md)
+* [ADR 0020: Custom Dashboard Report Builder and General Ledger Exports](../../docs/adr/0020-custom-reporting-ledger-export.md)
 
 ---
 

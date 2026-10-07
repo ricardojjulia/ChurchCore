@@ -65,6 +65,7 @@ The categorized index of everything in `docs/`. Start with the root [README](../
 | [0025](adr/0025-stripe-connect-standard-direct-charges.md) | Online Payments Run on Each Church's Own Stripe Account (Connect Standard, Direct Charges) |
 | [0026](adr/0026-churchcore-design-system-parity.md) | ChurchCore design system parity, through the theme |
 | [0027](adr/0027-openrouter-ai-gateway.md) | OpenRouter AI gateway |
+| [0028](adr/0028-shared-tenant-database-layered-isolation.md) | Shared tenant database with layered isolation |
 
 ---
 

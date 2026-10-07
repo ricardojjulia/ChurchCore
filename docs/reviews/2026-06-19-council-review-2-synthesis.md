@@ -19,7 +19,7 @@ The 4 council agents identified the following key areas of security, database, a
 ## 2. ADR Mapping
 
 * **ADR 0011: Immutability Controls, Consent Compliance, and Read-Audit Logging** has been drafted and accepted. It documents database trigger rules, consent validation requirements, and read-auditing tracking hooks.
-  - File: [0011-immutability-controls-and-read-audit-logging.md](file:///Users/rjulia/ChurchCore/docs/adr/0011-immutability-controls-and-read-audit-logging.md)
+  - File: [0011-immutability-controls-and-read-audit-logging.md](../../docs/adr/0011-immutability-controls-and-read-audit-logging.md)
 
 ---
 

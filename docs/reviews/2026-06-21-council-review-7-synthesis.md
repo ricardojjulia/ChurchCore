@@ -22,7 +22,7 @@ The 4 council agents reviewed the proposed volunteer sessional follow-up/verific
 ## 2. ADR Drafts
 
 The council recommends adopting the following ADR:
-- [ADR 0016: Volunteer Sessional Follow-up and Confirmation Architecture](file:///Users/rjulia/ChurchCore/docs/adr/0016-volunteer-sessional-followup-and-confirmation-architecture.md)
+- [ADR 0016: Volunteer Sessional Follow-up and Confirmation Architecture](../../docs/adr/0016-volunteer-sessional-followup-and-confirmation-architecture.md)
 
 ---
 

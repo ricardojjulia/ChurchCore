@@ -235,7 +235,7 @@ How to use it: [docs/software-factory.md](./docs/software-factory.md). Portable 
 - 📘 **[HOWTO](./HOWTO.md)** — Local setup, environment variables, local Supabase, tests, scripts and troubleshooting.
 - 🧭 **[Documentation Hub](./docs/README.md)** — Categorized index of everything in `docs/`.
 - 📐 **[Architecture](./docs/architecture.md)** — Control plane, tenant data plane, RLS, providers and the AI gateway.
-- 📜 **[Architecture Decision Records](./docs/adr/)** — ADR 0001–0027.
+- 📜 **[Architecture Decision Records](./docs/adr/)** — ADR 0001–0028.
 - 🗺️ **[Roadmap](./docs/roadmap.md)** — Milestones to the November 6 MVP and what comes after.
 - 📋 **[Development Plan](./DEVELOPMENT_PLAN.md)** — Source of truth for scope, stack, the §0 tracker and release discipline.
 - 🧪 **[Testing](./docs/testing.md)** — The surface manifest, the e2e suite and CI.

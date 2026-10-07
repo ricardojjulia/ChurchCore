@@ -6,7 +6,7 @@ This document describes the platform-side ChurchCore Control experience.
 
 The control plane exists for ChurchCore staff operating the SaaS itself. It is intentionally separate from the tenant-facing church app.
 
-The UI direction for this surface is now intentionally lighter and quieter: light-only, low-chrome, and short on-page copy so operator attention stays on tenant status and explicit tenant-view actions.
+The UI direction for this surface is quiet and low-chrome, with short on-page copy, so operator attention stays on tenant status and explicit tenant-view actions. It follows the ChurchCore design system's dark-first theme ([ADR 0026](adr/0026-churchcore-design-system-parity.md)); the earlier light-only direction is superseded.
 
 ## Routes
 

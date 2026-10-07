@@ -24,8 +24,8 @@ The 4 council agents reviewed the current codebase and reached consensus on the 
 ## 2. ADR Drafts
 
 The council recommends adopting the following ADRs:
-- [ADR 0013: Diagnostic Query Timeout and Caching](file:///Users/rjulia/ChurchCore/docs/adr/0013-diagnostic-query-timeout-and-caching.md)
-- [ADR 0014: Persistent AI Attribution and Print Styles](file:///Users/rjulia/ChurchCore/docs/adr/0014-persistent-ai-attribution-and-print-styles.md)
+- [ADR 0013: Diagnostic Query Timeout and Caching](../../docs/adr/0013-diagnostic-query-timeout-and-caching.md)
+- [ADR 0014: Persistent AI Attribution and Print Styles](../../docs/adr/0014-persistent-ai-attribution-and-print-styles.md)
 
 ---
 

@@ -50,7 +50,7 @@ Planning Center is the direct benchmark. It dominates mid-size churches ($100–
 | Custody restriction with UI block | Yes | Basic | No |
 | Two-adult rule enforcement | Yes | No | No |
 | Audit-append-only ledger | Yes | No | No |
-| Per-tenant Supabase isolation | Yes | Shared DB | Shared DB |
+| Database-enforced tenant isolation (RLS on every church table, CI-audited; ADR 0028) | Yes | Unverified | Unverified |
 | Ministry track progress dashboard | Yes | No | No |
 | RLS-enforced multi-tenant security | Yes | N/A | No |
 | Financial management with GL | Yes | No | Partial |

@@ -38,7 +38,11 @@ flowchart LR
 - **Tenancy inside the tenant plane:** every data table carries `church_id`, and PostgreSQL RLS composes from `is_platform_admin()`, `belongs_to_church()` and `can_manage_church()`, which read `auth.uid()` — see [tenant-data-segmentation.md](tenant-data-segmentation.md). `npm run audit:rls` blocks CI if a `church_id` table lacks RLS.
 - **`SECURITY DEFINER` functions** take their actor from `auth.uid()`, never an argument ([ADR 0024](adr/0024-security-definer-actor-from-auth-uid.md)).
 
-> **Two documents, two models.** [tenant-data-segmentation.md](tenant-data-segmentation.md) (updated 2026-09-18) describes the current model: churches share the tenant database and are isolated by `church_id` and RLS. [cloud-architecture.md](cloud-architecture.md) (2026-04-17) describes a recommended per-church "silo" deployment (one Supabase project per church). ADR 0002 allows either for the tenant plane; what is fixed is the separation between the control plane and tenant data.
+> **Tenancy model: one shared tenant database with layered isolation** ([ADR 0028](adr/0028-shared-tenant-database-layered-isolation.md), owner decision 2026-10-07).
+>
+> - Churches share the tenant database and are isolated by `church_id` and RLS ([tenant-data-segmentation.md](tenant-data-segmentation.md)).
+> - That is backed by the control-plane split, church-scoped server writes, the `SECURITY DEFINER` actor rule, pastoral field encryption and the platform-staff allow-list.
+> - The per-church "silo" recommendation in [cloud-architecture.md](cloud-architecture.md) is superseded. A dedicated database for one church remains a possible future option under its own ADR.
 
 ![ChurchCore system architecture](assets/diagrams/system-architecture.svg)
 
@@ -90,6 +94,7 @@ flowchart TB
 | Provider stubs | A stub may report success only outside production or in demo mode (`lib/stub-mode.ts`) | [setup/production-deployment.md](setup/production-deployment.md) |
 | Email | Resend primary, SendGrid fallback, one idempotency key per message | [ADR 0006](adr/0006-email-provider-resend.md) |
 | AI | One server-only gateway, PII scrubbing, zero-data-retention routing that fails closed | [ADR 0027](adr/0027-openrouter-ai-gateway.md) |
+| Tenancy | One shared tenant database; `church_id` + RLS from `auth.uid()`, CI-audited, plus layered separation | [ADR 0028](adr/0028-shared-tenant-database-layered-isolation.md) |
 | Pastoral data | Selected pastoral fields encrypted at rest with AES-256-GCM (`lib/crypto/pastoral.ts`, `PASTORAL_ENCRYPTION_KEY`) | [setup/production-deployment.md](setup/production-deployment.md) |
 | Volunteer shift times | Stored as church wall-clock time | [ADR 0023](adr/0023-volunteer-shift-wall-clock-times.md) |
 
