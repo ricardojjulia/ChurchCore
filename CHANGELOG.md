@@ -6,6 +6,19 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+- **T1a: giving, finance and communications untested exports at zero; finance writes no longer report success when the database refused them; budget input validation** (`test/untested-exports-t1a`, `fd75b4e`; no PR yet, CI not run; no migration). Council skipped under the `improve-software.md` §0 exception (tests plus small single-module fixes). Meets **milestone M3** on merge.
+
+  **Added**
+  - Tests for `createBudgetAction`, `deleteJournalDraftAction`, `upsertBudgetLinesAction` in [`app/app/finance-actions.test.ts`](app/app/finance-actions.test.ts) and `getCommunicationDeliveryEventsAction` in [`app/app/communications-actions.test.ts`](app/app/communications-actions.test.ts); their waivers are removed from [`tests/coverage-manifest.json`](tests/coverage-manifest.json) (58 to 54 waivers; the giving modules already had none).
+  - Handoff note: [`docs/factory-runs/2026-10-07-t1a-untested-exports.md`](docs/factory-runs/2026-10-07-t1a-untested-exports.md).
+
+  **Fixed**
+  - [`app/app/finance-actions.ts`](app/app/finance-actions.ts): post, void and delete-draft journal and upsert budget lines never read the Supabase error or affected-row count, so an RLS or constraint refusal, a cross-church id, or an already-posted journal reported success. They now throw the database error and treat zero affected rows as "Journal not found, or it is no longer a draft." / "Journal not found."
+
+  **Changed**
+  - Budget validation: name required (trimmed), fiscal year 2000-2100, lines need an `accountId` and an integer `amountCents` >= 0, and the budget must belong to the session church before any line is written ("Budget not found.").
+  - [`docs/mvp-competitive-analysis.md`](docs/mvp-competitive-analysis.md) refreshed to the current MVP state (Gaps 1, 3, 5 closed; Gaps 2 and 4 open); competitor claims marked unsourced.
+  - **Not verified:** CI. **Recorded, not fixed:** `voidJournalAction` still voids any journal regardless of status (plan row S23). Verification: `npx vitest run` 208 files / 2,646 tests, 0 failures; `npm run test:surfaces` OK; lint 0 errors; `tsc` clean. MVP readiness proposed 90/100 on merge.
 - **Tenancy model decided: one shared tenant database with layered isolation** ([ADR 0028](docs/adr/0028-shared-tenant-database-layered-isolation.md), owner decision 2026-10-07).
   - **Layers:** every church table isolated by `church_id` and row-level security from `auth.uid()`, audited in CI; the control plane in a separate project (ADR 0002); church-scoped server writes (ADR 0022); the `SECURITY DEFINER` actor rule (ADR 0024); AES-256-GCM pastoral field encryption; the platform-staff allow-list.
   - **Superseded:** the per-church "one Supabase project per church" recommendation in `docs/cloud-architecture.md`.
