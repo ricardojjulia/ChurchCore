@@ -48,7 +48,7 @@ describe("runGroupsImportDryRunAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireChurchSessionMock.mockResolvedValue({
-      appContext: { roleId: "church-admin", church: { id: "church-1" } },
+      appContext: { roleId: "church-admin", church: { id: "church-1", timezone: "America/Chicago" } },
       source: "supabase",
       userId: "user-1",
       churchProfileId: "profile-admin", profile: { id: "profile-admin-login"},
@@ -140,26 +140,39 @@ describe("runGroupsImportDryRunAction", () => {
     });
   });
 
-  it("rejects csvText exceeding 5MB size limit", async () => {
-    const oversizedCsv = "a".repeat(5 * 1024 * 1024 + 1);
+  it("rejects csvText exceeding 3.5MB size limit", async () => {
+    const oversizedCsv = "a".repeat(3.5 * 1024 * 1024 + 1);
 
     await expect(
       runGroupsImportDryRunAction({
         sourceFilename: "groups.csv",
         csvText: oversizedCsv,
       }),
-    ).rejects.toThrow("CSV file size exceeds the maximum limit of 5MB.");
+    ).rejects.toThrow("CSV file size exceeds the maximum limit of 3.5MB.");
   });
 
-  it("rejects csvText exceeding 100 records limit", async () => {
-    const tooManyRowsCsv = ["header_col", ...Array(101).fill("val")].join("\n");
+  it("rejects csvText exceeding the 5,000 record limit", async () => {
+    const tooManyRowsCsv = ["header_col", ...Array(5001).fill("val")].join("\n");
 
     await expect(
       runGroupsImportDryRunAction({
         sourceFilename: "groups.csv",
         csvText: tooManyRowsCsv,
       }),
-    ).rejects.toThrow("CSV import is limited to a maximum of 100 records per batch.");
+    ).rejects.toThrow("CSV import is limited to a maximum of 5,000 records per batch.");
+    expect(runGroupsImportDryRunMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts a 5,000 record file (large-file import)", async () => {
+    const largeCsv = ["header_col", ...Array(5000).fill("val")].join("\n");
+
+    await expect(
+      runGroupsImportDryRunAction({
+        sourceFilename: "groups.csv",
+        csvText: largeCsv,
+      }),
+    ).resolves.toBeDefined();
+    expect(runGroupsImportDryRunMock).toHaveBeenCalledTimes(1);
   });
 });
 

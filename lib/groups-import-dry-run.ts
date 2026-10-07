@@ -1,21 +1,68 @@
 import "server-only";
 
-import { parseCsv } from "@/lib/finance-import";
+import { chunkArray, computeIgnoredColumns, parseImportCsv } from "@/lib/import-normalize";
+import {
+  fetchAllPages,
+  loadGroupNameIndex,
+  loadMembershipPairs,
+  loadProfileLinkIndex,
+  loadSourceIdIndex,
+} from "@/lib/import-profile-index";
 import {
   createTenantServerClient,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
 import {
+  groupConsumedAliases,
+  groupMembershipConsumedAliases,
+  isGroupMembershipFile,
   normalizeGroupImportSourceRow,
+  normalizeGroupMembershipRow,
   type GroupsImportSourceSystem,
   type NormalizedGroupImportRow,
 } from "@/lib/groups-import-source-adapters";
 
 export type GroupsImportDryRunResult = {
   batchId: string;
-  counts: { create: number; update: number; skip: number; reject: number; unmatchedLeaders: number };
+  /** "memberships" when the file has a Tag Name column (Breeze tags), otherwise "groups". */
+  mode: "groups" | "memberships";
+  counts: {
+    create: number;
+    update: number;
+    skip: number;
+    reject: number;
+    unmatchedLeaders: number;
+    /** Memberships mode: rows whose Breeze ID matched nobody in this church. */
+    unmatchedMembers: number;
+  };
+  /** Memberships mode: groups the commit will create because no group has the tag's name. */
+  groupCreates: number;
+  /** Header names (never cell values) that no field mapping used. */
+  ignoredColumns: string[];
+  /** Groups mode: one row per group. Empty in memberships mode. */
   rows: GroupsImportDryRunRow[];
+  /** Memberships mode: one row per tag assignment. Empty in groups mode. */
+  membershipRows: GroupMembershipDryRunRow[];
+};
+
+export type GroupMembershipDryRunRow = {
+  rowNumber: number;
+  /** The Breeze ID as exported (an id, not a name). */
+  memberNumber: string | null;
+  groupName: string;
+  folder: string | null;
+  profileResolved: boolean;
+  groupExists: boolean;
+  action: "create" | "skip" | "reject";
+  reason: string | null;
+};
+
+type GroupMembershipPayload = {
+  kind: "group_membership";
+  groupName: string;
+  folder: string | null;
+  profileId: string | null;
 };
 
 export type GroupsImportDryRunRow = {
@@ -69,53 +116,10 @@ async function loadExistingGroupsIndex(churchId: string): Promise<Map<string, st
     return map;
   }
 
-  const supabase = await createTenantServerClient();
-  const { data } = await supabase
-    .from("groups")
-    .select("id, source_id")
-    .eq("church_id", churchId)
-    .not("source_id", "is", null);
-
-  const map = new Map<string, string>();
-  for (const row of data ?? []) {
-    if (row.source_id) {
-      map.set(row.source_id, row.id);
-    }
-  }
-  return map;
+  return loadSourceIdIndex(churchId, "groups");
 }
 
-async function loadExistingProfilesIndex(churchId: string): Promise<Map<string, string>> {
-  if (shouldUseLocalTenantFallback()) {
-    const result = await queryTenantLocalDb<{ id: string; email: string }>(
-      `select id, email from public.profiles where church_id = $1 and email is not null`,
-      [churchId],
-    );
-
-    const map = new Map<string, string>();
-    for (const row of result.rows) {
-      map.set(row.email.toLowerCase(), row.id);
-    }
-    return map;
-  }
-
-  const supabase = await createTenantServerClient();
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, email")
-    .eq("church_id", churchId)
-    .not("email", "is", null);
-
-  const map = new Map<string, string>();
-  for (const row of data ?? []) {
-    if (row.email) {
-      map.set((row.email as string).toLowerCase(), row.id);
-    }
-  }
-  return map;
-}
-
-function classifyGroupsImportRows(
+export function classifyGroupsImportRows(
   csvRows: Record<string, string>[],
   sourceSystem: GroupsImportSourceSystem,
   groupsIndex: Map<string, string>,
@@ -125,7 +129,7 @@ function classifyGroupsImportRows(
   rows: GroupsImportDryRunRow[];
   normalizedPayloads: NormalizedGroupPayload[];
 } {
-  const counts = { create: 0, update: 0, skip: 0, reject: 0, unmatchedLeaders: 0 };
+  const counts = { create: 0, update: 0, skip: 0, reject: 0, unmatchedLeaders: 0, unmatchedMembers: 0 };
   const rows: GroupsImportDryRunRow[] = [];
   const normalizedPayloads: NormalizedGroupPayload[] = [];
   const seenSourceIds = new Set<string>();
@@ -268,24 +272,115 @@ function classifyGroupsImportRows(
   return { counts, rows, normalizedPayloads };
 }
 
+export function classifyGroupMembershipRows(
+  csvRows: Record<string, string>[],
+  byMemberNumber: Map<string, string>,
+  groupNameIndex: Map<string, string>,
+  membershipPairs: Set<string>,
+): {
+  counts: GroupsImportDryRunResult["counts"];
+  groupCreates: number;
+  rows: GroupMembershipDryRunRow[];
+  payloads: GroupMembershipPayload[];
+} {
+  const counts = { create: 0, update: 0, skip: 0, reject: 0, unmatchedLeaders: 0, unmatchedMembers: 0 };
+  const rows: GroupMembershipDryRunRow[] = [];
+  const payloads: GroupMembershipPayload[] = [];
+  const seenPairs = new Set<string>();
+  const plannedGroups = new Set<string>();
+
+  for (let index = 0; index < csvRows.length; index += 1) {
+    const rowNumber = index + 2;
+    const normalized = normalizeGroupMembershipRow(csvRows[index]);
+    const groupKey = normalized.groupName.toLowerCase();
+    const existingGroupId = groupNameIndex.get(groupKey);
+
+    const emit = (
+      action: GroupMembershipDryRunRow["action"],
+      reason: string | null,
+      profileId: string | null,
+    ) => {
+      rows.push({
+        rowNumber,
+        memberNumber: normalized.memberNumber,
+        groupName: normalized.groupName,
+        folder: normalized.folder,
+        profileResolved: profileId != null,
+        groupExists: existingGroupId != null,
+        action,
+        reason,
+      });
+      payloads.push({
+        kind: "group_membership",
+        groupName: normalized.groupName,
+        folder: normalized.folder,
+        profileId,
+      });
+    };
+
+    if (!normalized.groupName) {
+      counts.reject += 1;
+      emit("reject", "Missing tag name.", null);
+      continue;
+    }
+
+    if (!normalized.memberNumber || normalized.memberNumber.toLowerCase() === "anonymous") {
+      counts.reject += 1;
+      emit("reject", "Missing Breeze ID.", null);
+      continue;
+    }
+
+    const profileId = byMemberNumber.get(normalized.memberNumber) ?? null;
+    if (!profileId) {
+      counts.skip += 1;
+      counts.unmatchedMembers += 1;
+      emit("skip", "Person not matched — import people first.", null);
+      continue;
+    }
+
+    const pairKey = `${groupKey}:${profileId}`;
+    if (seenPairs.has(pairKey)) {
+      counts.skip += 1;
+      emit("skip", "Duplicate membership in import file.", profileId);
+      continue;
+    }
+    seenPairs.add(pairKey);
+
+    if (existingGroupId && membershipPairs.has(`${existingGroupId}:${profileId}`)) {
+      counts.skip += 1;
+      emit("skip", "Already a member of this group.", profileId);
+      continue;
+    }
+
+    if (!existingGroupId) plannedGroups.add(groupKey);
+    counts.create += 1;
+    emit("create", null, profileId);
+  }
+
+  return { counts, groupCreates: plannedGroups.size, rows, payloads };
+}
+
 async function insertDryRunBatchAndRows(
   churchId: string,
   actorProfileId: string | null,
   sourceSystem: GroupsImportSourceSystem,
   sourceFilename: string,
-  rows: GroupsImportDryRunRow[],
-  normalizedPayloads: NormalizedGroupPayload[],
+  rows: Array<{ rowNumber: number; action: "create" | "update" | "skip" | "reject"; reason: string | null }>,
+  normalizedPayloads: Array<NormalizedGroupPayload | GroupMembershipPayload>,
   rawCsvRows: Record<string, string>[],
   counts: GroupsImportDryRunResult["counts"],
+  ignoredColumns: string[],
+  importType: "groups_csv" | "group_memberships_csv" = "groups_csv",
 ): Promise<string> {
+  const summary = { ...counts, ignoredColumns };
   if (shouldUseLocalTenantFallback()) {
     const batch = await queryTenantLocalDb<{ id: string }>(
       `insert into public.import_batches
          (church_id, import_type, source_system, source_filename, created_by_profile_id,
           status, dry_run, summary)
-       values ($1, 'groups_csv', $2, $3, $4, 'dry_run_completed', true, $5::jsonb)
+       values ($1, $6, $2, $3, $4, 'dry_run_completed', true, $5::jsonb)
        returning id`,
-      [churchId, sourceSystem, sourceFilename, actorProfileId, JSON.stringify(counts)],
+      [churchId, sourceSystem, sourceFilename, actorProfileId, JSON.stringify(summary), importType],
     );
 
     const batchId = batch.rows[0]?.id;
@@ -320,13 +415,13 @@ async function insertDryRunBatchAndRows(
     .from("import_batches")
     .insert({
       church_id: churchId,
-      import_type: "groups_csv",
+      import_type: importType,
       source_system: sourceSystem,
       source_filename: sourceFilename,
       created_by_profile_id: actorProfileId,
       status: "dry_run_completed",
       dry_run: true,
-      summary: counts,
+      summary,
     })
     .select("id")
     .single();
@@ -335,8 +430,8 @@ async function insertDryRunBatchAndRows(
     throw new Error(batchError?.message ?? "Unable to create import batch.");
   }
 
-  const { error: rowsError } = await supabase.from("import_batch_rows").insert(
-    rows.map((row, i) => ({
+  // Chunked: a 5,000-row batch is too large for one request.
+  const batchRows = rows.map((row, i) => ({
       batch_id: batch.id,
       church_id: churchId,
       row_number: row.rowNumber,
@@ -344,11 +439,12 @@ async function insertDryRunBatchAndRows(
       normalized_payload: normalizedPayloads[i],
       classification: row.action,
       reason: row.reason,
-    })),
-  );
-
-  if (rowsError) {
-    throw new Error(rowsError.message);
+    }));
+  for (const part of chunkArray(batchRows, 500)) {
+    const { error: rowsError } = await supabase.from("import_batch_rows").insert(part);
+    if (rowsError) {
+      throw new Error(rowsError.message);
+    }
   }
 
   return batch.id;
@@ -361,7 +457,7 @@ export async function runGroupsImportDryRun(input: {
   sourceFilename: string;
   csvText: string;
 }): Promise<GroupsImportDryRunResult> {
-  const csv = await parseCsv(input.csvText);
+  const csv = parseImportCsv(input.csvText);
   if (csv.errors.length > 0) {
     throw new Error(csv.errors[0] ?? "Unable to parse CSV file.");
   }
@@ -372,17 +468,56 @@ export async function runGroupsImportDryRun(input: {
 
   const sourceSystem = input.sourceSystem ?? "generic_csv";
 
-  const [groupsIndex, profilesIndex] = await Promise.all([
+  if (isGroupMembershipFile(csv.headers)) {
+    const [profileIndex, groupNameIndex, membershipPairs] = await Promise.all([
+      loadProfileLinkIndex(input.churchId),
+      loadGroupNameIndex(input.churchId),
+      loadMembershipPairs(input.churchId),
+    ]);
+    const memberships = classifyGroupMembershipRows(
+      csv.rows,
+      profileIndex.byMemberNumber,
+      groupNameIndex,
+      membershipPairs,
+    );
+    const ignoredColumns = computeIgnoredColumns(csv.headers, groupMembershipConsumedAliases());
+
+    const batchId = await insertDryRunBatchAndRows(
+      input.churchId,
+      input.actorProfileId,
+      sourceSystem,
+      input.sourceFilename,
+      memberships.rows,
+      memberships.payloads,
+      csv.rows,
+      { ...memberships.counts },
+      ignoredColumns,
+      "group_memberships_csv",
+    );
+
+    return {
+      batchId,
+      mode: "memberships",
+      counts: memberships.counts,
+      groupCreates: memberships.groupCreates,
+      ignoredColumns,
+      rows: [],
+      membershipRows: memberships.rows,
+    };
+  }
+
+  const [groupsIndex, profileIndex] = await Promise.all([
     loadExistingGroupsIndex(input.churchId),
-    loadExistingProfilesIndex(input.churchId),
+    loadProfileLinkIndex(input.churchId),
   ]);
 
   const { counts, rows, normalizedPayloads } = classifyGroupsImportRows(
     csv.rows,
     sourceSystem,
     groupsIndex,
-    profilesIndex,
+    profileIndex.byEmail,
   );
+  const ignoredColumns = computeIgnoredColumns(csv.headers, groupConsumedAliases(sourceSystem));
 
   const batchId = await insertDryRunBatchAndRows(
     input.churchId,
@@ -393,9 +528,18 @@ export async function runGroupsImportDryRun(input: {
     normalizedPayloads,
     csv.rows,
     counts,
+    ignoredColumns,
   );
 
-  return { batchId, counts, rows };
+  return {
+    batchId,
+    mode: "groups",
+    counts,
+    groupCreates: 0,
+    ignoredColumns,
+    rows,
+    membershipRows: [],
+  };
 }
 
 function normalizeBatchRowPayload(payload: unknown): NormalizedGroupPayload | null {
@@ -419,6 +563,89 @@ function normalizeBatchRowPayload(payload: unknown): NormalizedGroupPayload | nu
   };
 }
 
+function normalizeAnyBatchPayload(
+  payload: unknown,
+): NormalizedGroupPayload | GroupMembershipPayload | null {
+  if (payload && typeof payload === "object" && (payload as { kind?: unknown }).kind === "group_membership") {
+    const row = payload as Partial<GroupMembershipPayload>;
+    if (typeof row.groupName !== "string" || row.groupName.length === 0) return null;
+    return {
+      kind: "group_membership",
+      groupName: row.groupName,
+      folder: typeof row.folder === "string" ? row.folder : null,
+      profileId: typeof row.profileId === "string" ? row.profileId : null,
+    };
+  }
+  return normalizeBatchRowPayload(payload);
+}
+
+/**
+ * Commit one tag assignment: find the church's group by name (case-insensitive)
+ * or create it as a closed "general" group, then add the person unless they
+ * are already in it. Returns "created" when a membership row was inserted.
+ */
+async function commitMembershipPayload(
+  churchId: string,
+  payload: GroupMembershipPayload,
+  groupIds: Map<string, string>,
+  validProfileIds: Set<string>,
+  now: string,
+): Promise<"created" | "existing"> {
+  if (!payload.profileId || !validProfileIds.has(payload.profileId)) {
+    throw new Error("Membership person is not in this church.");
+  }
+  const supabase = await createTenantServerClient();
+
+  const groupKey = payload.groupName.toLowerCase();
+  let groupId = groupIds.get(groupKey);
+  if (!groupId) {
+    // Imported tags can name pastoral or sensitive lists, so a new group stays
+    // closed (admin-visible, no self-join) until an admin opens it.
+    const { data, error } = await supabase
+      .from("groups")
+      .insert({
+        church_id: churchId,
+        name: payload.groupName,
+        category: "general",
+        description: payload.folder ? `Imported from Breeze tag folder: ${payload.folder}` : null,
+        is_open: false,
+        is_active: true,
+      })
+      .select("id")
+      .single();
+    if (error || !data?.id) {
+      throw new Error("Unable to create the group for a tag.");
+    }
+    groupId = data.id as string;
+    groupIds.set(groupKey, groupId);
+  }
+
+  const { data: existing, error: lookupError } = await supabase
+    .from("group_members")
+    .select("id")
+    .eq("church_id", churchId)
+    .eq("group_id", groupId)
+    .eq("profile_id", payload.profileId)
+    .maybeSingle();
+  if (lookupError) {
+    throw new Error("Unable to check existing group membership.");
+  }
+  if (existing?.id) return "existing";
+
+  const { error } = await supabase.from("group_members").insert({
+    church_id: churchId,
+    group_id: groupId,
+    profile_id: payload.profileId,
+    role: "member",
+    status: "active",
+    joined_at: now,
+  });
+  if (error) {
+    throw new Error("Unable to add a group member.");
+  }
+  return "created";
+}
+
 export async function commitGroupsImportBatch(input: {
   churchId: string;
   actorProfileId: string | null;
@@ -426,7 +653,7 @@ export async function commitGroupsImportBatch(input: {
 }): Promise<GroupsImportCommitResult> {
   let batchStatus: string | null = null;
   let dryRun = true;
-  let normalizedPayloads: NormalizedGroupPayload[] = [];
+  let normalizedPayloads: Array<NormalizedGroupPayload | GroupMembershipPayload> = [];
 
   if (shouldUseLocalTenantFallback()) {
     const batchResult = await queryTenantLocalDb<{ status: string; dry_run: boolean }>(
@@ -454,8 +681,8 @@ export async function commitGroupsImportBatch(input: {
     );
 
     normalizedPayloads = rowsResult.rows
-      .map((row) => normalizeBatchRowPayload(row.normalized_payload))
-      .filter((row): row is NormalizedGroupPayload => Boolean(row));
+      .map((row) => normalizeAnyBatchPayload(row.normalized_payload))
+      .filter((row): row is NormalizedGroupPayload | GroupMembershipPayload => Boolean(row));
   } else {
     const supabase = await createTenantServerClient();
 
@@ -473,19 +700,22 @@ export async function commitGroupsImportBatch(input: {
     batchStatus = batch.status;
     dryRun = batch.dry_run;
 
-    const { data: rows } = await supabase
-      .from("import_batch_rows")
-      .select("normalized_payload")
-      .eq("batch_id", input.batchId)
-      .eq("church_id", input.churchId)
-      .in("classification", ["create", "update"])
-      .order("row_number", { ascending: true });
+    const rows = await fetchAllPages<{ normalized_payload: unknown }>((from, to) =>
+      supabase
+        .from("import_batch_rows")
+        .select("normalized_payload")
+        .eq("batch_id", input.batchId)
+        .eq("church_id", input.churchId)
+        .in("classification", ["create", "update"])
+        .order("row_number", { ascending: true })
+        .range(from, to),
+    );
 
     normalizedPayloads = (rows ?? [])
       .map((row) =>
-        normalizeBatchRowPayload((row as { normalized_payload: unknown }).normalized_payload),
+        normalizeAnyBatchPayload((row as { normalized_payload: unknown }).normalized_payload),
       )
-      .filter((row): row is NormalizedGroupPayload => Boolean(row));
+      .filter((row): row is NormalizedGroupPayload | GroupMembershipPayload => Boolean(row));
   }
 
   if (batchStatus !== "dry_run_completed" || !dryRun) {
@@ -496,8 +726,28 @@ export async function commitGroupsImportBatch(input: {
   let updated = 0;
   let failed = 0;
 
+  // Tag assignments (Breeze) resolve groups by name and people by this church's own profiles.
+  const hasMemberships = normalizedPayloads.some((payload) => "kind" in payload);
+  const groupIds = hasMemberships ? await loadGroupNameIndex(input.churchId) : new Map<string, string>();
+  const validProfileIds = hasMemberships
+    ? new Set((await loadProfileLinkIndex(input.churchId)).byMemberNumber.values())
+    : new Set<string>();
+  const membershipNow = new Date().toISOString();
+
   for (const payload of normalizedPayloads) {
     try {
+      if ("kind" in payload) {
+        const outcome = await commitMembershipPayload(
+          input.churchId,
+          payload,
+          groupIds,
+          validProfileIds,
+          membershipNow,
+        );
+        if (outcome === "created") created += 1;
+        continue;
+      }
+
       if (shouldUseLocalTenantFallback()) {
         // Check if group with this source_id exists
         const existing = await queryTenantLocalDb<{ id: string }>(
@@ -509,9 +759,9 @@ export async function commitGroupsImportBatch(input: {
           await queryTenantLocalDb(
             `update public.groups
              set name = $1,
-                 category = $2,
-                 description = $3,
-                 leader_profile_id = $4,
+                 category = coalesce($2, category),
+                 description = coalesce($3, description),
+                 leader_profile_id = coalesce($4, leader_profile_id),
                  is_active = $5,
                  updated_at = now()
              where church_id = $6 and source_id = $7`,
@@ -559,9 +809,10 @@ export async function commitGroupsImportBatch(input: {
             .from("groups")
             .update({
               name: payload.name,
-              category: payload.category,
-              description: payload.description,
-              leader_profile_id: payload.leaderProfileId,
+              // A blank cell never erases what the church already has (category is NOT NULL).
+              ...(payload.category ? { category: payload.category } : {}),
+              ...(payload.description ? { description: payload.description } : {}),
+              ...(payload.leaderProfileId ? { leader_profile_id: payload.leaderProfileId } : {}),
               is_active: typeof payload.isActive === "boolean" ? payload.isActive : true,
               updated_at: new Date().toISOString(),
             })

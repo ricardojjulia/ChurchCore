@@ -124,7 +124,8 @@
       "controlPlane": false,
       "dynamicParams": null,
       "tests": [
-        "tests/e2e/page-role-sweep.spec.ts"
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/import-vendor-fixtures.spec.ts"
       ],
       "note": "Denied roles redirect to /app/church-admin/attendance, not session.homePath.",
       "deniedRedirectsTo": "/app/church-admin/attendance"
@@ -404,7 +405,8 @@
       "controlPlane": false,
       "dynamicParams": null,
       "tests": [
-        "tests/e2e/page-role-sweep.spec.ts"
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/import-vendor-fixtures.spec.ts"
       ],
       "note": "Denied roles redirect to /app/church-admin/events, not session.homePath.",
       "deniedRedirectsTo": "/app/church-admin/events"
@@ -587,7 +589,8 @@
       "controlPlane": false,
       "dynamicParams": null,
       "tests": [
-        "tests/e2e/page-role-sweep.spec.ts"
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/import-vendor-fixtures.spec.ts"
       ],
       "note": "Denied roles redirect to /app/church-admin/giving, not session.homePath.",
       "deniedRedirectsTo": "/app/church-admin/giving"
@@ -631,7 +634,8 @@
       "controlPlane": false,
       "dynamicParams": null,
       "tests": [
-        "tests/e2e/page-role-sweep.spec.ts"
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/import-vendor-fixtures.spec.ts"
       ],
       "note": "Denied roles redirect to /app/church-admin/groups, not session.homePath.",
       "deniedRedirectsTo": "/app/church-admin/groups"
@@ -906,7 +910,8 @@
       "controlPlane": false,
       "dynamicParams": null,
       "tests": [
-        "tests/e2e/page-role-sweep.spec.ts"
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/import-vendor-fixtures.spec.ts"
       ]
     },
     "/app/church-admin/readiness": {

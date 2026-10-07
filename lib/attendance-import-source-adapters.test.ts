@@ -241,3 +241,40 @@ describe("normalizeAttendanceImportSourceRow — breeze", () => {
     expect(row.sourceId).toBe("br-att-55");
   });
 });
+
+describe("normalizeAttendanceImportSourceRow — Breeze export headers (G4.1)", () => {
+  it("reads Breeze ID, Event Name and Date; derives a content id", () => {
+    const row = normalizeAttendanceImportSourceRow(
+      { "Breeze ID": "5001", "First Name": "Maria", "Event Name": "Sunday Service", Date: "09/06/26 10:30am", Count: "1" },
+      "breeze",
+      3,
+      { timeZone: "America/Chicago" },
+    );
+
+    expect(row).toMatchObject({
+      memberNumber: "5001",
+      anonymousPerson: false,
+      eventName: "Sunday Service",
+      checkedInAt: "09/06/26 10:30am",
+      synthetic: true,
+    });
+    expect(row.sourceId).toMatch(/^brz-att-[0-9a-f]{24}$/);
+  });
+
+  it("gives the same id for the same check-in at any position and a different id for another time", () => {
+    const raw = { "Breeze ID": "5001", "Event Name": "Sunday Service", Date: "09/06/26 10:30am" };
+    const a = normalizeAttendanceImportSourceRow(raw, "breeze", 0, { timeZone: "America/Chicago" });
+    const b = normalizeAttendanceImportSourceRow(raw, "breeze", 99, { timeZone: "America/Chicago" });
+    const c = normalizeAttendanceImportSourceRow({ ...raw, Date: "09/06/26 6:00pm" }, "breeze", 0, { timeZone: "America/Chicago" });
+    expect(b.sourceId).toBe(a.sourceId);
+    expect(c.sourceId).not.toBe(a.sourceId);
+  });
+
+  it("flags Anonymous and keeps generic_csv on ATT-n ids", () => {
+    const anonymous = normalizeAttendanceImportSourceRow({ "Breeze ID": "anonymous", "Event Name": "X", Date: "09/06/26" }, "breeze", 0);
+    expect(anonymous).toMatchObject({ anonymousPerson: true, memberNumber: null });
+
+    const generic = normalizeAttendanceImportSourceRow({ email: "a@example.org" }, "generic_csv", 2);
+    expect(generic).toMatchObject({ sourceId: "ATT-3", synthetic: false, eventName: null, memberNumber: null });
+  });
+});

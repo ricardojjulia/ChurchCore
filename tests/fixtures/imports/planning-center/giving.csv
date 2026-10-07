@@ -1,0 +1,9 @@
+Donation amount,Received date,Fund,Payment method,Donor first name,Donor last name,Donor email,Donor phone,Remote ID,Donor number,Fees,Check number,Check date,Campus,Memo,Admin notes,Labels
+"$1,250.00",2026-09-06,General Fund,Check,Ada,Lovelace,ada.lovelace@example.org,,,D-1,,1001,2026-09-05,Main,Building fund pledge,,
+50.00,09/13/2026,Missions,Cash,Charles,Babbage,charles.babbage@example.org,,PCO-REMOTE-77,D-2,,,,Main,,,
+50.00,09/13/2026,Missions,Cash,Charles,Babbage,charles.babbage@example.org,,,D-2,,,,Main,,,
+50.00,09/13/2026,Missions,Cash,Charles,Babbage,charles.babbage@example.org,,,D-2,,,,Main,,,
+75.00,2026-09-20,General Fund,Card,Nobody,Known,nobody.known@example.org,,,D-9,,,,Main,,,
+20.00,2026-09-20,General Fund,Cash,,,,,,,,,,Main,Plate offering,,
+0.00,2026-09-20,General Fund,Cash,Grace,Hopper,grace.hopper@example.org,,,D-3,,,,Main,,,
+-30.00,2026-09-20,General Fund,Check,Grace,Hopper,grace.hopper@example.org,,,D-3,,,,Main,Refund,,

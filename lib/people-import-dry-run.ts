@@ -1,6 +1,7 @@
 import "server-only";
 
-import { parseCsv } from "@/lib/finance-import";
+import { chunkArray, computeIgnoredColumns, parseImportCsv } from "@/lib/import-normalize";
+import { fetchAllPages } from "@/lib/import-profile-index";
 import {
   createTenantServerClient,
   queryTenantLocalDb,
@@ -8,6 +9,7 @@ import {
 } from "@/lib/supabase/tenant";
 import {
   normalizePeopleImportSourceRow,
+  peopleConsumedAliases,
   type ImportSourceSystem,
 } from "@/lib/people-import-source-adapters";
 
@@ -33,6 +35,8 @@ export type PeopleImportDryRunResult = {
   batchId: string;
   counts: PeopleImportDryRunCounts;
   householdCreates: number;
+  /** Header names (never cell values) that no field mapping used. */
+  ignoredColumns: string[];
   rows: PeopleImportDryRunRow[];
 };
 
@@ -49,6 +53,8 @@ type ExistingPeopleIndex = {
   byEmail: Map<string, string>;
   byNamePhone: Map<string, string>;
   familyNames: Set<string>;
+  /** Stored email by profile id, to spot a member number reused by a different person. */
+  emailById?: Map<string, string>;
 };
 
 type ParsedImportRow = {
@@ -98,7 +104,7 @@ export type CustomImportMapping = {
   memberNumber?: string;
 };
 
-function parseImportRows(
+export function parseImportRows(
   csvRows: Record<string, string>[],
   sourceSystem: ImportSourceSystem,
   customMapping?: CustomImportMapping,
@@ -201,9 +207,23 @@ export function classifyPeopleImportRows(
     }
     seenImportKeys.add(key);
 
+    // A member number that already belongs to someone with a different email is
+    // another person's record (ids restart per vendor account), not an update.
+    const memberMatchId = row.memberNumber ? existing.byMemberNumber.get(row.memberNumber) : undefined;
+    const storedEmail = memberMatchId ? existing.emailById?.get(memberMatchId) : undefined;
+    if (memberMatchId && row.email && storedEmail && storedEmail !== row.email) {
+      counts.reject += 1;
+      results.push({
+        ...row,
+        action: "reject",
+        reason: "Member number belongs to a different person.",
+      });
+      continue;
+    }
+
     const namePhoneKey = `${row.fullName.toLowerCase()}|${row.phone ?? ""}`;
     const existingProfileId =
-      (row.memberNumber ? existing.byMemberNumber.get(row.memberNumber) : undefined) ??
+      memberMatchId ??
       (row.email ? existing.byEmail.get(row.email) : undefined) ??
       existing.byNamePhone.get(namePhoneKey);
 
@@ -264,27 +284,41 @@ async function loadExistingPeopleIndex(churchId: string): Promise<ExistingPeople
   }
 
   const supabase = await createTenantServerClient();
-  const [{ data: people }, { data: families }] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("id, full_name, email, phone, member_number")
-      .eq("church_id", churchId)
-      .is("merged_into_profile_id", null),
-    supabase
-      .from("families")
-      .select("family_name")
-      .eq("church_id", churchId),
+  const [people, families] = await Promise.all([
+    fetchAllPages<{
+      id: string;
+      full_name: string;
+      email: string | null;
+      phone: string | null;
+      member_number: string | null;
+    }>((from, to) =>
+      supabase
+        .from("profiles")
+        .select("id, full_name, email, phone, member_number")
+        .eq("church_id", churchId)
+        .is("merged_into_profile_id", null)
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
+    fetchAllPages<{ id: string; family_name: string }>((from, to) =>
+      supabase
+        .from("families")
+        .select("id, family_name")
+        .eq("church_id", churchId)
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
   ]);
 
   return buildIndexFromRows(
-    (people ?? []).map((row) => ({
+    people.map((row) => ({
       id: row.id,
       fullName: row.full_name,
       email: row.email,
       phone: row.phone,
       memberNumber: row.member_number,
     })),
-    (families ?? []).map((row) => row.family_name),
+    families.map((row) => row.family_name),
   );
 }
 
@@ -301,6 +335,7 @@ function buildIndexFromRows(
   const byMemberNumber = new Map<string, string>();
   const byEmail = new Map<string, string>();
   const byNamePhone = new Map<string, string>();
+  const emailById = new Map<string, string>();
 
   for (const person of people) {
     const memberNumber = normalize(person.memberNumber);
@@ -310,6 +345,9 @@ function buildIndexFromRows(
 
     if (memberNumber && !byMemberNumber.has(memberNumber)) {
       byMemberNumber.set(memberNumber, person.id);
+    }
+    if (email) {
+      emailById.set(person.id, email);
     }
     if (email && !byEmail.has(email)) {
       byEmail.set(email, person.id);
@@ -328,7 +366,7 @@ function buildIndexFromRows(
       .filter((value): value is string => Boolean(value)),
   );
 
-  return { byMemberNumber, byEmail, byNamePhone, familyNames };
+  return { byMemberNumber, byEmail, byNamePhone, familyNames, emailById };
 }
 
 async function insertDryRunBatchAndRows(
@@ -338,7 +376,9 @@ async function insertDryRunBatchAndRows(
   sourceFilename: string,
   rows: PeopleImportDryRunRow[],
   counts: PeopleImportDryRunCounts,
+  ignoredColumns: string[],
 ): Promise<string> {
+  const summary = { ...counts, ignoredColumns };
   if (shouldUseLocalTenantFallback()) {
     const batch = await queryTenantLocalDb<{ id: string }>(
       `insert into public.import_batches
@@ -346,7 +386,7 @@ async function insertDryRunBatchAndRows(
           status, dry_run, summary)
        values ($1, 'people_households_csv', $2, $3, $4, 'dry_run_completed', true, $5::jsonb)
        returning id`,
-      [churchId, sourceSystem, sourceFilename, actorProfileId, JSON.stringify(counts)],
+      [churchId, sourceSystem, sourceFilename, actorProfileId, JSON.stringify(summary)],
     );
 
     const batchId = batch.rows[0]?.id;
@@ -385,7 +425,7 @@ async function insertDryRunBatchAndRows(
       created_by_profile_id: actorProfileId,
       status: "dry_run_completed",
       dry_run: true,
-      summary: counts,
+      summary,
     })
     .select("id")
     .single();
@@ -394,8 +434,8 @@ async function insertDryRunBatchAndRows(
     throw new Error(batchError?.message ?? "Unable to create import batch.");
   }
 
-  const { error: rowsError } = await supabase.from("import_batch_rows").insert(
-    rows.map((row) => ({
+  // Chunked: a 5,000-row batch is too large for one request.
+  const batchRows = rows.map((row) => ({
       batch_id: batch.id,
       church_id: churchId,
       row_number: row.rowNumber,
@@ -403,11 +443,12 @@ async function insertDryRunBatchAndRows(
       normalized_payload: row,
       classification: row.action,
       reason: row.reason,
-    })),
-  );
-
-  if (rowsError) {
-    throw new Error(rowsError.message);
+    }));
+  for (const part of chunkArray(batchRows, 500)) {
+    const { error: rowsError } = await supabase.from("import_batch_rows").insert(part);
+    if (rowsError) {
+      throw new Error(rowsError.message);
+    }
   }
 
   return batch.id;
@@ -421,7 +462,7 @@ export async function runPeopleHouseholdImportDryRun(input: {
   csvText: string;
   customMapping?: CustomImportMapping;
 }): Promise<PeopleImportDryRunResult> {
-  const csv = await parseCsv(input.csvText);
+  const csv = parseImportCsv(input.csvText);
   if (csv.errors.length > 0) {
     throw new Error(csv.errors[0] ?? "Unable to parse CSV file.");
   }
@@ -435,6 +476,12 @@ export async function runPeopleHouseholdImportDryRun(input: {
   const existing = await loadExistingPeopleIndex(input.churchId);
   const parsedRows = parseImportRows(csv.rows, sourceSystem, input.customMapping);
   const classification = classifyPeopleImportRows(parsedRows, existing);
+  const ignoredColumns = computeIgnoredColumns(
+    csv.headers,
+    input.customMapping
+      ? Object.values(input.customMapping).filter((value): value is string => Boolean(value))
+      : peopleConsumedAliases(sourceSystem),
+  );
 
   const batchId = await insertDryRunBatchAndRows(
     input.churchId,
@@ -443,12 +490,14 @@ export async function runPeopleHouseholdImportDryRun(input: {
     input.sourceFilename,
     classification.rows,
     classification.counts,
+    ignoredColumns,
   );
 
   return {
     batchId,
     counts: classification.counts,
     householdCreates: classification.householdCreates,
+    ignoredColumns,
     rows: classification.rows,
   };
 }
@@ -537,9 +586,10 @@ async function upsertProfileFromImportRow(
   churchId: string,
   row: PeopleImportDryRunRow,
   existing: ExistingPeopleIndex,
+  familyIds?: Map<string, string>,
 ): Promise<{ kind: "created" | "updated"; profileId: string }> {
   const familyId = row.householdName
-    ? await ensureFamilyId(churchId, row.householdName)
+    ? (familyIds?.get(row.householdName.toLowerCase()) ?? (await ensureFamilyId(churchId, row.householdName)))
     : null;
 
   const normalizedEmailValue = normalizeEmail(row.email);
@@ -563,10 +613,10 @@ async function upsertProfileFromImportRow(
       await queryTenantLocalDb(
         `update public.profiles
          set full_name = $3,
-             email = $4,
-             phone = $5,
-             member_number = $6,
-             family_id = $7,
+             email = coalesce($4, email),
+             phone = coalesce($5, phone),
+             member_number = coalesce($6, member_number),
+             family_id = coalesce($7, family_id),
              updated_at = now()
          where church_id = $1 and id = $2`,
         [
@@ -605,12 +655,13 @@ async function upsertProfileFromImportRow(
   if (existingProfileId) {
     const { error } = await supabase
       .from("profiles")
+      // A blank cell never erases what the church already has: only fields the row provides are set.
       .update({
         full_name: row.fullName,
-        email: normalizedEmailValue,
-        phone: normalizedPhoneValue,
-        member_number: normalizedMemberNumber,
-        family_id: familyId,
+        ...(normalizedEmailValue ? { email: normalizedEmailValue } : {}),
+        ...(normalizedPhoneValue ? { phone: normalizedPhoneValue } : {}),
+        ...(normalizedMemberNumber ? { member_number: normalizedMemberNumber } : {}),
+        ...(familyId ? { family_id: familyId } : {}),
       })
       .eq("church_id", churchId)
       .eq("id", existingProfileId);
@@ -640,6 +691,114 @@ async function upsertProfileFromImportRow(
   }
 
   return { kind: "created", profileId: insertedProfile?.id ?? "" };
+}
+
+const CREATE_CHUNK = 500;
+const UPDATE_CONCURRENCY = 10;
+
+function matchKeys(row: PeopleImportDryRunRow): string[] {
+  const keys: string[] = [];
+  const memberNumber = normalize(row.memberNumber);
+  const email = normalizeEmail(row.email);
+  const name = normalizeName(row.fullName);
+  if (memberNumber) keys.push(`m:${memberNumber}`);
+  if (email) keys.push(`e:${email}`);
+  if (name) keys.push(`n:${name.toLowerCase()}|${normalizePhone(row.phone) ?? ""}`);
+  return keys;
+}
+
+/**
+ * Rows that match nobody yet, and match no earlier new row, can be inserted in
+ * bulk. Everything else (updates, or a row that matches a person created
+ * earlier in the same file) runs afterwards through the one-row path.
+ */
+function splitCreates(rows: PeopleImportDryRunRow[], existing: ExistingPeopleIndex) {
+  const creates: PeopleImportDryRunRow[] = [];
+  const others: PeopleImportDryRunRow[] = [];
+  const pending = new Set<string>();
+
+  for (const row of rows) {
+    const keys = matchKeys(row);
+    const matched =
+      (normalize(row.memberNumber) && existing.byMemberNumber.has(normalize(row.memberNumber) as string)) ||
+      (normalizeEmail(row.email) && existing.byEmail.has(normalizeEmail(row.email) as string)) ||
+      existing.byNamePhone.has(`${(normalizeName(row.fullName) ?? "").toLowerCase()}|${normalizePhone(row.phone) ?? ""}`);
+    if (matched || keys.some((key) => pending.has(key))) {
+      others.push(row);
+    } else {
+      creates.push(row);
+      keys.forEach((key) => pending.add(key));
+    }
+  }
+  return { creates, others };
+}
+
+/** Household name (lowercase) to family id for every name in the file; missing families are created in chunks. */
+async function resolveFamilyIds(
+  churchId: string,
+  householdNames: Array<string | null>,
+): Promise<Map<string, string>> {
+  const wanted = new Map<string, string>();
+  for (const name of householdNames) {
+    if (name) wanted.set(name.toLowerCase(), name);
+  }
+  const ids = new Map<string, string>();
+  if (wanted.size === 0) return ids;
+
+  const supabase = await createTenantServerClient();
+  const existingFamilies = await fetchAllPages<{ id: string; family_name: string }>((from, to) =>
+    supabase
+      .from("families")
+      .select("id, family_name")
+      .eq("church_id", churchId)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+  for (const family of existingFamilies) {
+    const key = family.family_name.trim().toLowerCase();
+    if (wanted.has(key) && !ids.has(key)) ids.set(key, family.id);
+  }
+
+  const missing = [...wanted.entries()].filter(([key]) => !ids.has(key));
+  for (const chunk of chunkArray(missing, CREATE_CHUNK)) {
+    const { data, error } = await supabase
+      .from("families")
+      .insert(chunk.map(([, name]) => ({ church_id: churchId, family_name: name })))
+      .select("id, family_name");
+    // On failure these names stay unresolved and each row falls back to the one-row path.
+    if (error || !data) continue;
+    for (const family of data) ids.set(family.family_name.trim().toLowerCase(), family.id);
+  }
+  return ids;
+}
+
+/** Inserts new people in one request. Returns their ids in input order, or null if the chunk failed. */
+async function insertProfileChunk(
+  churchId: string,
+  rows: PeopleImportDryRunRow[],
+  familyIds: Map<string, string>,
+): Promise<string[] | null> {
+  const supabase = await createTenantServerClient();
+  const joined = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from("profiles")
+    .insert(
+      rows.map((row) => ({
+        church_id: churchId,
+        full_name: row.fullName,
+        email: normalizeEmail(row.email),
+        phone: normalizePhone(row.phone),
+        member_number: normalize(row.memberNumber),
+        family_id: row.householdName ? (familyIds.get(row.householdName.toLowerCase()) ?? null) : null,
+        role: "member_volunteer",
+        membership_status: "active",
+        account_status: "pending",
+        joined_date: joined,
+      })),
+    )
+    .select("id");
+  if (error || !data || data.length !== rows.length) return null;
+  return data.map((row) => row.id as string);
 }
 
 export async function commitPeopleHouseholdImportBatch(input: {
@@ -698,13 +857,16 @@ export async function commitPeopleHouseholdImportBatch(input: {
     batchStatus = batch.status;
     dryRun = batch.dry_run;
 
-    const { data: rows } = await supabase
-      .from("import_batch_rows")
-      .select("normalized_payload")
-      .eq("batch_id", input.batchId)
-      .eq("church_id", input.churchId)
-      .in("classification", ["create", "update"])
-      .order("row_number", { ascending: true });
+    const rows = await fetchAllPages<{ normalized_payload: unknown }>((from, to) =>
+      supabase
+        .from("import_batch_rows")
+        .select("normalized_payload")
+        .eq("batch_id", input.batchId)
+        .eq("church_id", input.churchId)
+        .in("classification", ["create", "update"])
+        .order("row_number", { ascending: true })
+        .range(from, to),
+    );
 
     normalizedRows = (rows ?? [])
       .map((row) => normalizeBatchRowPayload((row as { normalized_payload: unknown }).normalized_payload))
@@ -719,31 +881,66 @@ export async function commitPeopleHouseholdImportBatch(input: {
   let updated = 0;
   let failed = 0;
 
-  for (const row of normalizedRows) {
+  const remember = (row: PeopleImportDryRunRow, profileId: string) => {
+    const memberNumber = normalize(row.memberNumber);
+    const email = normalizeEmail(row.email);
+    const phone = normalizePhone(row.phone);
+    const name = normalizeName(row.fullName);
+
+    if (memberNumber) {
+      existing.byMemberNumber.set(memberNumber, profileId);
+    }
+    if (email) {
+      existing.byEmail.set(email, profileId);
+    }
+    if (name) {
+      existing.byNamePhone.set(`${name.toLowerCase()}|${phone ?? ""}`, profileId);
+    }
+  };
+
+  const processOne = async (row: PeopleImportDryRunRow, familyIds?: Map<string, string>) => {
     try {
-      const result = await upsertProfileFromImportRow(input.churchId, row, existing);
+      const result = await upsertProfileFromImportRow(input.churchId, row, existing, familyIds);
       if (result.kind === "created") {
         created += 1;
       } else {
         updated += 1;
       }
-
-      const memberNumber = normalize(row.memberNumber);
-      const email = normalizeEmail(row.email);
-      const phone = normalizePhone(row.phone);
-      const name = normalizeName(row.fullName);
-
-      if (memberNumber) {
-        existing.byMemberNumber.set(memberNumber, result.profileId);
-      }
-      if (email) {
-        existing.byEmail.set(email, result.profileId);
-      }
-      if (name) {
-        existing.byNamePhone.set(`${name.toLowerCase()}|${phone ?? ""}`, result.profileId);
-      }
+      remember(row, result.profileId);
     } catch {
       failed += 1;
+    }
+  };
+
+  if (shouldUseLocalTenantFallback()) {
+    for (const row of normalizedRows) {
+      await processOne(row);
+    }
+  } else {
+    // A 5,000-row commit one row at a time took over three minutes, so new
+    // people go in chunked inserts and updates run a few at a time. Outcomes
+    // are still counted per row: a failed chunk is retried row by row.
+    const familyIds = await resolveFamilyIds(
+      input.churchId,
+      normalizedRows.map((row) => row.householdName),
+    );
+    const { creates, others } = splitCreates(normalizedRows, existing);
+
+    for (const chunk of chunkArray(creates, CREATE_CHUNK)) {
+      const inserted = await insertProfileChunk(input.churchId, chunk, familyIds);
+      if (inserted) {
+        created += chunk.length;
+        chunk.forEach((row, i) => remember(row, inserted[i]));
+      } else {
+        for (const row of chunk) {
+          await processOne(row, familyIds);
+        }
+      }
+    }
+
+    // Updates (and rows that matched a person created above) after the creates.
+    for (const group of chunkArray(others, UPDATE_CONCURRENCY)) {
+      await Promise.all(group.map((row) => processOne(row, familyIds)));
     }
   }
 

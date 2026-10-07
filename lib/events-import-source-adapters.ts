@@ -1,5 +1,7 @@
 import "server-only";
 
+import { pickField } from "@/lib/import-normalize";
+
 export type EventsImportSourceSystem = "generic_csv" | "planning_center" | "breeze";
 
 export type NormalizedEventImportRow = {
@@ -54,32 +56,22 @@ export const EVENT_SOURCE_ALIASES: Record<EventsImportSourceSystem, EventFieldAl
     title: ["name", "title"],
     description: ["description", "notes"],
     location: ["location", "venue"],
-    startsAt: ["start_date"],
-    endsAt: ["end_date"],
+    startsAt: ["start_date", "start_datetime"],
+    endsAt: ["end_date", "end_datetime"],
     capacity: ["capacity"],
     ministryName: ["category", "ministry"],
     approvalStatus: ["status"],
   },
 };
 
-export function pickEventField(row: Record<string, string>, aliases: string[]): string | null {
-  for (const alias of aliases) {
-    const value = row[alias];
-    if (value != null && value.trim().length > 0) return value;
-  }
-  return null;
+/** Every header alias the adapter reads for a source system; the rest are reported as ignored. */
+export function eventConsumedAliases(sourceSystem: EventsImportSourceSystem): string[] {
+  const aliases = EVENT_SOURCE_ALIASES[sourceSystem] ?? EVENT_SOURCE_ALIASES.generic_csv;
+  return Object.values(aliases).flat();
 }
 
-function pickFirst(row: Record<string, string>, aliases: string[]): string | null {
-  for (const alias of aliases) {
-    const value = row[alias];
-    if (value != null && value.trim().length > 0) {
-      return value;
-    }
-  }
-
-  return null;
-}
+/** Kept for callers that still import the old name; same lookup, tolerant header matching. */
+export const pickEventField = pickField;
 
 export function normalizeEventImportSourceRow(
   row: Record<string, string>,
@@ -88,10 +80,10 @@ export function normalizeEventImportSourceRow(
 ): NormalizedEventImportRow {
   const aliases = EVENT_SOURCE_ALIASES[sourceSystem] ?? EVENT_SOURCE_ALIASES.generic_csv;
 
-  const rawSourceId = pickFirst(row, aliases.sourceId);
+  const rawSourceId = pickField(row, aliases.sourceId);
   const sourceId = rawSourceId ?? `EVT-${rowIndex + 1}`;
 
-  const rawCapacity = pickFirst(row, aliases.capacity);
+  const rawCapacity = pickField(row, aliases.capacity);
   let capacity: number | null = null;
   if (rawCapacity != null) {
     const parsed = parseInt(rawCapacity, 10);
@@ -100,13 +92,13 @@ export function normalizeEventImportSourceRow(
 
   return {
     sourceId,
-    title: pickFirst(row, aliases.title) ?? "",
-    description: pickFirst(row, aliases.description),
-    location: pickFirst(row, aliases.location),
-    startsAt: pickFirst(row, aliases.startsAt),
-    endsAt: pickFirst(row, aliases.endsAt),
+    title: pickField(row, aliases.title) ?? "",
+    description: pickField(row, aliases.description),
+    location: pickField(row, aliases.location),
+    startsAt: pickField(row, aliases.startsAt),
+    endsAt: pickField(row, aliases.endsAt),
     capacity,
-    ministryName: pickFirst(row, aliases.ministryName),
-    approvalStatus: pickFirst(row, aliases.approvalStatus),
+    ministryName: pickField(row, aliases.ministryName),
+    approvalStatus: pickField(row, aliases.approvalStatus),
   };
 }

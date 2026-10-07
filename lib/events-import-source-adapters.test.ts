@@ -291,3 +291,19 @@ describe("normalizeEventImportSourceRow — breeze", () => {
     expect(row.description).toBe("Bring your Bible");
   });
 });
+
+describe("normalizeEventImportSourceRow — tolerant headers (G4.1)", () => {
+  it("matches Planning Center style headers with spaces and capitals", () => {
+    const row = normalizeEventImportSourceRow(
+      { "Event ID": "E-9", Name: "Harvest Supper", "Starts At": "09/26/2026 5:30 pm", "Ends At": "09/26/2026 8:00 pm" },
+      "planning_center",
+      0,
+    );
+    expect(row).toMatchObject({ sourceId: "E-9", title: "Harvest Supper", startsAt: "09/26/2026 5:30 pm", endsAt: "09/26/2026 8:00 pm" });
+  });
+
+  it("matches Breeze Start Date / start_datetime headers", () => {
+    expect(normalizeEventImportSourceRow({ Name: "A", "Start Date": "1" }, "breeze", 0).startsAt).toBe("1");
+    expect(normalizeEventImportSourceRow({ Name: "A", start_datetime: "2" }, "breeze", 0).startsAt).toBe("2");
+  });
+});

@@ -9,6 +9,12 @@ import {
 import type { EventsImportSourceSystem } from "@/lib/events-import-source-adapters";
 import { hasTenantBackendEnv } from "@/lib/supabase/tenant";
 
+// One header row plus this many records.
+const MAX_IMPORT_RECORDS = 5000;
+// next.config.ts caps server action bodies at 4 MB (Vercel allows 4.5 MB per
+// request); 3.5 MB of CSV text leaves headroom for serialization.
+const MAX_IMPORT_BYTES = 3.5 * 1024 * 1024;
+
 export async function runEventsImportDryRunAction(input: {
   sourceFilename: string;
   sourceSystem?: EventsImportSourceSystem;
@@ -25,12 +31,12 @@ export async function runEventsImportDryRunAction(input: {
   }
 
   const byteLength = Buffer.byteLength(input.csvText, "utf8");
-  if (byteLength > 5 * 1024 * 1024) {
-    throw new Error("CSV file size exceeds the maximum limit of 5MB.");
+  if (byteLength > MAX_IMPORT_BYTES) {
+    throw new Error("CSV file size exceeds the maximum limit of 3.5MB.");
   }
   const lines = input.csvText.split(/\r?\n/).filter((line) => line.trim().length > 0);
-  if (lines.length > 101) {
-    throw new Error("CSV import is limited to a maximum of 100 records per batch.");
+  if (lines.length > MAX_IMPORT_RECORDS + 1) {
+    throw new Error("CSV import is limited to a maximum of 5,000 records per batch.");
   }
 
   const actorProfileId = await resolveActiveChurchProfileId(session);
@@ -41,6 +47,7 @@ export async function runEventsImportDryRunAction(input: {
     sourceFilename: input.sourceFilename,
     sourceSystem: input.sourceSystem,
     csvText: input.csvText,
+    timeZone: session.appContext.church.timezone,
   });
 }
 

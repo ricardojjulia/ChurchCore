@@ -6,6 +6,24 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+- **G4.1: Planning Center and Breeze CSV exports import cleanly** (`test/import-fixtures-g4-1`; backend slice, UI follows; migration `20261008000000`; not yet merged). Owner-approved as one slice; brief and decisions are in the session scratchpad, not yet committed.
+
+  **Added**
+  - [`lib/import-normalize.ts`](lib/import-normalize.ts): tolerant header matching (case, spaces, punctuation), vendor dates (`mm/dd/yyyy`, `mm/dd/yy` with a pivot, `h:mm am`, ISO with or without an offset, read in the church time zone), content-derived source ids, multi-email cells, a BOM-, blank-row- and repeated-header-safe CSV parser.
+  - [`lib/import-profile-index.ts`](lib/import-profile-index.ts): Supabase-only, church-scoped, paginated lookup indexes (the old loaders silently stopped at 1,000 rows).
+  - Planning Center and Breeze adapters for people (First + Last name, Given Name fallback, Home/Work/Other email, Person ID / Breeze ID), giving (Donation amount, Received date, Remote ID, Processor ID, Anonymous), attendance (Breeze ID, Event Name + Date matched to an existing event, Anonymous head-counts skipped) and events.
+  - **Breeze Tags import**: a file with a `Tag Name` column adds people to groups (`Folder>>Tag`), matching an existing group by name case-insensitively or creating a closed `general` group, never duplicating a membership. Import type `group_memberships_csv`.
+  - Every dry run reports `ignoredColumns` (header names only, never cell values).
+  - Fixtures with confidence labels in [`tests/fixtures/imports/`](tests/fixtures/imports/README.md); journey [`tests/e2e/import-vendor-fixtures.spec.ts`](tests/e2e/import-vendor-fixtures.spec.ts); DB test [`tests/database/member-number-uniqueness.test.ts`](tests/database/member-number-uniqueness.test.ts).
+
+  **Changed**
+  - Migration `20261008000000` drops the platform-wide unique index on `profiles.member_number`; the per-church index stays, so two churches can import exports whose ids collide.
+  - The per-batch cap is 5,000 records (was 100) in all five import actions. A people row whose member number belongs to someone with a different email is rejected instead of overwriting them.
+  - Attendance rows whose person is not matched are now skipped with a reason (they were classified `create` and then failed at commit because `attendance.profile_id` is NOT NULL). Date errors now say "use YYYY-MM-DD or mm/dd/yyyy".
+  - Commit now reads all batch rows (it stopped at 1,000) and dry runs insert staging rows in chunks of 500.
+  - Server action body limit set to 4 MB in `next.config.ts` (Vercel caps requests at 4.5 MB; Next defaults to 1 MB); the import actions check 3.5 MB of CSV text.
+  - A blank cell on a re-import no longer erases stored values: people (email, phone, member number, household), giving (donor, email, fund, note), groups (category, description, leader), events (description, location, capacity, ministry) and attendance (person, event).
+  - People commit inserts new people and households in chunks of 500 (5,000 rows: 188 s to 1.9 s locally); updates run 10 at a time.
 - **T1a: giving, finance and communications untested exports at zero; finance writes no longer report success when the database refused them; budget input validation** (`test/untested-exports-t1a`, `fd75b4e`; no PR yet, CI not run; no migration). Council skipped under the `improve-software.md` §0 exception (tests plus small single-module fixes). Meets **milestone M3** on merge.
 
   **Added**
