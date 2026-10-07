@@ -21,6 +21,11 @@ import {
 import { runPeopleImportDryRunAction } from "@/app/app/church-admin/people/import/actions";
 import { commitPeopleImportBatchAction } from "@/app/app/church-admin/people/import/actions";
 import { ApplicationShell } from "@/components/application/app-shell";
+import {
+  IMPORT_FILE_HINT,
+  IgnoredColumns,
+  ImportCsvFileInput,
+} from "@/components/application/church-admin-import-intake";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { PeopleImportCommitResult, PeopleImportDryRunResult } from "@/lib/people-import-dry-run";
 import type { ImportSourceSystem } from "@/lib/people-import-source-adapters";
@@ -141,6 +146,9 @@ export function ChurchAdminPeopleImportWorkspace({
             <Text size="sm" c="dimmed">
               Required columns: household_name, full_name. Optional: email, phone, member_number.
             </Text>
+            <Text size="xs" c="dimmed">
+              {IMPORT_FILE_HINT}
+            </Text>
             <TextInput
               label="Source filename"
               value={sourceFilename}
@@ -205,6 +213,7 @@ export function ChurchAdminPeopleImportWorkspace({
               </Paper>
             )}
 
+            <ImportCsvFileInput onText={setCsvText} onFilename={setSourceFilename} />
             <Textarea
               label="CSV content"
               value={csvText}
@@ -239,6 +248,7 @@ export function ChurchAdminPeopleImportWorkspace({
               <Text size="sm" c="dimmed">
                 Dry run batch {result.batchId} captured in import staging tables.
               </Text>
+              <IgnoredColumns columns={result.ignoredColumns} />
               <Group justify="space-between">
                 <Text size="sm" c="dimmed">
                   Commit will only apply rows marked create/update.

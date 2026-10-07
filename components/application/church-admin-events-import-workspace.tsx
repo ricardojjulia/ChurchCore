@@ -21,6 +21,11 @@ import {
 import { commitEventsImportBatchAction } from "@/app/app/church-admin/events/import/actions";
 import { runEventsImportDryRunAction } from "@/app/app/church-admin/events/import/actions";
 import { ApplicationShell } from "@/components/application/app-shell";
+import {
+  IMPORT_FILE_HINT,
+  IgnoredColumns,
+  ImportCsvFileInput,
+} from "@/components/application/church-admin-import-intake";
 import type { ChurchAppSession } from "@/lib/auth";
 import type {
   EventsImportCommitResult,
@@ -124,6 +129,9 @@ export function ChurchAdminEventsImportWorkspace({
               Required columns: source_id, title, starts_at, ends_at. Optional: description,
               location, capacity, ministry_name, status.
             </Text>
+            <Text size="xs" c="dimmed">
+              {IMPORT_FILE_HINT}
+            </Text>
             <TextInput
               label="Source filename"
               value={sourceFilename}
@@ -141,6 +149,7 @@ export function ChurchAdminEventsImportWorkspace({
                 { value: "breeze", label: "Breeze export" },
               ]}
             />
+            <ImportCsvFileInput onText={setCsvText} onFilename={setSourceFilename} />
             <Textarea
               label="CSV content"
               value={csvText}
@@ -177,6 +186,7 @@ export function ChurchAdminEventsImportWorkspace({
               <Text size="sm" c="dimmed">
                 Dry run batch {result.batchId} captured in import staging tables.
               </Text>
+              <IgnoredColumns columns={result.ignoredColumns} />
               <Group justify="space-between">
                 <Text size="sm" c="dimmed">
                   Commit will only apply rows marked create/update.
