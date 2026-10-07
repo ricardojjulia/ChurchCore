@@ -145,7 +145,7 @@ Infrastructure break-even is ~50 churches on the Growth tier. $18K MRR profit is
 
 ## 5. Go-to-Market Readiness
 
-A demo environment with seeded accounts for all five roles exists (see `docs/runbooks/` and `HOWTO.md`; the demo URL is not re-verified in this refresh). The buyer-facing overview and security/privacy story are in `docs/buyer/`. Import covers people, households, groups, events, attendance and giving with dry-run preview; incumbent-format fixtures and reconciliation (G4.1, G4.2) are what remain before migration counts as closed.
+The app is live at [www.churchcore.io](https://www.churchcore.io). The same production deployment also answers at `church-core-ops.vercel.app` and carries seeded demo accounts for all five roles (credentials in the [README](../README.md#-try-the-demo) and `HOWTO.md`). The buyer-facing overview and security/privacy story are in `docs/buyer/`. Import covers people, households, groups, events, attendance and giving with dry-run preview; incumbent-format fixtures and reconciliation (G4.1, G4.2) are what remain before migration counts as closed.
 
 The retired "first uncoached external evaluator session" gate is no longer an MVP criterion (`DEVELOPMENT_PLAN.md` §0.1). The path to release is the remaining Must rows, the whole-app Council re-baseline plus Testing Council run (R1, M5), and the release checklist (R2). Paying customers and brand recognition remain distribution questions the MVP does not answer.
 
