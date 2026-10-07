@@ -25,7 +25,17 @@ const startedAt = new Date();
  * until the page has settled to one before interacting.
  */
 async function settled(page: Page) {
+  // The count can read 1 before the duplicate appears (1 → 2 → 1), so wait for
+  // the network to go quiet first, then for a single input.
+  await page.waitForLoadState("networkidle");
   await expect(page.getByLabel("Search by contact or name")).toHaveCount(1);
+}
+
+/** Fills the search box, retrying while hydration briefly duplicates it. */
+async function search(page: Page, text: string) {
+  await expect(async () => {
+    await page.getByLabel("Search by contact or name").fill(text, { timeout: 1000 });
+  }).toPass({ timeout: 10_000 });
 }
 
 async function seed(contact: string, reason: string, notes: string) {
@@ -90,7 +100,7 @@ test.describe("church admin", () => {
   test("removes a seeded bounce with a reason, audited; locked rows cannot be removed", async ({ page }) => {
     await page.goto("/app/communications/suppressions");
     await settled(page);
-    await page.getByLabel("Search by contact or name").fill(TAG);
+    await search(page, TAG);
 
     const unsub = page.getByRole("row", { name: new RegExp(UNSUB_EMAIL) });
     await expect(unsub).toContainText("Unsubscribed (link or STOP)");
@@ -145,7 +155,7 @@ test.describe("pastor", () => {
   test("sees the list without add or remove controls", async ({ page }) => {
     await page.goto("/app/communications/suppressions");
     await settled(page);
-    await page.getByLabel("Search by contact or name").fill(TAG);
+    await search(page, TAG);
     await expect(page.getByRole("row", { name: new RegExp(UNSUB_EMAIL) })).toBeVisible();
     await expect(page.getByText("Add a suppression")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Remove/ })).toHaveCount(0);
