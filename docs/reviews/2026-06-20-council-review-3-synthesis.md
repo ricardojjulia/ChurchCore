@@ -17,7 +17,7 @@ The 4 council agents identified the following key areas of security compliance, 
 ## 2. ADR Mapping
 
 * **ADR 0012: Audit Log Retention Policy and Pruning Schedule** has been drafted and accepted. It documents database-level automated pruning routines and audit record data minimization criteria.
-  - File: [0012-audit-log-retention-and-pruning.md](file:///Users/rjulia/ChurchCore/docs/adr/0012-audit-log-retention-and-pruning.md)
+  - File: [0012-audit-log-retention-and-pruning.md](../../docs/adr/0012-audit-log-retention-and-pruning.md)
 
 ---
 

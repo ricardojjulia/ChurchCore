@@ -51,7 +51,7 @@ We verified that every route declared in navigation controllers points to an act
 
 ## 3. Link Consistency & Orphaned Handlers
 
-- **`attendance_records` Typo:** In [recipient-resolver.ts](file:///Users/rjulia/ChurchCore/lib/communications/recipient-resolver.ts), querying `attendance_records` results in a runtime error because the actual table name is `attendance`. This represents a critical orphaned handler path.
+- **`attendance_records` Typo:** In [recipient-resolver.ts](../../lib/communications/recipient-resolver.ts), querying `attendance_records` results in a runtime error because the actual table name is `attendance`. This represents a critical orphaned handler path.
 - **Typo Page Bundles:** The presence of `/controll` as a route directory causes unnecessary static bundling overhead. It should be removed from the pages directory and registered as a configuration redirect rule.
 
 ---

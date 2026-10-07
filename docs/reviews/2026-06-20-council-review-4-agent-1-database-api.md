@@ -13,7 +13,7 @@ The repository contains **80 database migrations** under `supabase/migrations/`.
 - **CREATE TABLE statements audited**: All tables are properly configured.
 - **RLS Status**: 100% of tenant schema tables containing a `church_id` column have Row Level Security (RLS) enabled. This is validated by `npm run audit:rls`.
 - **Audit Log Pruning (ADR 0012)**: 
-  - Added migration [20260714020000_audit_log_retention.sql](file:///Users/rjulia/ChurchCore/supabase/migrations/20260714020000_audit_log_retention.sql) defining the stored procedure `public.prune_audit_logs(retention_days)`.
+  - Added migration [20260714020000_audit_log_retention.sql](../../supabase/migrations/20260714020000_audit_log_retention.sql) defining the stored procedure `public.prune_audit_logs(retention_days)`.
   - Added standard `SECURITY DEFINER` and `search_path = public, pg_temp` constraints for robust application security.
 - **Orphaned / Vestigial Tables**:
   - `ccm_badge_print_jobs` (schema exists but has no active TypeScript model definitions in active modules).

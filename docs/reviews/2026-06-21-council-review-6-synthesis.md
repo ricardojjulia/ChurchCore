@@ -22,7 +22,7 @@ The 4 council agents reviewed the current codebase and reached consensus on the 
 ## 2. ADR Drafts
 
 The council recommends adopting the following ADR:
-- [ADR 0015: Schema View Verification, Communications Query Alignment, and Burnout Audit Logging](file:///Users/rjulia/ChurchCore/docs/adr/0015-schema-view-verification-and-recipient-resolver-alignment.md)
+- [ADR 0015: Schema View Verification, Communications Query Alignment, and Burnout Audit Logging](../../docs/adr/0015-schema-view-verification-and-recipient-resolver-alignment.md)
 
 ---
 
@@ -35,7 +35,7 @@ The council recommends adopting the following ADR:
 **Scope:** Re-route database selects from the non-existent `attendance_records` table to the canonical `attendance` table.  
 
 **Work:**
-1. Open [recipient-resolver.ts](file:///Users/rjulia/ChurchCore/lib/communications/recipient-resolver.ts).
+1. Open [recipient-resolver.ts](../../lib/communications/recipient-resolver.ts).
 2. Change `.from("attendance_records")` to `.from("attendance")`.
 3. Verify that all filter columns (`profile_id`, `checked_in_at`, `church_id`) are compatible with the columns defined in the `attendance` table.
 4. Run `npm run test` to verify test suites compile and pass successfully.
@@ -52,7 +52,7 @@ The council recommends adopting the following ADR:
 **Scope:** Update the schema alignment script to recognize SQL view declarations and ignore control plane tables.  
 
 **Work:**
-1. Open [check-schema-alignment.mjs](file:///Users/rjulia/ChurchCore/scripts/check-schema-alignment.mjs).
+1. Open [check-schema-alignment.mjs](../../scripts/check-schema-alignment.mjs).
 2. Add a parser matching `create or replace view` SQL patterns inside migrations:
    ```javascript
    const viewMatches = content.matchAll(

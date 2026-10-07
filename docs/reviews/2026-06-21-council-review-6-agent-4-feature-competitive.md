@@ -29,7 +29,7 @@ We assessed active system modules against the `DEVELOPMENT_PLAN.md` objectives:
 ## 2. Competitive Gaps & Mission Alignment
 
 ### Competitive Analysis vs. PCO & Breeze:
-- **Attendance Filtering:** PCO enables precise email dispatch to members who haven't attended within specific ranges. ChurchCore's communications engine implements this filter, but it will crash at runtime due to the `attendance_records` typo in [recipient-resolver.ts](file:///Users/rjulia/ChurchCore/lib/communications/recipient-resolver.ts). Fixing this is a high competitive priority.
+- **Attendance Filtering:** PCO enables precise email dispatch to members who haven't attended within specific ranges. ChurchCore's communications engine implements this filter, but it will crash at runtime due to the `attendance_records` typo in [recipient-resolver.ts](../../lib/communications/recipient-resolver.ts). Fixing this is a high competitive priority.
 - **Audit Records for Burnout Overrides:** A core tenet of the ChurchCore mission is volunteer care. In `volunteer-actions.ts`, schedulers can override sessional shift warning guidelines (burnout alerts) to schedule a member multiple weeks in a row. These overrides must write a security event log in `public.audit_log` so leaders can review volunteer workload metrics.
 
 ---
@@ -44,6 +44,6 @@ We assessed active system modules against the `DEVELOPMENT_PLAN.md` objectives:
 
 ## 4. Top 3 Strategic Challenges
 
-1. **Resolve Resolver Bug:** Change `attendance_records` query target to `attendance` in [recipient-resolver.ts](file:///Users/rjulia/ChurchCore/lib/communications/recipient-resolver.ts).
+1. **Resolve Resolver Bug:** Change `attendance_records` query target to `attendance` in [recipient-resolver.ts](../../lib/communications/recipient-resolver.ts).
 2. **Burnout Override Auditing:** Hook volunteer schedule bypasses to `logAuditEvent` to track consecutive shift scheduling actions.
 3. **Refactor Schema Alignment checks:** Update `check-schema-alignment.mjs` to properly identify Postgres views and ignore control plane tables, preventing false test failures.

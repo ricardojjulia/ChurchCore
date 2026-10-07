@@ -13,7 +13,7 @@ We analyzed the `supabase/migrations/` schema definitions:
 - **Row Level Security (RLS) Coverage:** **100%**. All 103 tables have RLS enabled and successfully passed `npm run audit:rls`.
 - **Anomalies and Mismatches (check:schema analysis):**
   - **Phantom Tables (in code, not in migrations):**
-    - `attendance_records`: Referenced in [recipient-resolver.ts](file:///Users/rjulia/ChurchCore/lib/communications/recipient-resolver.ts). In migrations, the database reuses the `attendance` table instead of creating a duplicate `attendance_records` table. This is a critical runtime bug that will fail if a user tries to resolve recipients by attendance.
+    - `attendance_records`: Referenced in [recipient-resolver.ts](../../lib/communications/recipient-resolver.ts). In migrations, the database reuses the `attendance` table instead of creating a duplicate `attendance_records` table. This is a critical runtime bug that will fail if a user tries to resolve recipients by attendance.
     - `burnout_category_counts`, `discipleship_velocity`, and `member_directory`: Identified as phantoms because `check-schema-alignment.mjs` only matches `create table` syntax and misses `create or replace view`. These are legitimate database views.
     - `demo_feedback`: A control-plane table dropped from the tenant migration registry to enforce clean isolation, but still referenced by active control-plane routines.
 
@@ -56,7 +56,7 @@ The demo seed dataset defined in `scripts/seed-demo.mjs` and SQL migration seeds
 
 ## 5. Top 5 Database & API Gaps
 
-1. **Resolve `attendance_records` Typo:** Update [recipient-resolver.ts](file:///Users/rjulia/ChurchCore/lib/communications/recipient-resolver.ts) to query the real `attendance` table.
+1. **Resolve `attendance_records` Typo:** Update [recipient-resolver.ts](../../lib/communications/recipient-resolver.ts) to query the real `attendance` table.
 2. **Enhance Schema Checker:** Update `check-schema-alignment.mjs` to parse and recognize Postgres Views (`create or replace view`), eliminating false-positive checks.
 3. **Move Typo Redirects to config:** Deprecate `/controll` route directory and register it as a Next.js redirect block in configuration.
 4. **Seed Audit Data:** Add mock audit logs in `seed-demo.mjs` to improve staging testability for pruning schedules.

@@ -22,7 +22,7 @@ The follow-up system requires adding two public Next.js page routes under the po
 
 ## 2. Link Generation & Template Coordination
 
-- **Reminder Integration:** In `sendVolunteerReminderAction` inside [volunteer-actions.ts](file:///Users/rjulia/ChurchCore/app/app/volunteer-actions.ts), if the channel is `email` or `sms`, the system must generate the token and construct the URL:
+- **Reminder Integration:** In `sendVolunteerReminderAction` inside [volunteer-actions.ts](../../app/app/volunteer-actions.ts), if the channel is `email` or `sms`, the system must generate the token and construct the URL:
   ```
   ${process.env.NEXT_PUBLIC_SITE_URL}/portal/volunteer/confirm/${token}
   ```

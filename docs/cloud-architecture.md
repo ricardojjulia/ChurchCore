@@ -92,11 +92,13 @@ This means every church that goes live adds one $25/month Supabase project to yo
 
 - **What:** A single Supabase Pro project that stores only routing, billing, and admin data
 - **Tables stored here:** `tenants`, `tenant_connections`, `platform_admins`, `church_memberships`
-- **Tables NOT stored here:** All church operational data (profiles, CCM, finance, ministry) — this lives in each church's own project
+- **Tables NOT stored here:** All church operational data (profiles, CCM, finance, ministry). It lives in the shared tenant database ([ADR 0028](adr/0028-shared-tenant-database-layered-isolation.md)).
 - **Cost:** $25/month flat regardless of tenant count
 - **Region:** US East (default) unless primary user base is elsewhere
 
-### Per-Tenant Databases — One Supabase Project Per Church
+### Per-Tenant Databases — One Supabase Project Per Church (superseded)
+
+> **Superseded by [ADR 0028](adr/0028-shared-tenant-database-layered-isolation.md) (2026-10-07).** ChurchCore runs **one shared tenant database**. Every church is isolated by `church_id` and row-level security, with layered separation on top ([tenant-data-segmentation.md](tenant-data-segmentation.md)). A dedicated project for one church is not built. ADR 0002 still allows it later, for data residency or an enterprise requirement, under its own ADR. The section below is kept as the original recommendation, for history.
 
 - **What:** One Supabase project per church, provisioned at onboarding
 - **Contains:** All church data — profiles, CCM sessions, financial records, ministry data, audit logs

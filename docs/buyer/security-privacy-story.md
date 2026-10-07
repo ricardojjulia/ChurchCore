@@ -8,9 +8,13 @@
 
 ## Your Data Stays Yours
 
-Every church on ChurchCore runs in a completely separate, isolated environment. Your member records, giving history, children's files, and pastoral notes are scoped to your church account and cannot be read, accessed, or combined with any other church's data — ever.
+Every record on ChurchCore belongs to exactly one church. Your member records, giving history, children's files and pastoral notes are tagged to your church, and the database itself refuses any request from another church's account to read or change them.
 
-This is not a software policy that could be misconfigured. It is enforced at the database level for every table that holds your data. Each record is tagged to your church, and the system rejects any query that would return data across that boundary. If a technical problem ever occurred with another church's account, it could not expose your records.
+This separation is enforced inside the database for every table that holds your data, not just in the app's screens, and an automated check blocks any change that would leave a church table unprotected. On top of that:
+
+- ChurchCore's own administrative systems run in a separate database from church data.
+- The most sensitive pastoral notes are encrypted.
+- Every change by ChurchCore staff is logged.
 
 Your data is not sold, shared with advertisers, or used to train third-party AI systems. ChurchCore is a software tool — you are the customer, not the product.
 

@@ -45,7 +45,7 @@ Current capabilities on that route:
 ## Current Constraints
 
 - No delete flow yet for notes or assignments
-- No field-level encryption yet
+- Field-level encryption is in place: `pastoral_notes.content`, `care_assignments.summary` and elder-council document bodies are encrypted at rest with AES-256-GCM (`lib/crypto/pastoral.ts`, key `PASTORAL_ENCRYPTION_KEY`). Legacy plaintext is migrated with `scripts/backfill-pastoral-encryption.mjs` (see `docs/setup/production-deployment.md`).
 - No elder-shared discernment model yet
 - No assignment routing to multiple pastors yet
 - No notifications or reminders yet

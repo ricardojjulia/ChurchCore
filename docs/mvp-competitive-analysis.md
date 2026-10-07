@@ -92,7 +92,7 @@ The project tracks four gate levels via a weekly go/no-go scorecard. Current sta
 
 **Two-adult rule enforcement.** ChurchCore blocks session opens when a room is not two-adult covered and requires a documented override reason. No competitor enforces this at the database layer.
 
-**Per-tenant Supabase isolation.** Each church runs in a completely isolated database. Cross-tenant data exposure is architecturally impossible, not just policy-controlled. Competitors use shared schemas. This is the claim church IT reviewers and denominational compliance officers will care about most.
+**Database-enforced tenant isolation.** Churches share one tenant database, and every church table is isolated by `church_id` with PostgreSQL row-level security enforced by the database engine, not just by application code. A CI audit (`npm run audit:rls`) blocks any church table without RLS. It is layered with a separate control-plane database, church-scoped server writes, privileged functions that take their actor only from the signed session, and AES-256-GCM encryption of pastoral fields ([ADR 0028](adr/0028-shared-tenant-database-layered-isolation.md)). This is the claim church IT reviewers and denominational compliance officers will care about most, and it is accurate as stated: it is isolation by enforced policy in a shared database, not separate databases per church.
 
 **Audit-append-only logs.** Consent logs, giving records, and role-sensitive actions are append-only. There is always a reconstructable record even after personnel changes.
 

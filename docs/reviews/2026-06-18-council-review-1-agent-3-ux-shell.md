@@ -16,7 +16,7 @@
 
 ## 2. Loading & Empty States
 
-* **Dashboard & Modals**: Tables handle empty states cleanly. For example, [page.tsx](file:///Users/rjulia/ChurchCore/app/hq/page.tsx#L653-L658) displays a single spanned table cell message `"No tasks found."` if the array length is zero.
+* **Dashboard & Modals**: Tables handle empty states cleanly. For example, [page.tsx](../../app/hq/page.tsx#L653-L658) displays a single spanned table cell message `"No tasks found."` if the array length is zero.
 * **Data Loaders**: Utilizes Mantine's `<Loader color="teal" />` component during asynchronous page renders.
 * **Gaps**: When lists are empty, there are no call-to-action (CTA) buttons suggesting the user add their first item, leaving pages visually stark.
 

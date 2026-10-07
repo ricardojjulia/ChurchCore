@@ -3,7 +3,7 @@
 * **Status:** Accepted
 * **Date:** 2026-06-18
 * **Authors:** Antigravity (Gemini Software Factory)
-* **Decisions:** [20260713000000_hq.sql](file:///Users/rjulia/ChurchCore/supabase/migrations/20260713000000_hq.sql), [route.ts](file:///Users/rjulia/ChurchCore/app/api/ai/route.ts), [page.tsx](file:///Users/rjulia/ChurchCore/app/hq/page.tsx)
+* **Decisions:** [20260713000000_hq.sql](../../supabase/migrations/20260713000000_hq.sql), [route.ts](../../app/api/ai/route.ts), [page.tsx](../../app/hq/page.tsx)
 
 ---
 

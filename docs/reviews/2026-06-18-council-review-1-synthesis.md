@@ -18,7 +18,7 @@ The 4 council agents independently flagged the following architectural and UX ga
 ## 2. ADR Mapping
 
 * **ADR 0010: Project HQ Governance Architecture, Role-Based RLS Helper, and PII-Scrubbed AI Proxy** has been drafted and accepted. It documents the RLS configuration, access control mapping rules, and PII protection bounds.
-  * File: [0010-project-hq-governance-architecture.md](file:///Users/rjulia/ChurchCore/docs/adr/0010-project-hq-governance-architecture.md)
+  * File: [0010-project-hq-governance-architecture.md](../../docs/adr/0010-project-hq-governance-architecture.md)
 
 ---
 

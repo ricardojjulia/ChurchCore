@@ -3,7 +3,7 @@
 * **Status:** Accepted
 * **Date:** 2026-06-19
 * **Authors:** Antigravity (Gemini Software Factory)
-* **Decisions:** [2026-06-19-council-review-2-synthesis.md](file:///Users/rjulia/ChurchCore/docs/reviews/2026-06-19-council-review-2-synthesis.md)
+* **Decisions:** [2026-06-19-council-review-2-synthesis.md](../../docs/reviews/2026-06-19-council-review-2-synthesis.md)
 
 ---
 
