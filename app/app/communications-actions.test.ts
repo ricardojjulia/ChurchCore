@@ -91,6 +91,7 @@ import {
   broadcastMessageAction,
   cancelScheduledMessageAction,
   composeAndSendMessageAction,
+  getCommunicationDeliveryEventsAction,
   getMessageAnalyticsAction,
   listCommunicationLogsAction,
   retryCommunicationAction,
@@ -1264,5 +1265,143 @@ describe("removeSuppressionAction (S11)", () => {
       error: expect.stringMatching(/removed and the removal was recorded.*detailed audit entry.*platform team/),
     });
     errorSpy.mockRestore();
+  });
+});
+
+describe("T1a: getCommunicationDeliveryEventsAction", () => {
+  const eventRow = {
+    id: "evt-1",
+    communication_log_id: "log-1",
+    provider: "resend",
+    channel: "email",
+    event_type: "bounced",
+    status: "failed",
+    provider_event_id: "pe-1",
+    provider_message_id: "pm-1",
+    recipient_contact: "a@example.org",
+    reason: "mailbox full",
+    occurred_at: "2026-01-02T10:00:00.000Z",
+    created_at: "2026-01-02T10:00:01.000Z",
+  };
+
+  function sessionFor(roleId: string, source: string = "supabase") {
+    return {
+      appContext: { roleId, church: { id: "church-A" } },
+      churchProfileId: "church-profile-5",
+      profile: { id: "login-user-8" },
+      source,
+      userId: "login-user-8",
+    };
+  }
+
+  function makeEventsClient(result: { data: unknown; error: { message: string } | null }) {
+    const eq = vi.fn();
+    const select = vi.fn();
+    const order = vi.fn(async () => result);
+    const builder = { select, eq, order };
+    select.mockReturnValue(builder);
+    eq.mockReturnValue(builder);
+    const from = vi.fn(() => builder);
+    return { client: { from }, from, select, eq, order };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+    hasTenantBackendEnvMock.mockReturnValue(true);
+    requireChurchSessionMock.mockResolvedValue(sessionFor("church-admin"));
+  });
+
+  it.each(["pastor", "church-admin", "secretary"])("allows %s and requires the /app/pastor session", async (role) => {
+    requireChurchSessionMock.mockResolvedValue(sessionFor(role));
+    createTenantServerClientMock.mockResolvedValue(makeEventsClient({ data: [], error: null }).client);
+
+    await expect(getCommunicationDeliveryEventsAction({ logId: "log-1" })).resolves.toEqual([]);
+    expect(requireChurchSessionMock).toHaveBeenCalledWith("/app/pastor");
+  });
+
+  it.each(["ministry-leader", "member"])("denies %s before any query runs", async (role) => {
+    requireChurchSessionMock.mockResolvedValue(sessionFor(role));
+
+    await expect(getCommunicationDeliveryEventsAction({ logId: "log-1" })).rejects.toThrow(
+      "Only pastors and church administrators may review delivery events.",
+    );
+    expect(createTenantServerClientMock).not.toHaveBeenCalled();
+    expect(queryTenantLocalDbMock).not.toHaveBeenCalled();
+  });
+
+  it("propagates an authentication failure without querying", async () => {
+    requireChurchSessionMock.mockRejectedValue(new Error("NEXT_REDIRECT"));
+    await expect(getCommunicationDeliveryEventsAction({ logId: "log-1" })).rejects.toThrow("NEXT_REDIRECT");
+    expect(createTenantServerClientMock).not.toHaveBeenCalled();
+  });
+
+  it("filters by the session church and the requested log, newest first, and maps rows (Supabase)", async () => {
+    const q = makeEventsClient({ data: [eventRow], error: null });
+    createTenantServerClientMock.mockResolvedValue(q.client);
+
+    const result = await getCommunicationDeliveryEventsAction({ logId: "log-1" });
+
+    expect(q.from).toHaveBeenCalledWith("communication_delivery_events");
+    expect(q.eq).toHaveBeenCalledWith("church_id", "church-A");
+    expect(q.eq).toHaveBeenCalledWith("communication_log_id", "log-1");
+    expect(q.order).toHaveBeenCalledWith("occurred_at", { ascending: false });
+    expect(result).toEqual([
+      {
+        id: "evt-1",
+        communicationLogId: "log-1",
+        provider: "resend",
+        channel: "email",
+        eventType: "bounced",
+        status: "failed",
+        providerEventId: "pe-1",
+        providerMessageId: "pm-1",
+        recipientContact: "a@example.org",
+        reason: "mailbox full",
+        occurredAt: "2026-01-02T10:00:00.000Z",
+        createdAt: "2026-01-02T10:00:01.000Z",
+      },
+    ]);
+  });
+
+  it("scopes to the session church even when the log id belongs to another church (cross-church yields empty)", async () => {
+    const q = makeEventsClient({ data: [], error: null });
+    createTenantServerClientMock.mockResolvedValue(q.client);
+
+    const result = await getCommunicationDeliveryEventsAction({ logId: "log-of-church-B" });
+
+    expect(result).toEqual([]);
+    expect(q.eq).toHaveBeenCalledWith("church_id", "church-A");
+    expect(q.eq).not.toHaveBeenCalledWith("church_id", "church-B");
+  });
+
+  it("returns an empty list on a database error rather than leaking it", async () => {
+    createTenantServerClientMock.mockResolvedValue(
+      makeEventsClient({ data: null, error: { message: "boom" } }).client,
+    );
+    await expect(getCommunicationDeliveryEventsAction({ logId: "log-1" })).resolves.toEqual([]);
+  });
+
+  it("returns an empty list when the session is not Supabase-backed or no backend is configured", async () => {
+    requireChurchSessionMock.mockResolvedValue(sessionFor("church-admin", "demo"));
+    await expect(getCommunicationDeliveryEventsAction({ logId: "log-1" })).resolves.toEqual([]);
+
+    requireChurchSessionMock.mockResolvedValue(sessionFor("church-admin"));
+    hasTenantBackendEnvMock.mockReturnValue(false);
+    await expect(getCommunicationDeliveryEventsAction({ logId: "log-1" })).resolves.toEqual([]);
+    expect(createTenantServerClientMock).not.toHaveBeenCalled();
+  });
+
+  it("uses a parameterised, church-scoped query on the local fallback", async () => {
+    shouldUseLocalTenantFallbackMock.mockReturnValue(true);
+    queryTenantLocalDbMock.mockResolvedValue({ rows: [eventRow] });
+
+    const result = await getCommunicationDeliveryEventsAction({ logId: "log-1" });
+
+    expect(queryTenantLocalDbMock).toHaveBeenCalledWith(
+      expect.stringMatching(/where church_id = \$1\s+and communication_log_id = \$2/),
+      ["church-A", "log-1"],
+    );
+    expect(result[0]).toMatchObject({ id: "evt-1", eventType: "bounced", reason: "mailbox full" });
   });
 });

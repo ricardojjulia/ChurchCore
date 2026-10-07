@@ -211,12 +211,17 @@ export async function postJournalAction(journalId: string): Promise<void> {
     );
   } else {
     const supabase = await createTenantServerClient();
-    await supabase
+    const { data, error } = await supabase
       .from("finance_journals")
       .update({ status: "posted", posted_by: profileId, posted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq("id", journalId)
       .eq("church_id", churchId)
-      .eq("status", "draft");
+      .eq("status", "draft")
+      .select("id");
+    // A write whose error or row count is ignored reports success even when
+    // RLS, a constraint or a stale status stopped it (unchecked-write rule).
+    if (error) throw new Error(error.message);
+    if (!data?.length) throw new Error("Journal not found, or it is no longer a draft.");
   }
 
   revalidatePath("/app/church-admin/finance/journals");
@@ -242,7 +247,7 @@ export async function voidJournalAction(journalId: string): Promise<void> {
     );
   } else {
     const supabase = await createTenantServerClient();
-    await supabase
+    const { data, error } = await supabase
       .from("finance_journals")
       .update({
         status: "voided",
@@ -251,7 +256,10 @@ export async function voidJournalAction(journalId: string): Promise<void> {
         updated_at: new Date().toISOString(),
       })
       .eq("id", journalId)
-      .eq("church_id", churchId);
+      .eq("church_id", churchId)
+      .select("id");
+    if (error) throw new Error(error.message);
+    if (!data?.length) throw new Error("Journal not found.");
   }
 
   revalidatePath("/app/church-admin/finance/journals");
@@ -271,12 +279,15 @@ export async function deleteJournalDraftAction(journalId: string): Promise<void>
     );
   } else {
     const supabase = await createTenantServerClient();
-    await supabase
+    const { data, error } = await supabase
       .from("finance_journals")
       .delete()
       .eq("id", journalId)
       .eq("church_id", churchId)
-      .eq("status", "draft");
+      .eq("status", "draft")
+      .select("id");
+    if (error) throw new Error(error.message);
+    if (!data?.length) throw new Error("Journal not found, or it is no longer a draft.");
   }
 
   revalidatePath("/app/church-admin/finance/journals");
@@ -293,6 +304,13 @@ export interface CreateBudgetInput {
 export async function createBudgetAction(input: CreateBudgetInput): Promise<{ id: string }> {
   const session = await requireChurchSession("/app/church-admin");
   if (session.appContext.roleId !== "church-admin") throw new Error("Unauthorized");
+
+  const name = (input.name ?? "").trim();
+  if (!name) throw new Error("A budget needs a name.");
+  if (!Number.isInteger(input.fiscalYear) || input.fiscalYear < 2000 || input.fiscalYear > 2100) {
+    throw new Error("Enter a valid fiscal year.");
+  }
+  input = { ...input, name };
 
   const churchId = session.appContext.church.id;
   const profileId = session.churchProfileId;
@@ -334,7 +352,19 @@ export async function upsertBudgetLinesAction(
 
   const churchId = session.appContext.church.id;
 
+  for (const line of lines) {
+    if (!line.accountId) throw new Error("Each budget line needs an account.");
+    if (!Number.isInteger(line.amountCents) || line.amountCents < 0) {
+      throw new Error("Budget amounts must be zero or more, in whole cents.");
+    }
+  }
+
   if (shouldUseLocalTenantFallback()) {
+    const owned = await queryTenantLocalDb<{ id: string }>(
+      `select id from public.finance_budgets where id = $1 and church_id = $2`,
+      [budgetId, churchId],
+    );
+    if (!owned.rows[0]) throw new Error("Budget not found.");
     for (const line of lines) {
       await queryTenantLocalDb(
         `insert into public.finance_budget_lines
@@ -349,6 +379,15 @@ export async function upsertBudgetLinesAction(
     }
   } else {
     const supabase = await createTenantServerClient();
+    // The budget must be this church's before any line is written for it.
+    const { data: budget, error: budgetError } = await supabase
+      .from("finance_budgets")
+      .select("id")
+      .eq("id", budgetId)
+      .eq("church_id", churchId)
+      .maybeSingle();
+    if (budgetError) throw new Error(budgetError.message);
+    if (!budget) throw new Error("Budget not found.");
     const rows = lines.map((l) => ({
       budget_id: budgetId,
       church_id: churchId,
@@ -356,7 +395,8 @@ export async function upsertBudgetLinesAction(
       amount_cents: l.amountCents,
       notes: l.notes ?? null,
     }));
-    await supabase.from("finance_budget_lines").upsert(rows, { onConflict: "budget_id,account_id" });
+    const { error } = await supabase.from("finance_budget_lines").upsert(rows, { onConflict: "budget_id,account_id" });
+    if (error) throw new Error(error.message);
   }
 
   revalidatePath(`/app/church-admin/finance/budgets/${budgetId}`);
