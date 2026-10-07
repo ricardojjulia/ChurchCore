@@ -2248,10 +2248,7 @@
       "tests": [
         "app/app/communications-actions.test.ts",
         "app/app/communications-compose-actions.test.ts"
-      ],
-      "untestedExports": {
-        "getCommunicationDeliveryEventsAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
-      }
+      ]
     },
     "app/app/daily-desk-actions.ts": {
       "module": "app/app/daily-desk-actions.ts",
@@ -2317,12 +2314,7 @@
       ],
       "tests": [
         "app/app/finance-actions.test.ts"
-      ],
-      "untestedExports": {
-        "createBudgetAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
-        "deleteJournalDraftAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
-        "upsertBudgetLinesAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
-      }
+      ]
     },
     "app/app/giving-actions.ts": {
       "module": "app/app/giving-actions.ts",
