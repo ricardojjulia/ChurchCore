@@ -271,6 +271,20 @@
         "tests/e2e/page-role-sweep.spec.ts"
       ]
     },
+    "/app/church-admin/children/kiosk": {
+      "path": "/app/church-admin/children/kiosk",
+      "file": "app/app/church-admin/children/kiosk/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "note": "Start page for the family self check-in kiosk (G2.2). requireChurchSession plus an inline church-admin check; startKioskAction repeats the check. Other roles are redirected to their home.",
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts"
+      ]
+    },
     "/app/church-admin/children/rooms": {
       "path": "/app/church-admin/children/rooms",
       "file": "app/app/church-admin/children/rooms/page.tsx",
@@ -2164,6 +2178,15 @@
         "app/app/church-admin/attendance/import/actions.test.ts"
       ]
     },
+    "app/app/church-admin/children/kiosk/actions.ts": {
+      "module": "app/app/church-admin/children/kiosk/actions.ts",
+      "exports": [
+        "startKioskAction"
+      ],
+      "tests": [
+        "app/app/church-admin/children/kiosk/actions.test.ts"
+      ]
+    },
     "app/app/church-admin/events/import/actions.ts": {
       "module": "app/app/church-admin/events/import/actions.ts",
       "exports": [
@@ -2344,6 +2367,16 @@
         "updateCouncilNoteAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
         "updateDiscernmentSessionStatusAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
       }
+    },
+    "app/app/family-checkin-code-actions.ts": {
+      "module": "app/app/family-checkin-code-actions.ts",
+      "exports": [
+        "getMyFamilyCheckinCodeAction",
+        "regenerateFamilyCheckinCodeAction"
+      ],
+      "tests": [
+        "app/app/family-checkin-code-actions.test.ts"
+      ]
     },
     "app/app/finance-actions.ts": {
       "module": "app/app/finance-actions.ts",
@@ -2547,6 +2580,19 @@
       ],
       "tests": [
         "app/give/actions.test.ts"
+      ]
+    },
+    "app/kiosk/children/actions.ts": {
+      "module": "app/kiosk/children/actions.ts",
+      "exports": [
+        "exitKioskAction",
+        "getKioskOptionsAction",
+        "kioskCheckinAction",
+        "lookupByCodeAction",
+        "lookupByPhoneAction"
+      ],
+      "tests": [
+        "app/kiosk/children/actions.test.ts"
       ]
     },
     "app/language-actions.ts": {

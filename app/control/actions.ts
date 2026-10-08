@@ -246,7 +246,8 @@ const TENANT_ERASURE_TABLES_ORDERED = [
   // Tier 1 — leaf / detail tables
   "account_requests", "ai_interactions", "burnout_alerts",
   "ccm_authorized_pickups", "ccm_badge_print_jobs", "ccm_checkin_sessions",
-  "ccm_custody_restrictions", "ccm_incidents", "ccm_public_session_attempts",
+  "ccm_custody_restrictions", "ccm_incidents", "ccm_kiosk_lookup_attempts",
+  "ccm_kiosk_sessions", "ccm_public_session_attempts",
   "ccm_session_enablement_overrides", "ccm_volunteer_assignments",
   "children_checkins", "children_sensitive_data",
   "communication_delivery_events", "communication_logs",
