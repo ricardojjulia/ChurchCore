@@ -15,7 +15,14 @@ export default async function ChurchAdminGivingImportPage() {
     redirect("/app/church-admin/giving");
   }
 
-  const recentImports = await listRecentImportBatches(session.appContext.church.id, ["giving_csv"], 20);
+  let recentImports: Awaited<ReturnType<typeof listRecentImportBatches>> = [];
+  let recentImportsFailed = false;
+  try {
+    recentImports = await listRecentImportBatches(session.appContext.church.id, ["giving_csv"], 20);
+  } catch {
+    recentImportsFailed = true;
+    console.error("giving import page: recent imports could not be loaded");
+  }
 
-  return <ChurchAdminGivingImportWorkspace session={session} recentImports={recentImports} />;
+  return <ChurchAdminGivingImportWorkspace session={session} recentImports={recentImports} recentImportsFailed={recentImportsFailed} />;
 }

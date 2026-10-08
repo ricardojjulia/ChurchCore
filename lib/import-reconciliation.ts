@@ -116,6 +116,8 @@ export type ReconciliationResult =
       /** Committed before row outcomes were recorded: counts from the old summary only. */
       state: "legacy";
       batch: ReconciliationBatch;
+      /** "never": committed before outcomes existed. "incomplete": recording was attempted but not completed. */
+      recording: "never" | "incomplete";
       summary: { created: number | null; updated: number | null; failed: number | null };
     }
   | {
@@ -238,6 +240,7 @@ export async function computeImportReconciliation(
     return {
       state: "legacy",
       batch,
+      recording: summary.outcomesRecorded === false ? "incomplete" : "never",
       summary: {
         created: numberOrNull(summary.created),
         updated: numberOrNull(summary.updated),
@@ -377,10 +380,24 @@ export async function computeImportReconciliation(
         currentCents += now.amount_cents;
         const stored = row.commit_snapshot?.stored;
         if (stored) {
-          const differences = differencesOf({
-            source: { amount_cents: stored.amount_cents, donated_at: stored.donated_at, fund: stored.fund },
-            stored: { amount_cents: now.amount_cents, donated_at: now.created_at, fund: now.fund_designation },
-          }).map((difference) => ({ field: difference.field, atImport: difference.source, now: difference.stored }));
+          const nowValues = { amount_cents: now.amount_cents, donated_at: now.created_at, fund: now.fund_designation };
+          const differences: ChangeDifference[] = differencesOf({ source: stored, stored: nowValues }).map((difference) => ({
+            field: difference.field,
+            atImport: difference.source,
+            now: difference.stored,
+          }));
+          // A value that was empty at commit but is filled in now is an edit too (unlike the import check,
+          // where a blank file value means "nothing to compare").
+          const pairs: Array<[ChangeDifference["field"], string | number | null | undefined, string | number | null]> = [
+            ["amount", stored.amount_cents, nowValues.amount_cents],
+            ["date", stored.donated_at, nowValues.donated_at],
+            ["fund", stored.fund, nowValues.fund],
+          ];
+          for (const [field, atImport, current] of pairs) {
+            if ((atImport === null || atImport === undefined) && current !== null && !differences.some((d) => d.field === field)) {
+              differences.push({ field, atImport: null, now: current });
+            }
+          }
           if (differences.length > 0) {
             changedSinceImport.push({ ...refOf(row), change: "edited", differences });
           }
@@ -430,6 +447,8 @@ export async function listRecentImportBatches(
     .select("id, created_at, source_filename, status, summary")
     .eq("church_id", churchId)
     .in("import_type", importTypes)
+    // A dry run that was never committed has no report; leave it out.
+    .in("status", ["committing", "committed", "failed"])
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) {

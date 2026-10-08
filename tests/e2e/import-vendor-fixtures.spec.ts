@@ -486,7 +486,8 @@ test("report: failed and not-attempted rows are mismatches; legacy and uncommitt
       )
     ).rows[0].id;
 
-  const forced = await seedBatch("forced-failure.csv", "committed", false, { outcomesRecorded: true, created: 0, updated: 0, failed: 1, mismatchCount: 2 });
+  // Outcomes can only be written while a batch is committing (a database trigger), so seed in that order.
+  const forced = await seedBatch("forced-failure.csv", "committing", false, { outcomesRecorded: true, created: 0, updated: 0, failed: 1, mismatchCount: 2 });
   await queryTenantDb(
     `insert into public.import_batch_rows (batch_id, church_id, row_number, raw_payload, normalized_payload, classification, reason, commit_outcome, commit_failure_reason)
      values
@@ -494,6 +495,10 @@ test("report: failed and not-attempted rows are mismatches; legacy and uncommitt
        ($1, $2, 2, '{}', '{"memberNumber":"E2E-F2"}', 'create', null, null, null),
        ($1, $2, 3, '{}', '{"memberNumber":"E2E-F3"}', 'skip', 'Duplicate row.', null, null)`,
     [forced, SEED_CHURCH_ID],
+  );
+  await queryTenantDb(
+    "update public.import_batches set status = 'committed', committed_at = now() where id = $1",
+    [forced],
   );
   await page.goto(`/app/church-admin/imports/${forced}`);
   await page.waitForLoadState("networkidle");

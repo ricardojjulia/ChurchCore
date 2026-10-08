@@ -15,7 +15,14 @@ export default async function ChurchAdminPeopleImportPage() {
     redirect(session.homePath);
   }
 
-  const recentImports = await listRecentImportBatches(session.appContext.church.id, ["people_households_csv"], 20);
+  let recentImports: Awaited<ReturnType<typeof listRecentImportBatches>> = [];
+  let recentImportsFailed = false;
+  try {
+    recentImports = await listRecentImportBatches(session.appContext.church.id, ["people_households_csv"], 20);
+  } catch {
+    recentImportsFailed = true;
+    console.error("people import page: recent imports could not be loaded");
+  }
 
-  return <ChurchAdminPeopleImportWorkspace session={session} recentImports={recentImports} />;
+  return <ChurchAdminPeopleImportWorkspace session={session} recentImports={recentImports} recentImportsFailed={recentImportsFailed} />;
 }

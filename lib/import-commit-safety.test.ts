@@ -57,6 +57,8 @@ function install(options: FakeOptions = {}) {
                   if (table === "import_batches" && (state.payload as { status?: string })?.status === "committing") {
                     result = { data: claimsLeft > 0 ? [{ id: "b1" }] : [], error: null };
                     claimsLeft -= 1;
+                  } else if (table === "import_batches") {
+                    result = { data: [{ id: "b1" }], error: null };
                   } else {
                     result = { data: Array.from({ length: options.updateRows ?? 1 }, () => ({ id: "row" })), error: null };
                   }

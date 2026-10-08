@@ -47,9 +47,11 @@ function truncateLabel(value: string): string {
 export function ChurchAdminGroupsImportWorkspace({
   session,
   recentImports,
+  recentImportsFailed = false,
 }: {
   session: ChurchAppSession;
   recentImports?: RecentImportBatch[];
+  recentImportsFailed?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [sourceFilename, setSourceFilename] = useState("groups.csv");
@@ -368,7 +370,7 @@ export function ChurchAdminGroupsImportWorkspace({
           </Paper>
         ) : null}
         <Paper withBorder radius="md" p="md">
-          <RecentImports imports={recentImports} timeZone={session.appContext.church.timezone} />
+          <RecentImports imports={recentImports} loadFailed={recentImportsFailed} timeZone={session.appContext.church.timezone} />
         </Paper>
       </Stack>
     </ApplicationShell>

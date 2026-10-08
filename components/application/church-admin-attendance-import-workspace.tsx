@@ -43,9 +43,11 @@ import type { AttendanceImportSourceSystem } from "@/lib/attendance-import-sourc
 export function ChurchAdminAttendanceImportWorkspace({
   session,
   recentImports,
+  recentImportsFailed = false,
 }: {
   session: ChurchAppSession;
   recentImports?: RecentImportBatch[];
+  recentImportsFailed?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [sourceFilename, setSourceFilename] = useState("attendance.csv");
@@ -330,7 +332,7 @@ export function ChurchAdminAttendanceImportWorkspace({
           </Paper>
         ) : null}
         <Paper withBorder radius="md" p="md">
-          <RecentImports imports={recentImports} timeZone={session.appContext.church.timezone} />
+          <RecentImports imports={recentImports} loadFailed={recentImportsFailed} timeZone={session.appContext.church.timezone} />
         </Paper>
       </Stack>
     </ApplicationShell>

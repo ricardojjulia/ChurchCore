@@ -12,7 +12,14 @@
 -- classification stay immutable. Bulk recording goes through a SECURITY
 -- INVOKER function, so RLS and the column grants apply to the caller.
 --
+-- A BEFORE INSERT OR UPDATE trigger (every role, no bypass) keeps the outcomes
+-- honest: they can be set only while the parent batch is 'committing', and an
+-- outcome that is already set can never change. A church admin therefore cannot
+-- rewrite a report after the commit.
+--
 -- Rollback:
+--   drop trigger if exists import_batch_rows_commit_outcome_guard on public.import_batch_rows;
+--   drop function if exists public.guard_import_row_commit_outcome();
 --   drop function if exists public.record_import_row_outcomes(uuid, jsonb);
 --   drop policy if exists "import_batch_rows_update_church_admin" on public.import_batch_rows;
 --   grant update on public.import_batch_rows to authenticated;
@@ -84,3 +91,42 @@ $$;
 
 revoke all on function public.record_import_row_outcomes(uuid, jsonb) from public, anon;
 grant execute on function public.record_import_row_outcomes(uuid, jsonb) to authenticated;
+
+create or replace function public.guard_import_row_commit_outcome()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_status text;
+  v_touches boolean;
+begin
+  if tg_op = 'INSERT' then
+    v_touches := new.commit_outcome is not null
+      or new.committed_record_id is not null
+      or new.commit_failure_reason is not null
+      or new.commit_snapshot is not null;
+  else
+    v_touches := new.commit_outcome is distinct from old.commit_outcome
+      or new.committed_record_id is distinct from old.committed_record_id
+      or new.commit_failure_reason is distinct from old.commit_failure_reason
+      or new.commit_snapshot is distinct from old.commit_snapshot;
+    if v_touches and old.commit_outcome is not null then
+      raise exception 'A recorded import row outcome cannot be changed.' using errcode = '42501';
+    end if;
+  end if;
+
+  if v_touches then
+    select status into v_status from public.import_batches where id = new.batch_id;
+    if v_status is distinct from 'committing' then
+      raise exception 'Import row outcomes can only be recorded while the batch is committing.' using errcode = '42501';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger import_batch_rows_commit_outcome_guard
+  before insert or update on public.import_batch_rows
+  for each row execute function public.guard_import_row_commit_outcome();

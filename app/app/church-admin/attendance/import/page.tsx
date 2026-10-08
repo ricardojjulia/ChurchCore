@@ -15,7 +15,14 @@ export default async function ChurchAdminAttendanceImportPage() {
     redirect("/app/church-admin/attendance");
   }
 
-  const recentImports = await listRecentImportBatches(session.appContext.church.id, ["attendance_csv"], 20);
+  let recentImports: Awaited<ReturnType<typeof listRecentImportBatches>> = [];
+  let recentImportsFailed = false;
+  try {
+    recentImports = await listRecentImportBatches(session.appContext.church.id, ["attendance_csv"], 20);
+  } catch {
+    recentImportsFailed = true;
+    console.error("attendance import page: recent imports could not be loaded");
+  }
 
-  return <ChurchAdminAttendanceImportWorkspace session={session} recentImports={recentImports} />;
+  return <ChurchAdminAttendanceImportWorkspace session={session} recentImports={recentImports} recentImportsFailed={recentImportsFailed} />;
 }

@@ -1,5 +1,7 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+
 import { requireChurchSession } from "@/lib/auth";
 import { resolveActiveChurchProfileId } from "@/lib/church-profile";
 import {
@@ -68,11 +70,16 @@ export async function commitEventsImportBatchAction(input: { batchId: string }) 
 
   const actorProfileId = await resolveActiveChurchProfileId(session);
 
-  return commitEventsImportBatch({
-    churchId: session.appContext.church.id,
-    actorProfileId,
-    batchId: input.batchId,
-    actorUserId: session.userId,
-    actorRole: session.appContext.roleId,
-  });
+  try {
+    return await commitEventsImportBatch({
+      churchId: session.appContext.church.id,
+      actorProfileId,
+      batchId: input.batchId,
+      actorUserId: session.userId,
+      actorRole: session.appContext.roleId,
+    });
+  } finally {
+    // Success or failure, Recent imports on this page now has a new row to show.
+    revalidatePath("/app/church-admin/events/import");
+  }
 }

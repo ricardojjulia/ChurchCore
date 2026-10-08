@@ -22,6 +22,9 @@ const {
   };
 });
 
+const { revalidatePathMock } = vi.hoisted(() => ({ revalidatePathMock: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+
 vi.mock("@/lib/auth", () => ({
   requireChurchSession: requireChurchSessionMock,
 }));
@@ -266,5 +269,36 @@ describe("commitEventsImportBatchAction", () => {
     ).rejects.toThrow("Tenant backend is required for import commit.");
 
     expect(commitEventsImportBatchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("commitEventsImportBatchAction revalidates Recent imports", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "church-admin", church: { id: "church-1" } },
+      source: "supabase",
+      userId: "user-1",
+    });
+    hasTenantBackendEnvMock.mockReturnValue(true);
+    resolveActiveChurchProfileIdMock.mockResolvedValue("profile-admin");
+  });
+
+  it("after a commit that succeeds", async () => {
+    commitEventsImportBatchMock.mockResolvedValue({ batchId: "batch-1", status: "committed" });
+    await commitEventsImportBatchAction({ batchId: "batch-1" });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/events/import");
+  });
+
+  it("and after a commit that throws", async () => {
+    commitEventsImportBatchMock.mockRejectedValue(new Error("boom"));
+    await expect(commitEventsImportBatchAction({ batchId: "batch-1" })).rejects.toThrow("boom");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/events/import");
+  });
+
+  it("but not when the caller is refused", async () => {
+    requireChurchSessionMock.mockResolvedValue({ appContext: { roleId: "pastor", church: { id: "church-1" } }, source: "supabase" });
+    await expect(commitEventsImportBatchAction({ batchId: "batch-1" })).rejects.toThrow();
+    expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 });

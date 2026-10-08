@@ -135,12 +135,22 @@ export function createOutcomeRecorder(churchId: string, batchId: string): Outcom
 
   const send = async (chunk: Array<Record<string, unknown>>) => {
     const supabase = await createTenantServerClient();
-    const { error } = await supabase.rpc("record_import_row_outcomes", {
+    const { data, error } = await supabase.rpc("record_import_row_outcomes", {
       p_batch_id: batchId,
       p_outcomes: chunk,
     });
     if (error) {
       console.error("[import-commit] could not record row outcomes", { churchId, batchId });
+      throw new Error("Unable to record the import row outcomes.");
+    }
+    // The function returns how many rows it recorded; fewer means some were refused or skipped.
+    if (data !== chunk.length) {
+      console.error("[import-commit] row outcomes recorded fewer rows than sent", {
+        churchId,
+        batchId,
+        expected: chunk.length,
+        actual: data,
+      });
       throw new Error("Unable to record the import row outcomes.");
     }
   };
@@ -218,8 +228,8 @@ export async function mergeBatchSummary(
   if (options.onlyStatus) {
     query = query.eq("status", options.onlyStatus);
   }
-  const { error } = await query;
-  if (error) {
+  const { data: updatedRows, error } = await query.select("id");
+  if (error || (options.onlyStatus && (!updatedRows || updatedRows.length === 0))) {
     throw new Error("Unable to update the import summary.");
   }
 }
@@ -244,7 +254,14 @@ export async function finishImportBatch(
   recorder: OutcomeRecorder,
   expectedRows: number,
 ): Promise<void> {
-  await recorder.flush();
+  // If the last flush is refused the batch still finishes, but it must not claim
+  // its outcomes were recorded: the report then shows the honest "not recorded" state.
+  let recorded = true;
+  try {
+    await recorder.flush();
+  } catch {
+    recorded = false;
+  }
   const notAttempted = Math.max(0, expectedRows - recorder.recordedCount);
   const now = new Date().toISOString();
   await mergeBatchSummary(
@@ -256,8 +273,8 @@ export async function finishImportBatch(
       created: totals.created,
       updated: totals.updated,
       failed: totals.failed,
-      outcomesRecorded: true,
-      mismatchCount: totals.failed + notAttempted + recorder.valueMismatches,
+      outcomesRecorded: recorded,
+      ...(recorded ? { mismatchCount: totals.failed + notAttempted + recorder.valueMismatches } : {}),
       ...(totals.failureReasons.length > 0 ? { failureReasons: totals.failureReasons.slice(0, 10) } : {}),
     },
     {
@@ -267,6 +284,7 @@ export async function finishImportBatch(
         committed_at: totals.status === "committed" ? now : null,
         failed_at: totals.status === "failed" ? now : null,
       },
+      onlyStatus: "committing",
     },
   );
 }
@@ -332,7 +350,9 @@ export async function runClaimedCommit<T>(
   const recorder = createOutcomeRecorder(input.churchId, input.batchId);
   try {
     const result = await run(recorder);
-    await recorder.flush();
+    // finishImportBatch already flushed and recorded whether that worked; a refusal
+    // here must not turn a finished commit into a failure.
+    await recorder.flush().catch(() => undefined);
     return result;
   } catch (error) {
     if (claimed) {
@@ -345,7 +365,7 @@ export async function runClaimedCommit<T>(
       const message = error instanceof Error ? error.message : "Import commit failed.";
       const unwritten = flushed ? await countUnwrittenRows(input.churchId, input.batchId) : null;
       await failImportBatch(input.churchId, input.batchId, message, {
-        outcomesRecorded: true,
+        outcomesRecorded: flushed,
         ...(unwritten !== null ? { mismatchCount: unwritten + recorder.valueMismatches } : {}),
       });
     }

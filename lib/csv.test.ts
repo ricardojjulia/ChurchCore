@@ -76,6 +76,15 @@ describe("buildImportReportCsv", () => {
     expect(csv).toContain("'-Fund");
   });
 
+  it("writes numbers as plain numbers, so a negative difference is not turned into text", () => {
+    const csv = buildImportReportCsv(
+      report({ giving: { sourceCents: 1000, writtenAtCommitCents: 1500, currentCents: 1500, differenceCents: -500 } }),
+    );
+    expect(csv.split("\n")).toContain("difference_usd,-5.00");
+    expect(csv).not.toContain("'-5.00");
+    expect(csv).toContain("\n2,G-1,create,written,,100.00,");
+  });
+
   it("omits giving columns and totals for other import types", () => {
     const csv = buildImportReportCsv(
       report({

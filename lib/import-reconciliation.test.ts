@@ -259,6 +259,28 @@ describe("computeImportReconciliation", () => {
     expect(queries.some((q) => q.table === "import_batch_rows")).toBe(false);
   });
 
+  it("says outcomes were not fully recorded when recording was attempted and failed", async () => {
+    install({ import_batches: () => ({ data: batchRow({ summary: { outcomesRecorded: false, created: 4 } }), error: null }) });
+    expect(await computeImportReconciliation(CHURCH, BATCH)).toMatchObject({ state: "legacy", recording: "incomplete" });
+    install({ import_batches: () => ({ data: batchRow({ summary: { created: 4 } }), error: null }) });
+    expect(await computeImportReconciliation(CHURCH, BATCH)).toMatchObject({ state: "legacy", recording: "never" });
+  });
+
+  it("reports a fund (or date) that was empty at commit but is filled in now as edited, while the import verdict stays clean", async () => {
+    const noFund = gift(2, 500, {
+      commit_snapshot: {
+        source: { amount_cents: 500, donated_at: null, fund: null },
+        stored: { amount_cents: 500, donated_at: "2026-09-06T17:00:00+00:00", fund: null },
+      },
+    });
+    install(givingHandlers([noFund], [donation(2, 500, { fund_designation: "Missions" })]));
+    const result = await computeImportReconciliation(CHURCH, BATCH);
+    expect(result).toMatchObject({ mismatchCount: 0 });
+    expect((result as { changedSinceImport: unknown[] }).changedSinceImport).toEqual([
+      { rowNumber: 2, sourceId: "G-2", change: "edited", differences: [{ field: "fund", atImport: null, now: "Missions" }] },
+    ]);
+  });
+
   it.each([
     ["committing", false],
     ["dry_run_completed", true],
@@ -308,6 +330,8 @@ describe("listRecentImportBatches", () => {
     expect(queries[0].eq.church_id).toBe(CHURCH);
     expect(queries[0].inn.import_type).toEqual(["groups_csv", "group_memberships_csv"]);
     expect(queries[0].limit).toBe(20);
+    // Dry runs that were never committed have no report and are not listed.
+    expect(queries[0].inn.status).toEqual(["committing", "committed", "failed"]);
   });
 
   it("throws when the read fails", async () => {

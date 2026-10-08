@@ -3,7 +3,12 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/application/app-shell", () => ({
-  ApplicationShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  ApplicationShell: ({ children, topActions }: { children: React.ReactNode; topActions?: React.ReactNode }) => (
+    <div>
+      {topActions}
+      {children}
+    </div>
+  ),
 }));
 
 import { ChurchAdminImportReport, type ReportPaging } from "@/components/application/church-admin-import-report";
@@ -141,10 +146,22 @@ describe("ChurchAdminImportReport", () => {
   });
 
   it("explains a legacy import without showing zeros", () => {
-    show({ state: "legacy", batch, summary: { created: 5, updated: 0, failed: 1 } });
+    show({ state: "legacy", recording: "never", batch, summary: { created: 5, updated: 0, failed: 1 } });
     expect(screen.getByText("Row-level outcomes were not recorded for this import")).toBeTruthy();
     expect(screen.queryByText("0 mismatches")).toBeNull();
     expect(screen.queryByRole("link", { name: /Download/ })).toBeNull();
+  });
+
+  it("says when recording was only partly completed", () => {
+    show({ state: "legacy", recording: "incomplete", batch, summary: { created: 5, updated: 0, failed: 1 } });
+    expect(screen.getByText("Row-level outcomes were not fully recorded for this import")).toBeTruthy();
+    expect(screen.queryByText("Row-level outcomes were not recorded for this import")).toBeNull();
+  });
+
+  it("links back to the importer for the batch type and uses human status labels", () => {
+    show({ state: "not_available", batch: { ...batch, importType: "group_memberships_csv", status: "dry_run_completed", committedAt: null } });
+    expect(screen.getByRole("link", { name: /Back to Group memberships/ }).getAttribute("href")).toBe("/app/church-admin/groups/import");
+    expect(screen.getByText(/Status: Not committed yet\./)).toBeTruthy();
   });
 
   it("says an uncommitted import has no report yet", () => {

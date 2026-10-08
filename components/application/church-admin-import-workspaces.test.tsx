@@ -38,6 +38,7 @@ vi.mock("@/app/app/church-admin/events/import/actions", () => ({
 
 import { ChurchAdminAttendanceImportWorkspace } from "@/components/application/church-admin-attendance-import-workspace";
 import { ChurchAdminPeopleImportWorkspace } from "@/components/application/church-admin-people-import-workspace";
+import { ChurchAdminGivingImportWorkspace } from "@/components/application/church-admin-giving-import-workspace";
 import { ChurchAdminGroupsImportWorkspace } from "@/components/application/church-admin-groups-import-workspace";
 import { ImportCsvFileInput } from "@/components/application/church-admin-import-intake";
 import type { ChurchAppSession } from "@/lib/auth";
@@ -132,6 +133,30 @@ describe("import workspaces", () => {
     const link = await screen.findByRole("link", { name: "View reconciliation report" }, { timeout: 5000 });
     expect(link.getAttribute("href")).toBe("/app/church-admin/imports/b9");
   }, 15_000);
+
+  it("labels recent import statuses and handles a failed load", () => {
+    const base = { createdAt: "2026-10-07T15:00:00Z", legacy: false };
+    wrap(
+      <ChurchAdminGivingImportWorkspace
+        session={session}
+        recentImports={[
+          { ...base, id: "a", sourceFilename: "a.csv", status: "committing", mismatchCount: null },
+          { ...base, id: "b", sourceFilename: "b.csv", status: "failed", mismatchCount: 1 },
+          { ...base, id: "c", sourceFilename: "c.csv", status: "committed", mismatchCount: null, legacy: true },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Not finished")).toBeTruthy();
+    expect(screen.getByText("Failed")).toBeTruthy();
+    expect(screen.getByText("Committed")).toBeTruthy();
+    expect(screen.getAllByText("mismatches not recorded")).toHaveLength(1);
+  });
+
+  it("shows an inline message when recent imports could not be loaded", () => {
+    wrap(<ChurchAdminPeopleImportWorkspace session={session} recentImportsFailed />);
+    expect(screen.getByText("Recent imports could not be loaded.")).toBeTruthy();
+    expect(screen.queryByText("No imports yet.")).toBeNull();
+  });
 
   it("says when there are no recent imports", () => {
     wrap(<ChurchAdminPeopleImportWorkspace session={session} recentImports={[]} />);

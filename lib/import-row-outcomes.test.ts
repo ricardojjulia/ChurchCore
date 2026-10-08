@@ -156,6 +156,16 @@ describe("createOutcomeRecorder", () => {
     await expect(recorder.flush()).rejects.toThrow("Unable to record the import row outcomes.");
   });
 
+  it("throws when the RPC records fewer rows than were sent, with a generic message", async () => {
+    install();
+    const client = await hoisted.createTenantServerClient();
+    client.rpc = () => Promise.resolve({ data: 1, error: null });
+    const recorder = createOutcomeRecorder("church-1", "b1");
+    await recorder.record("r1", { outcome: "written" });
+    await recorder.record("r2", { outcome: "written" });
+    await expect(recorder.flush()).rejects.toThrow("Unable to record the import row outcomes.");
+  });
+
   it("only counts in local fallback mode (no outcome columns to write)", async () => {
     install();
     hoisted.shouldUseLocalTenantFallback.mockReturnValue(true);
@@ -195,6 +205,21 @@ describe("runClaimedCommit", () => {
     ).rejects.toThrow("exploded");
     expect(outcomes.map((o) => o.id)).toEqual(["r1"]);
     expect(lastBatchUpdate().summary).toMatchObject({ create: 2, error: "exploded", outcomesRecorded: true });
+  });
+});
+
+describe("runClaimedCommit with a refused flush", () => {
+  it("marks a crashed batch outcomesRecorded false and records no mismatch count", async () => {
+    install({ rpcError: true });
+    await expect(
+      runClaimedCommit(input, async (recorder) => {
+        await recorder.record("r1", { outcome: "written" });
+        throw new Error("exploded");
+      }),
+    ).rejects.toThrow("exploded");
+    const summary = lastBatchUpdate().summary;
+    expect(summary.outcomesRecorded).toBe(false);
+    expect(summary).not.toHaveProperty("mismatchCount");
   });
 });
 
@@ -263,10 +288,26 @@ describe("giving commit outcomes", () => {
     expect(outcomes[0]).toMatchObject({ commit_outcome: "written", committed_record_id: "claimed-or-updated" });
   });
 
-  it("a RPC refusal aborts the commit and marks the batch failed", async () => {
+  it("a refused final flush still finishes the batch but does not claim the outcomes were recorded", async () => {
     install({ rpcError: true, rows: [row("r1", { sourceId: "G1", amountCents: 500, isAnonymous: true })] });
-    await expect(commitGivingImportBatch(input)).rejects.toThrow("Unable to record the import row outcomes.");
-    expect(lastBatchUpdate().status).toBe("failed");
+    await expect(commitGivingImportBatch(input)).resolves.toMatchObject({ created: 1, status: "committed" });
+    const summary = lastBatchUpdate().summary;
+    expect(summary.outcomesRecorded).toBe(false);
+    expect(summary).not.toHaveProperty("mismatchCount");
+  });
+
+  it("finishing is guarded on the batch still committing, and zero rows updated is an error", async () => {
+    install({ rows: [row("r1", { sourceId: "G1", amountCents: 500, isAnonymous: true })] });
+    await commitGivingImportBatch(input);
+    const finish = ops.filter((o) => o.table === "import_batches" && o.op === "update").pop()!;
+    expect(finish.filters).toContain("status=committing");
+
+    // A batch no longer committing matches no row: that is an error, not a silent success.
+    const chain: Record<string, unknown> = {};
+    for (const name of ["select", "update", "eq", "maybeSingle"]) chain[name] = () => chain;
+    chain.then = (resolve: (v: unknown) => unknown) => resolve({ data: [], error: null });
+    hoisted.createTenantServerClient.mockResolvedValue({ from: () => chain });
+    await expect(mergeBatchSummary("church-1", "b1", {}, { onlyStatus: "committing" })).rejects.toThrow("Unable to update the import summary.");
   });
 });
 

@@ -7,7 +7,7 @@ import { Alert, Anchor, Badge, Button, Group, Paper, SimpleGrid, Stack, Table, T
 import { ApplicationShell } from "@/components/application/app-shell";
 import type { ChurchAppSession } from "@/lib/auth";
 import { formatInstantInTimeZone } from "@/lib/church-time";
-import { GL_NOTE, IMPORT_PAGE_SIZE } from "@/lib/import-report-csv";
+import { GL_NOTE, IMPORT_PAGE_SIZE, importStatusLabel, importerHref } from "@/lib/import-report-csv";
 import type {
   ChangedSinceImport,
   FieldDifference,
@@ -265,9 +265,15 @@ export function ChurchAdminImportReport({
       navLabel="Church admin"
       navItems={[
         {
+          href: importerHref(batch.importType),
+          label: `${typeLabel} import`,
+          description: "Back to the importer",
+          icon: ArrowLeft,
+        },
+        {
           href: "/app/church-admin",
           label: "Church admin",
-          description: "Back to the admin home",
+          description: "Admin home",
           icon: ArrowLeft,
         },
         {
@@ -279,8 +285,8 @@ export function ChurchAdminImportReport({
         },
       ]}
       topActions={
-        <Button component={Link} href="/app/church-admin" variant="default" size="xs">
-          Back to church admin
+        <Button component={Link} href={importerHref(batch.importType)} variant="default" size="xs">
+          Back to {typeLabel} import
         </Button>
       }
     >
@@ -292,7 +298,7 @@ export function ChurchAdminImportReport({
             </Title>
             <Text size="sm" c="dimmed">
               {typeLabel} from {SOURCE_LABELS[batch.sourceSystem] ?? batch.sourceSystem}.{" "}
-              {batch.committedAt ? "Committed" : "Created"} {when}. Status: {batch.status}.
+              {batch.committedAt ? "Committed" : "Created"} {when}. Status: {importStatusLabel(batch.status)}.
             </Text>
           </Stack>
         </Paper>
@@ -304,8 +310,17 @@ export function ChurchAdminImportReport({
         ) : null}
 
         {report.state === "legacy" ? (
-          <Alert color="gray" title="Row-level outcomes were not recorded for this import">
-            This import ran before ChurchCore recorded what happened to each row, so a row-by-row comparison is not possible.
+          <Alert
+            color="gray"
+            title={
+              report.recording === "incomplete"
+                ? "Row-level outcomes were not fully recorded for this import"
+                : "Row-level outcomes were not recorded for this import"
+            }
+          >
+            {report.recording === "incomplete"
+              ? "ChurchCore could not finish recording what happened to each row, so a row-by-row comparison is not possible."
+              : "This import ran before ChurchCore recorded what happened to each row, so a row-by-row comparison is not possible."}
             {report.summary.created !== null || report.summary.updated !== null || report.summary.failed !== null
               ? ` The saved totals say: created ${report.summary.created ?? "unknown"}, updated ${report.summary.updated ?? "unknown"}, failed ${report.summary.failed ?? "unknown"}.`
               : ""}
@@ -324,7 +339,7 @@ export function ChurchAdminImportReport({
                 : "Some rows were not saved as your file says. They are listed below."}
             </Alert>
 
-            <div aria-live="polite">
+            <div>
               <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
                 <Count label="Source rows" value={report.counts.sourceRows} />
                 <Count label="Expected (create + update)" value={report.counts.expected} />

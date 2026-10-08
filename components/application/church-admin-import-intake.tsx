@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Badge, FileInput, Group, Stack, Text } from "@mantine/core";
 
 import { formatInstantInTimeZone } from "@/lib/church-time";
+import { importStatusLabel } from "@/lib/import-report-csv";
 import type { RecentImportBatch } from "@/lib/import-reconciliation";
 import {
   detectImportSourceSystem,
@@ -130,16 +131,22 @@ export function ViewReportLink({ batchId }: { batchId: string }) {
 export function RecentImports({
   imports,
   timeZone,
+  loadFailed = false,
 }: {
   imports: RecentImportBatch[] | undefined;
   timeZone: string | null;
+  loadFailed?: boolean;
 }) {
   return (
     <Stack gap="xs" component="section" aria-labelledby="recent-imports-heading">
       <Text id="recent-imports-heading" fw={600} size="sm">
         Recent imports
       </Text>
-      {!imports || imports.length === 0 ? (
+      {loadFailed ? (
+        <Text size="sm" c="red" role="alert">
+          Recent imports could not be loaded.
+        </Text>
+      ) : !imports || imports.length === 0 ? (
         <Text size="sm" c="dimmed">
           No imports yet.
         </Text>
@@ -152,14 +159,19 @@ export function RecentImports({
                 <Text size="sm" fw={500} style={{ wordBreak: "break-all" }}>
                   {batch.sourceFilename}
                 </Text>
-                <Badge variant="light" color={batch.status === "committed" ? "green" : "gray"}>
-                  {batch.status}
+                <Badge
+                  variant="light"
+                  color={batch.status === "committed" ? "green" : batch.status === "failed" ? "red" : "gray"}
+                >
+                  {importStatusLabel(batch.status)}
                 </Badge>
-                <Text size="sm" c="dimmed">
-                  {batch.mismatchCount === null
-                    ? "mismatches not recorded"
-                    : `${batch.mismatchCount} ${batch.mismatchCount === 1 ? "mismatch" : "mismatches"}`}
-                </Text>
+                {batch.status === "committing" ? null : (
+                  <Text size="sm" c="dimmed">
+                    {batch.legacy || batch.mismatchCount === null
+                      ? "mismatches not recorded"
+                      : `${batch.mismatchCount} ${batch.mismatchCount === 1 ? "mismatch" : "mismatches"}`}
+                  </Text>
+                )}
                 <Link href={importReportHref(batch.id)} aria-label={`Open report for ${batch.sourceFilename}`}>
                   View report
                 </Link>
