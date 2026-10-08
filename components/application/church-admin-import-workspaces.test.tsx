@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   groupsDry: vi.fn(),
+  groupsCommit: vi.fn(),
   attendanceDry: vi.fn(),
   peopleDry: vi.fn(),
   giftsDry: vi.fn(),
@@ -16,7 +17,7 @@ vi.mock("@/components/application/app-shell", () => ({
 }));
 vi.mock("@/app/app/church-admin/groups/import/actions", () => ({
   runGroupsImportDryRunAction: mocks.groupsDry,
-  commitGroupsImportBatchAction: vi.fn(),
+  commitGroupsImportBatchAction: mocks.groupsCommit,
 }));
 vi.mock("@/app/app/church-admin/attendance/import/actions", () => ({
   runAttendanceImportDryRunAction: mocks.attendanceDry,
@@ -36,6 +37,7 @@ vi.mock("@/app/app/church-admin/events/import/actions", () => ({
 }));
 
 import { ChurchAdminAttendanceImportWorkspace } from "@/components/application/church-admin-attendance-import-workspace";
+import { ChurchAdminPeopleImportWorkspace } from "@/components/application/church-admin-people-import-workspace";
 import { ChurchAdminGroupsImportWorkspace } from "@/components/application/church-admin-groups-import-workspace";
 import { ImportCsvFileInput } from "@/components/application/church-admin-import-intake";
 import type { ChurchAppSession } from "@/lib/auth";
@@ -66,6 +68,7 @@ describe("import workspaces", () => {
       groupCreates: 0,
       rows: [],
       membershipRows: [],
+      totalRows: 120,
       ignoredColumns: ["Favorite Color", "Shoe Size"],
     });
     wrap(<ChurchAdminGroupsImportWorkspace session={session} />);
@@ -75,6 +78,39 @@ describe("import workspaces", () => {
     expect(await screen.findByText("Ignored columns (2)")).toBeTruthy();
     expect(screen.getByText("These columns were not imported.")).toBeTruthy();
     expect(screen.getByText("Shoe Size")).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Ignored columns" })).toBeTruthy();
+    expect(screen.getByText(/Showing 0 of 120 rows/)).toBeTruthy();
+  });
+
+  it("detects a Breeze file on paste, clears the stale result, and disables commit after success", async () => {
+    mocks.groupsDry.mockResolvedValue({
+      batchId: "b4", mode: "groups", counts: { ...baseCounts, create: 1 }, groupCreates: 0,
+      rows: [], membershipRows: [], ignoredColumns: [], totalRows: 1,
+    });
+    mocks.groupsCommit.mockResolvedValue({
+      status: "partial", created: 0, updated: 0, failed: 2, failureReasons: ["Group name is required."],
+    });
+    wrap(<ChurchAdminGroupsImportWorkspace session={session} />);
+    await userEvent.click(screen.getByRole("button", { name: "Run dry import" }));
+    const commitButton = await screen.findByRole("button", { name: "Commit batch" });
+    await userEvent.click(commitButton);
+    expect(await screen.findByText("Group name is required.")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Commit batch" }) as HTMLButtonElement).disabled).toBe(true);
+
+    const box = screen.getByLabelText("CSV content");
+    fireEvent.change(box, { target: { value: "Breeze ID,First Name,Last Name,Tag Name\n1,A,B,Choir" } });
+    expect(screen.getByText("Detected a Breeze file; source set to Breeze.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Commit batch" })).toBeNull();
+    expect(screen.queryByText("Group name is required.")).toBeNull();
+  });
+
+  it("shows per-source required columns", () => {
+    wrap(<ChurchAdminPeopleImportWorkspace session={session} />);
+    expect(screen.getByText(/Required columns: household_name, full_name/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("CSV content"), {
+      target: { value: "Person ID,First Name,Last Name\n1,A,B" },
+    });
+    expect(screen.getByText(/Required columns: Person ID, First Name, Last Name/)).toBeTruthy();
   });
 
   it("hides ignored columns when empty and shows skipped anonymous for attendance", async () => {
@@ -122,7 +158,8 @@ describe("import workspaces", () => {
 describe("ImportCsvFileInput", () => {
   it("loads file text and rejects oversized files", async () => {
     const onText = vi.fn();
-    const { container } = wrap(<ImportCsvFileInput onText={onText} />);
+    const onClear = vi.fn();
+    const { container } = wrap(<ImportCsvFileInput onText={onText} onClear={onClear} />);
     expect(screen.getByText("Upload a CSV file")).toBeTruthy();
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     expect(input.accept).toBe(".csv,text/csv");
@@ -137,5 +174,16 @@ describe("ImportCsvFileInput", () => {
     fireEvent.change(input, { target: { files: [big] } });
     expect(await screen.findByText(/larger than 3.5 MB/)).toBeTruthy();
     expect(onText).not.toHaveBeenCalled();
+  });
+
+  it("clears the text when the chosen file is cleared", async () => {
+    const onText = vi.fn();
+    const onClear = vi.fn();
+    const { container } = wrap(<ImportCsvFileInput onText={onText} onClear={onClear} />);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    await userEvent.upload(input, new File(["a"], "a.csv", { type: "text/csv" }));
+    await waitFor(() => expect(onText).toHaveBeenCalledWith("a"));
+    await userEvent.click(screen.getByRole("button", { name: "Clear selected file" }));
+    expect(onClear).toHaveBeenCalled();
   });
 });

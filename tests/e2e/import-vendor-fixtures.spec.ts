@@ -206,6 +206,30 @@ test("people: Planning Center then Breeze exports create everyone; a re-import o
   ).toBe(8);
 });
 
+
+test("people: uploading a vendor file without choosing a source detects the vendor and rejects nothing", async ({ page }) => {
+  await page.goto("/app/church-admin/people/import");
+  await page.waitForLoadState("networkidle");
+  // Default source is Generic CSV; the upload alone must switch it.
+  await expect(async () => {
+    await page
+      .locator('input[type="file"]')
+      .setInputFiles(join(process.cwd(), "tests/fixtures/imports/breeze/people.csv"), { timeout: 2000 });
+    await expect(page.getByText("Detected a Breeze file; source set to Breeze.")).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 15_000 });
+  await page.getByLabel("Source filename").fill(`${TAG}-detect-people.csv`);
+  await page.getByRole("button", { name: "Run dry import" }).click();
+  await expect(page.getByText("update 4", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("reject 0", { exact: true })).toBeVisible();
+
+  // Pasting a Planning Center file also switches the source and clears the old result.
+  await page.getByLabel("CSV content").fill(fixture("planning-center/people.csv"));
+  await expect(page.getByText("Detected a Planning Center file; source set to Planning Center.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Commit batch" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Run dry import" }).click();
+  await expect(page.getByText("reject 0", { exact: true })).toBeVisible({ timeout: 30_000 });
+});
+
 test("events: both calendars import with church-local times", async ({ page }) => {
   await dryRun(page, "/app/church-admin/events/import", /Planning Center/, "pco-events.csv", fixture("planning-center/events.csv"));
   await commit(page, "Created 2, updated 0, failed 0");

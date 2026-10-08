@@ -23,8 +23,12 @@ import { commitGroupsImportBatchAction } from "@/app/app/church-admin/groups/imp
 import { ApplicationShell } from "@/components/application/app-shell";
 import {
   IMPORT_FILE_HINT,
+  CommitFailureReasons,
   IgnoredColumns,
   ImportCsvFileInput,
+  SourceDetectedNotice,
+  detectSourceSwitch,
+  requiredColumnsCopy,
 } from "@/components/application/church-admin-import-intake";
 import type { ChurchAppSession } from "@/lib/auth";
 import type {
@@ -51,6 +55,23 @@ export function ChurchAdminGroupsImportWorkspace({
   const [result, setResult] = useState<GroupsImportDryRunResult | null>(null);
   const [commitResult, setCommitResult] = useState<GroupsImportCommitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [detectedNotice, setDetectedNotice] = useState<string | null>(null);
+
+  // Any CSV change (typing, paste, upload, clear) invalidates the previous dry
+  // run and re-detects the vendor from the headers.
+  function handleCsvTextChange(text: string) {
+    setCsvText(text);
+    setResult(null);
+    setCommitResult(null);
+    setError(null);
+    const switched = detectSourceSwitch(text, sourceSystem);
+    if (switched) {
+      setSourceSystem(switched.source);
+      setDetectedNotice(switched.notice);
+    } else if (!text.trim()) {
+      setDetectedNotice(null);
+    }
+  }
 
   function handleRunDryRun() {
     setError(null);
@@ -131,7 +152,11 @@ export function ChurchAdminGroupsImportWorkspace({
           <Stack gap="sm">
             <Title order={4}>CSV Intake</Title>
             <Text size="sm" c="dimmed">
-              Required columns: source_id, name. Optional: category, leader_email, status.
+              {requiredColumnsCopy("groups", sourceSystem)}
+            </Text>
+            <Text size="xs" c="dimmed">
+              Have a Breeze Tags file (Breeze ID, Tag Name)? Upload it here and it is imported as
+              group memberships (Tags mode) rather than as groups.
             </Text>
             <Text size="xs" c="dimmed">
               {IMPORT_FILE_HINT}
@@ -153,11 +178,16 @@ export function ChurchAdminGroupsImportWorkspace({
                 { value: "breeze", label: "Breeze export" },
               ]}
             />
-            <ImportCsvFileInput onText={setCsvText} onFilename={setSourceFilename} />
+            <SourceDetectedNotice notice={detectedNotice} />
+            <ImportCsvFileInput
+              onText={handleCsvTextChange}
+              onFilename={setSourceFilename}
+              onClear={() => handleCsvTextChange("")}
+            />
             <Textarea
               label="CSV content"
               value={csvText}
-              onChange={(event) => setCsvText(event.currentTarget.value)}
+              onChange={(event) => handleCsvTextChange(event.currentTarget.value)}
               minRows={10}
               autosize
             />
@@ -184,7 +214,11 @@ export function ChurchAdminGroupsImportWorkspace({
                 <Badge color="gray">skip {counts.skip}</Badge>
                 <Badge color="red">reject {counts.reject}</Badge>
                 {isMemberships ? <Badge color="violet">Tags (memberships)</Badge> : null}
-                {isMemberships ? (
+                <Text size="xs" c="dimmed">
+                Showing {Math.min(50, isMemberships ? result.membershipRows.length : result.rows.length)} of{" "}
+                {result.totalRows} rows
+              </Text>
+              {isMemberships ? (
                   <Badge color="violet" variant="light">
                     groups +{result.groupCreates}
                   </Badge>
@@ -210,7 +244,9 @@ export function ChurchAdminGroupsImportWorkspace({
                   variant="light"
                   onClick={handleCommitBatch}
                   loading={isPending}
-                  disabled={!result || counts.create + counts.update === 0 || isPending}
+                  disabled={
+                    !result || counts.create + counts.update === 0 || isPending || commitResult !== null
+                  }
                 >
                   Commit batch
                 </Button>
@@ -226,6 +262,9 @@ export function ChurchAdminGroupsImportWorkspace({
                 >
                   Created {commitResult.created}, updated {commitResult.updated}, failed{" "}
                   {commitResult.failed}.
+                  {commitResult.failed > 0 ? (
+                    <CommitFailureReasons reasons={commitResult.failureReasons} />
+                  ) : null}
                 </Alert>
               ) : null}
               {isMemberships ? (
