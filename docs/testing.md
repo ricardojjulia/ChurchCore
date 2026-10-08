@@ -101,12 +101,12 @@ Your `.env.local` may point at hosted projects. The suite cannot reach them, for
 `tests/e2e/fixtures/mobile-layout.ts` holds the shared phone-layout helpers; `member-phone-first.spec.ts` applies them to member home, schedule, giving and family at 390x844 (and 360px for overflow). The rules a member page must keep:
 
 - **No horizontal scroll:** `scrollWidth <= innerWidth + 1`.
-- **Touch targets:** every link, button, input, select, textarea, tab, switch and checkbox inside `<main>` is at least 44x44 CSS px (`collectTouchViolations`). Inline text links inside a sentence are exempt; a visually hidden checkbox or switch input is measured by its label. Wrap member content in `className="touch-44"` (and give any Drawer or Modal the class, since it renders in a portal); never use it on staff pages.
+- **Touch targets:** every link, button, input, select, textarea, tab, switch and checkbox inside `<main>` is at least 44x44 CSS px (`collectTouchViolations(page, root?)`). Pass a root locator such as `page.getByRole("dialog")` to check a modal or drawer, which renders in a portal outside `<main>`; the spec opens the family edit, profile edit and (where seeded) recurring-gift dialogs and runs the collector inside each. Inline text links inside a sentence are exempt; a visually hidden checkbox or switch input is measured by its label. Wrap member content in `className="touch-44"` (and give any Drawer or Modal the class, since it renders in a portal); never use it on staff pages.
 - **One column:** no two top-level cards share vertical space side by side (`findSideBySideCards`). The home quick actions are buttons, not cards.
 - **Primary action in the first screen:** the first `[data-primary-action]` sits between the header's bottom edge and the bottom nav's top edge without scrolling.
 - **Bottom nav:** five items, each at least 44px tall, and `aria-current="page"` on the current one.
 
-The spec inserts a pending shift for the member (marked, deleted afterwards) because the seed has none.
+The spec inserts a pending shift for the member (60 days out, marked, deleted afterwards; the Confirm locator is scoped to that shift) because the seed has none. The direct-database helpers in `tests/e2e/fixtures/env.ts` refuse a non-loopback host unless `CI=true`. To check the helper can fail, switch `.touch-44` off (or remove the class from a dialog) and confirm it flags the 30 and 36 px controls.
 
 ### A local Supabase image fault: an `anon`-denied function call crashes Postgres instead of denying it
 

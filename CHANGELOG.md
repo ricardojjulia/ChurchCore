@@ -6,7 +6,11 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
-- **G2.1: phone-first member pages** (`feat/phone-first-member-g2-1`; frontend only, no schema, role, RLS, action or API change; not yet merged). Member home, schedule, giving and family now read and tap well at 390x844 and 360px.
+- **G2.1: phone-first member pages** (`feat/phone-first-member-g2-1`, `abffd6e` and `e07e73f`; Council Review 47 AMENDED, R1-R7 fixed; frontend only, no schema, role, RLS, action or API change; no PR yet, CI not run; not yet merged). Member home, schedule, giving and family now read and tap well at 390x844 and 360px. Handoff: [`docs/factory-runs/2026-10-08-g2-1-phone-first-member.md`](docs/factory-runs/2026-10-08-g2-1-phone-first-member.md); synthesis: [`docs/reviews/2026-10-08-council-review-47-synthesis.md`](docs/reviews/2026-10-08-council-review-47-synthesis.md).
+
+  **Added**
+  - [`tests/e2e/fixtures/mobile-layout.ts`](tests/e2e/fixtures/mobile-layout.ts): shared phone-layout checks (overflow, 44 px targets with an optional root locator, side-by-side cards, first-screen primary action, bottom nav) used by [`tests/e2e/member-phone-first.spec.ts`](tests/e2e/member-phone-first.spec.ts); documented in [`docs/testing.md`](docs/testing.md).
+  - `formatInstantParts` in [`lib/church-time.ts`](lib/church-time.ts).
 
   **Changed**
   - Every control on those four pages is at least 44x44 CSS px. A `.touch-44` wrapper in [`app/globals.css`](app/globals.css) raises Mantine buttons, inputs, switches, checkboxes and action icons; Mantine declares `--button-height-*` on the button itself, so the override targets the button, not an ancestor. Drawers and the decline modal carry the class because they render in a portal. Staff pages do not use it.
@@ -19,10 +23,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - Service-plan detail stat tiles stack one per row on a phone (three across from `sm`).
   - Role type Edit and Deactivate buttons are named with the role ("Edit Vocalist").
 
+  - Council Review 47 fixes (R1-R7): the family edit, profile edit and recurring-gift dialogs carry `touch-44`, and the e2e opens each and checks it; member home's banner and content sit in a `Stack`; `MemberFamilyEdit` `triggerProps` is typed and spread before `onClick`; a synchronous latch stops a double tap on confirm and decline; the e2e shift is +60 days out with a scoped Confirm locator; the e2e direct-database helper ([`tests/e2e/fixtures/env.ts`](tests/e2e/fixtures/env.ts)) refuses a non-loopback host unless `CI=true`.
+  - Number-input spinners are hidden on member pages (members type amounts).
+
   **Tests**
   - [`tests/e2e/member-phone-first.spec.ts`](tests/e2e/member-phone-first.spec.ts) with [`tests/e2e/fixtures/mobile-layout.ts`](tests/e2e/fixtures/mobile-layout.ts); unit tests for church-time, member home, donor portal, member schedule and calendar hub; the `KNOWN BUG` Calendar assertion in `member-mobile-foundation.spec.ts` is flipped.
 
-- **G4.2: post-import reconciliation report** (`feat/import-reconciliation-g4-2`, `dcc6c14`; Council Review 46 AMENDED, R1-R10 fixed; migration `20261009000000`, to be applied to the hosted database before merge (owner action O16); no PR yet, CI not run; not yet merged). After a commit, a church admin can see whether what ChurchCore saved matches the file. Closes Gap 4 on merge, once CI is green. Handoff: [`docs/factory-runs/2026-10-08-g4-2-import-reconciliation.md`](docs/factory-runs/2026-10-08-g4-2-import-reconciliation.md); synthesis: [`docs/reviews/2026-10-08-council-review-46-synthesis.md`](docs/reviews/2026-10-08-council-review-46-synthesis.md); decision: [ADR 0029](docs/adr/0029-import-row-outcomes-column-grant-invoker-function-trigger.md).
+- **G4.2: post-import reconciliation report** (merged as #195, `28f1bda`, 2026-10-08; Council Review 46 AMENDED, R1-R10 fixed; migration `20261009000000` applied to the hosted database before the merge (owner action O16, done)). After a commit, a church admin can see whether what ChurchCore saved matches the file. Closes Gap 4 (2026-10-08). Handoff: [`docs/factory-runs/2026-10-08-g4-2-import-reconciliation.md`](docs/factory-runs/2026-10-08-g4-2-import-reconciliation.md); synthesis: [`docs/reviews/2026-10-08-council-review-46-synthesis.md`](docs/reviews/2026-10-08-council-review-46-synthesis.md); decision: [ADR 0029](docs/adr/0029-import-row-outcomes-column-grant-invoker-function-trigger.md).
 
   **Added**
   - **Reconciliation report page** [`app/app/church-admin/imports/[batchId]/page.tsx`](app/app/church-admin/imports/[batchId]/page.tsx) with [`components/application/church-admin-import-report.tsx`](components/application/church-admin-import-report.tsx) (church admin only; one page for all five import types). It shows counts per entity (source rows, expected, written, failed, not attempted, skipped, rejected); for giving, the source total, the total written at commit, the current total and the difference in USD, with a note that imported gifts are not posted to the general ledger; a mismatches list (every failed row with its reason, rows never attempted, and gifts whose stored amount, date or fund differ from the source at commit); a separate "Changed since import" list (edited, deleted or merged after the commit) that does not count against the import; and skipped and rejected rows with reasons.
