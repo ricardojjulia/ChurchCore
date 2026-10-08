@@ -61,7 +61,7 @@ ChurchCore is part of a product family with **ChurchCore Care** (Christian couns
 | **🙏 Pastoral care** | Pastor-only notes and care assignments, Elders Discernment Room, Council Forge | `/app/pastor/people`, `/app/elders/discernment`, `/app/council/forge` |
 | **📊 Reports** | Member, event and giving dashboards for pastors and church admins | `/app/reports/*`, `/app/giving` |
 | **🤖 ShepherdAI & AI tools** | Deterministic workflow suggestions from church signals; Bible Study Q&A and sermon-outline assist, consent-gated and logged | `/app/church-admin/workflows`, `/app/pastor/bible-study` |
-| **📥 Migration** | Dry-run and commit imports for people, groups, events, attendance and giving | `/app/church-admin/*/import` |
+| **📥 Migration** | Dry-run and commit imports for people, groups (including Breeze Tags), events, attendance and giving, reading Planning Center and Breeze CSV exports (formats partly unverified) | `/app/church-admin/*/import` |
 | **🛠️ Platform operations** | Control plane for ChurchCore staff (tenants, provisioning, launch checklist, demo feedback); Project HQ with an AI advisor and in-app Council | `/control`, `/hq` |
 
 The full route map and per-feature notes are in [docs/application-surface.md](./docs/application-surface.md), and a guided product walkthrough is in [docs/application-guide.md](./docs/application-guide.md).
