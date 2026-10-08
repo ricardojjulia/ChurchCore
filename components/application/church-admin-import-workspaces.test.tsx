@@ -94,6 +94,8 @@ describe("import workspaces", () => {
     wrap(<ChurchAdminGroupsImportWorkspace session={session} />);
     await userEvent.click(screen.getByRole("button", { name: "Run dry import" }));
     const commitButton = await screen.findByRole("button", { name: "Commit batch" });
+    // Wait out the dry run's pending transition (the button is disabled while loading).
+    await waitFor(() => expect(commitButton.hasAttribute("disabled")).toBe(false), { timeout: 5000 });
     await userEvent.click(commitButton);
     expect(await screen.findByText("Group name is required.")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Commit batch" }) as HTMLButtonElement).disabled).toBe(true);
@@ -129,7 +131,11 @@ describe("import workspaces", () => {
       "/app/church-admin/imports/r1",
     );
     await userEvent.click(screen.getByRole("button", { name: "Run dry import" }));
-    await userEvent.click(await screen.findByRole("button", { name: "Commit batch" }, { timeout: 5000 }));
+    const commit = await screen.findByRole("button", { name: "Commit batch" }, { timeout: 5000 });
+    // The button renders while the dry run's transition is still pending (loading, so disabled);
+    // a click in that window is a no-op, which is how this test flaked on slower CI runners.
+    await waitFor(() => expect(commit.hasAttribute("disabled")).toBe(false), { timeout: 5000 });
+    await userEvent.click(commit);
     const link = await screen.findByRole("link", { name: "View reconciliation report" }, { timeout: 5000 });
     expect(link.getAttribute("href")).toBe("/app/church-admin/imports/b9");
   }, 15_000);
