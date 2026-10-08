@@ -125,10 +125,9 @@ export function MemberPortalHome({
       ]}
       bottomNav={<MemberBottomNav />}
     >
-      <Box className="touch-44">
+      <Stack gap="lg" className="touch-44">
       <ChurchAppContextBanner session={session} />
 
-      <Stack gap="lg">
         {profile && !profile.emergencyContactName ? (
           <Alert
             icon={<AlertCircle size={16} />}
@@ -677,7 +676,6 @@ export function MemberPortalHome({
           </Paper>
         </SimpleGrid>
       </Stack>
-      </Box>
     </ApplicationShell>
   );
 }

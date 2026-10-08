@@ -4,7 +4,7 @@
  * button, a side-by-side card or a primary action below the fold fails here.
  */
 import { expect } from "@playwright/test";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 export const MIN_TOUCH_PX = 44;
 // Sub-pixel layout can report 43.9; anything below this is a real shortfall.
@@ -18,27 +18,31 @@ const INTERACTIVE =
 /**
  * Every interactive element inside <main> that is rendered and smaller than
  * 44x44 CSS px. Inline text links inside a sentence are exempt (WCAG 2.5.8),
- * and a visually hidden checkbox/radio/switch input is measured by its label.
+ * and a checkbox, radio or switch input is measured by its label.
  */
-export async function collectTouchViolations(page: Page): Promise<TouchViolation[]> {
+export async function collectTouchViolations(page: Page, root?: Locator): Promise<TouchViolation[]> {
   await page.waitForLoadState("networkidle");
-  return page.evaluate(
-    ({ selector, min }) => {
+  // Default: the page's <main>. Pass a locator such as page.getByRole("dialog") to
+  // scope the check to an open modal or drawer, which renders outside <main>.
+  const scope = root ?? page.locator("main").first();
+  return scope.evaluate(
+    (rootEl, { selector, min }) => {
       const out: { selector: string; text: string; w: number; h: number }[] = [];
       const describe = (el: Element) => {
         const id = el.id ? `#${el.id}` : "";
         const cls = typeof el.className === "string" ? el.className.split(/\s+/).filter((c) => c.startsWith("mantine-")).slice(0, 1) : [];
         return `${el.tagName.toLowerCase()}${id}${cls.length ? `.${cls[0]}` : ""}`;
       };
-      for (const el of Array.from(document.querySelectorAll(`main ${selector.split(",").join(", main ")}`))) {
+      for (const el of Array.from(rootEl.querySelectorAll(selector))) {
         const style = getComputedStyle(el);
         if (style.display === "none" || style.visibility === "hidden") continue;
         if (el.closest("[hidden], [aria-hidden=true]") && !el.closest("a, button")) continue;
 
+        // A checkbox, radio or switch is operated through its label, which is part of the
+        // tap target, so measure that when there is one.
         let target: Element = el;
-        const rect0 = el.getBoundingClientRect();
-        if (el instanceof HTMLInputElement && ["checkbox", "radio"].includes(el.type) && (rect0.width < 2 || rect0.height < 2 || style.opacity === "0")) {
-          target = el.closest("label") ?? el.parentElement ?? el;
+        if (el instanceof HTMLInputElement && ["checkbox", "radio"].includes(el.type)) {
+          target = el.labels?.[0] ?? el.closest("label") ?? el;
         }
         if (el.tagName === "A" && style.display === "inline" && !el.closest(".mantine-Button-root, .mantine-UnstyledButton-root") && !el.classList.contains("mantine-Button-root")) {
           continue;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Badge, Box, Button, Flex, Group, Modal, Paper, Stack, Text, Textarea, Title } from "@mantine/core";
 import { Check, X } from "lucide-react";
 
@@ -51,12 +51,21 @@ export function MemberScheduleView({
   const [pendingShiftId, setPendingShiftId] = useState<string | null>(null);
   const [declineTarget, setDeclineTarget] = useState<MemberScheduleEntry | null>(null);
   const [declineReason, setDeclineReason] = useState("");
+  // A synchronous latch: state (isPending) updates after render, so two quick taps
+  // could both pass an isPending check. The ref is set before the call is made.
+  const inFlight = useRef(false);
 
   function handleConfirm(shift: MemberScheduleEntry) {
-    if (isPending) return; // a second tap while the first is in flight must not respond twice
+    if (inFlight.current) return; // a second tap while the first is in flight must not respond twice
+    inFlight.current = true;
     setPendingShiftId(shift.shiftId);
     startTransition(async () => {
-      const res = await respondToShiftAction(shift.shiftId, "confirmed");
+      let res: Awaited<ReturnType<typeof respondToShiftAction>>;
+      try {
+        res = await respondToShiftAction(shift.shiftId, "confirmed");
+      } finally {
+        inFlight.current = false;
+      }
       setPendingShiftId(null);
       if (res.ok) {
         setShifts((prev) => prev.map((s) => s.shiftId === shift.shiftId ? { ...s, confirmationStatus: "confirmed" } : s));
@@ -76,9 +85,15 @@ export function MemberScheduleView({
   }
 
   function handleDecline() {
-    if (!declineTarget) return;
+    if (!declineTarget || inFlight.current) return;
+    inFlight.current = true;
     startTransition(async () => {
-      const res = await respondToShiftAction(declineTarget.shiftId, "declined", declineReason || undefined);
+      let res: Awaited<ReturnType<typeof respondToShiftAction>>;
+      try {
+        res = await respondToShiftAction(declineTarget.shiftId, "declined", declineReason || undefined);
+      } finally {
+        inFlight.current = false;
+      }
       if (res.ok) {
         setShifts((prev) => prev.map((s) => s.shiftId === declineTarget.shiftId ? { ...s, confirmationStatus: "declined" } : s));
         setDeclineTarget(null);

@@ -349,11 +349,25 @@ button {
   align-items: center;
 }
 
-.touch-44 .mantine-ActionIcon-root {
+/* The label is part of the tap target for a checkbox or switch, so it carries the 44px. */
+.touch-44 .mantine-Checkbox-label,
+.touch-44 .mantine-Switch-label {
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+}
+
+.touch-44 .mantine-ActionIcon-root,
+.touch-44 .mantine-CloseButton-root {
   min-height: 2.75rem;
   min-width: 2.75rem;
 }
 
 .touch-44 .mantine-Input-input {
   min-height: 2.75rem;
+}
+
+/* NumberInput's +/- spinners are ~24x17px; on a phone the member types the amount instead. */
+.touch-44 .mantine-NumberInput-controls {
+  display: none;
 }

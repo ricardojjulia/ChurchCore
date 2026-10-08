@@ -39,8 +39,8 @@ async function addPendingShift() {
     `insert into public.volunteer_shifts
        (church_id, event_id, assigned_user_id, title, starts_at, ends_at, status, confirmation_status, volunteer_notes)
      select sp.church_id, sp.event_id, $2, 'Phone Greeter',
-            date_trunc('day', now()) + interval '30 days 9 hours',
-            date_trunc('day', now()) + interval '30 days 11 hours',
+            date_trunc('day', now()) + interval '60 days 9 hours',
+            date_trunc('day', now()) + interval '60 days 11 hours',
             'assigned', 'pending', $3
      from public.service_plans sp where sp.id = $1`,
     [PLAN_ID, profile.rows[0].id, MARK],
@@ -81,14 +81,18 @@ test.describe("Member pages on a phone", () => {
     });
   }
 
-  test("schedule: Confirm and Decline are full-size and the pending shift's Confirm is the primary action", async ({ page }) => {
+  test("schedule: this spec's shift has full-size Confirm and Decline, and a Confirm is the primary action", async ({ page }) => {
     await page.goto("/app/member/schedule");
-    const confirm = page.getByRole("button", { name: "Confirm" }).first();
+    // Scoped to the shift this spec inserted: member-self-service.spec.ts gives the same member another.
+    const card = page.locator("main .mantine-Paper-root", { hasText: "Phone Greeter" }).first();
+    const confirm = card.getByRole("button", { name: "Confirm" });
     await expect(confirm).toBeVisible();
-    const box = await confirm.boundingBox();
-    expect(box?.height ?? 0).toBeGreaterThanOrEqual(43.5);
-    await expect(confirm).toHaveAttribute("data-primary-action", "true");
-    await expect(page.getByRole("button", { name: "Decline" }).first()).toBeVisible();
+    expect((await confirm.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(43.5);
+    const decline = card.getByRole("button", { name: "Decline" });
+    await expect(decline).toBeVisible();
+    expect((await decline.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(43.5);
+    // The earliest pending shift's Confirm carries the marker; that may be another spec's shift, never a non-Confirm.
+    await expect(page.locator("main [data-primary-action]").first()).toHaveText("Confirm");
   });
 
   test("schedule: the unavailable-dates Add button is reachable", async ({ page }) => {
@@ -97,6 +101,30 @@ test.describe("Member pages on a phone", () => {
     await expect(add).toBeVisible();
     const box = await add.boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(43.5);
+  });
+
+  test("family edit modal: every control is 44px", async ({ page }) => {
+    await page.goto("/app/member/family");
+    await page.getByRole("button", { name: /Edit family|Add family/ }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    expect(await collectTouchViolations(page, dialog), "family modal controls under 44x44").toEqual([]);
+  });
+
+  test("profile edit modal: every control is 44px", async ({ page }) => {
+    await page.goto("/app/member");
+    await page.getByRole("button", { name: "Edit profile" }).first().click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    expect(await collectTouchViolations(page, dialog), "profile modal controls under 44x44").toEqual([]);
+  });
+
+  test("recurring gift drawer: every control is 44px", async ({ page }) => {
+    await page.goto("/app/member/giving");
+    await page.getByRole("button", { name: "Set up a recurring gift" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    expect(await collectTouchViolations(page, dialog), "recurring drawer controls under 44x44").toEqual([]);
   });
 
   test("calendar has a real Calendar heading and keeps the bottom nav", async ({ page }) => {

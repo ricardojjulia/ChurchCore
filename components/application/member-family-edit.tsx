@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Home, Pencil } from "lucide-react";
 import {
   Button,
+  type ButtonProps,
   Group,
   Modal,
   Stack,
@@ -19,7 +20,7 @@ import type { MemberPortalFamily } from "@/lib/member-portal-data";
 type Props = {
   family: MemberPortalFamily | null;
   /** Extra props for the trigger button, e.g. a taller touch target (G2.1). */
-  triggerProps?: Record<string, unknown>;
+  triggerProps?: Partial<ButtonProps> & { "data-primary-action"?: boolean };
 };
 
 export function MemberFamilyEdit({ family, triggerProps }: Props) {
@@ -72,8 +73,8 @@ export function MemberFamilyEdit({ family, triggerProps }: Props) {
           variant={family ? "default" : "filled"}
           radius="xl"
           leftSection={family ? <Pencil size={15} /> : <Home size={15} />}
-          onClick={handleOpen}
           {...triggerProps}
+          onClick={handleOpen}
         >
           {family ? translateMember("editFamily") : translateMember("addFamily")}
         </Button>
@@ -85,6 +86,7 @@ export function MemberFamilyEdit({ family, triggerProps }: Props) {
       </Stack>
 
       <Modal
+        className="touch-44"
         opened={opened}
         onClose={close}
         title={family ? translateMember("updateFamily") : translateMember("createFamily")}
