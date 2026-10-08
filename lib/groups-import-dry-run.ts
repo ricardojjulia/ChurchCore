@@ -7,8 +7,11 @@ import {
   FOREIGN_REFERENCE_REASON,
   failureReason,
   ImportRowError,
+  finishImportBatch,
   runClaimedCommit,
   type ImportCommitInput,
+  type OutcomeRecorder,
+  type RowOutcome,
 } from "@/lib/import-commit";
 import { chunkArray, computeIgnoredColumns, omitColumns, parseImportCsv } from "@/lib/import-normalize";
 import {
@@ -608,7 +611,7 @@ async function commitMembershipPayload(
   groupIds: Map<string, string>,
   validProfileIds: Set<string>,
   now: string,
-): Promise<"created" | "existing"> {
+): Promise<{ kind: "created" | "existing"; membershipId: string }> {
   if (!payload.profileId || !validProfileIds.has(payload.profileId)) {
     throw new ImportRowError(FOREIGN_REFERENCE_REASON);
   }
@@ -648,30 +651,35 @@ async function commitMembershipPayload(
   if (lookupError) {
     throw new ImportRowError("Unable to check existing group membership.");
   }
-  if (existing?.id) return "existing";
+  if (existing?.id) return { kind: "existing", membershipId: existing.id as string };
 
-  const { error } = await supabase.from("group_members").insert({
+  const { data: inserted, error } = await supabase.from("group_members").insert({
     church_id: churchId,
     group_id: groupId,
     profile_id: payload.profileId,
     role: "member",
     status: "active",
     joined_at: now,
-  });
-  if (error) {
+  }).select("id").single();
+  if (error || !inserted?.id) {
     throw new ImportRowError("Unable to add a group member.");
   }
-  return "created";
+  return { kind: "created", membershipId: inserted.id as string };
 }
 
 export async function commitGroupsImportBatch(input: ImportCommitInput): Promise<GroupsImportCommitResult> {
-  return runClaimedCommit(input, () => commitGroupsImportBatchClaimed(input));
+  return runClaimedCommit(input, (recorder) => commitGroupsImportBatchClaimed(input, recorder));
 }
 
-async function commitGroupsImportBatchClaimed(input: ImportCommitInput): Promise<GroupsImportCommitResult> {
+type StagedGroupsRow = { rowId: string | null; payload: NormalizedGroupPayload | GroupMembershipPayload | null };
+
+async function commitGroupsImportBatchClaimed(
+  input: ImportCommitInput,
+  recorder: OutcomeRecorder,
+): Promise<GroupsImportCommitResult> {
   let batchStatus: string | null = null;
   let dryRun = true;
-  let normalizedPayloads: Array<NormalizedGroupPayload | GroupMembershipPayload> = [];
+  let normalizedPayloads: StagedGroupsRow[] = [];
 
   if (shouldUseLocalTenantFallback()) {
     const batchResult = await queryTenantLocalDb<{ status: string; dry_run: boolean }>(
@@ -699,29 +707,29 @@ async function commitGroupsImportBatchClaimed(input: ImportCommitInput): Promise
     );
 
     normalizedPayloads = rowsResult.rows
-      .map((row) => normalizeAnyBatchPayload(row.normalized_payload))
-      .filter((row): row is NormalizedGroupPayload | GroupMembershipPayload => Boolean(row));
+      .map((row) => ({ rowId: null, payload: normalizeAnyBatchPayload(row.normalized_payload) }))
+      .filter((row) => Boolean(row.payload));
   } else {
     const supabase = await createTenantServerClient();
 
-    const { data: batch } = await supabase
+    const { data: batch, error: batchError } = await supabase
       .from("import_batches")
       .select("status, dry_run")
       .eq("id", input.batchId)
       .eq("church_id", input.churchId)
       .maybeSingle();
 
-    if (!batch) {
+    if (batchError || !batch) {
       throw new Error("Import batch not found.");
     }
 
     batchStatus = batch.status;
     dryRun = batch.dry_run;
 
-    const rows = await fetchAllPages<{ normalized_payload: unknown }>((from, to) =>
+    const rows = await fetchAllPages<{ id: string; normalized_payload: unknown }>((from, to) =>
       supabase
         .from("import_batch_rows")
-        .select("normalized_payload")
+        .select("id, normalized_payload")
         .eq("batch_id", input.batchId)
         .eq("church_id", input.churchId)
         .in("classification", ["create", "update"])
@@ -729,11 +737,10 @@ async function commitGroupsImportBatchClaimed(input: ImportCommitInput): Promise
         .range(from, to),
     );
 
-    normalizedPayloads = (rows ?? [])
-      .map((row) =>
-        normalizeAnyBatchPayload((row as { normalized_payload: unknown }).normalized_payload),
-      )
-      .filter((row): row is NormalizedGroupPayload | GroupMembershipPayload => Boolean(row));
+    normalizedPayloads = (rows ?? []).map((row) => ({
+      rowId: row.id,
+      payload: normalizeAnyBatchPayload(row.normalized_payload),
+    }));
   }
 
   if (shouldUseLocalTenantFallback() && (batchStatus !== "dry_run_completed" || !dryRun)) {
@@ -746,14 +753,22 @@ async function commitGroupsImportBatchClaimed(input: ImportCommitInput): Promise
   const failureReasons = new Set<string>();
 
   // Tag assignments (Breeze) resolve groups by name and people by this church's own profiles.
-  const hasMemberships = normalizedPayloads.some((payload) => "kind" in payload);
+  const hasMemberships = normalizedPayloads.some(({ payload }) => payload && "kind" in payload);
   const groupIds = hasMemberships ? await loadGroupNameIndex(input.churchId) : new Map<string, string>();
   const membershipNow = new Date().toISOString();
 
   const profileIds = shouldUseLocalTenantFallback() ? null : await loadChurchIdSet(input.churchId, "profiles");
   const validProfileIds = profileIds ?? new Set<string>();
 
-  for (const payload of normalizedPayloads) {
+  for (const { rowId, payload } of normalizedPayloads) {
+    if (!payload) {
+      // A staged row whose payload cannot be read is a failure, never silently dropped.
+      failed += 1;
+      failureReasons.add(failureReason(null));
+      await recorder.record(rowId, { outcome: "failed", reason: failureReason(null) });
+      continue;
+    }
+    let pending: RowOutcome | null = null;
     try {
       if ("kind" in payload) {
         assertKnownReference(payload.profileId, profileIds);
@@ -768,11 +783,13 @@ async function commitGroupsImportBatchClaimed(input: ImportCommitInput): Promise
           validProfileIds,
           membershipNow,
         );
-        if (outcome === "created") created += 1;
-        continue;
-      }
-
-      if (shouldUseLocalTenantFallback()) {
+        if (outcome.kind === "created") created += 1;
+        pending = {
+          outcome: "written",
+          recordId: outcome.membershipId,
+          ...(outcome.kind === "existing" ? { snapshot: { note: "already_member" } } : {}),
+        };
+      } else if (shouldUseLocalTenantFallback()) {
         // Check if group with this source_id exists
         const existing = await queryTenantLocalDb<{ id: string }>(
           `select id from public.groups where church_id = $1 and source_id = $2 limit 1`,
@@ -821,12 +838,15 @@ async function commitGroupsImportBatchClaimed(input: ImportCommitInput): Promise
         const supabase = await createTenantServerClient();
 
         // Check if group with this source_id exists
-        const { data: existing } = await supabase
+        const { data: existing, error: lookupError } = await supabase
           .from("groups")
           .select("id")
           .eq("church_id", input.churchId)
           .eq("source_id", payload.sourceId)
           .maybeSingle();
+        if (lookupError) {
+          throw new Error(lookupError.message);
+        }
 
         if (existing?.id) {
           const { data: updatedRows, error } = await supabase
@@ -848,9 +868,10 @@ async function commitGroupsImportBatchClaimed(input: ImportCommitInput): Promise
             throw new Error(error.message);
           }
           assertUpdated(updatedRows);
+          pending = { outcome: "written", recordId: (updatedRows as Array<{ id: string }>)[0].id };
           updated += 1;
         } else {
-          const { error } = await supabase.from("groups").insert({
+          const { data: insertedRow, error } = await supabase.from("groups").insert({
             church_id: input.churchId,
             source_id: payload.sourceId,
             name: payload.name,
@@ -859,17 +880,22 @@ async function commitGroupsImportBatchClaimed(input: ImportCommitInput): Promise
             leader_profile_id: payload.leaderProfileId,
             is_active: typeof payload.isActive === "boolean" ? payload.isActive : true,
             is_open: true,
-          });
+          }).select("id").single();
 
           if (error) {
             throw new Error(error.message);
           }
+          pending = { outcome: "written", recordId: (insertedRow as { id: string }).id };
           created += 1;
         }
       }
     } catch (error) {
       failed += 1;
       failureReasons.add(failureReason(error));
+      pending = { outcome: "failed", reason: failureReason(error) };
+    }
+    if (pending) {
+      await recorder.record(rowId, pending);
     }
   }
 
@@ -897,22 +923,12 @@ async function commitGroupsImportBatchClaimed(input: ImportCommitInput): Promise
       [input.batchId, input.churchId, status, JSON.stringify(summary)],
     );
   } else {
-    const supabase = await createTenantServerClient();
-    const { error } = await supabase
-      .from("import_batches")
-      .update({
-        status,
-        dry_run: false,
-        summary,
-        committed_at: status === "committed" ? new Date().toISOString() : null,
-        failed_at: status === "failed" ? new Date().toISOString() : null,
-      })
-      .eq("id", input.batchId)
-      .eq("church_id", input.churchId);
-
-    if (error) {
-      throw new Error(error.message);
-    }
+    await finishImportBatch(
+      input,
+      { status, created, updated, failed, failureReasons: [...failureReasons] },
+      recorder,
+      normalizedPayloads.length,
+    );
   }
 
   await auditImportCommit(input, { status, created, updated, failed });

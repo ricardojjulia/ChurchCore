@@ -5,8 +5,11 @@ import {
   assertUpdated,
   auditImportCommit,
   failureReason,
+  finishImportBatch,
   runClaimedCommit,
   type ImportCommitInput,
+  type OutcomeRecorder,
+  type RowOutcome,
 } from "@/lib/import-commit";
 import { chunkArray, computeIgnoredColumns, omitColumns, parseImportCsv, parseImportDate } from "@/lib/import-normalize";
 import {
@@ -529,13 +532,18 @@ function normalizeBatchRowPayload(payload: unknown): NormalizedAttendancePayload
 }
 
 export async function commitAttendanceImportBatch(input: ImportCommitInput): Promise<AttendanceImportCommitResult> {
-  return runClaimedCommit(input, () => commitAttendanceImportBatchClaimed(input));
+  return runClaimedCommit(input, (recorder) => commitAttendanceImportBatchClaimed(input, recorder));
 }
 
-async function commitAttendanceImportBatchClaimed(input: ImportCommitInput): Promise<AttendanceImportCommitResult> {
+type StagedAttendanceRow = { rowId: string | null; payload: NormalizedAttendancePayload | null };
+
+async function commitAttendanceImportBatchClaimed(
+  input: ImportCommitInput,
+  recorder: OutcomeRecorder,
+): Promise<AttendanceImportCommitResult> {
   let batchStatus: string | null = null;
   let dryRun = true;
-  let normalizedPayloads: NormalizedAttendancePayload[] = [];
+  let normalizedPayloads: StagedAttendanceRow[] = [];
 
   if (shouldUseLocalTenantFallback()) {
     const batchResult = await queryTenantLocalDb<{ status: string; dry_run: boolean }>(
@@ -563,29 +571,29 @@ async function commitAttendanceImportBatchClaimed(input: ImportCommitInput): Pro
     );
 
     normalizedPayloads = rowsResult.rows
-      .map((row) => normalizeBatchRowPayload(row.normalized_payload))
-      .filter((row): row is NormalizedAttendancePayload => Boolean(row));
+      .map((row) => ({ rowId: null, payload: normalizeBatchRowPayload(row.normalized_payload) }))
+      .filter((row) => Boolean(row.payload));
   } else {
     const supabase = await createTenantServerClient();
 
-    const { data: batch } = await supabase
+    const { data: batch, error: batchError } = await supabase
       .from("import_batches")
       .select("status, dry_run")
       .eq("id", input.batchId)
       .eq("church_id", input.churchId)
       .maybeSingle();
 
-    if (!batch) {
+    if (batchError || !batch) {
       throw new Error("Import batch not found.");
     }
 
     batchStatus = batch.status;
     dryRun = batch.dry_run;
 
-    const rows = await fetchAllPages<{ normalized_payload: unknown }>((from, to) =>
+    const rows = await fetchAllPages<{ id: string; normalized_payload: unknown }>((from, to) =>
       supabase
         .from("import_batch_rows")
-        .select("normalized_payload")
+        .select("id, normalized_payload")
         .eq("batch_id", input.batchId)
         .eq("church_id", input.churchId)
         .in("classification", ["create", "update"])
@@ -593,11 +601,10 @@ async function commitAttendanceImportBatchClaimed(input: ImportCommitInput): Pro
         .range(from, to),
     );
 
-    normalizedPayloads = (rows ?? [])
-      .map((row) =>
-        normalizeBatchRowPayload((row as { normalized_payload: unknown }).normalized_payload),
-      )
-      .filter((row): row is NormalizedAttendancePayload => Boolean(row));
+    normalizedPayloads = (rows ?? []).map((row) => ({
+      rowId: row.id,
+      payload: normalizeBatchRowPayload(row.normalized_payload),
+    }));
   }
 
   if (shouldUseLocalTenantFallback() && (batchStatus !== "dry_run_completed" || !dryRun)) {
@@ -614,7 +621,15 @@ async function commitAttendanceImportBatchClaimed(input: ImportCommitInput): Pro
   const profileIds = shouldUseLocalTenantFallback() ? null : await loadChurchIdSet(input.churchId, "profiles");
   const eventIds = shouldUseLocalTenantFallback() ? null : await loadChurchIdSet(input.churchId, "events");
 
-  for (const payload of normalizedPayloads) {
+  for (const { rowId, payload } of normalizedPayloads) {
+    if (!payload) {
+      // A staged row whose payload cannot be read is a failure, never silently dropped.
+      failed += 1;
+      failureReasons.add(failureReason(null));
+      await recorder.record(rowId, { outcome: "failed", reason: failureReason(null) });
+      continue;
+    }
+    let pending: RowOutcome | null = null;
     try {
       assertKnownReference(payload.profileId, profileIds);
       assertKnownReference(payload.eventId, eventIds);
@@ -664,12 +679,15 @@ async function commitAttendanceImportBatchClaimed(input: ImportCommitInput): Pro
       } else {
         const supabase = supabaseClient!;
 
-        const { data: existing } = await supabase
+        const { data: existing, error: lookupError } = await supabase
           .from("attendance")
           .select("id")
           .eq("church_id", input.churchId)
           .eq("source_id", payload.sourceId)
           .maybeSingle();
+        if (lookupError) {
+          throw new Error(lookupError.message);
+        }
 
         if (existing?.id) {
           const { data: updatedRows, error } = await supabase
@@ -690,9 +708,10 @@ async function commitAttendanceImportBatchClaimed(input: ImportCommitInput): Pro
             throw new Error(error.message);
           }
           assertUpdated(updatedRows);
+          pending = { outcome: "written", recordId: (updatedRows as Array<{ id: string }>)[0].id };
           updated += 1;
         } else {
-          const { error } = await supabase.from("attendance").insert({
+          const { data: insertedRow, error } = await supabase.from("attendance").insert({
             church_id: input.churchId,
             source_id: payload.sourceId,
             profile_id: payload.profileId,
@@ -700,17 +719,22 @@ async function commitAttendanceImportBatchClaimed(input: ImportCommitInput): Pro
             checked_in_at: payload.checkedInInstant ?? payload.checkedInAt ?? new Date().toISOString(),
             status: effectiveStatus,
             check_in_method: "import",
-          });
+          }).select("id").single();
 
           if (error) {
             throw new Error(error.message);
           }
+          pending = { outcome: "written", recordId: (insertedRow as { id: string }).id };
           created += 1;
         }
       }
     } catch (error) {
       failed += 1;
       failureReasons.add(failureReason(error));
+      pending = { outcome: "failed", reason: failureReason(error) };
+    }
+    if (pending) {
+      await recorder.record(rowId, pending);
     }
   }
 
@@ -738,22 +762,12 @@ async function commitAttendanceImportBatchClaimed(input: ImportCommitInput): Pro
       [input.batchId, input.churchId, status, JSON.stringify(summary)],
     );
   } else {
-    const supabase = await createTenantServerClient();
-    const { error } = await supabase
-      .from("import_batches")
-      .update({
-        status,
-        dry_run: false,
-        summary,
-        committed_at: status === "committed" ? new Date().toISOString() : null,
-        failed_at: status === "failed" ? new Date().toISOString() : null,
-      })
-      .eq("id", input.batchId)
-      .eq("church_id", input.churchId);
-
-    if (error) {
-      throw new Error(error.message);
-    }
+    await finishImportBatch(
+      input,
+      { status, created, updated, failed, failureReasons: [...failureReasons] },
+      recorder,
+      normalizedPayloads.length,
+    );
   }
 
   await auditImportCommit(input, { status, created, updated, failed });

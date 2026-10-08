@@ -1770,6 +1770,18 @@
         "tests/e2e/api-session-routes.spec.ts"
       ]
     },
+    "/api/church-admin/imports/[batchId]/report": {
+      "path": "/api/church-admin/imports/[batchId]/report",
+      "file": "app/api/church-admin/imports/[batchId]/report/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "session",
+      "tests": [
+        "tests/e2e/api-session-routes.spec.ts",
+        "app/api/church-admin/imports/[batchId]/report/route.test.ts"
+      ]
+    },
     "/api/control/db-health": {
       "path": "/api/control/db-health",
       "file": "app/api/control/db-health/route.ts",

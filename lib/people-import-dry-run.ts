@@ -5,9 +5,11 @@ import {
   assertUpdated,
   auditImportCommit,
   failureReason,
+  finishImportBatch,
   ImportRowError,
   runClaimedCommit,
   type ImportCommitInput,
+  type OutcomeRecorder,
 } from "@/lib/import-commit";
 import { fetchAllPages } from "@/lib/import-profile-index";
 import {
@@ -578,12 +580,15 @@ async function ensureFamilyId(
   }
 
   const supabase = await createTenantServerClient();
-  const { data: existingFamily } = await supabase
+  const { data: existingFamily, error: familyLookupError } = await supabase
     .from("families")
     .select("id")
     .eq("church_id", churchId)
     .ilike("family_name", householdName)
     .maybeSingle();
+  if (familyLookupError) {
+    throw new Error(familyLookupError.message);
+  }
 
   if (existingFamily?.id) {
     return existingFamily.id;
@@ -872,15 +877,22 @@ export function laneByTarget(rows: PeopleImportDryRunRow[], existing: ExistingPe
 export async function commitPeopleHouseholdImportBatch(
   input: ImportCommitInput,
 ): Promise<PeopleImportCommitResult> {
-  return runClaimedCommit(input, () => commitPeopleClaimed(input));
+  return runClaimedCommit(input, (recorder) => commitPeopleClaimed(input, recorder));
 }
 
-async function commitPeopleClaimed(input: ImportCommitInput): Promise<PeopleImportCommitResult> {
+async function commitPeopleClaimed(
+  input: ImportCommitInput,
+  recorder: OutcomeRecorder,
+): Promise<PeopleImportCommitResult> {
   const existing = await loadExistingPeopleIndex(input.churchId);
 
   let batchStatus: string | null = null;
   let dryRun = true;
   let normalizedRows: PeopleImportDryRunRow[] = [];
+  // The staged row each parsed row came from, so outcomes land on the right row.
+  const batchRowIds = new Map<PeopleImportDryRunRow, string>();
+  // Staged rows whose payload could not be read: failed, never silently dropped.
+  const unreadableRowIds: string[] = [];
 
   if (shouldUseLocalTenantFallback()) {
     const batchResult = await queryTenantLocalDb<{ status: string; dry_run: boolean }>(
@@ -913,24 +925,24 @@ async function commitPeopleClaimed(input: ImportCommitInput): Promise<PeopleImpo
   } else {
     const supabase = await createTenantServerClient();
 
-    const { data: batch } = await supabase
+    const { data: batch, error: batchError } = await supabase
       .from("import_batches")
       .select("status, dry_run")
       .eq("id", input.batchId)
       .eq("church_id", input.churchId)
       .maybeSingle();
 
-    if (!batch) {
+    if (batchError || !batch) {
       throw new Error("Import batch not found.");
     }
 
     batchStatus = batch.status;
     dryRun = batch.dry_run;
 
-    const rows = await fetchAllPages<{ normalized_payload: unknown }>((from, to) =>
+    const rows = await fetchAllPages<{ id: string; normalized_payload: unknown }>((from, to) =>
       supabase
         .from("import_batch_rows")
-        .select("normalized_payload")
+        .select("id, normalized_payload")
         .eq("batch_id", input.batchId)
         .eq("church_id", input.churchId)
         .in("classification", ["create", "update"])
@@ -938,9 +950,15 @@ async function commitPeopleClaimed(input: ImportCommitInput): Promise<PeopleImpo
         .range(from, to),
     );
 
-    normalizedRows = (rows ?? [])
-      .map((row) => normalizeBatchRowPayload((row as { normalized_payload: unknown }).normalized_payload))
-      .filter((row): row is PeopleImportDryRunRow => Boolean(row));
+    for (const row of rows ?? []) {
+      const parsed = normalizeBatchRowPayload(row.normalized_payload);
+      if (parsed) {
+        normalizedRows.push(parsed);
+        batchRowIds.set(parsed, row.id);
+      } else {
+        unreadableRowIds.push(row.id);
+      }
+    }
   }
 
   if (shouldUseLocalTenantFallback() && (batchStatus !== "dry_run_completed" || !dryRun)) {
@@ -969,7 +987,15 @@ async function commitPeopleClaimed(input: ImportCommitInput): Promise<PeopleImpo
     }
   };
 
+  for (const rowId of unreadableRowIds) {
+    failed += 1;
+    failureReasons.add(failureReason(null));
+    await recorder.record(rowId, { outcome: "failed", reason: failureReason(null) });
+  }
+
   const processOne = async (row: PeopleImportDryRunRow, familyIds?: Map<string, string>) => {
+    let profileId: string | null = null;
+    let reason: string | null = null;
     try {
       const result = await upsertProfileFromImportRow(input.churchId, row, existing, familyIds);
       if (result.kind === "created") {
@@ -978,10 +1004,16 @@ async function commitPeopleClaimed(input: ImportCommitInput): Promise<PeopleImpo
         updated += 1;
       }
       remember(row, result.profileId);
+      profileId = result.profileId;
     } catch (error) {
       failed += 1;
-      failureReasons.add(failureReason(error));
+      reason = failureReason(error);
+      failureReasons.add(reason);
     }
+    await recorder.record(
+      batchRowIds.get(row),
+      reason === null ? { outcome: "written", recordId: profileId } : { outcome: "failed", reason },
+    );
   };
 
   if (shouldUseLocalTenantFallback()) {
@@ -1002,7 +1034,10 @@ async function commitPeopleClaimed(input: ImportCommitInput): Promise<PeopleImpo
       const inserted = await insertProfileChunk(input.churchId, chunk, familyIds);
       if (inserted) {
         created += chunk.length;
-        chunk.forEach((row, i) => remember(row, inserted[i]));
+        for (const [i, row] of chunk.entries()) {
+          remember(row, inserted[i]);
+          await recorder.record(batchRowIds.get(row), { outcome: "written", recordId: inserted[i] });
+        }
       } else {
         for (const row of chunk) {
           await processOne(row, familyIds);
@@ -1046,22 +1081,12 @@ async function commitPeopleClaimed(input: ImportCommitInput): Promise<PeopleImpo
       [input.batchId, input.churchId, status, JSON.stringify(summary)],
     );
   } else {
-    const supabase = await createTenantServerClient();
-    const { error } = await supabase
-      .from("import_batches")
-      .update({
-        status,
-        dry_run: false,
-        summary,
-        committed_at: status === "committed" ? new Date().toISOString() : null,
-        failed_at: status === "failed" ? new Date().toISOString() : null,
-      })
-      .eq("id", input.batchId)
-      .eq("church_id", input.churchId);
-
-    if (error) {
-      throw new Error(error.message);
-    }
+    await finishImportBatch(
+      input,
+      { status, created, updated, failed, failureReasons: [...failureReasons] },
+      recorder,
+      normalizedRows.length + unreadableRowIds.length,
+    );
   }
 
   await auditImportCommit(input, { status, created, updated, failed });

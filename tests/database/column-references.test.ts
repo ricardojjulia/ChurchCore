@@ -57,8 +57,10 @@ describe("Supabase column references match the schema (S4)", () => {
     // names). Kept small: a jump means a new pattern the scan doesn't cover.
     // 48 since G4.1: the import commits build update payloads with conditional
     // spreads (blank cells never erase stored values) and loadSourceIdIndex
-    // takes its table name as a parameter.
-    expect(unchecked).toBeLessThanOrEqual(48);
+    // takes its table name as a parameter. 50 since G4.2: the reconciliation
+    // re-read takes its table and columns per import type, and the summary
+    // merge builds its update payload from a caller-supplied column set.
+    expect(unchecked).toBeLessThanOrEqual(50);
   });
 
   it("every written and selected column exists on its table", () => {

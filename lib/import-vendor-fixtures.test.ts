@@ -683,6 +683,8 @@ describe("Breeze tags fixture", () => {
                       result = { data: ["p-maria", "p-joel", "p-ruth", "p-sam"].map((id) => ({ id })), error: null };
                     } else if (table === "groups" && state.op === "insert") {
                       result = { data: { id: `new-group-${(nextGroup += 1)}` }, error: null };
+                    } else if (table === "group_members" && state.op === "insert") {
+                      result = { data: { id: "gm-new" }, error: null };
                     } else if (table === "group_members" && state.op === "select") {
                       result = { data: existingMembership ? { id: "gm-1" } : null, error: null };
                     }
