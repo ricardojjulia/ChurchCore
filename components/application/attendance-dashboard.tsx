@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import {
   Alert,
   Badge,
@@ -95,6 +96,13 @@ export function AttendanceDashboard({
       sidebarDescription="Service headcounts & trends"
       navLabel="Attendance"
       navItems={NAV_ITEMS}
+      topActions={
+        session.appContext.roleId === "church-admin" ? (
+          <Button component={Link} href="/app/church-admin/attendance/import" variant="default" radius="xl">
+            Import
+          </Button>
+        ) : null
+      }
     >
       <Stack gap="md" p="md">
         <Group justify="space-between">

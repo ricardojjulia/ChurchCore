@@ -272,3 +272,70 @@ describe("normalizeGivingImportSourceRow — breeze", () => {
     expect(row.sourceId).toBe("br-standalone-55");
   });
 });
+
+describe("normalizeGivingImportSourceRow — vendor export headers (G4.1)", () => {
+  it("planning_center: reads the donation-history field names; Remote ID is the source id", () => {
+    const row = normalizeGivingImportSourceRow(
+      {
+        "Donation amount": "$1,250.00",
+        "Received date": "09/13/2026",
+        Fund: "Missions",
+        "Donor email": "ada@example.org",
+        "Remote ID": "R-77",
+        Memo: "Pledge",
+      },
+      "planning_center",
+      0,
+    );
+
+    expect(row).toMatchObject({
+      sourceId: "R-77",
+      synthetic: false,
+      donorEmail: "ada@example.org",
+      amountDollars: "$1,250.00",
+      fundDesignation: "Missions",
+      donatedAt: "09/13/2026",
+      note: "Pledge",
+    });
+  });
+
+  it("planning_center: derives a content id (same for the same gift, different otherwise) with no Remote ID", () => {
+    const base = { "Donation amount": "50.00", "Received date": "2026-09-13", Fund: "Missions", "Donor email": "a@example.org" };
+    const first = normalizeGivingImportSourceRow(base, "planning_center", 0, { timeZone: "America/Chicago" });
+    const moved = normalizeGivingImportSourceRow(base, "planning_center", 41, { timeZone: "America/Chicago" });
+    const other = normalizeGivingImportSourceRow({ ...base, "Donation amount": "51.00" }, "planning_center", 0);
+
+    expect(first.synthetic).toBe(true);
+    expect(first.sourceId).toMatch(/^pco-giv-[0-9a-f]{24}$/);
+    expect(moved.sourceId).toBe(first.sourceId);
+    expect(other.sourceId).not.toBe(first.sourceId);
+  });
+
+  it("breeze: Breeze ID is the person, Processor ID the gift id, Anonymous is flagged", () => {
+    const known = normalizeGivingImportSourceRow(
+      { "Breeze ID": "5002", "Processor ID": "ch_1", Date: "09/13/2026", Amount: "250.00", Fund: "Missions", Note: "Online" },
+      "breeze",
+      0,
+    );
+    expect(known).toMatchObject({ memberNumber: "5002", anonymousDonor: false, sourceId: "ch_1", synthetic: false, donatedAt: "09/13/2026" });
+
+    const anonymous = normalizeGivingImportSourceRow(
+      { "Breeze ID": "Anonymous", Date: "09/13/2026", Amount: "40.00", Fund: "General" },
+      "breeze",
+      1,
+    );
+    expect(anonymous).toMatchObject({ memberNumber: null, anonymousDonor: true, synthetic: true });
+    expect(anonymous.sourceId).toMatch(/^brz-giv-[0-9a-f]{24}$/);
+  });
+
+  it("breeze: batch and check numbers tell two otherwise identical gifts apart", () => {
+    const a = normalizeGivingImportSourceRow({ "Breeze ID": "1", Date: "09/06/2026", Amount: "100", Fund: "General", "Check Number": "1001" }, "breeze", 0);
+    const b = normalizeGivingImportSourceRow({ "Breeze ID": "1", Date: "09/06/2026", Amount: "100", Fund: "General", "Check Number": "1002" }, "breeze", 0);
+    expect(a.sourceId).not.toBe(b.sourceId);
+  });
+
+  it("generic_csv keeps GIV-n ids and is not synthetic", () => {
+    const row = normalizeGivingImportSourceRow({ amount: "5" }, "generic_csv", 4);
+    expect(row).toMatchObject({ sourceId: "GIV-5", synthetic: false, memberNumber: null, anonymousDonor: false });
+  });
+});

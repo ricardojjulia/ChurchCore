@@ -1,6 +1,15 @@
 import "server-only";
 
-import { parseCsv } from "@/lib/finance-import";
+import {
+  assertKnownReference,
+  assertUpdated,
+  auditImportCommit,
+  failureReason,
+  runClaimedCommit,
+  type ImportCommitInput,
+} from "@/lib/import-commit";
+import { chunkArray, computeIgnoredColumns, omitColumns, parseImportCsv, parseImportDate } from "@/lib/import-normalize";
+import { fetchAllPages, loadChurchIdSet, loadSourceIdIndex } from "@/lib/import-profile-index";
 import {
   createTenantServerClient,
   queryTenantLocalDb,
@@ -8,6 +17,7 @@ import {
 } from "@/lib/supabase/tenant";
 import {
   EVENT_SOURCE_ALIASES,
+  eventConsumedAliases,
   pickEventField,
   normalizeEventImportSourceRow,
   type EventsImportSourceSystem,
@@ -17,6 +27,10 @@ import {
 export type EventsImportDryRunResult = {
   batchId: string;
   counts: { create: number; update: number; skip: number; reject: number; unmatchedMinistries: number };
+  /** Header names (never cell values) that no field mapping used. */
+  ignoredColumns: string[];
+  /** Rows in the file; the result lists them all, but a UI may preview fewer ("showing 50 of N"). */
+  totalRows: number;
   rows: EventsImportDryRunRow[];
 };
 
@@ -38,16 +52,17 @@ export type EventsImportCommitResult = {
   created: number;
   updated: number;
   failed: number;
+  /** Why rows failed; fixed phrases, never headers or cell values. */
+  failureReasons: string[];
 };
 
 const ALLOWED_APPROVAL_STATUSES = new Set(["draft", "pending", "approved", "archived"]);
 
-function isIso8601(s: string): boolean {
-  return !isNaN(Date.parse(s)) && /^\d{4}-\d{2}-\d{2}/.test(s);
-}
-
 type NormalizedEventPayload = NormalizedEventImportRow & {
   ministryId: string | null;
+  /** Real instants of the start and end (church time zone applied). */
+  startsAtInstant: string | null;
+  endsAtInstant: string | null;
 };
 
 async function loadExistingEventsIndex(churchId: string): Promise<Map<string, string>> {
@@ -64,20 +79,7 @@ async function loadExistingEventsIndex(churchId: string): Promise<Map<string, st
     return map;
   }
 
-  const supabase = await createTenantServerClient();
-  const { data } = await supabase
-    .from("events")
-    .select("id, source_id")
-    .eq("church_id", churchId)
-    .not("source_id", "is", null);
-
-  const map = new Map<string, string>();
-  for (const row of data ?? []) {
-    if (row.source_id) {
-      map.set(row.source_id, row.id);
-    }
-  }
-  return map;
+  return loadSourceIdIndex(churchId, "events");
 }
 
 async function loadExistingMinistriesIndex(churchId: string): Promise<Map<string, string>> {
@@ -95,13 +97,17 @@ async function loadExistingMinistriesIndex(churchId: string): Promise<Map<string
   }
 
   const supabase = await createTenantServerClient();
-  const { data } = await supabase
-    .from("ministries")
-    .select("id, name")
-    .eq("church_id", churchId);
+  const data = await fetchAllPages<{ id: string; name: string | null }>((from, to) =>
+    supabase
+      .from("ministries")
+      .select("id, name")
+      .eq("church_id", churchId)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
 
   const map = new Map<string, string>();
-  for (const row of data ?? []) {
+  for (const row of data) {
     if (row.name) {
       map.set((row.name as string).trim().toLowerCase(), row.id);
     }
@@ -109,11 +115,12 @@ async function loadExistingMinistriesIndex(churchId: string): Promise<Map<string
   return map;
 }
 
-function classifyEventsImportRows(
+export function classifyEventsImportRows(
   csvRows: Record<string, string>[],
   sourceSystem: EventsImportSourceSystem,
   eventsIndex: Map<string, string>,
   ministriesIndex: Map<string, string>,
+  timeZone: string | null = null,
 ): {
   counts: EventsImportDryRunResult["counts"];
   rows: EventsImportDryRunRow[];
@@ -143,13 +150,16 @@ function classifyEventsImportRows(
         action: "reject",
         reason: "Missing event title.",
       });
-      normalizedPayloads.push({ ...normalized, ministryId: null });
+      normalizedPayloads.push({ ...normalized, ministryId: null, startsAtInstant: null, endsAtInstant: null });
       seenSourceIds.add(normalized.sourceId);
       continue;
     }
 
+    const startsAtParsed = parseImportDate(normalized.startsAt, timeZone);
+    const endsAtParsed = parseImportDate(normalized.endsAt, timeZone);
+
     // 2. Missing or invalid starts_at
-    if (!normalized.startsAt || !isIso8601(normalized.startsAt)) {
+    if (!startsAtParsed.ok) {
       counts.reject += 1;
       rows.push({
         rowNumber,
@@ -160,15 +170,15 @@ function classifyEventsImportRows(
         ministryName: normalized.ministryName,
         ministryResolved: false,
         action: "reject",
-        reason: "Missing or invalid starts_at — ISO 8601 required.",
+        reason: "Missing or invalid starts_at — use YYYY-MM-DD or mm/dd/yyyy.",
       });
-      normalizedPayloads.push({ ...normalized, ministryId: null });
+      normalizedPayloads.push({ ...normalized, ministryId: null, startsAtInstant: null, endsAtInstant: null });
       seenSourceIds.add(normalized.sourceId);
       continue;
     }
 
     // 3. Missing or invalid ends_at
-    if (!normalized.endsAt || !isIso8601(normalized.endsAt)) {
+    if (!endsAtParsed.ok) {
       counts.reject += 1;
       rows.push({
         rowNumber,
@@ -179,15 +189,15 @@ function classifyEventsImportRows(
         ministryName: normalized.ministryName,
         ministryResolved: false,
         action: "reject",
-        reason: "Missing or invalid ends_at — ISO 8601 required.",
+        reason: "Missing or invalid ends_at — use YYYY-MM-DD or mm/dd/yyyy.",
       });
-      normalizedPayloads.push({ ...normalized, ministryId: null });
+      normalizedPayloads.push({ ...normalized, ministryId: null, startsAtInstant: null, endsAtInstant: null });
       seenSourceIds.add(normalized.sourceId);
       continue;
     }
 
     // 4. ends_at must be after starts_at
-    if (new Date(normalized.endsAt) <= new Date(normalized.startsAt)) {
+    if (new Date(endsAtParsed.instant) <= new Date(startsAtParsed.instant)) {
       counts.reject += 1;
       rows.push({
         rowNumber,
@@ -200,7 +210,7 @@ function classifyEventsImportRows(
         action: "reject",
         reason: "ends_at must be after starts_at.",
       });
-      normalizedPayloads.push({ ...normalized, ministryId: null });
+      normalizedPayloads.push({ ...normalized, ministryId: null, startsAtInstant: null, endsAtInstant: null });
       seenSourceIds.add(normalized.sourceId);
       continue;
     }
@@ -222,13 +232,13 @@ function classifyEventsImportRows(
         action: "reject",
         reason: "Invalid approval_status value.",
       });
-      normalizedPayloads.push({ ...normalized, ministryId: null });
+      normalizedPayloads.push({ ...normalized, ministryId: null, startsAtInstant: null, endsAtInstant: null });
       seenSourceIds.add(normalized.sourceId);
       continue;
     }
 
     // 6. Invalid capacity — use alias-aware lookup so future adapter aliases are respected
-    const rawCapacityStr = pickEventField(csvRow, EVENT_SOURCE_ALIASES[sourceSystem].capacity);
+    const rawCapacityStr = pickEventField(csvRow, (EVENT_SOURCE_ALIASES[sourceSystem] ?? EVENT_SOURCE_ALIASES.generic_csv).capacity);
     if (rawCapacityStr != null && rawCapacityStr.trim().length > 0) {
       const parsed = parseInt(rawCapacityStr, 10);
       if (isNaN(parsed) || parsed <= 0) {
@@ -244,7 +254,7 @@ function classifyEventsImportRows(
           action: "reject",
           reason: "Invalid capacity — must be a positive integer.",
         });
-        normalizedPayloads.push({ ...normalized, ministryId: null });
+        normalizedPayloads.push({ ...normalized, ministryId: null, startsAtInstant: null, endsAtInstant: null });
         seenSourceIds.add(normalized.sourceId);
         continue;
       }
@@ -264,7 +274,7 @@ function classifyEventsImportRows(
         action: "skip",
         reason: "Duplicate source ID in import file.",
       });
-      normalizedPayloads.push({ ...normalized, ministryId: null });
+      normalizedPayloads.push({ ...normalized, ministryId: null, startsAtInstant: null, endsAtInstant: null });
       continue;
     }
 
@@ -303,7 +313,12 @@ function classifyEventsImportRows(
       action,
       reason,
     });
-    normalizedPayloads.push({ ...normalized, ministryId });
+    normalizedPayloads.push({
+      ...normalized,
+      ministryId,
+      startsAtInstant: startsAtParsed.instant,
+      endsAtInstant: endsAtParsed.instant,
+    });
   }
 
   return { counts, rows, normalizedPayloads };
@@ -318,7 +333,9 @@ async function insertDryRunBatchAndRows(
   normalizedPayloads: NormalizedEventPayload[],
   rawCsvRows: Record<string, string>[],
   counts: EventsImportDryRunResult["counts"],
+  ignoredColumns: string[],
 ): Promise<string> {
+  const summary = { ...counts, ignoredColumns };
   if (shouldUseLocalTenantFallback()) {
     const batch = await queryTenantLocalDb<{ id: string }>(
       `insert into public.import_batches
@@ -326,7 +343,7 @@ async function insertDryRunBatchAndRows(
           status, dry_run, summary)
        values ($1, 'events_csv', $2, $3, $4, 'dry_run_completed', true, $5::jsonb)
        returning id`,
-      [churchId, sourceSystem, sourceFilename, actorProfileId, JSON.stringify(counts)],
+      [churchId, sourceSystem, sourceFilename, actorProfileId, JSON.stringify(summary)],
     );
 
     const batchId = batch.rows[0]?.id;
@@ -367,7 +384,7 @@ async function insertDryRunBatchAndRows(
       created_by_profile_id: actorProfileId,
       status: "dry_run_completed",
       dry_run: true,
-      summary: counts,
+      summary,
     })
     .select("id")
     .single();
@@ -376,8 +393,8 @@ async function insertDryRunBatchAndRows(
     throw new Error(batchError?.message ?? "Unable to create import batch.");
   }
 
-  const { error: rowsError } = await supabase.from("import_batch_rows").insert(
-    rows.map((row, i) => ({
+  // Chunked: a 5,000-row batch is too large for one request.
+  const batchRows = rows.map((row, i) => ({
       batch_id: batch.id,
       church_id: churchId,
       row_number: row.rowNumber,
@@ -385,11 +402,12 @@ async function insertDryRunBatchAndRows(
       normalized_payload: normalizedPayloads[i],
       classification: row.action,
       reason: row.reason,
-    })),
-  );
-
-  if (rowsError) {
-    throw new Error(rowsError.message);
+    }));
+  for (const part of chunkArray(batchRows, 500)) {
+    const { error: rowsError } = await supabase.from("import_batch_rows").insert(part);
+    if (rowsError) {
+      throw new Error(rowsError.message);
+    }
   }
 
   return batch.id;
@@ -401,8 +419,10 @@ export async function runEventsImportDryRun(input: {
   sourceSystem?: EventsImportSourceSystem;
   sourceFilename: string;
   csvText: string;
+  /** The church's IANA time zone, applied to dates and times without an offset. */
+  timeZone?: string | null;
 }): Promise<EventsImportDryRunResult> {
-  const csv = await parseCsv(input.csvText);
+  const csv = parseImportCsv(input.csvText);
   if (csv.errors.length > 0) {
     throw new Error(csv.errors[0] ?? "Unable to parse CSV file.");
   }
@@ -423,7 +443,9 @@ export async function runEventsImportDryRun(input: {
     sourceSystem,
     eventsIndex,
     ministriesIndex,
+    input.timeZone ?? null,
   );
+  const ignoredColumns = computeIgnoredColumns(csv.headers, eventConsumedAliases(sourceSystem));
 
   const batchId = await insertDryRunBatchAndRows(
     input.churchId,
@@ -432,11 +454,12 @@ export async function runEventsImportDryRun(input: {
     input.sourceFilename,
     rows,
     normalizedPayloads,
-    csv.rows,
+    csv.rows.map((row) => omitColumns(row, ignoredColumns)),
     counts,
+    ignoredColumns,
   );
 
-  return { batchId, counts, rows };
+  return { batchId, counts, ignoredColumns, totalRows: csv.rows.length, rows };
 }
 
 function normalizeBatchRowPayload(payload: unknown): NormalizedEventPayload | null {
@@ -460,14 +483,16 @@ function normalizeBatchRowPayload(payload: unknown): NormalizedEventPayload | nu
     ministryName: typeof row.ministryName === "string" ? row.ministryName : null,
     approvalStatus: typeof row.approvalStatus === "string" ? row.approvalStatus : null,
     ministryId: typeof row.ministryId === "string" ? row.ministryId : null,
+    startsAtInstant: typeof row.startsAtInstant === "string" ? row.startsAtInstant : null,
+    endsAtInstant: typeof row.endsAtInstant === "string" ? row.endsAtInstant : null,
   };
 }
 
-export async function commitEventsImportBatch(input: {
-  churchId: string;
-  actorProfileId: string | null;
-  batchId: string;
-}): Promise<EventsImportCommitResult> {
+export async function commitEventsImportBatch(input: ImportCommitInput): Promise<EventsImportCommitResult> {
+  return runClaimedCommit(input, () => commitEventsImportBatchClaimed(input));
+}
+
+async function commitEventsImportBatchClaimed(input: ImportCommitInput): Promise<EventsImportCommitResult> {
   let batchStatus: string | null = null;
   let dryRun = true;
   let normalizedPayloads: NormalizedEventPayload[] = [];
@@ -517,13 +542,16 @@ export async function commitEventsImportBatch(input: {
     batchStatus = batch.status;
     dryRun = batch.dry_run;
 
-    const { data: rows } = await supabase
-      .from("import_batch_rows")
-      .select("normalized_payload")
-      .eq("batch_id", input.batchId)
-      .eq("church_id", input.churchId)
-      .in("classification", ["create", "update"])
-      .order("row_number", { ascending: true });
+    const rows = await fetchAllPages<{ normalized_payload: unknown }>((from, to) =>
+      supabase
+        .from("import_batch_rows")
+        .select("normalized_payload")
+        .eq("batch_id", input.batchId)
+        .eq("church_id", input.churchId)
+        .in("classification", ["create", "update"])
+        .order("row_number", { ascending: true })
+        .range(from, to),
+    );
 
     normalizedPayloads = (rows ?? [])
       .map((row) =>
@@ -532,16 +560,20 @@ export async function commitEventsImportBatch(input: {
       .filter((row): row is NormalizedEventPayload => Boolean(row));
   }
 
-  if (batchStatus !== "dry_run_completed" || !dryRun) {
+  if (shouldUseLocalTenantFallback() && (batchStatus !== "dry_run_completed" || !dryRun)) {
     throw new Error("Only dry-run-completed batches can be committed.");
   }
 
   let created = 0;
   let updated = 0;
   let failed = 0;
+  const failureReasons = new Set<string>();
+
+  const ministryIds = shouldUseLocalTenantFallback() ? null : await loadChurchIdSet(input.churchId, "ministries");
 
   for (const payload of normalizedPayloads) {
     try {
+      assertKnownReference(payload.ministryId, ministryIds);
       const approvalStatus = payload.approvalStatus ?? "draft";
 
       if (shouldUseLocalTenantFallback()) {
@@ -554,12 +586,12 @@ export async function commitEventsImportBatch(input: {
           await queryTenantLocalDb(
             `update public.events
              set title = $1,
-                 description = $2,
-                 location = $3,
+                 description = coalesce($2, description),
+                 location = coalesce($3, location),
                  starts_at = $4,
                  ends_at = $5,
-                 capacity = $6,
-                 ministry_id = $7,
+                 capacity = coalesce($6, capacity),
+                 ministry_id = coalesce($7, ministry_id),
                  approval_status = $8,
                  updated_at = now()
              where church_id = $9 and source_id = $10`,
@@ -567,8 +599,8 @@ export async function commitEventsImportBatch(input: {
               payload.title,
               payload.description,
               payload.location,
-              payload.startsAt,
-              payload.endsAt,
+              payload.startsAtInstant ?? payload.startsAt,
+              payload.endsAtInstant ?? payload.endsAt,
               payload.capacity,
               payload.ministryId,
               approvalStatus,
@@ -581,16 +613,16 @@ export async function commitEventsImportBatch(input: {
           await queryTenantLocalDb(
             `insert into public.events
                (church_id, source_id, title, description, location, starts_at, ends_at,
-                capacity, ministry_id, approval_status)
-             values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+                capacity, ministry_id, approval_status, category)
+             values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'general')`,
             [
               input.churchId,
               payload.sourceId,
               payload.title,
               payload.description,
               payload.location,
-              payload.startsAt,
-              payload.endsAt,
+              payload.startsAtInstant ?? payload.startsAt,
+              payload.endsAtInstant ?? payload.endsAt,
               payload.capacity,
               payload.ministryId,
               approvalStatus,
@@ -609,25 +641,28 @@ export async function commitEventsImportBatch(input: {
           .maybeSingle();
 
         if (existing?.id) {
-          const { error } = await supabase
+          const { data: updatedRows, error } = await supabase
             .from("events")
             .update({
               title: payload.title,
-              description: payload.description,
-              location: payload.location,
-              starts_at: payload.startsAt,
-              ends_at: payload.endsAt,
-              capacity: payload.capacity,
-              ministry_id: payload.ministryId,
+              // A blank cell never erases what the church already has.
+              ...(payload.description ? { description: payload.description } : {}),
+              ...(payload.location ? { location: payload.location } : {}),
+              starts_at: payload.startsAtInstant ?? payload.startsAt,
+              ends_at: payload.endsAtInstant ?? payload.endsAt,
+              ...(payload.capacity != null ? { capacity: payload.capacity } : {}),
+              ...(payload.ministryId ? { ministry_id: payload.ministryId } : {}),
               approval_status: approvalStatus,
               updated_at: new Date().toISOString(),
             })
             .eq("church_id", input.churchId)
-            .eq("source_id", payload.sourceId);
+            .eq("source_id", payload.sourceId)
+            .select("id");
 
           if (error) {
             throw new Error(error.message);
           }
+          assertUpdated(updatedRows);
           updated += 1;
         } else {
           const { error } = await supabase.from("events").insert({
@@ -636,11 +671,13 @@ export async function commitEventsImportBatch(input: {
             title: payload.title,
             description: payload.description,
             location: payload.location,
-            starts_at: payload.startsAt,
-            ends_at: payload.endsAt,
+            starts_at: payload.startsAtInstant ?? payload.startsAt,
+            ends_at: payload.endsAtInstant ?? payload.endsAt,
             capacity: payload.capacity,
             ministry_id: payload.ministryId,
             approval_status: approvalStatus,
+            // events.category is NOT NULL with no default; imports used to fail on every insert.
+            category: "general",
           });
 
           if (error) {
@@ -649,8 +686,9 @@ export async function commitEventsImportBatch(input: {
           created += 1;
         }
       }
-    } catch {
+    } catch (error) {
       failed += 1;
+      failureReasons.add(failureReason(error));
     }
   }
 
@@ -663,6 +701,7 @@ export async function commitEventsImportBatch(input: {
     created,
     updated,
     failed,
+    ...(failureReasons.size > 0 ? { failureReasons: [...failureReasons].slice(0, 10) } : {}),
   };
 
   if (shouldUseLocalTenantFallback()) {
@@ -695,11 +734,14 @@ export async function commitEventsImportBatch(input: {
     }
   }
 
+  await auditImportCommit(input, { status, created, updated, failed });
+
   return {
     batchId: input.batchId,
     status,
     created,
     updated,
     failed,
+    failureReasons: [...failureReasons].slice(0, 10),
   };
 }

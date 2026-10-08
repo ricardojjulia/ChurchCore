@@ -1,13 +1,30 @@
 import "server-only";
 
-import { parseCsv } from "@/lib/finance-import";
+import {
+  assertKnownReference,
+  assertUpdated,
+  auditImportCommit,
+  failureReason,
+  runClaimedCommit,
+  type ImportCommitInput,
+} from "@/lib/import-commit";
+import { chunkArray, computeIgnoredColumns, omitColumns, parseImportCsv, parseImportDate } from "@/lib/import-normalize";
+import {
+  fetchAllPages,
+  loadChurchIdSet,
+  loadProfileLinkIndex,
+  loadSourceIdIndex,
+  type ProfileLinkIndex,
+} from "@/lib/import-profile-index";
 import {
   createTenantServerClient,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
 import {
+  givingConsumedAliases,
   normalizeGivingImportSourceRow,
+  parseAmountCents,
   type GivingImportSourceSystem,
   type NormalizedGivingImportRow,
 } from "@/lib/giving-import-source-adapters";
@@ -21,6 +38,10 @@ export type GivingImportDryRunResult = {
     reject: number;
     unmatchedDonors: number;
   };
+  /** Header names (never cell values) that no field mapping used. */
+  ignoredColumns: string[];
+  /** Rows in the file; the result lists them all, but a UI may preview fewer ("showing 50 of N"). */
+  totalRows: number;
   rows: GivingImportDryRunRow[];
 };
 
@@ -42,19 +63,11 @@ export type GivingImportCommitResult = {
   created: number;
   updated: number;
   failed: number;
+  /** Why rows failed; fixed phrases, never headers or cell values. */
+  failureReasons: string[];
 };
 
-function isIso8601(s: string): boolean {
-  return !isNaN(Date.parse(s)) && /^\d{4}-\d{2}-\d{2}/.test(s);
-}
-
-export function parseAmountCents(raw: string | null): number | null {
-  if (!raw || !raw.trim()) return null;
-  const cleaned = raw.replace(/[$,\s]/g, "");
-  const dollars = parseFloat(cleaned);
-  if (isNaN(dollars) || dollars <= 0) return null;
-  return Math.round(dollars * 100);
-}
+export { parseAmountCents };
 
 export function normalizeIsRecurring(raw: string | null): boolean {
   return ["yes", "1", "true"].includes((raw ?? "").toLowerCase().trim());
@@ -65,6 +78,8 @@ type NormalizedGivingPayload = NormalizedGivingImportRow & {
   amountCents: number | null;
   isAnonymous: boolean;
   isRecurring: boolean;
+  /** The real instant of the gift (church time zone applied); created_at on insert. */
+  donatedInstant: string | null;
 };
 
 async function loadDonationsIndex(churchId: string): Promise<Map<string, string>> {
@@ -80,56 +95,15 @@ async function loadDonationsIndex(churchId: string): Promise<Map<string, string>
     return map;
   }
 
-  const supabase = await createTenantServerClient();
-  const { data } = await supabase
-    .from("donations")
-    .select("id, source_id")
-    .eq("church_id", churchId)
-    .not("source_id", "is", null);
-
-  const map = new Map<string, string>();
-  for (const row of data ?? []) {
-    if (row.source_id) {
-      map.set(row.source_id, row.id);
-    }
-  }
-  return map;
+  return loadSourceIdIndex(churchId, "donations");
 }
 
-async function loadProfilesIndex(churchId: string): Promise<Map<string, string>> {
-  if (shouldUseLocalTenantFallback()) {
-    const result = await queryTenantLocalDb<{ id: string; email: string }>(
-      `select id, email from public.profiles where church_id = $1 and email is not null`,
-      [churchId],
-    );
-    const map = new Map<string, string>();
-    for (const row of result.rows) {
-      map.set(row.email.trim().toLowerCase(), row.id);
-    }
-    return map;
-  }
-
-  const supabase = await createTenantServerClient();
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, email")
-    .eq("church_id", churchId)
-    .not("email", "is", null);
-
-  const map = new Map<string, string>();
-  for (const row of data ?? []) {
-    if (row.email) {
-      map.set((row.email as string).trim().toLowerCase(), row.id);
-    }
-  }
-  return map;
-}
-
-function classifyGivingImportRows(
+export function classifyGivingImportRows(
   csvRows: Record<string, string>[],
   sourceSystem: GivingImportSourceSystem,
   donationsIndex: Map<string, string>,
-  profilesIndex: Map<string, string>,
+  profileIndex: ProfileLinkIndex,
+  timeZone: string | null = null,
 ): {
   counts: GivingImportDryRunResult["counts"];
   rows: GivingImportDryRunRow[];
@@ -145,15 +119,19 @@ function classifyGivingImportRows(
   const rows: GivingImportDryRunRow[] = [];
   const normalizedPayloads: NormalizedGivingPayload[] = [];
   const seenSourceIds = new Set<string>();
+  const occurrences = new Map<string, number>();
 
   for (let index = 0; index < csvRows.length; index += 1) {
     const csvRow = csvRows[index];
     const rowNumber = index + 2;
-    const normalized = normalizeGivingImportSourceRow(csvRow, sourceSystem, index);
+    const normalized = normalizeGivingImportSourceRow(csvRow, sourceSystem, index, { timeZone });
 
-    // 1. Missing amount
-    if (!normalized.amountDollars || !normalized.amountDollars.trim()) {
-      counts.reject += 1;
+    const emit = (
+      action: GivingImportDryRunRow["action"],
+      reason: string | null,
+      extra: Partial<NormalizedGivingPayload> = {},
+      donorResolved = false,
+    ) => {
       rows.push({
         rowNumber,
         sourceId: normalized.sourceId,
@@ -161,9 +139,9 @@ function classifyGivingImportRows(
         amountDollars: normalized.amountDollars,
         fundDesignation: normalized.fundDesignation,
         donatedAt: normalized.donatedAt,
-        donorResolved: false,
-        action: "reject",
-        reason: "Missing donation amount.",
+        donorResolved,
+        action,
+        reason,
       });
       normalizedPayloads.push({
         ...normalized,
@@ -171,7 +149,15 @@ function classifyGivingImportRows(
         amountCents: null,
         isAnonymous: true,
         isRecurring: false,
+        donatedInstant: null,
+        ...extra,
       });
+    };
+
+    // 1. Missing amount
+    if (!normalized.amountDollars || !normalized.amountDollars.trim()) {
+      counts.reject += 1;
+      emit("reject", "Missing donation amount.");
       seenSourceIds.add(normalized.sourceId);
       continue;
     }
@@ -180,91 +166,69 @@ function classifyGivingImportRows(
     const amountCents = parseAmountCents(normalized.amountDollars);
     if (amountCents === null) {
       counts.reject += 1;
-      rows.push({
-        rowNumber,
-        sourceId: normalized.sourceId,
-        donorEmail: normalized.donorEmail,
-        amountDollars: normalized.amountDollars,
-        fundDesignation: normalized.fundDesignation,
-        donatedAt: normalized.donatedAt,
-        donorResolved: false,
-        action: "reject",
-        reason: "Invalid donation amount — must be a positive number.",
-      });
-      normalizedPayloads.push({
-        ...normalized,
-        profileId: null,
-        amountCents: null,
-        isAnonymous: true,
-        isRecurring: false,
-      });
+      emit("reject", "Invalid donation amount — must be a positive number.");
       seenSourceIds.add(normalized.sourceId);
       continue;
     }
 
-    // 3. Invalid donatedAt (non-null, not ISO 8601)
-    if (normalized.donatedAt != null && !isIso8601(normalized.donatedAt)) {
-      counts.reject += 1;
-      rows.push({
-        rowNumber,
-        sourceId: normalized.sourceId,
-        donorEmail: normalized.donorEmail,
-        amountDollars: normalized.amountDollars,
-        fundDesignation: normalized.fundDesignation,
-        donatedAt: normalized.donatedAt,
-        donorResolved: false,
-        action: "reject",
-        reason: "Invalid donated_at — ISO 8601 required.",
-      });
-      normalizedPayloads.push({
-        ...normalized,
-        profileId: null,
-        amountCents: null,
-        isAnonymous: true,
-        isRecurring: false,
-      });
-      seenSourceIds.add(normalized.sourceId);
-      continue;
+    // 3. Invalid date (non-null, not ISO 8601 or mm/dd/yyyy)
+    let donatedInstant: string | null = null;
+    if (normalized.donatedAt != null) {
+      const parsedDate = parseImportDate(normalized.donatedAt, timeZone);
+      if (!parsedDate.ok) {
+        counts.reject += 1;
+        emit("reject", "Invalid date — use YYYY-MM-DD or mm/dd/yyyy.");
+        seenSourceIds.add(normalized.sourceId);
+        continue;
+      }
+      donatedInstant = parsedDate.instant;
+    }
+
+    // Content-derived ids: the nth identical row in the file gets -n, so a
+    // genuine repeat gift is not collapsed and a re-import maps row to row.
+    if (normalized.synthetic) {
+      const occurrence = (occurrences.get(normalized.sourceId) ?? 0) + 1;
+      occurrences.set(normalized.sourceId, occurrence);
+      normalized.sourceId = `${normalized.sourceId}-${occurrence}`;
     }
 
     // 4. Duplicate sourceId in file
     if (seenSourceIds.has(normalized.sourceId)) {
       counts.skip += 1;
-      rows.push({
-        rowNumber,
-        sourceId: normalized.sourceId,
-        donorEmail: normalized.donorEmail,
-        amountDollars: normalized.amountDollars,
-        fundDesignation: normalized.fundDesignation,
-        donatedAt: normalized.donatedAt,
-        donorResolved: false,
-        action: "skip",
-        reason: "Duplicate source ID in import file.",
-      });
-      normalizedPayloads.push({
-        ...normalized,
-        profileId: null,
-        amountCents: null,
-        isAnonymous: true,
-        isRecurring: false,
-      });
+      emit("skip", "Duplicate source ID in import file.");
       continue;
     }
 
-    // 5. Existing sourceId in donations index → update; else → create
+    // 5. A vendor row without an id that was imported before: never update it
+    if (normalized.synthetic && donationsIndex.has(normalized.sourceId)) {
+      counts.skip += 1;
+      emit("skip", "Already imported.");
+      seenSourceIds.add(normalized.sourceId);
+      continue;
+    }
+
+    // 6. Existing sourceId in donations index → update; else → create
     const action: "create" | "update" = donationsIndex.has(normalized.sourceId) ? "update" : "create";
     counts[action] += 1;
 
-    // 6. Resolve profile and append donor warning
-    const profileId = normalized.donorEmail != null
-      ? (profilesIndex.get(normalized.donorEmail.trim().toLowerCase()) ?? null)
-      : null;
+    // 7. Link the donor by vendor person id, then email; append the donor warning
+    const profileId = normalized.anonymousDonor
+      ? null
+      : ((normalized.memberNumber
+          ? profileIndex.byMemberNumber.get(normalized.memberNumber)
+          : undefined) ??
+        (normalized.donorEmail != null
+          ? profileIndex.byEmail.get(normalized.donorEmail.trim().toLowerCase())
+          : undefined) ??
+        null);
 
     let donorResolved = false;
     let isAnonymous: boolean;
     const reasons: string[] = [];
 
-    if (normalized.donorEmail != null) {
+    if (normalized.anonymousDonor) {
+      isAnonymous = true;
+    } else if (normalized.memberNumber != null || normalized.donorEmail != null) {
       if (profileId) {
         donorResolved = true;
         isAnonymous = false;
@@ -275,7 +239,7 @@ function classifyGivingImportRows(
         isAnonymous = action === "create";
       }
     } else {
-      // No email provided — anonymous by absence, no warning
+      // No donor reference at all — anonymous by absence, no warning
       isAnonymous = true;
     }
 
@@ -283,24 +247,12 @@ function classifyGivingImportRows(
 
     seenSourceIds.add(normalized.sourceId);
 
-    rows.push({
-      rowNumber,
-      sourceId: normalized.sourceId,
-      donorEmail: normalized.donorEmail,
-      amountDollars: normalized.amountDollars,
-      fundDesignation: normalized.fundDesignation,
-      donatedAt: normalized.donatedAt,
-      donorResolved,
+    emit(
       action,
-      reason: reasons.length > 0 ? reasons.join(" ") : null,
-    });
-    normalizedPayloads.push({
-      ...normalized,
-      profileId,
-      amountCents,
-      isAnonymous,
-      isRecurring,
-    });
+      reasons.length > 0 ? reasons.join(" ") : null,
+      { profileId, amountCents, isAnonymous, isRecurring, donatedInstant },
+      donorResolved,
+    );
   }
 
   return { counts, rows, normalizedPayloads };
@@ -315,7 +267,9 @@ async function insertDryRunBatchAndRows(
   normalizedPayloads: NormalizedGivingPayload[],
   rawCsvRows: Record<string, string>[],
   counts: GivingImportDryRunResult["counts"],
+  ignoredColumns: string[],
 ): Promise<string> {
+  const summary = { ...counts, ignoredColumns };
   if (shouldUseLocalTenantFallback()) {
     const batch = await queryTenantLocalDb<{ id: string }>(
       `insert into public.import_batches
@@ -323,7 +277,7 @@ async function insertDryRunBatchAndRows(
           status, dry_run, summary)
        values ($1, 'giving_csv', $2, $3, $4, 'dry_run_completed', true, $5::jsonb)
        returning id`,
-      [churchId, sourceSystem, sourceFilename, actorProfileId, JSON.stringify(counts)],
+      [churchId, sourceSystem, sourceFilename, actorProfileId, JSON.stringify(summary)],
     );
 
     const batchId = batch.rows[0]?.id;
@@ -364,7 +318,7 @@ async function insertDryRunBatchAndRows(
       created_by_profile_id: actorProfileId,
       status: "dry_run_completed",
       dry_run: true,
-      summary: counts,
+      summary,
     })
     .select("id")
     .single();
@@ -373,8 +327,8 @@ async function insertDryRunBatchAndRows(
     throw new Error(batchError?.message ?? "Unable to create import batch.");
   }
 
-  const { error: rowsError } = await supabase.from("import_batch_rows").insert(
-    rows.map((row, i) => ({
+  // Chunked: a 5,000-row batch is too large for one request.
+  const batchRows = rows.map((row, i) => ({
       batch_id: batch.id,
       church_id: churchId,
       row_number: row.rowNumber,
@@ -382,11 +336,12 @@ async function insertDryRunBatchAndRows(
       normalized_payload: normalizedPayloads[i],
       classification: row.action,
       reason: row.reason,
-    })),
-  );
-
-  if (rowsError) {
-    throw new Error(rowsError.message);
+    }));
+  for (const part of chunkArray(batchRows, 500)) {
+    const { error: rowsError } = await supabase.from("import_batch_rows").insert(part);
+    if (rowsError) {
+      throw new Error(rowsError.message);
+    }
   }
 
   return batch.id;
@@ -398,8 +353,10 @@ export async function runGivingImportDryRun(input: {
   sourceSystem?: GivingImportSourceSystem;
   sourceFilename: string;
   csvText: string;
+  /** The church's IANA time zone, applied to dates and times without an offset. */
+  timeZone?: string | null;
 }): Promise<GivingImportDryRunResult> {
-  const csv = await parseCsv(input.csvText);
+  const csv = parseImportCsv(input.csvText);
   if (csv.errors.length > 0) {
     throw new Error(csv.errors[0] ?? "Unable to parse CSV file.");
   }
@@ -410,17 +367,19 @@ export async function runGivingImportDryRun(input: {
 
   const sourceSystem = input.sourceSystem ?? "generic_csv";
 
-  const [donationsIndex, profilesIndex] = await Promise.all([
+  const [donationsIndex, profileIndex] = await Promise.all([
     loadDonationsIndex(input.churchId),
-    loadProfilesIndex(input.churchId),
+    loadProfileLinkIndex(input.churchId),
   ]);
 
   const { counts, rows, normalizedPayloads } = classifyGivingImportRows(
     csv.rows,
     sourceSystem,
     donationsIndex,
-    profilesIndex,
+    profileIndex,
+    input.timeZone ?? null,
   );
+  const ignoredColumns = computeIgnoredColumns(csv.headers, givingConsumedAliases(sourceSystem));
 
   const batchId = await insertDryRunBatchAndRows(
     input.churchId,
@@ -429,11 +388,12 @@ export async function runGivingImportDryRun(input: {
     input.sourceFilename,
     rows,
     normalizedPayloads,
-    csv.rows,
+    csv.rows.map((row) => omitColumns(row, ignoredColumns)),
     counts,
+    ignoredColumns,
   );
 
-  return { batchId, counts, rows };
+  return { batchId, counts, ignoredColumns, totalRows: csv.rows.length, rows };
 }
 
 function normalizeBatchRowPayload(payload: unknown): NormalizedGivingPayload | null {
@@ -449,6 +409,9 @@ function normalizeBatchRowPayload(payload: unknown): NormalizedGivingPayload | n
   return {
     sourceId: row.sourceId,
     donorEmail: typeof row.donorEmail === "string" ? row.donorEmail : null,
+    memberNumber: typeof row.memberNumber === "string" ? row.memberNumber : null,
+    anonymousDonor: row.anonymousDonor === true,
+    synthetic: row.synthetic === true,
     amountDollars: typeof row.amountDollars === "string" ? row.amountDollars : null,
     fundDesignation: typeof row.fundDesignation === "string" ? row.fundDesignation : null,
     donatedAt: typeof row.donatedAt === "string" ? row.donatedAt : null,
@@ -458,14 +421,15 @@ function normalizeBatchRowPayload(payload: unknown): NormalizedGivingPayload | n
     amountCents: typeof row.amountCents === "number" ? row.amountCents : null,
     isAnonymous: typeof row.isAnonymous === "boolean" ? row.isAnonymous : true,
     isRecurring: typeof row.isRecurring === "boolean" ? row.isRecurring : false,
+    donatedInstant: typeof row.donatedInstant === "string" ? row.donatedInstant : null,
   };
 }
 
-export async function commitGivingImportBatch(input: {
-  churchId: string;
-  actorProfileId: string | null;
-  batchId: string;
-}): Promise<GivingImportCommitResult> {
+export async function commitGivingImportBatch(input: ImportCommitInput): Promise<GivingImportCommitResult> {
+  return runClaimedCommit(input, () => commitGivingImportBatchClaimed(input));
+}
+
+async function commitGivingImportBatchClaimed(input: ImportCommitInput): Promise<GivingImportCommitResult> {
   let batchStatus: string | null = null;
   let dryRun = true;
   let normalizedPayloads: NormalizedGivingPayload[] = [];
@@ -515,13 +479,16 @@ export async function commitGivingImportBatch(input: {
     batchStatus = batch.status;
     dryRun = batch.dry_run;
 
-    const { data: rows } = await supabase
-      .from("import_batch_rows")
-      .select("normalized_payload")
-      .eq("batch_id", input.batchId)
-      .eq("church_id", input.churchId)
-      .in("classification", ["create", "update"])
-      .order("row_number", { ascending: true });
+    const rows = await fetchAllPages<{ normalized_payload: unknown }>((from, to) =>
+      supabase
+        .from("import_batch_rows")
+        .select("normalized_payload")
+        .eq("batch_id", input.batchId)
+        .eq("church_id", input.churchId)
+        .in("classification", ["create", "update"])
+        .order("row_number", { ascending: true })
+        .range(from, to),
+    );
 
     normalizedPayloads = (rows ?? [])
       .map((row) =>
@@ -530,19 +497,23 @@ export async function commitGivingImportBatch(input: {
       .filter((row): row is NormalizedGivingPayload => Boolean(row));
   }
 
-  if (batchStatus !== "dry_run_completed" || !dryRun) {
+  if (shouldUseLocalTenantFallback() && (batchStatus !== "dry_run_completed" || !dryRun)) {
     throw new Error("Only dry-run-completed batches can be committed.");
   }
 
   let created = 0;
   let updated = 0;
   let failed = 0;
+  const failureReasons = new Set<string>();
 
   // Hoist Supabase client outside the commit loop
   const supabaseClient = shouldUseLocalTenantFallback() ? null : await createTenantServerClient();
 
+  const profileIds = shouldUseLocalTenantFallback() ? null : await loadChurchIdSet(input.churchId, "profiles");
+
   for (const payload of normalizedPayloads) {
     try {
+      assertKnownReference(payload.profileId, profileIds);
       if (shouldUseLocalTenantFallback()) {
         const existing = await queryTenantLocalDb<{ id: string }>(
           `select id from public.donations where church_id = $1 and source_id = $2 limit 1`,
@@ -553,13 +524,12 @@ export async function commitGivingImportBatch(input: {
           // UPDATE: is_anonymous NOT updated (preserve existing value per Q5)
           await queryTenantLocalDb(
             `update public.donations
-             set profile_id = $1,
-                 donor_email = $2,
+             set profile_id = coalesce($1, profile_id),
+                 donor_email = coalesce($2, donor_email),
                  amount_cents = $3,
-                 fund_designation = $4,
-                 status = 'succeeded',
-                 is_recurring = $5,
-                 note = $6,
+                 fund_designation = coalesce($4, fund_designation),
+                 is_recurring = coalesce($5::boolean, is_recurring),
+                 note = coalesce($6, note),
                  updated_at = now()
              where church_id = $7 and source_id = $8`,
             [
@@ -567,7 +537,7 @@ export async function commitGivingImportBatch(input: {
               payload.donorEmail,
               payload.amountCents,
               payload.fundDesignation,
-              payload.isRecurring,
+              payload.isRecurringRaw?.trim() ? payload.isRecurring : null,
               payload.note,
               input.churchId,
               payload.sourceId,
@@ -595,7 +565,7 @@ export async function commitGivingImportBatch(input: {
               payload.isRecurring,
               payload.isAnonymous,
               payload.note,
-              payload.donatedAt,
+              payload.donatedInstant ?? payload.donatedAt,
             ],
           );
           created += 1;
@@ -612,24 +582,28 @@ export async function commitGivingImportBatch(input: {
 
         if (existing?.id) {
           // UPDATE: is_anonymous NOT updated (preserve existing value per Q5)
-          const { error } = await supabase
+          const { data: updatedRows, error } = await supabase
             .from("donations")
             .update({
-              profile_id: payload.profileId,
-              donor_email: payload.donorEmail,
+              // A blank cell never erases what the church already has.
+              ...(payload.profileId ? { profile_id: payload.profileId } : {}),
+              ...(payload.donorEmail ? { donor_email: payload.donorEmail } : {}),
               amount_cents: payload.amountCents,
-              fund_designation: payload.fundDesignation,
-              status: "succeeded",
-              is_recurring: payload.isRecurring,
-              note: payload.note,
+              ...(payload.fundDesignation ? { fund_designation: payload.fundDesignation } : {}),
+              // Never touches status (an update must not undo a refund or failure); the
+              // recurring flag changes only when the file says something about it.
+              ...(payload.isRecurringRaw?.trim() ? { is_recurring: payload.isRecurring } : {}),
+              ...(payload.note ? { note: payload.note } : {}),
               updated_at: new Date().toISOString(),
             })
             .eq("church_id", input.churchId)
-            .eq("source_id", payload.sourceId);
+            .eq("source_id", payload.sourceId)
+            .select("id");
 
           if (error) {
             throw new Error(error.message);
           }
+          assertUpdated(updatedRows);
           updated += 1;
         } else {
           // INSERT: currency='usd' hardcoded (single-currency MVP)
@@ -647,7 +621,7 @@ export async function commitGivingImportBatch(input: {
             is_recurring: payload.isRecurring,
             is_anonymous: payload.isAnonymous,
             note: payload.note,
-            created_at: payload.donatedAt ?? new Date().toISOString(),
+            created_at: payload.donatedInstant ?? payload.donatedAt ?? new Date().toISOString(),
           });
 
           if (error) {
@@ -656,9 +630,9 @@ export async function commitGivingImportBatch(input: {
           created += 1;
         }
       }
-    } catch (e) {
-      console.error("[giving-import] commit row failed:", e instanceof Error ? e.message : "unknown error");
+    } catch (error) {
       failed += 1;
+      failureReasons.add(failureReason(error));
     }
   }
 
@@ -671,6 +645,7 @@ export async function commitGivingImportBatch(input: {
     created,
     updated,
     failed,
+    ...(failureReasons.size > 0 ? { failureReasons: [...failureReasons].slice(0, 10) } : {}),
   };
 
   if (shouldUseLocalTenantFallback()) {
@@ -703,11 +678,14 @@ export async function commitGivingImportBatch(input: {
     }
   }
 
+  await auditImportCommit(input, { status, created, updated, failed });
+
   return {
     batchId: input.batchId,
     status,
     created,
     updated,
     failed,
+    failureReasons: [...failureReasons].slice(0, 10),
   };
 }

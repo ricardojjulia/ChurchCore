@@ -21,6 +21,15 @@ import {
 import { commitEventsImportBatchAction } from "@/app/app/church-admin/events/import/actions";
 import { runEventsImportDryRunAction } from "@/app/app/church-admin/events/import/actions";
 import { ApplicationShell } from "@/components/application/app-shell";
+import {
+  IMPORT_FILE_HINT,
+  CommitFailureReasons,
+  IgnoredColumns,
+  ImportCsvFileInput,
+  SourceDetectedNotice,
+  detectSourceSwitch,
+  requiredColumnsCopy,
+} from "@/components/application/church-admin-import-intake";
 import type { ChurchAppSession } from "@/lib/auth";
 import type {
   EventsImportCommitResult,
@@ -42,6 +51,23 @@ export function ChurchAdminEventsImportWorkspace({
   const [result, setResult] = useState<EventsImportDryRunResult | null>(null);
   const [commitResult, setCommitResult] = useState<EventsImportCommitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [detectedNotice, setDetectedNotice] = useState<string | null>(null);
+
+  // Any CSV change (typing, paste, upload, clear) invalidates the previous dry
+  // run and re-detects the vendor from the headers.
+  function handleCsvTextChange(text: string) {
+    setCsvText(text);
+    setResult(null);
+    setCommitResult(null);
+    setError(null);
+    const switched = detectSourceSwitch(text, sourceSystem);
+    if (switched) {
+      setSourceSystem(switched.source);
+      setDetectedNotice(switched.notice);
+    } else if (!text.trim()) {
+      setDetectedNotice(null);
+    }
+  }
 
   function handleRunDryRun() {
     setError(null);
@@ -121,8 +147,10 @@ export function ChurchAdminEventsImportWorkspace({
           <Stack gap="sm">
             <Title order={4}>CSV Intake</Title>
             <Text size="sm" c="dimmed">
-              Required columns: source_id, title, starts_at, ends_at. Optional: description,
-              location, capacity, ministry_name, status.
+              {requiredColumnsCopy("events", sourceSystem)}
+            </Text>
+            <Text size="xs" c="dimmed">
+              {IMPORT_FILE_HINT}
             </Text>
             <TextInput
               label="Source filename"
@@ -141,10 +169,16 @@ export function ChurchAdminEventsImportWorkspace({
                 { value: "breeze", label: "Breeze export" },
               ]}
             />
+            <SourceDetectedNotice notice={detectedNotice} />
+            <ImportCsvFileInput
+              onText={handleCsvTextChange}
+              onFilename={setSourceFilename}
+              onClear={() => handleCsvTextChange("")}
+            />
             <Textarea
               label="CSV content"
               value={csvText}
-              onChange={(event) => setCsvText(event.currentTarget.value)}
+              onChange={(event) => handleCsvTextChange(event.currentTarget.value)}
               minRows={10}
               autosize
             />
@@ -177,6 +211,7 @@ export function ChurchAdminEventsImportWorkspace({
               <Text size="sm" c="dimmed">
                 Dry run batch {result.batchId} captured in import staging tables.
               </Text>
+              <IgnoredColumns columns={result.ignoredColumns} />
               <Group justify="space-between">
                 <Text size="sm" c="dimmed">
                   Commit will only apply rows marked create/update.
@@ -187,7 +222,9 @@ export function ChurchAdminEventsImportWorkspace({
                   variant="light"
                   onClick={handleCommitBatch}
                   loading={isPending}
-                  disabled={!result || counts.create + counts.update === 0 || isPending}
+                  disabled={
+                    !result || counts.create + counts.update === 0 || isPending || commitResult !== null
+                  }
                 >
                   Commit batch
                 </Button>
@@ -203,8 +240,14 @@ export function ChurchAdminEventsImportWorkspace({
                 >
                   Created {commitResult.created}, updated {commitResult.updated}, failed{" "}
                   {commitResult.failed}.
+                  {commitResult.failed > 0 ? (
+                    <CommitFailureReasons reasons={commitResult.failureReasons} />
+                  ) : null}
                 </Alert>
               ) : null}
+              <Text size="xs" c="dimmed">
+                Showing {Math.min(50, result.rows.length)} of {result.totalRows} rows
+              </Text>
               <div style={{ overflowX: "auto" }}>
                 <Table highlightOnHover>
                   <Table.Thead>

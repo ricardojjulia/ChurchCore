@@ -1,0 +1,8 @@
+Breeze ID,Processor ID,First Name,Last Name,Date,Amount,Fund,Method,Batch Number,Batch Name,Check Number,Note
+5001,,Maria,Santos,09/06/2026,100.00,General,Check,B1,Sunday Batch,1001,Tithe
+5001,,Maria,Santos,09/06/2026,100.00,General,Check,B1,Sunday Batch,1001,Tithe
+5002,ch_example_0001,Joel,Rivera,09/13/2026,250.00,Missions,Card,,,,Online gift
+Anonymous,,Anonymous,,09/13/2026,40.00,General,Cash,B2,Second Batch,,Loose plate
+9999,,Unknown,Visitor,09/20/2026,75.00,General,Cash,B3,Third Batch,,Visitor gift
+5003,,Ruth,Chen,09/20/2026,0.00,General,Cash,B3,Third Batch,,
+5003,,Ruth,Chen,09/20/2026,-20.00,General,Check,B3,Third Batch,1002,Refund

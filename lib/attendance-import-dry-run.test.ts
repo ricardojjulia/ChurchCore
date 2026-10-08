@@ -17,6 +17,13 @@ vi.mock("@/lib/supabase/tenant", () => ({
   shouldUseLocalTenantFallback: shouldUseLocalTenantFallbackMock,
 }));
 
+const { loadProfileLinkIndexMock } = vi.hoisted(() => ({ loadProfileLinkIndexMock: vi.fn() }));
+
+vi.mock("@/lib/import-profile-index", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/import-profile-index")>()),
+  loadProfileLinkIndex: loadProfileLinkIndexMock,
+}));
+
 import {
   commitAttendanceImportBatch,
   runAttendanceImportDryRun,
@@ -48,11 +55,20 @@ const VALID_ATTENDANCE = {
 // Default: no existing records
 function setupDefaultMocks({
   existingAttendance = [] as { id: string; source_id: string }[],
-  existingProfiles = [] as { id: string; email: string }[],
+  existingProfiles = [
+    { id: "profile-jane", email: "jane@example.com" },
+    { id: "profile-bob", email: "bob@example.com" },
+    { id: "profile-x", email: "x@example.com" },
+  ] as { id: string; email: string }[],
+  existingMemberNumbers = [] as { id: string; member_number: string }[],
   existingEvents = [] as { id: string; source_id: string }[],
   existingPresentPairs = [] as { profile_id: string; event_id: string }[],
   batchId = BATCH_ID,
 } = {}) {
+  loadProfileLinkIndexMock.mockResolvedValue({
+    byEmail: new Map(existingProfiles.map((p) => [p.email.trim().toLowerCase(), p.id])),
+    byMemberNumber: new Map(existingMemberNumbers.map((p) => [p.member_number, p.id])),
+  });
   queryTenantLocalDbMock.mockImplementation(async (sql: string) => {
     // Load existing attendance index
     if (
@@ -182,7 +198,7 @@ describe("runAttendanceImportDryRun", () => {
 
     expect(result.counts.reject).toBe(1);
     expect(result.rows[0]?.action).toBe("reject");
-    expect(result.rows[0]?.reason).toBe("Invalid checked_in_at — ISO 8601 required.");
+    expect(result.rows[0]?.reason).toBe("Invalid date — use YYYY-MM-DD or mm/dd/yyyy.");
   });
 
   it("skips a duplicate sourceId in the same file", async () => {
@@ -273,7 +289,7 @@ describe("runAttendanceImportDryRun", () => {
     expect(result.rows[0]?.action).toBe("update");
   });
 
-  it("sets profileResolved=false and appends warning when profile unmatched", async () => {
+  it("skips (not creates) a row whose person is not matched, since profile_id is NOT NULL", async () => {
     const result = await runAttendanceImportDryRun({
       churchId: CHURCH_ID,
       actorProfileId: ACTOR_PROFILE_ID,
@@ -282,11 +298,26 @@ describe("runAttendanceImportDryRun", () => {
       csvText: makeCsv([{ id: "A-1", email: "unknown@example.com", status: "present" }]),
     });
 
-    expect(result.counts.create).toBe(1);
+    expect(result.counts.create).toBe(0);
+    expect(result.counts.skip).toBe(1);
     expect(result.counts.unmatchedProfiles).toBe(1);
-    expect(result.rows[0]?.action).toBe("create");
+    expect(result.rows[0]?.action).toBe("skip");
     expect(result.rows[0]?.profileResolved).toBe(false);
-    expect(result.rows[0]?.reason).toContain("Profile not matched — profile_id will be unset.");
+    expect(result.rows[0]?.reason).toBe("Person not matched — attendance needs an existing person.");
+  });
+
+  it("skips a row with no person reference at all", async () => {
+    const result = await runAttendanceImportDryRun({
+      churchId: CHURCH_ID,
+      actorProfileId: ACTOR_PROFILE_ID,
+      sourceSystem: "generic_csv",
+      sourceFilename: "attendance.csv",
+      csvText: makeCsv([{ id: "A-1", event_id: "EVT-001", status: "present" }]),
+    });
+
+    expect(result.counts.skip).toBe(1);
+    expect(result.counts.unmatchedProfiles).toBe(0);
+    expect(result.rows[0]?.reason).toBe("Missing person reference (Breeze ID or email).");
   });
 
   it("sets eventResolved=false and appends warning when event unmatched", async () => {
@@ -295,7 +326,7 @@ describe("runAttendanceImportDryRun", () => {
       actorProfileId: ACTOR_PROFILE_ID,
       sourceSystem: "generic_csv",
       sourceFilename: "attendance.csv",
-      csvText: makeCsv([{ id: "A-1", event_id: "NO-SUCH-EVT", status: "present" }]),
+      csvText: makeCsv([{ id: "A-1", email: "jane@example.com", event_id: "NO-SUCH-EVT", status: "present" }]),
     });
 
     expect(result.counts.create).toBe(1);
@@ -388,10 +419,10 @@ describe("runAttendanceImportDryRun", () => {
       sourceSystem: "generic_csv",
       sourceFilename: "attendance.csv",
       csvText:
-        "id,status\n" +
-        "A-1,present\n" +
-        "A-2,absent\n" +
-        "A-3,excused",
+        "id,email,status\n" +
+        "A-1,jane@example.com,present\n" +
+        "A-2,jane@example.com,absent\n" +
+        "A-3,jane@example.com,excused",
     });
 
     expect(result.counts.create).toBe(3);

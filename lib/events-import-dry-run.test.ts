@@ -11,11 +11,15 @@ const { queryTenantLocalDbMock, shouldUseLocalTenantFallbackMock } = vi.hoisted(
   };
 });
 
+const { createTenantServerClientMock } = vi.hoisted(() => ({ createTenantServerClientMock: vi.fn() }));
+
 vi.mock("@/lib/supabase/tenant", () => ({
-  createTenantServerClient: vi.fn(),
+  createTenantServerClient: createTenantServerClientMock,
   queryTenantLocalDb: queryTenantLocalDbMock,
   shouldUseLocalTenantFallback: shouldUseLocalTenantFallbackMock,
 }));
+
+vi.mock("@/lib/actions/audit", () => ({ logAuditEvent: vi.fn() }));
 
 import {
   commitEventsImportBatch,
@@ -168,7 +172,7 @@ describe("runEventsImportDryRun", () => {
 
     expect(result.counts.reject).toBe(1);
     expect(result.rows[0]?.action).toBe("reject");
-    expect(result.rows[0]?.reason).toBe("Missing or invalid starts_at — ISO 8601 required.");
+    expect(result.rows[0]?.reason).toBe("Missing or invalid starts_at — use YYYY-MM-DD or mm/dd/yyyy.");
   });
 
   it("rejects row with non-ISO starts_at", async () => {
@@ -182,7 +186,7 @@ describe("runEventsImportDryRun", () => {
 
     expect(result.counts.reject).toBe(1);
     expect(result.rows[0]?.action).toBe("reject");
-    expect(result.rows[0]?.reason).toBe("Missing or invalid starts_at — ISO 8601 required.");
+    expect(result.rows[0]?.reason).toBe("Missing or invalid starts_at — use YYYY-MM-DD or mm/dd/yyyy.");
   });
 
   it("rejects row with missing ends_at", async () => {
@@ -196,7 +200,7 @@ describe("runEventsImportDryRun", () => {
 
     expect(result.counts.reject).toBe(1);
     expect(result.rows[0]?.action).toBe("reject");
-    expect(result.rows[0]?.reason).toBe("Missing or invalid ends_at — ISO 8601 required.");
+    expect(result.rows[0]?.reason).toBe("Missing or invalid ends_at — use YYYY-MM-DD or mm/dd/yyyy.");
   });
 
   it("rejects row where ends_at equals starts_at", async () => {
@@ -587,5 +591,74 @@ describe("commitEventsImportBatch", () => {
     );
     expect(updateCall).toBeDefined();
     expect(updateCall?.[1]).toContain("committed");
+  });
+});
+
+describe("commitEventsImportBatch against Supabase (G4.1)", () => {
+  it("gives a created event a category, because events.category is NOT NULL with no default", async () => {
+    const operations: Array<{ table: string; op: string; payload?: Record<string, unknown> }> = [];
+    const batchRows = [
+      {
+        normalized_payload: {
+          sourceId: "E-1",
+          title: "Picnic",
+          startsAt: "2026-09-06",
+          endsAt: "2026-09-07",
+          startsAtInstant: "2026-09-06T17:00:00.000Z",
+          endsAtInstant: "2026-09-07T17:00:00.000Z",
+          ministryId: null,
+        },
+      },
+    ];
+    createTenantServerClientMock.mockResolvedValue({
+      from(table: string) {
+        const state: { op: string; payload?: Record<string, unknown> } = { op: "select" };
+        const builder: Record<string, unknown> = new Proxy(
+          {},
+          {
+            get(_target, prop: string) {
+              if (prop === "then") {
+                return (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => {
+                  operations.push({ table, op: state.op, payload: state.payload });
+                  const data =
+                    state.op === "update"
+                      ? [{ id: "row-1" }]
+                      : table === "import_batches" && state.op === "select"
+                      ? { status: "dry_run_completed", dry_run: true }
+                      : table === "import_batch_rows"
+                        ? batchRows
+                        : null;
+                  return Promise.resolve({ data, error: null }).then(resolve, reject);
+                };
+              }
+              return (...args: unknown[]) => {
+                if (prop === "insert" || prop === "update") {
+                  state.op = prop;
+                  state.payload = args[0] as Record<string, unknown>;
+                }
+                return builder;
+              };
+            },
+          },
+        );
+        return builder;
+      },
+    });
+    shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+
+    const result = await commitEventsImportBatch({
+      churchId: CHURCH_ID,
+      actorProfileId: ACTOR_PROFILE_ID,
+      batchId: BATCH_ID,
+    });
+
+    expect(result).toMatchObject({ created: 1, failed: 0 });
+    const insert = operations.find((o) => o.table === "events" && o.op === "insert");
+    expect(insert?.payload).toMatchObject({
+      church_id: CHURCH_ID,
+      category: "general",
+      starts_at: "2026-09-06T17:00:00.000Z",
+      ends_at: "2026-09-07T17:00:00.000Z",
+    });
   });
 });

@@ -850,6 +850,13 @@ export function EventsListWorkspace({
       sidebarDescription="Event roster & attendance"
       navLabel="Events"
       navItems={EVENTS_NAV}
+      topActions={
+        session.appContext.roleId === "church-admin" ? (
+          <Button component={Link} href="/app/church-admin/events/import" variant="default" radius="xl">
+            Import
+          </Button>
+        ) : null
+      }
     >
       <Stack gap="md" p="md">
         <Group justify="space-between">

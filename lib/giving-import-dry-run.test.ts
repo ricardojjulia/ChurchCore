@@ -17,6 +17,13 @@ vi.mock("@/lib/supabase/tenant", () => ({
   shouldUseLocalTenantFallback: shouldUseLocalTenantFallbackMock,
 }));
 
+const { loadProfileLinkIndexMock } = vi.hoisted(() => ({ loadProfileLinkIndexMock: vi.fn() }));
+
+vi.mock("@/lib/import-profile-index", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/import-profile-index")>()),
+  loadProfileLinkIndex: loadProfileLinkIndexMock,
+}));
+
 import {
   commitGivingImportBatch,
   parseAmountCents,
@@ -52,8 +59,13 @@ const VALID_DONATION = {
 function setupDefaultMocks({
   existingDonations = [] as { id: string; source_id: string }[],
   existingProfiles = [] as { id: string; email: string }[],
+  existingMemberNumbers = [] as { id: string; member_number: string }[],
   batchId = BATCH_ID,
 } = {}) {
+  loadProfileLinkIndexMock.mockResolvedValue({
+    byEmail: new Map(existingProfiles.map((p) => [p.email.trim().toLowerCase(), p.id])),
+    byMemberNumber: new Map(existingMemberNumbers.map((p) => [p.member_number, p.id])),
+  });
   queryTenantLocalDbMock.mockImplementation(async (sql: string) => {
     // Load existing donations index
     if (
@@ -321,7 +333,7 @@ describe("runGivingImportDryRun", () => {
 
     expect(result.counts.reject).toBe(1);
     expect(result.rows[0]?.action).toBe("reject");
-    expect(result.rows[0]?.reason).toBe("Invalid donated_at — ISO 8601 required.");
+    expect(result.rows[0]?.reason).toBe("Invalid date — use YYYY-MM-DD or mm/dd/yyyy.");
   });
 
   it("skips a duplicate sourceId in the same file", async () => {

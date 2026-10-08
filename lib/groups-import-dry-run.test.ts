@@ -17,6 +17,13 @@ vi.mock("@/lib/supabase/tenant", () => ({
   shouldUseLocalTenantFallback: shouldUseLocalTenantFallbackMock,
 }));
 
+const { loadProfileLinkIndexMock } = vi.hoisted(() => ({ loadProfileLinkIndexMock: vi.fn() }));
+
+vi.mock("@/lib/import-profile-index", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/import-profile-index")>()),
+  loadProfileLinkIndex: loadProfileLinkIndexMock,
+}));
+
 import {
   commitGroupsImportBatch,
   runGroupsImportDryRun,
@@ -43,6 +50,10 @@ function setupDefaultMocks({
   existingProfiles = [] as { id: string; email: string }[],
   batchId = BATCH_ID,
 } = {}) {
+  loadProfileLinkIndexMock.mockResolvedValue({
+    byEmail: new Map(existingProfiles.map((p) => [p.email.trim().toLowerCase(), p.id])),
+    byMemberNumber: new Map<string, string>(),
+  });
   queryTenantLocalDbMock.mockImplementation(
     async (sql: string) => {
       // Load existing groups

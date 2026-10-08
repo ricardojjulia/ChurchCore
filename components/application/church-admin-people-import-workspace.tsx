@@ -21,15 +21,19 @@ import {
 import { runPeopleImportDryRunAction } from "@/app/app/church-admin/people/import/actions";
 import { commitPeopleImportBatchAction } from "@/app/app/church-admin/people/import/actions";
 import { ApplicationShell } from "@/components/application/app-shell";
+import {
+  IMPORT_FILE_HINT,
+  CommitFailureReasons,
+  IgnoredColumns,
+  ImportCsvFileInput,
+  SourceDetectedNotice,
+  parseCsvHeaders,
+  detectSourceSwitch,
+  requiredColumnsCopy,
+} from "@/components/application/church-admin-import-intake";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { PeopleImportCommitResult, PeopleImportDryRunResult } from "@/lib/people-import-dry-run";
 import type { ImportSourceSystem } from "@/lib/people-import-source-adapters";
-
-function parseCsvHeaders(text: string): string[] {
-  const firstLine = text.split(/\r?\n/)[0] ?? "";
-  if (!firstLine.trim()) return [];
-  return firstLine.split(",").map(cell => cell.replace(/^["']|["']$/g, "").trim()).filter(Boolean);
-}
 
 export function ChurchAdminPeopleImportWorkspace({
   session,
@@ -45,6 +49,23 @@ export function ChurchAdminPeopleImportWorkspace({
   const [result, setResult] = useState<PeopleImportDryRunResult | null>(null);
   const [commitResult, setCommitResult] = useState<PeopleImportCommitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [detectedNotice, setDetectedNotice] = useState<string | null>(null);
+
+  // Any CSV change (typing, paste, upload, clear) invalidates the previous dry
+  // run and re-detects the vendor from the headers.
+  function handleCsvTextChange(text: string) {
+    setCsvText(text);
+    setResult(null);
+    setCommitResult(null);
+    setError(null);
+    const switched = detectSourceSwitch(text, sourceSystem);
+    if (switched) {
+      setSourceSystem(switched.source);
+      setDetectedNotice(switched.notice);
+    } else if (!text.trim()) {
+      setDetectedNotice(null);
+    }
+  }
 
   // Dynamic header mappings
   const headers = parseCsvHeaders(csvText);
@@ -101,6 +122,16 @@ export function ChurchAdminPeopleImportWorkspace({
   }
 
   const selectData = headers.map(h => ({ value: h, label: h }));
+  const missingMappedColumns =
+    sourceSystem === "generic_csv" && headers.length > 0
+      ? [
+          ["Full Name", fullNameMap],
+          ["Household Name", householdMap],
+          ["Email", emailMap],
+          ["Phone", phoneMap],
+          ["Member Number", memberNumberMap],
+        ].filter(([, column]) => column && !headers.includes(column))
+      : [];
 
   return (
     <ApplicationShell
@@ -139,7 +170,10 @@ export function ChurchAdminPeopleImportWorkspace({
           <Stack gap="sm">
             <Title order={4}>CSV Intake</Title>
             <Text size="sm" c="dimmed">
-              Required columns: household_name, full_name. Optional: email, phone, member_number.
+              {requiredColumnsCopy("people", sourceSystem)}
+            </Text>
+            <Text size="xs" c="dimmed">
+              {IMPORT_FILE_HINT}
             </Text>
             <TextInput
               label="Source filename"
@@ -157,6 +191,14 @@ export function ChurchAdminPeopleImportWorkspace({
                 { value: "pushpay_ccb", label: "Pushpay/CCB export" },
               ]}
             />
+
+            {missingMappedColumns.length > 0 ? (
+              <Alert color="orange" title="Mapped columns not found in this file">
+                These mapped fields point to columns the file does not have:{" "}
+                {missingMappedColumns.map(([field]) => field).join(", ")}. Choose a column for each
+                below, or pick Planning Center or Breeze as the source if this is a vendor export.
+              </Alert>
+            ) : null}
 
             {sourceSystem === "generic_csv" && headers.length > 0 && (
               <Paper withBorder p="md" radius="sm" bg="#0f172a">
@@ -205,10 +247,16 @@ export function ChurchAdminPeopleImportWorkspace({
               </Paper>
             )}
 
+            <SourceDetectedNotice notice={detectedNotice} />
+            <ImportCsvFileInput
+              onText={handleCsvTextChange}
+              onFilename={setSourceFilename}
+              onClear={() => handleCsvTextChange("")}
+            />
             <Textarea
               label="CSV content"
               value={csvText}
-              onChange={(event) => setCsvText(event.currentTarget.value)}
+              onChange={(event) => handleCsvTextChange(event.currentTarget.value)}
               minRows={10}
               autosize
             />
@@ -239,6 +287,7 @@ export function ChurchAdminPeopleImportWorkspace({
               <Text size="sm" c="dimmed">
                 Dry run batch {result.batchId} captured in import staging tables.
               </Text>
+              <IgnoredColumns columns={result.ignoredColumns} />
               <Group justify="space-between">
                 <Text size="sm" c="dimmed">
                   Commit will only apply rows marked create/update.
@@ -259,8 +308,15 @@ export function ChurchAdminPeopleImportWorkspace({
                   title={commitResult.status === "committed" ? "Import committed" : "Import committed with failures"}
                 >
                   Created {commitResult.created}, updated {commitResult.updated}, failed {commitResult.failed}.
+                  {commitResult.failed > 0 ? (
+                    <CommitFailureReasons reasons={commitResult.failureReasons} />
+                  ) : null}
                 </Alert>
               ) : null}
+              <Text size="xs" c="dimmed">
+                Showing {Math.min(50, result.rows.length)} of {result.totalRows} rows
+              </Text>
+              <div style={{ overflowX: "auto" }}>
               <Table highlightOnHover>
                 <Table.Thead>
                   <Table.Tr>
@@ -299,6 +355,7 @@ export function ChurchAdminPeopleImportWorkspace({
                   ))}
                 </Table.Tbody>
               </Table>
+              </div>
             </Stack>
           </Paper>
         ) : null}

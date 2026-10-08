@@ -1,12 +1,31 @@
 import "server-only";
 
-import { parseCsv } from "@/lib/finance-import";
+import {
+  assertKnownReference,
+  assertUpdated,
+  auditImportCommit,
+  failureReason,
+  runClaimedCommit,
+  type ImportCommitInput,
+} from "@/lib/import-commit";
+import { chunkArray, computeIgnoredColumns, omitColumns, parseImportCsv, parseImportDate } from "@/lib/import-normalize";
+import {
+  eventTitleDayKey,
+  fetchAllPages,
+  loadChurchIdSet,
+  loadEventTitleDayIndex,
+  loadPresentPairs,
+  loadProfileLinkIndex,
+  loadSourceIdIndex,
+  type ProfileLinkIndex,
+} from "@/lib/import-profile-index";
 import {
   createTenantServerClient,
   queryTenantLocalDb,
   shouldUseLocalTenantFallback,
 } from "@/lib/supabase/tenant";
 import {
+  attendanceConsumedAliases,
   normalizeAttendanceImportSourceRow,
   type AttendanceImportSourceSystem,
   type NormalizedAttendanceImportRow,
@@ -21,7 +40,12 @@ export type AttendanceImportDryRunResult = {
     reject: number;
     unmatchedProfiles: number;
     unmatchedEvents: number;
+    skippedAnonymous: number;
   };
+  /** Header names (never cell values) that no field mapping used. */
+  ignoredColumns: string[];
+  /** Rows in the file; the result lists them all, but a UI may preview fewer ("showing 50 of N"). */
+  totalRows: number;
   rows: AttendanceImportDryRunRow[];
 };
 
@@ -43,17 +67,17 @@ export type AttendanceImportCommitResult = {
   created: number;
   updated: number;
   failed: number;
+  /** Why rows failed; fixed phrases, never headers or cell values. */
+  failureReasons: string[];
 };
 
 const ALLOWED_STATUSES = new Set(["present", "absent", "excused"]);
 
-function isIso8601(s: string): boolean {
-  return !isNaN(Date.parse(s)) && /^\d{4}-\d{2}-\d{2}/.test(s);
-}
-
 type NormalizedAttendancePayload = NormalizedAttendanceImportRow & {
   profileId: string | null;
   eventId: string | null;
+  /** The real instant of the check-in (church time zone applied). */
+  checkedInInstant: string | null;
 };
 
 async function loadAttendanceIndex(churchId: string): Promise<Map<string, string>> {
@@ -69,49 +93,7 @@ async function loadAttendanceIndex(churchId: string): Promise<Map<string, string
     return map;
   }
 
-  const supabase = await createTenantServerClient();
-  const { data } = await supabase
-    .from("attendance")
-    .select("id, source_id")
-    .eq("church_id", churchId)
-    .not("source_id", "is", null);
-
-  const map = new Map<string, string>();
-  for (const row of data ?? []) {
-    if (row.source_id) {
-      map.set(row.source_id, row.id);
-    }
-  }
-  return map;
-}
-
-async function loadProfilesIndex(churchId: string): Promise<Map<string, string>> {
-  if (shouldUseLocalTenantFallback()) {
-    const result = await queryTenantLocalDb<{ id: string; email: string }>(
-      `select id, email from public.profiles where church_id = $1 and email is not null`,
-      [churchId],
-    );
-    const map = new Map<string, string>();
-    for (const row of result.rows) {
-      map.set(row.email.trim().toLowerCase(), row.id);
-    }
-    return map;
-  }
-
-  const supabase = await createTenantServerClient();
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, email")
-    .eq("church_id", churchId)
-    .not("email", "is", null);
-
-  const map = new Map<string, string>();
-  for (const row of data ?? []) {
-    if (row.email) {
-      map.set((row.email as string).trim().toLowerCase(), row.id);
-    }
-  }
-  return map;
+  return loadSourceIdIndex(churchId, "attendance");
 }
 
 async function loadEventsIndex(churchId: string): Promise<Map<string, string>> {
@@ -127,20 +109,7 @@ async function loadEventsIndex(churchId: string): Promise<Map<string, string>> {
     return map;
   }
 
-  const supabase = await createTenantServerClient();
-  const { data } = await supabase
-    .from("events")
-    .select("id, source_id")
-    .eq("church_id", churchId)
-    .not("source_id", "is", null);
-
-  const map = new Map<string, string>();
-  for (const row of data ?? []) {
-    if (row.source_id) {
-      map.set(row.source_id, row.id);
-    }
-  }
-  return map;
+  return loadSourceIdIndex(churchId, "events");
 }
 
 async function loadExistingPresentPairs(churchId: string): Promise<Set<string>> {
@@ -160,31 +129,18 @@ async function loadExistingPresentPairs(churchId: string): Promise<Set<string>> 
     return set;
   }
 
-  const supabase = await createTenantServerClient();
-  const { data } = await supabase
-    .from("attendance")
-    .select("profile_id, event_id")
-    .eq("church_id", churchId)
-    .eq("status", "present")
-    .not("profile_id", "is", null)
-    .not("event_id", "is", null);
-
-  const set = new Set<string>();
-  for (const row of data ?? []) {
-    if (row.profile_id && row.event_id) {
-      set.add(`${row.profile_id}:${row.event_id}`);
-    }
-  }
-  return set;
+  return loadPresentPairs(churchId);
 }
 
-function classifyAttendanceImportRows(
+export function classifyAttendanceImportRows(
   csvRows: Record<string, string>[],
   sourceSystem: AttendanceImportSourceSystem,
   attendanceIndex: Map<string, string>,
-  profilesIndex: Map<string, string>,
+  profileIndex: ProfileLinkIndex,
   eventsIndex: Map<string, string>,
   existingPresentPairs: Set<string>,
+  eventTitleDayIndex: Map<string, string[]> = new Map(),
+  timeZone: string | null = null,
 ): {
   counts: AttendanceImportDryRunResult["counts"];
   rows: AttendanceImportDryRunRow[];
@@ -197,187 +153,201 @@ function classifyAttendanceImportRows(
     reject: 0,
     unmatchedProfiles: 0,
     unmatchedEvents: 0,
+    skippedAnonymous: 0,
   };
   const rows: AttendanceImportDryRunRow[] = [];
   const normalizedPayloads: NormalizedAttendancePayload[] = [];
   const seenSourceIds = new Set<string>();
   const seenPresentPairs = new Set<string>();
+  const occurrences = new Map<string, number>();
 
   for (let index = 0; index < csvRows.length; index += 1) {
     const csvRow = csvRows[index];
     const rowNumber = index + 2;
-    const normalized = normalizeAttendanceImportSourceRow(csvRow, sourceSystem, index);
+    const normalized = normalizeAttendanceImportSourceRow(csvRow, sourceSystem, index, { timeZone });
+
+    const emit = (
+      action: AttendanceImportDryRunRow["action"],
+      reason: string | null,
+      extra: Partial<NormalizedAttendancePayload> = {},
+      resolved: { profile: boolean; event: boolean } = { profile: false, event: false },
+    ) => {
+      rows.push({
+        rowNumber,
+        sourceId: normalized.sourceId,
+        profileEmail: normalized.profileEmail,
+        eventSourceId: normalized.eventSourceId,
+        checkedInAt: normalized.checkedInAt,
+        profileResolved: resolved.profile,
+        eventResolved: resolved.event,
+        action,
+        reason,
+      });
+      normalizedPayloads.push({
+        ...normalized,
+        profileId: null,
+        eventId: null,
+        checkedInInstant: null,
+        ...extra,
+      });
+    };
 
     // 1. Invalid status (non-null, not in allowed set)
     if (normalized.status != null && !ALLOWED_STATUSES.has(normalized.status)) {
       counts.reject += 1;
-      rows.push({
-        rowNumber,
-        sourceId: normalized.sourceId,
-        profileEmail: normalized.profileEmail,
-        eventSourceId: normalized.eventSourceId,
-        checkedInAt: normalized.checkedInAt,
-        profileResolved: false,
-        eventResolved: false,
-        action: "reject",
-        reason: "Invalid status value.",
-      });
-      normalizedPayloads.push({ ...normalized, profileId: null, eventId: null });
+      emit("reject", "Invalid status value.");
       seenSourceIds.add(normalized.sourceId);
       continue;
     }
 
-    // 2. Invalid checkedInAt (non-null, not ISO 8601)
-    if (normalized.checkedInAt != null && !isIso8601(normalized.checkedInAt)) {
+    // 2. Invalid date (non-null, not ISO 8601 or mm/dd/yyyy)
+    const parsedDate =
+      normalized.checkedInAt != null ? parseImportDate(normalized.checkedInAt, timeZone) : null;
+    if (parsedDate && !parsedDate.ok) {
       counts.reject += 1;
-      rows.push({
-        rowNumber,
-        sourceId: normalized.sourceId,
-        profileEmail: normalized.profileEmail,
-        eventSourceId: normalized.eventSourceId,
-        checkedInAt: normalized.checkedInAt,
-        profileResolved: false,
-        eventResolved: false,
-        action: "reject",
-        reason: "Invalid checked_in_at — ISO 8601 required.",
-      });
-      normalizedPayloads.push({ ...normalized, profileId: null, eventId: null });
+      emit("reject", "Invalid date — use YYYY-MM-DD or mm/dd/yyyy.");
       seenSourceIds.add(normalized.sourceId);
       continue;
     }
+    const checkedInInstant = parsedDate?.ok ? parsedDate.instant : null;
 
-    // 3. Duplicate sourceId in file
+    // 3. Anonymous head-count lines have no person to attach
+    if (normalized.anonymousPerson) {
+      counts.skip += 1;
+      counts.skippedAnonymous += 1;
+      emit("skip", "Anonymous head-counts are not supported.");
+      continue;
+    }
+
+    if (normalized.synthetic) {
+      const occurrence = (occurrences.get(normalized.sourceId) ?? 0) + 1;
+      occurrences.set(normalized.sourceId, occurrence);
+      normalized.sourceId = `${normalized.sourceId}-${occurrence}`;
+    }
+
+    // 4. Duplicate sourceId in file
     if (seenSourceIds.has(normalized.sourceId)) {
       counts.skip += 1;
-      rows.push({
-        rowNumber,
-        sourceId: normalized.sourceId,
-        profileEmail: normalized.profileEmail,
-        eventSourceId: normalized.eventSourceId,
-        checkedInAt: normalized.checkedInAt,
-        profileResolved: false,
-        eventResolved: false,
-        action: "skip",
-        reason: "Duplicate source ID in import file.",
-      });
-      normalizedPayloads.push({ ...normalized, profileId: null, eventId: null });
+      emit("skip", "Duplicate source ID in import file.");
       continue;
     }
 
-    // Resolve profileId and eventId for duplicate-present checks
-    const profileId = normalized.profileEmail != null
-      ? (profilesIndex.get(normalized.profileEmail.trim().toLowerCase()) ?? null)
-      : null;
-    const eventId = normalized.eventSourceId != null
-      ? (eventsIndex.get(normalized.eventSourceId) ?? null)
-      : null;
+    // Resolve profileId and eventId
+    const profileId =
+      (normalized.memberNumber
+        ? profileIndex.byMemberNumber.get(normalized.memberNumber)
+        : undefined) ??
+      (normalized.profileEmail != null
+        ? profileIndex.byEmail.get(normalized.profileEmail.trim().toLowerCase())
+        : undefined) ??
+      null;
+
+    // 5. attendance.profile_id is NOT NULL: a row with no matching person
+    // could never be written, so it is skipped here instead of failing at commit.
+    if (!profileId) {
+      counts.skip += 1;
+      if (normalized.memberNumber != null || normalized.profileEmail != null) {
+        counts.unmatchedProfiles += 1;
+        emit("skip", "Person not matched — attendance needs an existing person.", { checkedInInstant });
+      } else {
+        emit("skip", "Missing person reference (Breeze ID or email).", { checkedInInstant });
+      }
+      continue;
+    }
+
+    // Events: by exported event name and church-local day when the export has
+    // names (Breeze), otherwise by the event's source id.
+    let eventId: string | null = null;
+    let eventUnmatchedReason: string | null = null;
+    const matchesByName = normalized.eventName != null;
+    if (matchesByName) {
+      const day = parsedDate?.ok ? parsedDate.day : null;
+      const candidates = day
+        ? (eventTitleDayIndex.get(eventTitleDayKey(normalized.eventName as string, day)) ?? [])
+        : [];
+      if (candidates.length === 1) {
+        eventId = candidates[0];
+      } else {
+        eventUnmatchedReason =
+          candidates.length > 1
+            ? "Event not matched — more than one event has that name on that date."
+            : "Event not matched — no event with that name on that date.";
+      }
+    } else if (normalized.eventSourceId != null) {
+      eventId = eventsIndex.get(normalized.eventSourceId) ?? null;
+      if (!eventId) eventUnmatchedReason = "Event not matched — event_id will be unset.";
+    }
+
+    // Events are never created from attendance: a named event that is not
+    // there yet means the events file has to be imported first.
+    if (matchesByName && !eventId) {
+      counts.skip += 1;
+      counts.unmatchedEvents += 1;
+      emit("skip", eventUnmatchedReason, { profileId, checkedInInstant }, { profile: true, event: false });
+      continue;
+    }
 
     const effectiveStatus = normalized.status ?? "present";
 
-    // 4. In-file present dup
-    if (
-      profileId != null &&
-      eventId != null &&
-      effectiveStatus === "present"
-    ) {
+    // 6. In-file present dup
+    if (eventId != null && effectiveStatus === "present") {
       const pairKey = `${profileId}:${eventId}`;
       if (seenPresentPairs.has(pairKey)) {
         counts.skip += 1;
-        rows.push({
-          rowNumber,
-          sourceId: normalized.sourceId,
-          profileEmail: normalized.profileEmail,
-          eventSourceId: normalized.eventSourceId,
-          checkedInAt: normalized.checkedInAt,
-          profileResolved: true,
-          eventResolved: true,
-          action: "skip",
-          reason: "Duplicate present attendance for this profile and event in import file.",
-        });
-        normalizedPayloads.push({ ...normalized, profileId, eventId });
+        emit(
+          "skip",
+          "Duplicate present attendance for this profile and event in import file.",
+          { profileId, eventId, checkedInInstant },
+          { profile: true, event: true },
+        );
         seenSourceIds.add(normalized.sourceId);
         continue;
       }
     }
 
-    // 5. DB present dup: sourceId NOT in attendance index AND both resolve AND 'present'
+    // 7. DB present dup: sourceId NOT in attendance index AND both resolve AND 'present'
     if (
       !attendanceIndex.has(normalized.sourceId) &&
-      profileId != null &&
       eventId != null &&
       effectiveStatus === "present"
     ) {
       const pairKey = `${profileId}:${eventId}`;
       if (existingPresentPairs.has(pairKey)) {
         counts.skip += 1;
-        rows.push({
-          rowNumber,
-          sourceId: normalized.sourceId,
-          profileEmail: normalized.profileEmail,
-          eventSourceId: normalized.eventSourceId,
-          checkedInAt: normalized.checkedInAt,
-          profileResolved: true,
-          eventResolved: true,
-          action: "skip",
-          reason: "Duplicate present attendance for this profile and event.",
-        });
-        normalizedPayloads.push({ ...normalized, profileId, eventId });
+        emit(
+          "skip",
+          "Duplicate present attendance for this profile and event.",
+          { profileId, eventId, checkedInInstant },
+          { profile: true, event: true },
+        );
         seenSourceIds.add(normalized.sourceId);
         continue;
       }
     }
 
-    // 6. sourceId in attendance index → update
-    // 7. Otherwise → create
+    // 8. sourceId in attendance index → update; otherwise → create
     const action: "create" | "update" = attendanceIndex.has(normalized.sourceId) ? "update" : "create";
     counts[action] += 1;
 
-    // 8. Resolve profile and event, append warnings
-    let resolvedProfileId = profileId;
-    let resolvedEventId = eventId;
-    let profileResolved = false;
-    let eventResolved = false;
     const reasons: string[] = [];
-
-    if (normalized.profileEmail != null) {
-      if (resolvedProfileId) {
-        profileResolved = true;
-      } else {
-        counts.unmatchedProfiles += 1;
-        reasons.push("Profile not matched — profile_id will be unset.");
-        resolvedProfileId = null;
-      }
+    if (!eventId && eventUnmatchedReason) {
+      counts.unmatchedEvents += 1;
+      reasons.push(eventUnmatchedReason);
     }
 
-    if (normalized.eventSourceId != null) {
-      if (resolvedEventId) {
-        eventResolved = true;
-      } else {
-        counts.unmatchedEvents += 1;
-        reasons.push("Event not matched — event_id will be unset.");
-        resolvedEventId = null;
-      }
-    }
-
-    // Track in-file present pairs for dedup (step 4)
-    if (resolvedProfileId != null && resolvedEventId != null && effectiveStatus === "present") {
-      seenPresentPairs.add(`${resolvedProfileId}:${resolvedEventId}`);
+    // Track in-file present pairs for dedup
+    if (eventId != null && effectiveStatus === "present") {
+      seenPresentPairs.add(`${profileId}:${eventId}`);
     }
 
     seenSourceIds.add(normalized.sourceId);
 
-    rows.push({
-      rowNumber,
-      sourceId: normalized.sourceId,
-      profileEmail: normalized.profileEmail,
-      eventSourceId: normalized.eventSourceId,
-      checkedInAt: normalized.checkedInAt,
-      profileResolved,
-      eventResolved,
+    emit(
       action,
-      reason: reasons.length > 0 ? reasons.join(" ") : null,
-    });
-    normalizedPayloads.push({ ...normalized, profileId: resolvedProfileId, eventId: resolvedEventId });
+      reasons.length > 0 ? reasons.join(" ") : null,
+      { profileId, eventId, checkedInInstant },
+      { profile: true, event: eventId != null },
+    );
   }
 
   return { counts, rows, normalizedPayloads };
@@ -392,7 +362,9 @@ async function insertDryRunBatchAndRows(
   normalizedPayloads: NormalizedAttendancePayload[],
   rawCsvRows: Record<string, string>[],
   counts: AttendanceImportDryRunResult["counts"],
+  ignoredColumns: string[],
 ): Promise<string> {
+  const summary = { ...counts, ignoredColumns };
   if (shouldUseLocalTenantFallback()) {
     const batch = await queryTenantLocalDb<{ id: string }>(
       `insert into public.import_batches
@@ -400,7 +372,7 @@ async function insertDryRunBatchAndRows(
           status, dry_run, summary)
        values ($1, 'attendance_csv', $2, $3, $4, 'dry_run_completed', true, $5::jsonb)
        returning id`,
-      [churchId, sourceSystem, sourceFilename, actorProfileId, JSON.stringify(counts)],
+      [churchId, sourceSystem, sourceFilename, actorProfileId, JSON.stringify(summary)],
     );
 
     const batchId = batch.rows[0]?.id;
@@ -441,7 +413,7 @@ async function insertDryRunBatchAndRows(
       created_by_profile_id: actorProfileId,
       status: "dry_run_completed",
       dry_run: true,
-      summary: counts,
+      summary,
     })
     .select("id")
     .single();
@@ -450,8 +422,8 @@ async function insertDryRunBatchAndRows(
     throw new Error(batchError?.message ?? "Unable to create import batch.");
   }
 
-  const { error: rowsError } = await supabase.from("import_batch_rows").insert(
-    rows.map((row, i) => ({
+  // Chunked: a 5,000-row batch is too large for one request.
+  const batchRows = rows.map((row, i) => ({
       batch_id: batch.id,
       church_id: churchId,
       row_number: row.rowNumber,
@@ -459,11 +431,12 @@ async function insertDryRunBatchAndRows(
       normalized_payload: normalizedPayloads[i],
       classification: row.action,
       reason: row.reason,
-    })),
-  );
-
-  if (rowsError) {
-    throw new Error(rowsError.message);
+    }));
+  for (const part of chunkArray(batchRows, 500)) {
+    const { error: rowsError } = await supabase.from("import_batch_rows").insert(part);
+    if (rowsError) {
+      throw new Error(rowsError.message);
+    }
   }
 
   return batch.id;
@@ -475,8 +448,10 @@ export async function runAttendanceImportDryRun(input: {
   sourceSystem?: AttendanceImportSourceSystem;
   sourceFilename: string;
   csvText: string;
+  /** The church's IANA time zone, applied to dates and times without an offset. */
+  timeZone?: string | null;
 }): Promise<AttendanceImportDryRunResult> {
-  const csv = await parseCsv(input.csvText);
+  const csv = parseImportCsv(input.csvText);
   if (csv.errors.length > 0) {
     throw new Error(csv.errors[0] ?? "Unable to parse CSV file.");
   }
@@ -487,22 +462,30 @@ export async function runAttendanceImportDryRun(input: {
 
   const sourceSystem = input.sourceSystem ?? "generic_csv";
 
-  const [attendanceIndex, profilesIndex, eventsIndex] = await Promise.all([
+  const timeZone = input.timeZone ?? null;
+  const [attendanceIndex, profileIndex, eventsIndex, existingPresentPairs] = await Promise.all([
     loadAttendanceIndex(input.churchId),
-    loadProfilesIndex(input.churchId),
+    loadProfileLinkIndex(input.churchId),
     loadEventsIndex(input.churchId),
+    loadExistingPresentPairs(input.churchId),
   ]);
-
-  const existingPresentPairs = await loadExistingPresentPairs(input.churchId);
+  // Only exports that name their events need the title-and-day index.
+  const eventTitleDayIndex =
+    sourceSystem === "breeze"
+      ? await loadEventTitleDayIndex(input.churchId, timeZone)
+      : new Map<string, string[]>();
 
   const { counts, rows, normalizedPayloads } = classifyAttendanceImportRows(
     csv.rows,
     sourceSystem,
     attendanceIndex,
-    profilesIndex,
+    profileIndex,
     eventsIndex,
     existingPresentPairs,
+    eventTitleDayIndex,
+    timeZone,
   );
+  const ignoredColumns = computeIgnoredColumns(csv.headers, attendanceConsumedAliases(sourceSystem));
 
   const batchId = await insertDryRunBatchAndRows(
     input.churchId,
@@ -511,11 +494,12 @@ export async function runAttendanceImportDryRun(input: {
     input.sourceFilename,
     rows,
     normalizedPayloads,
-    csv.rows,
+    csv.rows.map((row) => omitColumns(row, ignoredColumns)),
     counts,
+    ignoredColumns,
   );
 
-  return { batchId, counts, rows };
+  return { batchId, counts, ignoredColumns, totalRows: csv.rows.length, rows };
 }
 
 function normalizeBatchRowPayload(payload: unknown): NormalizedAttendancePayload | null {
@@ -531,19 +515,24 @@ function normalizeBatchRowPayload(payload: unknown): NormalizedAttendancePayload
   return {
     sourceId: row.sourceId,
     profileEmail: typeof row.profileEmail === "string" ? row.profileEmail : null,
+    memberNumber: typeof row.memberNumber === "string" ? row.memberNumber : null,
+    anonymousPerson: row.anonymousPerson === true,
+    eventName: typeof row.eventName === "string" ? row.eventName : null,
+    synthetic: row.synthetic === true,
     eventSourceId: typeof row.eventSourceId === "string" ? row.eventSourceId : null,
     checkedInAt: typeof row.checkedInAt === "string" ? row.checkedInAt : null,
     status: typeof row.status === "string" ? row.status : null,
     profileId: typeof row.profileId === "string" ? row.profileId : null,
     eventId: typeof row.eventId === "string" ? row.eventId : null,
+    checkedInInstant: typeof row.checkedInInstant === "string" ? row.checkedInInstant : null,
   };
 }
 
-export async function commitAttendanceImportBatch(input: {
-  churchId: string;
-  actorProfileId: string | null;
-  batchId: string;
-}): Promise<AttendanceImportCommitResult> {
+export async function commitAttendanceImportBatch(input: ImportCommitInput): Promise<AttendanceImportCommitResult> {
+  return runClaimedCommit(input, () => commitAttendanceImportBatchClaimed(input));
+}
+
+async function commitAttendanceImportBatchClaimed(input: ImportCommitInput): Promise<AttendanceImportCommitResult> {
   let batchStatus: string | null = null;
   let dryRun = true;
   let normalizedPayloads: NormalizedAttendancePayload[] = [];
@@ -593,13 +582,16 @@ export async function commitAttendanceImportBatch(input: {
     batchStatus = batch.status;
     dryRun = batch.dry_run;
 
-    const { data: rows } = await supabase
-      .from("import_batch_rows")
-      .select("normalized_payload")
-      .eq("batch_id", input.batchId)
-      .eq("church_id", input.churchId)
-      .in("classification", ["create", "update"])
-      .order("row_number", { ascending: true });
+    const rows = await fetchAllPages<{ normalized_payload: unknown }>((from, to) =>
+      supabase
+        .from("import_batch_rows")
+        .select("normalized_payload")
+        .eq("batch_id", input.batchId)
+        .eq("church_id", input.churchId)
+        .in("classification", ["create", "update"])
+        .order("row_number", { ascending: true })
+        .range(from, to),
+    );
 
     normalizedPayloads = (rows ?? [])
       .map((row) =>
@@ -608,18 +600,24 @@ export async function commitAttendanceImportBatch(input: {
       .filter((row): row is NormalizedAttendancePayload => Boolean(row));
   }
 
-  if (batchStatus !== "dry_run_completed" || !dryRun) {
+  if (shouldUseLocalTenantFallback() && (batchStatus !== "dry_run_completed" || !dryRun)) {
     throw new Error("Only dry-run-completed batches can be committed.");
   }
 
   let created = 0;
   let updated = 0;
   let failed = 0;
+  const failureReasons = new Set<string>();
 
   const supabaseClient = shouldUseLocalTenantFallback() ? null : await createTenantServerClient();
 
+  const profileIds = shouldUseLocalTenantFallback() ? null : await loadChurchIdSet(input.churchId, "profiles");
+  const eventIds = shouldUseLocalTenantFallback() ? null : await loadChurchIdSet(input.churchId, "events");
+
   for (const payload of normalizedPayloads) {
     try {
+      assertKnownReference(payload.profileId, profileIds);
+      assertKnownReference(payload.eventId, eventIds);
       const effectiveStatus = payload.status ?? "present";
 
       if (shouldUseLocalTenantFallback()) {
@@ -631,8 +629,8 @@ export async function commitAttendanceImportBatch(input: {
         if (existing.rows[0]?.id) {
           await queryTenantLocalDb(
             `update public.attendance
-             set profile_id = $1,
-                 event_id = $2,
+             set profile_id = coalesce($1, profile_id),
+                 event_id = coalesce($2, event_id),
                  checked_in_at = coalesce($3::timestamptz, now()),
                  status = coalesce($4, 'present'),
                  check_in_method = 'import'
@@ -640,7 +638,7 @@ export async function commitAttendanceImportBatch(input: {
             [
               payload.profileId,
               payload.eventId,
-              payload.checkedInAt,
+              payload.checkedInInstant ?? payload.checkedInAt,
               effectiveStatus,
               input.churchId,
               payload.sourceId,
@@ -657,7 +655,7 @@ export async function commitAttendanceImportBatch(input: {
               payload.sourceId,
               payload.profileId,
               payload.eventId,
-              payload.checkedInAt,
+              payload.checkedInInstant ?? payload.checkedInAt,
               effectiveStatus,
             ],
           );
@@ -674,21 +672,24 @@ export async function commitAttendanceImportBatch(input: {
           .maybeSingle();
 
         if (existing?.id) {
-          const { error } = await supabase
+          const { data: updatedRows, error } = await supabase
             .from("attendance")
             .update({
-              profile_id: payload.profileId,
-              event_id: payload.eventId,
-              checked_in_at: payload.checkedInAt ?? new Date().toISOString(),
+              // A blank cell never erases what the church already has.
+              ...(payload.profileId ? { profile_id: payload.profileId } : {}),
+              ...(payload.eventId ? { event_id: payload.eventId } : {}),
+              checked_in_at: payload.checkedInInstant ?? payload.checkedInAt ?? new Date().toISOString(),
               status: effectiveStatus,
               check_in_method: "import",
             })
             .eq("church_id", input.churchId)
-            .eq("source_id", payload.sourceId);
+            .eq("source_id", payload.sourceId)
+            .select("id");
 
           if (error) {
             throw new Error(error.message);
           }
+          assertUpdated(updatedRows);
           updated += 1;
         } else {
           const { error } = await supabase.from("attendance").insert({
@@ -696,7 +697,7 @@ export async function commitAttendanceImportBatch(input: {
             source_id: payload.sourceId,
             profile_id: payload.profileId,
             event_id: payload.eventId,
-            checked_in_at: payload.checkedInAt ?? new Date().toISOString(),
+            checked_in_at: payload.checkedInInstant ?? payload.checkedInAt ?? new Date().toISOString(),
             status: effectiveStatus,
             check_in_method: "import",
           });
@@ -707,9 +708,9 @@ export async function commitAttendanceImportBatch(input: {
           created += 1;
         }
       }
-    } catch (e) {
-      console.error("[attendance-import] commit row failed:", e);
+    } catch (error) {
       failed += 1;
+      failureReasons.add(failureReason(error));
     }
   }
 
@@ -722,6 +723,7 @@ export async function commitAttendanceImportBatch(input: {
     created,
     updated,
     failed,
+    ...(failureReasons.size > 0 ? { failureReasons: [...failureReasons].slice(0, 10) } : {}),
   };
 
   if (shouldUseLocalTenantFallback()) {
@@ -754,11 +756,14 @@ export async function commitAttendanceImportBatch(input: {
     }
   }
 
+  await auditImportCommit(input, { status, created, updated, failed });
+
   return {
     batchId: input.batchId,
     status,
     created,
     updated,
     failed,
+    failureReasons: [...failureReasons].slice(0, 10),
   };
 }

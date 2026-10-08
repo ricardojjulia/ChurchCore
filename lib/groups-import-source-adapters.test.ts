@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeGroupImportSourceRow } from "@/lib/groups-import-source-adapters";
+import {
+  isGroupMembershipFile,
+  normalizeGroupImportSourceRow,
+  normalizeGroupMembershipRow,
+} from "@/lib/groups-import-source-adapters";
 
 describe("normalizeGroupImportSourceRow — generic_csv", () => {
   it("resolves all 6 canonical fields from generic_csv aliases", () => {
@@ -230,5 +234,33 @@ describe("normalizeGroupImportSourceRow — isActive logic", () => {
 
     // The raw string is passed through — classifier will reject it
     expect(row.isActive as unknown as string).toBe("archived");
+  });
+});
+
+describe("Breeze tag rows (G4.1)", () => {
+  it("splits Folder>>Tag on the last separator", () => {
+    expect(normalizeGroupMembershipRow({ "Breeze ID": "5001", "Tag Name": "Ministries>>Hospitality" })).toEqual({
+      memberNumber: "5001",
+      groupName: "Hospitality",
+      folder: "Ministries",
+    });
+    expect(normalizeGroupMembershipRow({ "Breeze ID": "1", "Tag Name": "Youth>>Students>>New 2026" })).toMatchObject({
+      groupName: "New 2026",
+      folder: "Youth>>Students",
+    });
+    expect(normalizeGroupMembershipRow({ "Breeze ID": "1", "Tag Name": "Adult Class" })).toMatchObject({
+      groupName: "Adult Class",
+      folder: null,
+    });
+  });
+
+  it("detects a Tag Name column whatever its spelling", () => {
+    expect(isGroupMembershipFile(["Breeze ID", "First Name", "Last Name", "Tag Name"])).toBe(true);
+    expect(isGroupMembershipFile(["breeze_id", "TAG-NAME"])).toBe(true);
+    expect(isGroupMembershipFile(["id", "name", "category"])).toBe(false);
+  });
+
+  it("truncates tag text to 200 characters", () => {
+    expect(normalizeGroupMembershipRow({ "Tag Name": "a".repeat(300) }).groupName).toHaveLength(200);
   });
 });

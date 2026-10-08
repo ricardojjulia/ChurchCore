@@ -1,6 +1,7 @@
 "use client";
 
-import { Tabs } from "@mantine/core";
+import Link from "next/link";
+import { Button, Tabs } from "@mantine/core";
 import { BarChart2, DollarSign, FileText, Link2, RefreshCw, Settings } from "lucide-react";
 
 import { GivingStatementsPanel } from "@/components/application/giving-statements-panel";
@@ -82,6 +83,13 @@ export function GivingAdminWorkspace({
       sidebarDescription={t("givingAdmin", "sidebarDescription")}
       navLabel="Church admin"
       navItems={NAV_ITEMS}
+      topActions={
+        session.appContext.roleId === "church-admin" ? (
+          <Button component={Link} href="/app/church-admin/giving/import" variant="default" radius="xl">
+            Import
+          </Button>
+        ) : null
+      }
     >
       {paymentConnection ? <StripeConnectCard connection={paymentConnection} result={stripeResult} /> : null}
       <Tabs defaultValue={readiness ? "exceptions" : "analytics"} p="md">

@@ -4,6 +4,11 @@ import { withSentryConfig } from "@sentry/nextjs/config";
 const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["@mantine/core", "@mantine/hooks"],
+    // Vercel rejects function request bodies over 4.5 MB; Next's default for
+    // server actions is 1 MB. 4 MB leaves room under Vercel's cap, and the CSV
+    // import actions check 3.5 MB of text (see their MAX_IMPORT_BYTES) so the
+    // serialized action payload still fits.
+    serverActions: { bodySizeLimit: "4mb" },
   },
   typescript: {
     // Type-check the shipped app only. Test-file type correctness is

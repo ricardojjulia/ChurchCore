@@ -29,6 +29,10 @@ Any PR that adds or changes a **page**, **API route**, or **server action** must
 
 This is in `AGENTS.md`, in all three factory skill sets (`.claude`, `.codex`, `.gemini`), and in the PR template. The Council Documenter withholds sign-off until it holds.
 
+## Fixture layout
+
+Third-party file fixtures live in `tests/fixtures/imports/{planning-center,breeze}/` (G4.1): synthetic CSVs only, never a real export, each labelled VERIFIED template, PARTIAL (third-party corroborated) or UNVERIFIED in `tests/fixtures/imports/README.md`, because neither vendor publishes its export header row. They are read by `lib/import-vendor-fixtures.test.ts` (unit) and `tests/e2e/import-vendor-fixtures.spec.ts` (journey). Add a fixture there, with its label, whenever an importer learns a new vendor format; do not hand-write a fixture from the adapter's own assumptions. This is separate from `tests/e2e/fixtures/`, which holds the e2e harness (env guard, auth setup).
+
 ## Running everything locally
 
 Prerequisites:
