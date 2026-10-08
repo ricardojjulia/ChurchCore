@@ -104,6 +104,40 @@ describe("import workspaces", () => {
     expect(screen.queryByText("Group name is required.")).toBeNull();
   });
 
+  it("lists recent imports with report links and offers the report after a commit", async () => {
+    mocks.groupsDry.mockResolvedValue({
+      batchId: "b9", mode: "groups", counts: { ...baseCounts, create: 1 }, groupCreates: 0,
+      rows: [], membershipRows: [], ignoredColumns: [], totalRows: 1,
+    });
+    mocks.groupsCommit.mockResolvedValue({
+      batchId: "b9", status: "committed", created: 1, updated: 0, failed: 0, failureReasons: [],
+    });
+    wrap(
+      <ChurchAdminGroupsImportWorkspace
+        session={session}
+        recentImports={[
+          { id: "r1", createdAt: "2026-10-07T15:00:00Z", sourceFilename: "tags.csv", status: "committed", mismatchCount: 2, legacy: false },
+          { id: "r2", createdAt: "2026-09-01T15:00:00Z", sourceFilename: "old.csv", status: "committed", mismatchCount: null, legacy: true },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Recent imports")).toBeTruthy();
+    expect(screen.getByText("2 mismatches")).toBeTruthy();
+    expect(screen.getByText("mismatches not recorded")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open report for tags.csv" }).getAttribute("href")).toBe(
+      "/app/church-admin/imports/r1",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Run dry import" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Commit batch" }, { timeout: 5000 }));
+    const link = await screen.findByRole("link", { name: "View reconciliation report" }, { timeout: 5000 });
+    expect(link.getAttribute("href")).toBe("/app/church-admin/imports/b9");
+  }, 15_000);
+
+  it("says when there are no recent imports", () => {
+    wrap(<ChurchAdminPeopleImportWorkspace session={session} recentImports={[]} />);
+    expect(screen.getByText("No imports yet.")).toBeTruthy();
+  });
+
   it("shows per-source required columns", () => {
     wrap(<ChurchAdminPeopleImportWorkspace session={session} />);
     expect(screen.getByText(/Required columns: household_name, full_name/)).toBeTruthy();

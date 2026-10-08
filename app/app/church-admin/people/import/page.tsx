@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { ChurchAdminPeopleImportWorkspace } from "@/components/application/church-admin-people-import-workspace";
 import { requireChurchSession } from "@/lib/auth";
+import { listRecentImportBatches } from "@/lib/import-reconciliation";
 
 // A 5,000-row commit can run past the default function time; this applies to this
 // page's server actions (dry run and commit).
@@ -14,5 +15,7 @@ export default async function ChurchAdminPeopleImportPage() {
     redirect(session.homePath);
   }
 
-  return <ChurchAdminPeopleImportWorkspace session={session} />;
+  const recentImports = await listRecentImportBatches(session.appContext.church.id, ["people_households_csv"], 20);
+
+  return <ChurchAdminPeopleImportWorkspace session={session} recentImports={recentImports} />;
 }

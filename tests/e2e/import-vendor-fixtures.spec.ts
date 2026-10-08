@@ -61,6 +61,57 @@ async function commit(page: Page, summary: string) {
   await expect(page.getByText(summary)).toBeVisible({ timeout: 60_000 });
 }
 
+
+/** Count card value on the report page ("Written", "Failed", ...). */
+function countCard(page: Page, label: string) {
+  return page.getByText(label, { exact: true }).locator("xpath=following-sibling::*[1]");
+}
+
+async function batchIdFor(filename: string): Promise<string> {
+  const { rows } = await queryTenantDb<{ id: string }>(
+    "select id from public.import_batches where church_id = $1 and source_filename = $2 order by created_at desc limit 1",
+    [SEED_CHURCH_ID, `${TAG}-${filename}`],
+  );
+  expect(rows[0], `batch for ${filename}`).toBeTruthy();
+  return rows[0].id;
+}
+
+/**
+ * G4.2: opens the reconciliation report for a committed fixture import and
+ * checks zero mismatches and the fixture's counts. Also fetches the CSV.
+ */
+async function expectCleanReport(
+  page: Page,
+  filename: string,
+  expected: { written: number; skipped?: number; rejected?: number; sourceRows?: number },
+  giving = false,
+) {
+  const batchId = await batchIdFor(filename);
+  await page.goto(`/app/church-admin/imports/${batchId}`);
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByText("0 mismatches", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(countCard(page, "Written")).toHaveText(String(expected.written));
+  await expect(countCard(page, "Failed")).toHaveText("0");
+  await expect(countCard(page, "Not attempted")).toHaveText("0");
+  if (expected.skipped !== undefined) await expect(countCard(page, "Skipped")).toHaveText(String(expected.skipped));
+  if (expected.rejected !== undefined) await expect(countCard(page, "Rejected")).toHaveText(String(expected.rejected));
+  if (expected.sourceRows !== undefined) await expect(countCard(page, "Source rows")).toHaveText(String(expected.sourceRows));
+  if (giving) {
+    await expect(page.getByText("Imported gifts are not posted to the general ledger; ledger totals are not reconciled here.")).toBeVisible();
+    await expect(page.getByText("Difference", { exact: true }).locator("xpath=following-sibling::*[1]")).toHaveText("$0.00");
+  }
+
+  const link = page.getByRole("link", { name: "Download reconciliation report (CSV)" });
+  await expect(link).toBeVisible();
+  const response = await page.request.get(`/api/church-admin/imports/${batchId}/report`);
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("text/csv");
+  const body = await response.text();
+  expect(body).toContain("mismatches,0");
+  if (giving) expect(body).toContain("not posted to the general ledger");
+  return batchId;
+}
+
 test.beforeAll(async () => {
   // A second church whose person uses Breeze ID 5001 as well.
   await queryTenantDb(
@@ -168,10 +219,12 @@ test("people: Planning Center then Breeze exports create everyone; a re-import o
   await dryRun(page, "/app/church-admin/people/import", /Planning Center/, "pco-people.csv", fixture("planning-center/people.csv"));
   await expect(page.getByText("create 4", { exact: true })).toBeVisible();
   await commit(page, "Created 4, updated 0, failed 0");
+  await expectCleanReport(page, "pco-people.csv", { written: 4, sourceRows: 4 });
 
   await dryRun(page, "/app/church-admin/people/import", /Breeze/, "brz-people.csv", fixture("breeze/people.csv"));
   await expect(page.getByText("create 4", { exact: true })).toBeVisible();
   await commit(page, "Created 4, updated 0, failed 0");
+  await expectCleanReport(page, "brz-people.csv", { written: 4, sourceRows: 4 });
 
   expect(
     await count("select count(*) as n from public.profiles where church_id = $1 and member_number = any($2::text[])", [
@@ -233,8 +286,10 @@ test("people: uploading a vendor file without choosing a source detects the vend
 test("events: both calendars import with church-local times", async ({ page }) => {
   await dryRun(page, "/app/church-admin/events/import", /Planning Center/, "pco-events.csv", fixture("planning-center/events.csv"));
   await commit(page, "Created 2, updated 0, failed 0");
+  await expectCleanReport(page, "pco-events.csv", { written: 2 });
   await dryRun(page, "/app/church-admin/events/import", /Breeze/, "brz-events.csv", fixture("breeze/events.csv"));
   await commit(page, "Created 3, updated 0, failed 0");
+  await expectCleanReport(page, "brz-events.csv", { written: 3 });
 
   expect(
     await count("select count(*) as n from public.events where church_id = $1 and source_id = any($2::text[])", [
@@ -258,9 +313,11 @@ test("giving: links by vendor id and email, keeps anonymous and unmatched gifts 
   await expect(page.getByText("reject 2", { exact: true })).toBeVisible();
   await commit(page, "Created 6, updated 0, failed 0");
 
+  await expectCleanReport(page, "pco-giving.csv", { written: 6, rejected: 2 }, true);
   await dryRun(page, "/app/church-admin/giving/import", /Breeze/, "brz-giving.csv", fixture("breeze/giving.csv"));
   await expect(page.getByText("reject 2", { exact: true })).toBeVisible();
   await commit(page, "Created 5, updated 0, failed 0");
+  await expectCleanReport(page, "brz-giving.csv", { written: 5, rejected: 2 }, true);
 
   const donations = await count(
     `select count(*) as n from public.donations where church_id = $1
@@ -327,6 +384,7 @@ test("attendance: Breeze check-ins match people and events, skip anonymous and u
   await expect(page.getByText("create 3", { exact: true })).toBeVisible();
   await expect(page.getByText("skip 4", { exact: true })).toBeVisible();
   await commit(page, "Created 3, updated 0, failed 0");
+  await expectCleanReport(page, "brz-attendance.csv", { written: 3, skipped: 4, sourceRows: 7 });
 
   const rows = await queryTenantDb<{ member_number: string; title: string }>(
     `select p.member_number, e.title
@@ -355,6 +413,7 @@ test("tags: Breeze tags join existing groups by name, create missing ones closed
   await dryRun(page, "/app/church-admin/groups/import", /Breeze/, "brz-tags.csv", fixture("breeze/tags.csv"));
   await expect(page.getByText("create 5", { exact: true })).toBeVisible();
   await commit(page, "Created 5, updated 0, failed 0");
+  await expectCleanReport(page, "brz-tags.csv", { written: 5 });
 
   // "Hospitality" matched the pre-existing "hospitality" group, so no second group.
   expect(await count("select count(*) as n from public.groups where church_id = $1 and lower(name) = 'hospitality'", [SEED_CHURCH_ID])).toBe(1);
@@ -394,4 +453,71 @@ test("tags: Breeze tags join existing groups by name, create missing ones closed
       [SEED_CHURCH_ID, GROUP_NAMES],
     ),
   ).toBe(5);
+});
+
+test("report: a gift edited after the import appears under Changed since import and mismatches stay 0", async ({ page }) => {
+  const batchId = await batchIdFor("pco-giving.csv");
+  const edited = await queryTenantDb(
+    "update public.donations set amount_cents = 125100 where church_id = $1 and source_id like 'pco-giv-%' and amount_cents = 125000",
+    [SEED_CHURCH_ID],
+  );
+  expect(edited.rowCount).toBe(1);
+
+  await page.goto(`/app/church-admin/imports/${batchId}`);
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByText("0 mismatches", { exact: true })).toBeVisible({ timeout: 30_000 });
+  const changed = page.getByRole("region", { name: "Changed since import" });
+  await expect(changed.getByText("Edited")).toBeVisible();
+  await expect(changed.getByText("Amount: at import $1,250.00, now $1,251.00")).toBeVisible();
+  await expect(page.getByText(/Does not count against this import/)).toBeVisible();
+});
+
+test("report: failed and not-attempted rows are mismatches; legacy and uncommitted batches say so", async ({ page }) => {
+  // A real commit failure is hard to provoke from the UI, and staged rows cannot be edited by the
+  // app (payload columns are immutable), so the batches are seeded as the database owner exactly as
+  // a commit leaves them: outcomes recorded, one failed row with a reason, one row never reached.
+  const seedBatch = async (name: string, status: string, dryRun: boolean, summary: object) =>
+    (
+      await queryTenantDb<{ id: string }>(
+        `insert into public.import_batches (church_id, import_type, source_system, source_filename, status, dry_run, summary, committed_at)
+         values ($1, 'people_households_csv', 'generic_csv', $2, $3, $4, $5::jsonb, case when $3 = 'committed' then now() end)
+         returning id`,
+        [SEED_CHURCH_ID, `${TAG}-${name}`, status, dryRun, JSON.stringify(summary)],
+      )
+    ).rows[0].id;
+
+  const forced = await seedBatch("forced-failure.csv", "committed", false, { outcomesRecorded: true, created: 0, updated: 0, failed: 1, mismatchCount: 2 });
+  await queryTenantDb(
+    `insert into public.import_batch_rows (batch_id, church_id, row_number, raw_payload, normalized_payload, classification, reason, commit_outcome, commit_failure_reason)
+     values
+       ($1, $2, 1, '{}', '{"memberNumber":"E2E-F1"}', 'create', null, 'failed', 'Forced e2e failure.'),
+       ($1, $2, 2, '{}', '{"memberNumber":"E2E-F2"}', 'create', null, null, null),
+       ($1, $2, 3, '{}', '{"memberNumber":"E2E-F3"}', 'skip', 'Duplicate row.', null, null)`,
+    [forced, SEED_CHURCH_ID],
+  );
+  await page.goto(`/app/church-admin/imports/${forced}`);
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByText("2 mismatches", { exact: true })).toBeVisible({ timeout: 30_000 });
+  const mismatches = page.getByRole("region", { name: "Mismatches" });
+  await expect(mismatches.getByText("Forced e2e failure.")).toBeVisible();
+  await expect(mismatches.getByText("Not attempted")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Skipped and rejected rows" }).getByText("Duplicate row.")).toBeVisible();
+
+  const legacy = await seedBatch("legacy.csv", "committed", false, { created: 3, updated: 0, failed: 0 });
+  await page.goto(`/app/church-admin/imports/${legacy}`);
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByText("Row-level outcomes were not recorded for this import")).toBeVisible();
+  await expect(page.getByText("0 mismatches", { exact: true })).toHaveCount(0);
+  expect((await page.request.get(`/api/church-admin/imports/${legacy}/report`)).status()).toBe(409);
+
+  const dry = await seedBatch("dry.csv", "dry_run_completed", true, {});
+  await page.goto(`/app/church-admin/imports/${dry}`);
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByText("This import has not been committed yet", { exact: false })).toBeVisible();
+
+  // The people import page lists them under Recent imports.
+  await page.goto("/app/church-admin/people/import");
+  await expect(page.getByText("Recent imports")).toBeVisible();
+  await expect(page.getByText(`${TAG}-forced-failure.csv`)).toBeVisible();
+  await expect(page.getByText("2 mismatches")).toBeVisible();
 });

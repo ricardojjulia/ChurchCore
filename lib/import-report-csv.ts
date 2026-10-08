@@ -6,6 +6,9 @@ import type { ReconciliationResult } from "@/lib/import-reconciliation";
 // leading = + - @ tab or CR is neutralised.
 
 
+/** Rows per page of each list on the on-screen report (the CSV has every row). */
+export const IMPORT_PAGE_SIZE = 50;
+
 export const GL_NOTE =
   "Imported gifts are not posted to the general ledger; ledger totals are not reconciled here.";
 

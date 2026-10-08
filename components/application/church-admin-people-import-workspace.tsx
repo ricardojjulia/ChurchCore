@@ -24,6 +24,8 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import {
   IMPORT_FILE_HINT,
   CommitFailureReasons,
+  RecentImports,
+  ViewReportLink,
   IgnoredColumns,
   ImportCsvFileInput,
   SourceDetectedNotice,
@@ -32,13 +34,16 @@ import {
   requiredColumnsCopy,
 } from "@/components/application/church-admin-import-intake";
 import type { ChurchAppSession } from "@/lib/auth";
+import type { RecentImportBatch } from "@/lib/import-reconciliation";
 import type { PeopleImportCommitResult, PeopleImportDryRunResult } from "@/lib/people-import-dry-run";
 import type { ImportSourceSystem } from "@/lib/people-import-source-adapters";
 
 export function ChurchAdminPeopleImportWorkspace({
   session,
+  recentImports,
 }: {
   session: ChurchAppSession;
+  recentImports?: RecentImportBatch[];
 }) {
   const [isPending, startTransition] = useTransition();
   const [sourceFilename, setSourceFilename] = useState("people-households.csv");
@@ -311,6 +316,7 @@ export function ChurchAdminPeopleImportWorkspace({
                   {commitResult.failed > 0 ? (
                     <CommitFailureReasons reasons={commitResult.failureReasons} />
                   ) : null}
+                  <ViewReportLink batchId={commitResult.batchId} />
                 </Alert>
               ) : null}
               <Text size="xs" c="dimmed">
@@ -359,6 +365,9 @@ export function ChurchAdminPeopleImportWorkspace({
             </Stack>
           </Paper>
         ) : null}
+        <Paper withBorder radius="md" p="md">
+          <RecentImports imports={recentImports} timeZone={session.appContext.church.timezone} />
+        </Paper>
       </Stack>
     </ApplicationShell>
   );
