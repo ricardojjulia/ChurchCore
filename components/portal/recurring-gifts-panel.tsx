@@ -316,6 +316,7 @@ export function RecurringGiftsPanel({
       )}
 
       <Drawer
+        className="touch-44"
         opened={formOpen}
         onClose={closeForm}
         closeOnEscape={!isPending}

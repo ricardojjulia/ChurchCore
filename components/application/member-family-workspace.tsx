@@ -5,6 +5,7 @@ import {
   Alert,
   Badge,
   Box,
+  Flex,
   Group,
   Paper,
   Stack,
@@ -74,6 +75,7 @@ export function MemberFamilyWorkspace({
       ]}
       bottomNav={<MemberBottomNav />}
     >
+      <Stack gap="lg" className="touch-44">
       <ChurchAppContextBanner session={session} />
 
       {data.familyChangeStatus === "pending" ? (
@@ -97,8 +99,8 @@ export function MemberFamilyWorkspace({
         </Alert>
       ) : null}
 
-      <Paper withBorder radius="xl" p="xl">
-        <Group justify="space-between" align="flex-start" gap="md">
+      <Paper withBorder radius="xl" p={{ base: "md", sm: "xl" }}>
+        <Flex direction={{ base: "column", sm: "row" }} justify="space-between" align="flex-start" gap="md">
           <Box>
             <Group gap="sm" mb="sm">
               <ThemeIcon color="gray" variant="light" radius="xl" size="lg">
@@ -120,11 +122,11 @@ export function MemberFamilyWorkspace({
               {translateMember("familyPageDescription")}
             </Text>
           </Box>
-          <MemberFamilyEdit family={family} />
-        </Group>
+          <MemberFamilyEdit family={family} triggerProps={{ mih: 44, "data-primary-action": true }} />
+        </Flex>
       </Paper>
 
-      <Paper withBorder radius="xl" p="xl">
+      <Paper withBorder radius="xl" p={{ base: "md", sm: "xl" }}>
         <Stack gap="sm">
           <Title order={3} size="h4">
             {translateMember("householdDetails")}
@@ -138,7 +140,7 @@ export function MemberFamilyWorkspace({
         </Stack>
       </Paper>
 
-      <Paper withBorder radius="xl" p="xl">
+      <Paper withBorder radius="xl" p={{ base: "md", sm: "xl" }}>
         <Group justify="space-between" align="center" mb="lg">
           <Title order={3} size="h4">
             {translateMember("peopleInHousehold")}
@@ -165,6 +167,7 @@ export function MemberFamilyWorkspace({
           )}
         </Stack>
       </Paper>
+      </Stack>
     </ApplicationShell>
   );
 }

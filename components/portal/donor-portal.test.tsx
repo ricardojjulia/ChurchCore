@@ -193,3 +193,45 @@ describe("DonorPortal", () => {
     });
   });
 });
+
+describe("DonorPortal payment dates (G2.1)", () => {
+  const gift = {
+    id: "d-1",
+    amountCents: 2500,
+    currency: "usd",
+    fundDesignation: "General",
+    isRecurring: true,
+    isAnonymous: false,
+    status: "succeeded" as const,
+    stripeSubscriptionId: null,
+    note: null,
+    receiptSentAt: null,
+    createdAt: "2026-10-05T01:00:00Z",
+    donorName: null,
+    donorEmail: null,
+  };
+
+  function renderWithGift(timeZone: string | null) {
+    return render(
+      <MantineProvider>
+        <DonorPortal data={{ donations: [gift], totalGiven: 2500 }} timeZone={timeZone} />
+      </MantineProvider>,
+    );
+  }
+
+  it("dates a Sunday-evening gift on the church's Sunday, not UTC's Monday", () => {
+    renderWithGift("America/Los_Angeles");
+    expect(screen.getByText("Oct 4, 2026")).toBeInTheDocument();
+  });
+
+  it("falls back to UTC when the church has no usable zone", () => {
+    renderWithGift(null);
+    expect(screen.getByText("Oct 5, 2026")).toBeInTheDocument();
+  });
+
+  it("marks the primary action and keeps a recurring badge in the fund cell for phones", () => {
+    renderWithGift("America/Los_Angeles");
+    expect(screen.getByRole("button", { name: /Give now/ })).toHaveAttribute("data-primary-action");
+    expect(screen.getAllByText("Recurring").length).toBeGreaterThanOrEqual(1);
+  });
+});

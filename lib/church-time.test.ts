@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { startOfDayInTimeZone, todayInTimeZone, zonedTimeToInstant } from "@/lib/church-time";
+import { formatInstantParts, startOfDayInTimeZone, todayInTimeZone, zonedTimeToInstant } from "@/lib/church-time";
 
 // G1.6 (FS3-4): "today" is the church's today, not UTC's.
 
@@ -76,3 +76,28 @@ describe("zonedTimeToInstant", () => {
   });
 });
 
+
+describe("formatInstantParts (G2.1)", () => {
+  const evening = { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" } as const;
+
+  it("shows a late-Sunday instant on Sunday in the church's zone, where UTC has already reached Monday", () => {
+    // 5:30 pm on Sunday, October 4 in Los Angeles is 00:30 on Monday in UTC.
+    expect(formatInstantParts("2026-10-05T00:30:00Z", "America/Los_Angeles", "en-US", evening)).toBe("Sun, Oct 4, 5:30 PM");
+    expect(formatInstantParts("2026-10-05T00:30:00Z", "UTC", "en-US", evening)).toBe("Mon, Oct 5, 12:30 AM");
+  });
+
+  it("falls back to UTC for a missing or unknown zone", () => {
+    expect(formatInstantParts("2026-10-05T00:30:00Z", null, "en-US", evening)).toBe("Mon, Oct 5, 12:30 AM");
+    expect(formatInstantParts("2026-10-05T00:30:00Z", "Not/AZone", "en-US", evening)).toBe("Mon, Oct 5, 12:30 AM");
+  });
+
+  it("uses the offset in force on that date across a DST change", () => {
+    // US clocks fall back at 2 am on Nov 1, 2026: noon UTC is 8 am EDT before, 7 am EST after.
+    expect(formatInstantParts("2026-10-31T12:00:00Z", "America/New_York", "en-US", { hour: "numeric", minute: "2-digit" })).toBe("8:00 AM");
+    expect(formatInstantParts("2026-11-02T12:00:00Z", "America/New_York", "en-US", { hour: "numeric", minute: "2-digit" })).toBe("7:00 AM");
+  });
+
+  it("returns a malformed instant unchanged", () => {
+    expect(formatInstantParts("not-a-date", "America/New_York", "en-US", evening)).toBe("not-a-date");
+  });
+});

@@ -271,11 +271,31 @@ export function getWebhookSecret(provider: WebhookProvider): string {
 
 /** TENANT_DB_URL, matching lib/supabase/tenant.ts / audit-rls.mjs / create-dev-users.sh. */
 export function getTenantDbUrl(): string {
-  return (
+  const url =
     process.env.TENANT_DB_URL ??
     process.env.SUPABASE_DB_URL ??
-    "postgresql://postgres:postgres@127.0.0.1:4202/postgres"
-  );
+    "postgresql://postgres:postgres@127.0.0.1:4202/postgres";
+  assertLoopbackDbUrl(url);
+  return url;
+}
+
+const LOOPBACK_DB_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+
+/**
+ * The e2e specs run direct SQL (inserts and deletes) through this URL, so refuse
+ * a non-loopback host unless this is CI (which has its own local database).
+ * SUPABASE_DB_URL is not covered by assertLocalSupabaseHosts. Never logs the URL.
+ */
+export function assertLoopbackDbUrl(url: string, env: NodeJS.ProcessEnv = process.env) {
+  if (env.CI === "true") return;
+  const host = hostOf(url);
+  if (!host || !LOOPBACK_DB_HOSTS.has(host)) {
+    throw new Error(
+      "Refusing to run direct SQL from the e2e suite: the tenant database URL does not point at a " +
+        "loopback host (127.0.0.1, localhost or ::1). Direct SQL must never reach a hosted database; " +
+        "unset TENANT_DB_URL / SUPABASE_DB_URL or point them at local Supabase.",
+    );
+  }
 }
 
 export function isDemoModeEnabled(): boolean {

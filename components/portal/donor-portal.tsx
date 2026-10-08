@@ -7,6 +7,7 @@ import {
   Button,
   Divider,
   Drawer,
+  Flex,
   Group,
   NumberInput,
   Paper,
@@ -29,6 +30,7 @@ import {
 } from "@/app/app/donations-actions";
 import { DonationCardStep } from "@/components/portal/donation-card-step";
 import { RecurringGiftsPanel } from "@/components/portal/recurring-gifts-panel";
+import { formatInstantParts } from "@/lib/church-time";
 import type { RecurringGift } from "@/lib/recurring-gifts";
 import type { DonationEntry, DonorPortalData } from "@/lib/donations-data";
 
@@ -47,12 +49,14 @@ function formatCents(cents: number, currency = "usd"): string {
   }).format(cents / 100);
 }
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("en-US", {
+// Payment dates are real instants: show them on the church's calendar, so a
+// gift made Sunday evening isn't dated Monday (G2.1).
+function formatDate(value: string, timeZone: string | null): string {
+  return formatInstantParts(value, timeZone, "en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
-  }).format(new Date(value));
+  });
 }
 
 const FUND_OPTIONS = [
@@ -246,7 +250,7 @@ export function DonorPortal({
   }
 
   return (
-    <Stack gap="lg">
+    <Stack gap="lg" className="touch-44">
       {/* Summary */}
       <Paper withBorder p="lg" radius="md">
         <Group justify="space-between" align="center">
@@ -261,6 +265,8 @@ export function DonorPortal({
           <Button
             color="teal"
             radius="xl"
+            mih={44}
+            data-primary-action
             leftSection={<Heart size={14} />}
             onClick={give.open}
             disabled={Boolean(givingNotice)}
@@ -305,7 +311,7 @@ export function DonorPortal({
               <Text fz="sm" c="dimmed">
                 A PDF of your completed gifts for the year, for your tax records.
               </Text>
-              <Group align="flex-end" gap="sm">
+              <Flex direction={{ base: "column", sm: "row" }} align={{ base: "stretch", sm: "flex-end" }} gap="sm">
                 <Select
                   label="Statement year"
                   value={statementYear}
@@ -320,11 +326,12 @@ export function DonorPortal({
                   href={`/api/member/giving-statement?year=${encodeURIComponent(statementYear ?? String(years[0]))}`}
                   radius="xl"
                   leftSection={<Download size={14} />}
-                  style={{ minHeight: 44 }}
+                  mih={44}
+                  w={{ base: "100%", sm: "auto" }}
                 >
                   Download statement
                 </Button>
-              </Group>
+              </Flex>
             </>
           )}
         </Stack>
@@ -338,7 +345,7 @@ export function DonorPortal({
               <Table.Th>Date</Table.Th>
               <Table.Th>Amount</Table.Th>
               <Table.Th>Fund</Table.Th>
-              <Table.Th>Type</Table.Th>
+              <Table.Th visibleFrom="sm">Type</Table.Th>
               <Table.Th>Status</Table.Th>
             </Table.Tr>
           </Table.Thead>
@@ -355,7 +362,7 @@ export function DonorPortal({
               donations.map((d) => (
                 <Table.Tr key={d.id}>
                   <Table.Td>
-                    <Text fz="xs">{formatDate(d.createdAt)}</Text>
+                    <Text fz="xs">{formatDate(d.createdAt, timeZone)}</Text>
                   </Table.Td>
                   <Table.Td>
                     <Text fz="xs" fw={600}>
@@ -364,8 +371,13 @@ export function DonorPortal({
                   </Table.Td>
                   <Table.Td>
                     <Text fz="xs">{d.fundDesignation ?? "General"}</Text>
+                    {d.isRecurring ? (
+                      <Badge hiddenFrom="sm" mt={4} size="xs" color="blue" variant="light" leftSection={<RefreshCw size={9} />}>
+                        Recurring
+                      </Badge>
+                    ) : null}
                   </Table.Td>
-                  <Table.Td>
+                  <Table.Td visibleFrom="sm">
                     {d.isRecurring ? (
                       <Badge size="xs" color="blue" variant="light" leftSection={<RefreshCw size={9} />}>
                         Recurring
@@ -396,6 +408,7 @@ export function DonorPortal({
         position="right"
         size="md"
         radius="lg"
+        className="touch-44"
       >
         {checkout && publishableKey && stripeAccount ? (
           <Stack gap="md" p="md">
@@ -479,12 +492,13 @@ export function DonorPortal({
 
           <Divider />
           <Group justify="flex-end" gap="sm">
-            <Button variant="default" radius="xl" onClick={closeGive}>
+            <Button variant="default" radius="xl" mih={44} onClick={closeGive}>
               Cancel
             </Button>
             <Button
               color="teal"
               radius="xl"
+              mih={44}
               loading={isPending}
               disabled={!amountDollars || Number(amountDollars) <= 0}
               leftSection={<Heart size={12} />}

@@ -86,8 +86,8 @@ describe("RoleTypeManager — list rendering", () => {
     expect(screen.getByText("Inactive")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /reactivate/i })).not.toBeInTheDocument();
     // Edit stays available; Deactivate does not (already inactive).
-    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Deactivate" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit Greeter" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Deactivate Greeter" })).not.toBeInTheDocument();
   });
 });
 
@@ -154,7 +154,7 @@ describe("RoleTypeManager — edit", () => {
     updateRoleTypeActionMock.mockResolvedValue({ ok: true });
     renderManager([roleType()]);
 
-    await user.click(screen.getByRole("button", { name: "Edit" }));
+    await user.click(screen.getByRole("button", { name: "Edit Greeter" }));
     expect(await screen.findByDisplayValue("Greeter")).toBeInTheDocument();
 
     const nameInput = screen.getByLabelText(/^Name/, { selector: "input" });
@@ -184,13 +184,13 @@ describe("RoleTypeManager — deactivate", () => {
     deactivateRoleTypeActionMock.mockResolvedValue({ ok: true });
     renderManager([roleType()]);
 
-    await user.click(screen.getByRole("button", { name: "Deactivate" }));
+    await user.click(screen.getByRole("button", { name: "Deactivate Greeter" }));
 
     await waitFor(() => {
       expect(deactivateRoleTypeActionMock).toHaveBeenCalledWith("role-1");
     });
     expect(await screen.findByText("Inactive")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Deactivate" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Deactivate Greeter" })).not.toBeInTheDocument();
   });
 
   it("shows an error and leaves the row unchanged when deactivation fails", async () => {
@@ -198,7 +198,7 @@ describe("RoleTypeManager — deactivate", () => {
     deactivateRoleTypeActionMock.mockResolvedValue({ ok: false, error: "Role type not found." });
     renderManager([roleType()]);
 
-    await user.click(screen.getByRole("button", { name: "Deactivate" }));
+    await user.click(screen.getByRole("button", { name: "Deactivate Greeter" }));
 
     expect(await screen.findByText("Role type not found.")).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
@@ -214,8 +214,8 @@ describe("RoleTypeManager — RBAC (read-only for non-managing roles)", () => {
     renderManager([roleType()], { canManage: false });
 
     expect(screen.queryByRole("button", { name: "New Role Type" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Deactivate" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit Greeter" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Deactivate Greeter" })).not.toBeInTheDocument();
     // The read-only role can still see the role type data.
     expect(screen.getByText("Greeter")).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();

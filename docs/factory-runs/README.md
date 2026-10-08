@@ -70,4 +70,5 @@ Each run file should be committed with the change it describes. The goal is to m
 | 2026-10-06 | [S11 suppressions page](2026-10-06-s11-suppressions-page.md) | S11 church-admin suppressions page | PR #190, `9c16db3` |
 | 2026-10-07 | [T1a untested exports](2026-10-07-t1a-untested-exports.md) | T1a untested exports at zero for giving, finance and communications | PR #193, `95a8483` |
 | 2026-10-07 | [G4.1 vendor importers](2026-10-07-g4-1-vendor-importers.md) | G4.1 Planning Center and Breeze importers with fixtures in CI (Council Review 45) | PR #194, `b8b953e` |
-| 2026-10-08 | [G4.2 import reconciliation](2026-10-08-g4-2-import-reconciliation.md) | G4.2 post-import reconciliation report (Council Review 46, ADR 0029) | Pending (no PR yet) |
+| 2026-10-08 | [G4.2 import reconciliation](2026-10-08-g4-2-import-reconciliation.md) | G4.2 post-import reconciliation report (Council Review 46, ADR 0029) | PR #195, `28f1bda` |
+| 2026-10-08 | [G2.1 phone-first member pages](2026-10-08-g2-1-phone-first-member.md) | G2.1 phone-first member home, schedule, giving and family (Council Review 47) | Pending (no PR yet) |

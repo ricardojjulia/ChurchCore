@@ -1,6 +1,6 @@
 import { MantineProvider } from "@mantine/core";
-import { Notifications } from "@mantine/notifications";
-import { render, screen, waitFor } from "@testing-library/react";
+import { Notifications, notifications } from "@mantine/notifications";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -37,7 +37,10 @@ function renderView(shifts: MemberScheduleEntry[], hasChurchProfile = true, loca
 }
 
 describe("MemberScheduleView", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    respondToShiftActionMock.mockReset();
+    notifications.clean(); // the notification store is module-global, so toasts leak between tests
+  });
 
   it("offers Confirm and Decline on a pending shift", () => {
     renderView([entry({ confirmationStatus: "pending" })]);
@@ -59,6 +62,69 @@ describe("MemberScheduleView", () => {
 
     expect(respondToShiftActionMock).toHaveBeenCalledWith("s-9", "declined", "Away that weekend");
     await waitFor(() => expect(screen.queryByRole("button", { name: "Can't make it" })).not.toBeInTheDocument());
+  });
+
+  it("responds once when Confirm is tapped twice while the first is in flight (G2.1)", async () => {
+    const user = userEvent.setup();
+    let release: (value: { ok: boolean }) => void = () => {};
+    respondToShiftActionMock.mockReturnValue(new Promise((resolve) => (release = resolve)));
+    renderView([entry({ shiftId: "s-2", confirmationStatus: "pending" })]);
+
+    const confirm = screen.getByRole("button", { name: "Confirm" });
+    await user.click(confirm);
+    await user.click(confirm);
+    expect(respondToShiftActionMock).toHaveBeenCalledTimes(1);
+    expect(respondToShiftActionMock).toHaveBeenCalledWith("s-2", "confirmed");
+    release({ ok: true });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument());
+  });
+
+  it("responds once to two synchronous clicks on Confirm (latch, not state) and on the modal's Decline", async () => {
+    const user = userEvent.setup();
+    let release: (value: { ok: boolean }) => void = () => {};
+    respondToShiftActionMock.mockReturnValue(new Promise((resolve) => (release = resolve)));
+    const { unmount } = renderView([entry({ shiftId: "s-3", confirmationStatus: "pending" })]);
+    const confirm = screen.getByRole("button", { name: "Confirm" });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    expect(respondToShiftActionMock).toHaveBeenCalledTimes(1);
+    release({ ok: true });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument());
+    unmount();
+
+    respondToShiftActionMock.mockClear();
+    respondToShiftActionMock.mockReturnValue(new Promise((resolve) => (release = resolve)));
+    renderView([entry({ shiftId: "s-4", confirmationStatus: "confirmed" })]);
+    await user.click(screen.getByRole("button", { name: "Can't make it" }));
+    await screen.findByRole("dialog");
+    const decline = screen.getAllByRole("button", { name: "Decline" }).at(-1)!;
+    fireEvent.click(decline);
+    fireEvent.click(decline);
+    expect(respondToShiftActionMock).toHaveBeenCalledTimes(1);
+    release({ ok: true });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Can't make it" })).not.toBeInTheDocument());
+  });
+
+  it("releases the latch after a failure so the member can try again", async () => {
+    respondToShiftActionMock.mockResolvedValueOnce({ ok: false }).mockResolvedValueOnce({ ok: true });
+    renderView([entry({ shiftId: "s-5", confirmationStatus: "pending" })]);
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(respondToShiftActionMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Confirm" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(respondToShiftActionMock).toHaveBeenCalledTimes(2));
+  });
+
+  it("marks the next pending Confirm as the primary action, else the first Can't make it (G2.1)", () => {
+    const { unmount } = renderView([
+      entry({ shiftId: "a", confirmationStatus: "confirmed" }),
+      entry({ shiftId: "b", confirmationStatus: "pending" }),
+    ]);
+    expect(screen.getByRole("button", { name: "Confirm" })).toHaveAttribute("data-primary-action");
+    expect(screen.getByRole("button", { name: "Can't make it" })).not.toHaveAttribute("data-primary-action");
+    unmount();
+    renderView([entry({ shiftId: "a", confirmationStatus: "confirmed" })]);
+    expect(screen.getByRole("button", { name: "Can't make it" })).toHaveAttribute("data-primary-action");
   });
 
   it("offers nothing on a declined shift", () => {

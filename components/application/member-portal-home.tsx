@@ -19,6 +19,7 @@ import {
   Badge,
   Box,
   Button,
+  Flex,
   Group,
   Paper,
   SimpleGrid,
@@ -37,28 +38,29 @@ import { MemberFamilyEdit } from "@/components/application/member-family-edit";
 import { NotificationPreferencesForm } from "@/components/application/notification-preferences-form";
 import { MemberProfileEdit } from "@/components/application/member-profile-edit";
 import { useI18n } from "@/components/i18n-provider";
+import { formatInstantParts } from "@/lib/church-time";
 import type { ChurchAppSession } from "@/lib/auth";
 import type { MemberMobileCheckInOption } from "@/lib/member-mobile-checkin-data";
 import type { MemberEventRegistrationOption } from "@/lib/member-event-registration-data";
 import type { MemberPortalData } from "@/lib/member-portal-data";
 
-function formatEventDate(value: string, locale: string) {
-  const date = new Date(value);
-
-  return new Intl.DateTimeFormat(locale === "es" ? "es-US" : "en-US", {
+// Events, check-ins and serving rows are real instants: show them on the
+// church's own clock, not the server's or the phone's (G2.1).
+function formatEventDate(value: string, locale: string, timeZone: string | null) {
+  return formatInstantParts(value, timeZone, locale === "es" ? "es-US" : "en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  }).format(date);
+  });
 }
 
-function formatShortDate(value: string, locale: string) {
-  return new Intl.DateTimeFormat(locale === "es" ? "es-US" : "en-US", {
+function formatShortDate(value: string, locale: string, timeZone: string | null) {
+  return formatInstantParts(value, timeZone, locale === "es" ? "es-US" : "en-US", {
     month: "short",
     day: "numeric",
-  }).format(new Date(value));
+  });
 }
 
 function knownKey(value: string) {
@@ -77,6 +79,7 @@ export function MemberPortalHome({
   eventRegistrationOptions: MemberEventRegistrationOption[];
 }) {
   const profile = data.profile;
+  const churchTimeZone = session.appContext.church.timezone ?? null;
   const { locale, t } = useI18n();
   const translateMember = (
     key: string,
@@ -122,9 +125,9 @@ export function MemberPortalHome({
       ]}
       bottomNav={<MemberBottomNav />}
     >
+      <Stack gap="lg" className="touch-44">
       <ChurchAppContextBanner session={session} />
 
-      <Stack gap="lg">
         {profile && !profile.emergencyContactName ? (
           <Alert
             icon={<AlertCircle size={16} />}
@@ -190,7 +193,7 @@ export function MemberPortalHome({
             </Alert>
           ) : null}
 
-        <Paper withBorder radius="xl" p="xl">
+        <Paper withBorder radius="xl" p={{ base: "md", sm: "xl" }}>
           <Group justify="space-between" align="center" mb="lg">
             <Title order={3} size="h4">
               {translateMember("quickActions")}
@@ -201,11 +204,14 @@ export function MemberPortalHome({
             <Button
               component={Link}
               href="/app/member/schedule"
+              data-primary-action
               variant="light"
               color="blue"
               radius="xl"
-              size="md"
+              size="lg"
+              mih={44}
               fullWidth
+              styles={{ label: { whiteSpace: "normal", textAlign: "center" } }}
               leftSection={<CalendarCheck size={16} />}
             >
               {translateMember("openSchedule")}
@@ -216,8 +222,10 @@ export function MemberPortalHome({
               variant="light"
               color="teal"
               radius="xl"
-              size="md"
+              size="lg"
+              mih={44}
               fullWidth
+              styles={{ label: { whiteSpace: "normal", textAlign: "center" } }}
               leftSection={<Users size={16} />}
             >
               {translateMember("openGroups")}
@@ -228,8 +236,10 @@ export function MemberPortalHome({
               variant="light"
               color="grape"
               radius="xl"
-              size="md"
+              size="lg"
+              mih={44}
               fullWidth
+              styles={{ label: { whiteSpace: "normal", textAlign: "center" } }}
               leftSection={<Wallet size={16} />}
             >
               {translateMember("openGiving")}
@@ -240,8 +250,10 @@ export function MemberPortalHome({
               variant="light"
               color="gray"
               radius="xl"
-              size="md"
+              size="lg"
+              mih={44}
               fullWidth
+              styles={{ label: { whiteSpace: "normal", textAlign: "center" } }}
               leftSection={<Home size={16} />}
             >
               {translateMember("openFamily")}
@@ -255,8 +267,13 @@ export function MemberPortalHome({
           householdMembers={data.family?.members ?? []}
         />
 
-        <Paper withBorder radius="xl" p="xl">
-          <Group justify="space-between" align="flex-start" gap="md">
+        <Paper withBorder radius="xl" p={{ base: "md", sm: "xl" }}>
+          <Flex
+            direction={{ base: "column", sm: "row" }}
+            justify="space-between"
+            align="flex-start"
+            gap="md"
+          >
             <Box>
               <Group gap="sm" mb="md">
                 <ThemeIcon color="gray" variant="light" radius="xl" size="lg">
@@ -291,30 +308,30 @@ export function MemberPortalHome({
               ) : null}
             </Box>
 
-            <Stack gap="xs" align="flex-end">
+            <Flex direction="column" gap="xs" align={{ base: "flex-start", sm: "flex-end" }} maw="100%" style={{ minWidth: 0 }}>
               {profile ? <MemberProfileEdit profile={profile} /> : null}
               <Stack gap="xs" align="flex-start">
                 {profile?.email ? (
                   <Group gap={8}>
                     <Mail size={14} />
-                    <Text size="sm">{profile.email}</Text>
+                    <Text size="sm" style={{ overflowWrap: "anywhere" }}>{profile.email}</Text>
                   </Group>
                 ) : null}
                 {profile?.phone ? (
                   <Group gap={8}>
                     <Phone size={14} />
-                    <Text size="sm">{profile.phone}</Text>
+                    <Text size="sm" style={{ overflowWrap: "anywhere" }}>{profile.phone}</Text>
                   </Group>
                 ) : null}
                 {profile?.address ? (
                   <Group gap={8} align="flex-start">
                     <MapPin size={14} style={{ marginTop: 3 }} />
-                    <Text size="sm">{profile.address}</Text>
+                    <Text size="sm" style={{ overflowWrap: "anywhere" }}>{profile.address}</Text>
                   </Group>
                 ) : null}
               </Stack>
-            </Stack>
-          </Group>
+            </Flex>
+          </Flex>
         </Paper>
 
         {profile ? (
@@ -336,7 +353,7 @@ export function MemberPortalHome({
         {(data.givingSummary || data.attendanceTrend.length > 0 || data.myGroups.length > 0) ? (
           <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
             {data.givingSummary ? (
-              <Paper withBorder radius="xl" p="xl">
+              <Paper withBorder radius="xl" p={{ base: "md", sm: "xl" }}>
                 <Group justify="space-between" align="flex-start" mb="sm">
                   <ThemeIcon color="grape" variant="light" radius="xl" size="lg">
                     <Wallet size={18} />
@@ -373,7 +390,7 @@ export function MemberPortalHome({
             ) : null}
 
             {data.attendanceTrend.length > 0 ? (
-              <Paper withBorder radius="xl" p="xl">
+              <Paper withBorder radius="xl" p={{ base: "md", sm: "xl" }}>
                 <Group justify="space-between" align="flex-start" mb="sm">
                   <ThemeIcon color="teal" variant="light" radius="xl" size="lg">
                     <CalendarCheck size={18} />
@@ -403,7 +420,7 @@ export function MemberPortalHome({
             ) : null}
 
             {data.myGroups.length > 0 ? (
-              <Paper withBorder radius="xl" p="xl">
+              <Paper withBorder radius="xl" p={{ base: "md", sm: "xl" }}>
                 <Group justify="space-between" align="flex-start" mb="sm">
                   <ThemeIcon color="blue" variant="light" radius="xl" size="lg">
                     <Users size={18} />
@@ -444,7 +461,7 @@ export function MemberPortalHome({
         ) : null}
 
         <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }} spacing="md">
-          <Paper withBorder radius="xl" p="xl">
+          <Paper withBorder radius="xl" p={{ base: "md", sm: "xl" }}>
             <Group justify="space-between" align="flex-start" mb="md">
               <ThemeIcon color="gray" variant="light" radius="xl" size="lg">
                 <Home size={18} />
@@ -472,7 +489,7 @@ export function MemberPortalHome({
             </Group>
           </Paper>
 
-          <Paper withBorder radius="xl" p="xl">
+          <Paper withBorder radius="xl" p={{ base: "md", sm: "xl" }}>
             <Group justify="space-between" align="flex-start" mb="md">
               <ThemeIcon color="gray" variant="light" radius="xl" size="lg">
                 <UsersRound size={18} />
@@ -498,7 +515,7 @@ export function MemberPortalHome({
             </Button>
           </Paper>
 
-          <Paper withBorder radius="xl" p="xl">
+          <Paper withBorder radius="xl" p={{ base: "md", sm: "xl" }}>
             <Group justify="space-between" align="flex-start" mb="md">
               <ThemeIcon color="gray" variant="light" radius="xl" size="lg">
                 <HeartHandshake size={18} />
@@ -518,7 +535,7 @@ export function MemberPortalHome({
           </Paper>
         </SimpleGrid>
 
-        <Paper withBorder radius="xl" p="xl">
+        <Paper withBorder radius="xl" p={{ base: "md", sm: "xl" }}>
           <Group justify="space-between" align="center" mb="lg">
             <Title order={3} size="h4">
               {translateMember("upcoming")}
@@ -542,7 +559,7 @@ export function MemberPortalHome({
                     <Box>
                       <Text fw={600}>{event.title}</Text>
                       <Text c="dimmed" size="sm" mt={6}>
-                        {formatEventDate(event.startsAt, locale)}
+                        {formatEventDate(event.startsAt, locale, churchTimeZone)}
                       </Text>
                       {event.description ? (
                         <Text c="dimmed" size="sm" mt={6}>
@@ -579,7 +596,7 @@ export function MemberPortalHome({
         />
 
         <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
-          <Paper withBorder radius="xl" p="xl">
+          <Paper withBorder radius="xl" p={{ base: "md", sm: "xl" }}>
             <Group justify="space-between" align="center" mb="lg">
               <Title order={3} size="h4">
                 {translateMember("myHistory")}
@@ -599,7 +616,7 @@ export function MemberPortalHome({
                           {entry.eventTitle || translateMember("churchAttendance")}
                         </Text>
                         <Text c="dimmed" size="sm" mt={6}>
-                          {formatEventDate(entry.checkedInAt, locale)}
+                          {formatEventDate(entry.checkedInAt, locale, churchTimeZone)}
                         </Text>
                       </Box>
                       <Stack gap={4} align="flex-end">
@@ -621,7 +638,7 @@ export function MemberPortalHome({
             </Stack>
           </Paper>
 
-          <Paper withBorder radius="xl" p="xl">
+          <Paper withBorder radius="xl" p={{ base: "md", sm: "xl" }}>
             <Group justify="space-between" align="center" mb="lg">
               <Title order={3} size="h4">
                 {translateMember("upcomingServing")}
@@ -639,7 +656,7 @@ export function MemberPortalHome({
                       <Box>
                         <Text fw={600}>{assignment.eventTitle}</Text>
                         <Text c="dimmed" size="sm" mt={6}>
-                          {formatShortDate(assignment.startsAt, locale)} • {assignment.roleTitle}
+                          {formatShortDate(assignment.startsAt, locale, churchTimeZone)} • {assignment.roleTitle}
                         </Text>
                       </Box>
                       <Badge color={assignment.isConfirmed ? "teal" : "yellow"} variant="light">

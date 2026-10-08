@@ -61,7 +61,9 @@
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts",
         "tests/e2e/onboarding-flow.spec.ts",
-        "tests/e2e/member-writes.spec.ts"
+        "tests/e2e/member-writes.spec.ts",
+        "tests/e2e/member-phone-first.spec.ts",
+        "components/application/member-portal-home.test.tsx"
       ],
       "note": "Access depends on the :role segment matching the caller's own roleId, not merely on being one of the 5 church roles \u2014 the sweep must pair each identity with its own role value, not a single fixed dynamicParams value.",
       "seedSource": "not a DB id \u2014 literal sentinel meaning 'substitute the signed-in identity's own roleId'. app/app/[role]/page.tsx renders only when portalRole.id === session.appContext.roleId; any other :role value (including another valid role id) redirects to session.homePath. super-admin is denied entirely (requireChurchSession)."
@@ -82,7 +84,9 @@
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts",
-        "tests/e2e/member-writes.spec.ts"
+        "tests/e2e/member-writes.spec.ts",
+        "tests/e2e/member-phone-first.spec.ts",
+        "components/application/calendar-hub.test.tsx"
       ]
     },
     "/app/church-admin/accounts": {
@@ -1028,7 +1032,8 @@
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/service-plan-rotation.spec.ts",
         "components/application/volunteer-schedule.test.tsx",
-        "tests/e2e/service-plan-build.spec.ts"
+        "tests/e2e/service-plan-build.spec.ts",
+        "tests/e2e/member-phone-first.spec.ts"
       ],
       "seedSource": "service_plans.id of the 'Sunday Worship' draft plan seeded for the rotation planner journey in supabase/seed.sql (Service Planning Story 3). tests/e2e/service-plan-rotation.spec.ts resets this plan's shifts before it runs."
     },
@@ -1302,7 +1307,8 @@
       "dynamicParams": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
-        "tests/e2e/member-mobile-foundation.spec.ts"
+        "tests/e2e/member-mobile-foundation.spec.ts",
+        "tests/e2e/member-phone-first.spec.ts"
       ]
     },
     "/app/member/giving": {
@@ -1321,7 +1327,8 @@
         "tests/e2e/member-writes.spec.ts",
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/recurring-giving.spec.ts",
-        "tests/e2e/giving-statements.spec.ts"
+        "tests/e2e/giving-statements.spec.ts",
+        "tests/e2e/member-phone-first.spec.ts"
       ]
     },
     "/app/member/groups": {
@@ -1372,7 +1379,8 @@
         "tests/e2e/member-mobile-foundation.spec.ts",
         "components/application/blockout-dates-panel.test.tsx",
         "components/application/member-schedule.test.tsx",
-        "tests/e2e/member-self-service.spec.ts"
+        "tests/e2e/member-self-service.spec.ts",
+        "tests/e2e/member-phone-first.spec.ts"
       ]
     },
     "/app/pastor/bible-study": {

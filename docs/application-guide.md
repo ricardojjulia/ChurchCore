@@ -382,6 +382,8 @@ Member home also includes event self-registration cards for events with open reg
 
 Members can also manage giving, data rights, notification preferences, and communication preferences where those flows are enabled.
 
+**Using it on a phone.** Member home, Schedule, Giving and Family are built for a phone (tested at 390x844 and 360 px wide): every button and field is at least 44 px, pages do not scroll sideways, cards sit in one column (the home quick actions are two across), and each page's main action is on the first screen: the quick actions on home, Confirm or Decline on the next assignment in Schedule, "Give now" in Giving, and edit or add in Family. On a phone the giving history leaves out the Type column and shows a Recurring badge beside the fund. Dates on home and Giving are shown in the church's time zone, so an 8 pm Sunday event reads Sunday. The Calendar page has a "Calendar" heading.
+
 When a church enables household check-in for an event, the member check-in card can also target another person in the same household. The action remains limited to the signed-in family and still honors the event's approved window and access code.
 
 Church admins can also configure optional check-in geofence constraints (latitude, longitude, radius meters) per event. When enabled, member mobile check-in requires browser location access and validates that the device is within the configured on-site radius.

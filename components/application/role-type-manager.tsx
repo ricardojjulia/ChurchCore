@@ -215,7 +215,7 @@ export function RoleTypeManager({
                   {canManage ? (
                     <Table.Td>
                       <Group gap="xs">
-                        <Button size="xs" variant="default" onClick={() => openEditForm(rt)}>
+                        <Button size="xs" variant="default" aria-label={`Edit ${rt.name}`} onClick={() => openEditForm(rt)}>
                           Edit
                         </Button>
                         {rt.isActive ? (
@@ -223,6 +223,7 @@ export function RoleTypeManager({
                             size="xs"
                             variant="subtle"
                             color="red"
+                            aria-label={`Deactivate ${rt.name}`}
                             onClick={() => handleDeactivate(rt)}
                             loading={isPending && deactivatingId === rt.id}
                           >

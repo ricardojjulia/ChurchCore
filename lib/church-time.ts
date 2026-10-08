@@ -114,3 +114,21 @@ export function formatInstantInTimeZone(iso: string, timeZone: string | null): s
     timeStyle: "short",
   }).format(date);
 }
+
+/**
+ * An instant formatted in the church's own zone with caller-chosen Intl options
+ * (e.g. member home: "Sun, Oct 4, 8:00 PM"). For true instants such as
+ * `events.starts_at` and `attendance.checked_in_at`, never volunteer shift
+ * times (wall-clock, ADR 0023). An unknown or missing zone falls back to UTC; a
+ * malformed instant is returned unchanged.
+ */
+export function formatInstantParts(
+  iso: string,
+  timeZone: string | null | undefined,
+  locale: string,
+  options: Intl.DateTimeFormatOptions,
+): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat(locale, { ...options, timeZone: validTimeZone(timeZone) }).format(date);
+}

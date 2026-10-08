@@ -122,6 +122,7 @@ export function MemberProfileEdit({ profile }: Props) {
       </Stack>
 
       <Modal
+        className="touch-44"
         opened={opened}
         onClose={close}
         title={translateMember("editYourProfile")}

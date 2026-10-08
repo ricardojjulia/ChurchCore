@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Badge, Button, Group, Modal, Paper, Stack, Text, Textarea, Title } from "@mantine/core";
+import { useRef, useState, useTransition } from "react";
+import { Badge, Box, Button, Flex, Group, Modal, Paper, Stack, Text, Textarea, Title } from "@mantine/core";
 import { Check, X } from "lucide-react";
 
 import type { MemberScheduleEntry } from "@/lib/volunteer-types";
@@ -51,11 +51,21 @@ export function MemberScheduleView({
   const [pendingShiftId, setPendingShiftId] = useState<string | null>(null);
   const [declineTarget, setDeclineTarget] = useState<MemberScheduleEntry | null>(null);
   const [declineReason, setDeclineReason] = useState("");
+  // A synchronous latch: state (isPending) updates after render, so two quick taps
+  // could both pass an isPending check. The ref is set before the call is made.
+  const inFlight = useRef(false);
 
   function handleConfirm(shift: MemberScheduleEntry) {
+    if (inFlight.current) return; // a second tap while the first is in flight must not respond twice
+    inFlight.current = true;
     setPendingShiftId(shift.shiftId);
     startTransition(async () => {
-      const res = await respondToShiftAction(shift.shiftId, "confirmed");
+      let res: Awaited<ReturnType<typeof respondToShiftAction>>;
+      try {
+        res = await respondToShiftAction(shift.shiftId, "confirmed");
+      } finally {
+        inFlight.current = false;
+      }
       setPendingShiftId(null);
       if (res.ok) {
         setShifts((prev) => prev.map((s) => s.shiftId === shift.shiftId ? { ...s, confirmationStatus: "confirmed" } : s));
@@ -75,9 +85,15 @@ export function MemberScheduleView({
   }
 
   function handleDecline() {
-    if (!declineTarget) return;
+    if (!declineTarget || inFlight.current) return;
+    inFlight.current = true;
     startTransition(async () => {
-      const res = await respondToShiftAction(declineTarget.shiftId, "declined", declineReason || undefined);
+      let res: Awaited<ReturnType<typeof respondToShiftAction>>;
+      try {
+        res = await respondToShiftAction(declineTarget.shiftId, "declined", declineReason || undefined);
+      } finally {
+        inFlight.current = false;
+      }
       if (res.ok) {
         setShifts((prev) => prev.map((s) => s.shiftId === declineTarget.shiftId ? { ...s, confirmationStatus: "declined" } : s));
         setDeclineTarget(null);
@@ -97,7 +113,15 @@ export function MemberScheduleView({
     });
   }
 
+  // The first thing to act on is the thumb-reach primary action (G2.1): the
+  // next pending shift's Confirm, else the first confirmed shift's "Can't make it".
+  const firstPendingId = shifts.find((s) => s.confirmationStatus === "pending")?.shiftId;
+  const firstCantMakeItId = firstPendingId
+    ? undefined
+    : shifts.find((s) => s.confirmationStatus === "confirmed")?.shiftId;
+
   return (
+    <Box className="touch-44">
     <Stack gap="md" p="md">
       <Title order={3}>{tr("upcomingAssignments")}</Title>
       {!hasChurchProfile ? (
@@ -113,7 +137,12 @@ export function MemberScheduleView({
       ) : (
         shifts.map((shift) => (
           <Paper key={shift.shiftId} withBorder p="md" radius="md">
-            <Group justify="space-between" align="flex-start">
+            <Flex
+              direction={{ base: "column", sm: "row" }}
+              justify="space-between"
+              align={{ base: "stretch", sm: "flex-start" }}
+              gap="sm"
+            >
               <Stack gap={4}>
                 <Group gap="xs">
                   <Text fw={600}>{shift.roleName}</Text>
@@ -131,25 +160,27 @@ export function MemberScheduleView({
                 <Text size="xs" c="dimmed">{dateLine(shift)}</Text>
               </Stack>
               {shift.confirmationStatus === "confirmed" && (
-                <Button size="xs" color="red" variant="subtle" leftSection={<X size={13} />}
+                <Button size="xs" mih={44} w={{ base: "100%", sm: "auto" }} color="red" variant="subtle" leftSection={<X size={13} />}
+                  data-primary-action={shift.shiftId === firstCantMakeItId ? true : undefined}
                   onClick={() => setDeclineTarget(shift)} disabled={isPending}>
                   {tr("cantMakeIt")}
                 </Button>
               )}
               {shift.confirmationStatus === "pending" && (
-                <Group gap="xs">
-                  <Button size="xs" color="green" leftSection={<Check size={13} />}
+                <Group gap="xs" grow wrap="nowrap">
+                  <Button size="md" mih={44} color="green" leftSection={<Check size={13} />}
+                    data-primary-action={shift.shiftId === firstPendingId ? true : undefined}
                     onClick={() => handleConfirm(shift)} loading={isPending && pendingShiftId === shift.shiftId}
                     disabled={isPending && pendingShiftId !== shift.shiftId}>
                     {tr("confirm")}
                   </Button>
-                  <Button size="xs" color="red" variant="light" leftSection={<X size={13} />}
+                  <Button size="md" mih={44} color="red" variant="light" leftSection={<X size={13} />}
                     onClick={() => setDeclineTarget(shift)} disabled={isPending}>
                     {tr("decline")}
                   </Button>
                 </Group>
               )}
-            </Group>
+            </Flex>
           </Paper>
         ))
       )}
@@ -158,7 +189,7 @@ export function MemberScheduleView({
         opened={!!declineTarget}
         onClose={() => { setDeclineTarget(null); setDeclineReason(""); }}
         title={tr("declineTitle", { roleName: declineTarget?.roleName ?? "" })}
-        centered size="sm"
+        centered size="sm" className="touch-44"
       >
         <Stack gap="sm">
           <Textarea
@@ -175,5 +206,6 @@ export function MemberScheduleView({
         </Stack>
       </Modal>
     </Stack>
+    </Box>
   );
 }
