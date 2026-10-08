@@ -95,6 +95,7 @@ flowchart TB
 | Email | Resend primary, SendGrid fallback, one idempotency key per message | [ADR 0006](adr/0006-email-provider-resend.md) |
 | AI | One server-only gateway, PII scrubbing, zero-data-retention routing that fails closed | [ADR 0027](adr/0027-openrouter-ai-gateway.md) |
 | Tenancy | One shared tenant database; `church_id` + RLS from `auth.uid()`, CI-audited, plus layered separation | [ADR 0028](adr/0028-shared-tenant-database-layered-isolation.md) |
+| Import outcomes | Column-limited grant, `SECURITY INVOKER` bulk function and an immutability trigger keep import row outcomes honest | [ADR 0029](adr/0029-import-row-outcomes-column-grant-invoker-function-trigger.md) |
 | Pastoral data | Selected pastoral fields encrypted at rest with AES-256-GCM (`lib/crypto/pastoral.ts`, `PASTORAL_ENCRYPTION_KEY`) | [setup/production-deployment.md](setup/production-deployment.md) |
 | Volunteer shift times | Stored as church wall-clock time | [ADR 0023](adr/0023-volunteer-shift-wall-clock-times.md) |
 
@@ -128,4 +129,4 @@ flowchart TB
 | [security-assessment.md](security-assessment.md) | Security and privacy assessment |
 | [diagrams.md](diagrams.md) | Mermaid diagrams with SVG companions |
 | [development-plan-visual.md](development-plan-visual.md) | Visual companion to the development plan |
-| [adr/](adr/) | ADR 0001–0027 |
+| [adr/](adr/) | ADR 0001–0029 |

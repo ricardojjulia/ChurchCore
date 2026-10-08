@@ -316,6 +316,35 @@ How it works:
 - **Limits.** Up to 5,000 rows and 3.5 MB of CSV text per batch. Larger files should be split. A dry run is always required before commit, and Commit is disabled after it succeeds.
 - **Safe to repeat.** Re-importing the same file creates nothing new, and a blank cell never erases a stored value. Each commit writes one audit entry (counts only, no personal data).
 
+### Checking an import (reconciliation report)
+
+Path: `/app/church-admin/imports/<batch>` (church admin only). It opens from the "View reconciliation report" link after you commit, and from **Recent imports** on every import page, which lists the last 20 imports of that type with the date, file name, status, mismatch count and a "View report" link. Imports that were only dry runs are not listed there.
+
+What the counts mean:
+
+- **Source rows:** the rows in your file. **Expected (create + update):** the rows the import was supposed to save. **Written:** saved. **Failed:** the import tried and the database refused (the reason is shown). **Not attempted:** the commit stopped before reaching the row. **Skipped** and **Rejected:** rows the dry run set aside, with a reason each (for example a duplicate, an unmatched attendance row or an invalid amount).
+- Skipped and rejected rows are listed so you can see them, but they are **not mismatches**.
+
+Mismatches and "Changed since import":
+
+- A **mismatch** is something the import itself got wrong: a row that failed, a row that was never attempted, or a gift whose saved amount, date or fund at the moment of commit differs from your file. Every one is listed, with its row number and reason. A clean import reads "0 mismatches".
+- **Changed since import** is a separate list of records edited, deleted or merged after the import (for a gift: a different amount, date or fund; for a person: merged into another). These are normal edits, so they **do not count against the import**. A fund added to a gift after import shows here too.
+- For giving, the page also says that the date is compared for updated gifts too, and an update never changes a stored date.
+
+Giving totals and the general ledger:
+
+- Giving shows the **source total** (your file), the **total written at commit**, the **current total** (re-read from the saved gifts) and the **difference** (source minus written at commit), in USD.
+- Imported gifts are **not posted to the general ledger**, and ledger totals are not reconciled here. The note is on the page and in the CSV.
+
+The CSV ("Download CSV") has a summary section followed by one line per row: row number, source id, classification, outcome and reason; giving adds amount, date and fund. It deliberately has **no names, emails or phones**. Cells that start with `=`, `+`, `-`, `@`, a tab or a carriage return are neutralized so a spreadsheet cannot run them. Each download is recorded in the audit log (who and which import), and a download that cannot be audited is not served.
+
+Older and incomplete imports:
+
+- An import committed **before ChurchCore recorded row outcomes** shows "Row-level outcomes were not recorded for this import" with the totals saved at the time. It never shows a false zero, and has no CSV.
+- If ChurchCore could not finish recording the outcomes (a database refusal during the commit), the page says "Row-level outcomes were not fully recorded for this import" and gives the same kind of message instead of claiming rows were not attempted.
+- An import that is still running, or was not committed, shows "Report not available yet". An import left in "Not finished" cannot be released from the app yet (plan item S27).
+- A report belongs to your church only; another church's link shows "not found".
+
 ### Visitors
 
 Path: `/app/church-admin/visitors`
