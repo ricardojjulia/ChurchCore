@@ -623,7 +623,9 @@ describe("commitEventsImportBatch against Supabase (G4.1)", () => {
                   const data =
                     state.op === "update"
                       ? [{ id: "row-1" }]
-                      : table === "import_batches" && state.op === "select"
+                      : state.op === "insert"
+                        ? { id: "new-event" }
+                        : table === "import_batches" && state.op === "select"
                       ? { status: "dry_run_completed", dry_run: true }
                       : table === "import_batch_rows"
                         ? batchRows

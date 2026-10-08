@@ -33,6 +33,8 @@ This is in `AGENTS.md`, in all three factory skill sets (`.claude`, `.codex`, `.
 
 Third-party file fixtures live in `tests/fixtures/imports/{planning-center,breeze}/` (G4.1): synthetic CSVs only, never a real export, each labelled VERIFIED template, PARTIAL (third-party corroborated) or UNVERIFIED in `tests/fixtures/imports/README.md`, because neither vendor publishes its export header row. They are read by `lib/import-vendor-fixtures.test.ts` (unit) and `tests/e2e/import-vendor-fixtures.spec.ts` (journey). Add a fixture there, with its label, whenever an importer learns a new vendor format; do not hand-write a fixture from the adapter's own assumptions. This is separate from `tests/e2e/fixtures/`, which holds the e2e harness (env guard, auth setup).
 
+The same journey also checks reconciliation (G4.2): after each fixture is committed, `/app/church-admin/imports/<batch>` must show zero mismatches with counts that match the fixture. Negative cases force a failed row (a staged row that points at another church's profile) and edit a gift after import: the first must show as a mismatch, the second only under "Changed since import". The report page and its CSV route are manifest surfaces (church admin only); the database tests for the outcome columns, the bulk function and the immutability trigger are in `tests/database/import-staging-rls.test.ts` ([ADR 0029](adr/0029-import-row-outcomes-column-grant-invoker-function-trigger.md)).
+
 ## Running everything locally
 
 Prerequisites:

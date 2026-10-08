@@ -119,6 +119,39 @@ test.describe("session routes — signed in as member", () => {
   });
 });
 
+// ── /api/church-admin/imports/[batchId]/report (G4.2 reconciliation CSV) ─────
+
+const IMPORT_REPORT_PATH = "/api/church-admin/imports/00000000-0000-0000-0000-00000000dead/report";
+
+test.describe("GET /api/church-admin/imports/[batchId]/report — signed out", () => {
+  test("-> 307 redirect to /sign-in", async ({ request }) => {
+    const response = await request.get(IMPORT_REPORT_PATH, { maxRedirects: 0 });
+    expect(response.status()).toBe(307);
+    expect(response.headers()["location"]).toContain("/sign-in");
+  });
+});
+
+for (const identity of ["member", "secretary", "pastor", "ministry-leader"] as const) {
+  test.describe(`GET /api/church-admin/imports/[batchId]/report — signed in as ${identity}`, () => {
+    test.use({ storageState: authFilePath(identity) });
+
+    test("-> 403, no data", async ({ page }) => {
+      const response = await page.request.get(IMPORT_REPORT_PATH, { maxRedirects: 0 });
+      expect(response.status()).toBe(403);
+      expect(await response.json()).toEqual({ error: "Unauthorized" });
+    });
+  });
+}
+
+test.describe("GET /api/church-admin/imports/[batchId]/report — signed in as church admin", () => {
+  test.use({ storageState: authFilePath("church-admin") });
+
+  test("an unknown batch id and a malformed id -> 404", async ({ page }) => {
+    expect((await page.request.get(IMPORT_REPORT_PATH, { maxRedirects: 0 })).status()).toBe(404);
+    expect((await page.request.get("/api/church-admin/imports/not-a-uuid/report", { maxRedirects: 0 })).status()).toBe(404);
+  });
+});
+
 // ── /api/reports/custom by role (PII and donation CSV exports) ───────────────
 
 for (const identity of ["member", "secretary", "ministry-leader"] as const) {

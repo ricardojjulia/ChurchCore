@@ -103,3 +103,14 @@ export function zonedTimeToInstant(day: string, time: string, timeZone: string |
   return new Date(asUtc - offsetMinutes(zone, first) * 60_000);
 }
 
+
+/** An instant as a readable date and time in the church's own zone, e.g. "Oct 7, 2026, 3:15 PM". An unknown zone falls back to UTC. */
+export function formatInstantInTimeZone(iso: string, timeZone: string | null): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: validTimeZone(timeZone),
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}

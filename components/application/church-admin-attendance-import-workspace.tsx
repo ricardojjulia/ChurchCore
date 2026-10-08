@@ -24,6 +24,8 @@ import { ApplicationShell } from "@/components/application/app-shell";
 import {
   IMPORT_FILE_HINT,
   CommitFailureReasons,
+  RecentImports,
+  ViewReportLink,
   IgnoredColumns,
   ImportCsvFileInput,
   SourceDetectedNotice,
@@ -31,6 +33,7 @@ import {
   requiredColumnsCopy,
 } from "@/components/application/church-admin-import-intake";
 import type { ChurchAppSession } from "@/lib/auth";
+import type { RecentImportBatch } from "@/lib/import-reconciliation";
 import type {
   AttendanceImportCommitResult,
   AttendanceImportDryRunResult,
@@ -39,8 +42,12 @@ import type { AttendanceImportSourceSystem } from "@/lib/attendance-import-sourc
 
 export function ChurchAdminAttendanceImportWorkspace({
   session,
+  recentImports,
+  recentImportsFailed = false,
 }: {
   session: ChurchAppSession;
+  recentImports?: RecentImportBatch[];
+  recentImportsFailed?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [sourceFilename, setSourceFilename] = useState("attendance.csv");
@@ -249,6 +256,7 @@ export function ChurchAdminAttendanceImportWorkspace({
                   {commitResult.failed > 0 ? (
                     <CommitFailureReasons reasons={commitResult.failureReasons} />
                   ) : null}
+                  <ViewReportLink batchId={commitResult.batchId} />
                 </Alert>
               ) : null}
               <Text size="xs" c="dimmed">
@@ -323,6 +331,9 @@ export function ChurchAdminAttendanceImportWorkspace({
             </Stack>
           </Paper>
         ) : null}
+        <Paper withBorder radius="md" p="md">
+          <RecentImports imports={recentImports} loadFailed={recentImportsFailed} timeZone={session.appContext.church.timezone} />
+        </Paper>
       </Stack>
     </ApplicationShell>
   );

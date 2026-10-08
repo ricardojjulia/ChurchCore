@@ -125,7 +125,8 @@
       "dynamicParams": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
-        "tests/e2e/import-vendor-fixtures.spec.ts"
+        "tests/e2e/import-vendor-fixtures.spec.ts",
+        "components/application/church-admin-import-workspaces.test.tsx"
       ],
       "note": "Denied roles redirect to /app/church-admin/attendance, not session.homePath.",
       "deniedRedirectsTo": "/app/church-admin/attendance"
@@ -406,7 +407,8 @@
       "dynamicParams": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
-        "tests/e2e/import-vendor-fixtures.spec.ts"
+        "tests/e2e/import-vendor-fixtures.spec.ts",
+        "components/application/church-admin-import-workspaces.test.tsx"
       ],
       "note": "Denied roles redirect to /app/church-admin/events, not session.homePath.",
       "deniedRedirectsTo": "/app/church-admin/events"
@@ -590,7 +592,8 @@
       "dynamicParams": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
-        "tests/e2e/import-vendor-fixtures.spec.ts"
+        "tests/e2e/import-vendor-fixtures.spec.ts",
+        "components/application/church-admin-import-workspaces.test.tsx"
       ],
       "note": "Denied roles redirect to /app/church-admin/giving, not session.homePath.",
       "deniedRedirectsTo": "/app/church-admin/giving"
@@ -635,7 +638,8 @@
       "dynamicParams": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
-        "tests/e2e/import-vendor-fixtures.spec.ts"
+        "tests/e2e/import-vendor-fixtures.spec.ts",
+        "components/application/church-admin-import-workspaces.test.tsx"
       ],
       "note": "Denied roles redirect to /app/church-admin/groups, not session.homePath.",
       "deniedRedirectsTo": "/app/church-admin/groups"
@@ -911,7 +915,8 @@
       "dynamicParams": null,
       "tests": [
         "tests/e2e/page-role-sweep.spec.ts",
-        "tests/e2e/import-vendor-fixtures.spec.ts"
+        "tests/e2e/import-vendor-fixtures.spec.ts",
+        "components/application/church-admin-import-workspaces.test.tsx"
       ]
     },
     "/app/church-admin/readiness": {
@@ -1756,6 +1761,22 @@
       "note": "Redirects to getRoleHomePath(:role) (here /app/church-admin) for any signed-in identity. That page admits church-admin and sends every other identity, super-admin included, on to its own homePath.",
       "seedSource": "not a DB id \u2014 static enum member of lib/portal.ts's portalRoles (super-admin|church-admin|secretary|pastor|ministry-leader|member); an unrecognized value 404s (notFound()) before the session check even runs.",
       "redirectsTo": "$homePath"
+    },
+    "/app/church-admin/imports/[batchId]": {
+      "path": "/app/church-admin/imports/[batchId]",
+      "file": "app/app/church-admin/imports/[batchId]/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/import-vendor-fixtures.spec.ts",
+        "components/application/church-admin-import-report.test.tsx"
+      ],
+      "note": "Denied roles redirect to their own home. No import batches are seeded, so the sweep visits a nonexistent id (clean not-found); the journey spec opens real reports."
     }
   },
   "routes": {
@@ -1768,6 +1789,18 @@
       "auth": "session",
       "tests": [
         "tests/e2e/api-session-routes.spec.ts"
+      ]
+    },
+    "/api/church-admin/imports/[batchId]/report": {
+      "path": "/api/church-admin/imports/[batchId]/report",
+      "file": "app/api/church-admin/imports/[batchId]/report/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "session",
+      "tests": [
+        "tests/e2e/api-session-routes.spec.ts",
+        "app/api/church-admin/imports/[batchId]/report/route.test.ts"
       ]
     },
     "/api/control/db-health": {

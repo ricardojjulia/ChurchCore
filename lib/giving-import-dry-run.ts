@@ -4,9 +4,15 @@ import {
   assertKnownReference,
   assertUpdated,
   auditImportCommit,
+  DONATION_STORED_COLUMNS,
   failureReason,
+  finishImportBatch,
+  givingSnapshotMismatch,
+  type DonationStored,
   runClaimedCommit,
   type ImportCommitInput,
+  type OutcomeRecorder,
+  type RowOutcome,
 } from "@/lib/import-commit";
 import { chunkArray, computeIgnoredColumns, omitColumns, parseImportCsv, parseImportDate } from "@/lib/import-normalize";
 import {
@@ -426,13 +432,18 @@ function normalizeBatchRowPayload(payload: unknown): NormalizedGivingPayload | n
 }
 
 export async function commitGivingImportBatch(input: ImportCommitInput): Promise<GivingImportCommitResult> {
-  return runClaimedCommit(input, () => commitGivingImportBatchClaimed(input));
+  return runClaimedCommit(input, (recorder) => commitGivingImportBatchClaimed(input, recorder));
 }
 
-async function commitGivingImportBatchClaimed(input: ImportCommitInput): Promise<GivingImportCommitResult> {
+type StagedGivingRow = { rowId: string | null; payload: NormalizedGivingPayload | null };
+
+async function commitGivingImportBatchClaimed(
+  input: ImportCommitInput,
+  recorder: OutcomeRecorder,
+): Promise<GivingImportCommitResult> {
   let batchStatus: string | null = null;
   let dryRun = true;
-  let normalizedPayloads: NormalizedGivingPayload[] = [];
+  let normalizedPayloads: StagedGivingRow[] = [];
 
   if (shouldUseLocalTenantFallback()) {
     const batchResult = await queryTenantLocalDb<{ status: string; dry_run: boolean }>(
@@ -460,29 +471,29 @@ async function commitGivingImportBatchClaimed(input: ImportCommitInput): Promise
     );
 
     normalizedPayloads = rowsResult.rows
-      .map((row) => normalizeBatchRowPayload(row.normalized_payload))
-      .filter((row): row is NormalizedGivingPayload => Boolean(row));
+      .map((row) => ({ rowId: null, payload: normalizeBatchRowPayload(row.normalized_payload) }))
+      .filter((row) => Boolean(row.payload));
   } else {
     const supabase = await createTenantServerClient();
 
-    const { data: batch } = await supabase
+    const { data: batch, error: batchError } = await supabase
       .from("import_batches")
       .select("status, dry_run")
       .eq("id", input.batchId)
       .eq("church_id", input.churchId)
       .maybeSingle();
 
-    if (!batch) {
+    if (batchError || !batch) {
       throw new Error("Import batch not found.");
     }
 
     batchStatus = batch.status;
     dryRun = batch.dry_run;
 
-    const rows = await fetchAllPages<{ normalized_payload: unknown }>((from, to) =>
+    const rows = await fetchAllPages<{ id: string; normalized_payload: unknown }>((from, to) =>
       supabase
         .from("import_batch_rows")
-        .select("normalized_payload")
+        .select("id, normalized_payload")
         .eq("batch_id", input.batchId)
         .eq("church_id", input.churchId)
         .in("classification", ["create", "update"])
@@ -490,11 +501,10 @@ async function commitGivingImportBatchClaimed(input: ImportCommitInput): Promise
         .range(from, to),
     );
 
-    normalizedPayloads = (rows ?? [])
-      .map((row) =>
-        normalizeBatchRowPayload((row as { normalized_payload: unknown }).normalized_payload),
-      )
-      .filter((row): row is NormalizedGivingPayload => Boolean(row));
+    normalizedPayloads = (rows ?? []).map((row) => ({
+      rowId: row.id,
+      payload: normalizeBatchRowPayload(row.normalized_payload),
+    }));
   }
 
   if (shouldUseLocalTenantFallback() && (batchStatus !== "dry_run_completed" || !dryRun)) {
@@ -511,7 +521,20 @@ async function commitGivingImportBatchClaimed(input: ImportCommitInput): Promise
 
   const profileIds = shouldUseLocalTenantFallback() ? null : await loadChurchIdSet(input.churchId, "profiles");
 
-  for (const payload of normalizedPayloads) {
+  for (const { rowId, payload } of normalizedPayloads) {
+    if (!payload) {
+      // A staged row whose payload cannot be read is a failure, never silently dropped.
+      failed += 1;
+      failureReasons.add(failureReason(null));
+      await recorder.record(rowId, { outcome: "failed", reason: failureReason(null) });
+      continue;
+    }
+    const source = {
+      amount_cents: payload.amountCents,
+      donated_at: payload.donatedInstant ?? payload.donatedAt ?? null,
+      fund: payload.fundDesignation ?? null,
+    };
+    let pending: RowOutcome | null = null;
     try {
       assertKnownReference(payload.profileId, profileIds);
       if (shouldUseLocalTenantFallback()) {
@@ -573,12 +596,17 @@ async function commitGivingImportBatchClaimed(input: ImportCommitInput): Promise
       } else {
         const supabase = supabaseClient!;
 
-        const { data: existing } = await supabase
+        const { data: existing, error: lookupError } = await supabase
           .from("donations")
           .select("id")
           .eq("church_id", input.churchId)
           .eq("source_id", payload.sourceId)
           .maybeSingle();
+        if (lookupError) {
+          throw new Error(lookupError.message);
+        }
+
+        let storedRow: DonationStored | null = null;
 
         if (existing?.id) {
           // UPDATE: is_anonymous NOT updated (preserve existing value per Q5)
@@ -598,18 +626,19 @@ async function commitGivingImportBatchClaimed(input: ImportCommitInput): Promise
             })
             .eq("church_id", input.churchId)
             .eq("source_id", payload.sourceId)
-            .select("id");
+            .select(DONATION_STORED_COLUMNS);
 
           if (error) {
             throw new Error(error.message);
           }
           assertUpdated(updatedRows);
+          storedRow = (updatedRows as unknown as DonationStored[])[0];
           updated += 1;
         } else {
           // INSERT: currency='usd' hardcoded (single-currency MVP)
           // status='succeeded' — all imported giving is historical
           // stripe_payment_intent_id, stripe_subscription_id, stripe_customer_id, receipt_sent_at all NULL (not inserted)
-          const { error } = await supabase.from("donations").insert({
+          const { data: insertedRow, error } = await supabase.from("donations").insert({
             church_id: input.churchId,
             source_id: payload.sourceId,
             profile_id: payload.profileId,
@@ -622,17 +651,35 @@ async function commitGivingImportBatchClaimed(input: ImportCommitInput): Promise
             is_anonymous: payload.isAnonymous,
             note: payload.note,
             created_at: payload.donatedInstant ?? payload.donatedAt ?? new Date().toISOString(),
-          });
+          }).select(DONATION_STORED_COLUMNS).single();
 
           if (error) {
             throw new Error(error.message);
           }
+          storedRow = insertedRow as unknown as DonationStored;
           created += 1;
         }
+
+        const snapshot = {
+          source,
+          stored: {
+            amount_cents: storedRow.amount_cents,
+            donated_at: storedRow.created_at,
+            fund: storedRow.fund_designation,
+          },
+        };
+        if (givingSnapshotMismatch(snapshot)) {
+          recorder.noteValueMismatch();
+        }
+        pending = { outcome: "written", recordId: storedRow.id, snapshot };
       }
     } catch (error) {
       failed += 1;
       failureReasons.add(failureReason(error));
+      pending = { outcome: "failed", reason: failureReason(error), snapshot: { source } };
+    }
+    if (pending) {
+      await recorder.record(rowId, pending);
     }
   }
 
@@ -660,22 +707,12 @@ async function commitGivingImportBatchClaimed(input: ImportCommitInput): Promise
       [input.batchId, input.churchId, status, JSON.stringify(summary)],
     );
   } else {
-    const supabase = await createTenantServerClient();
-    const { error } = await supabase
-      .from("import_batches")
-      .update({
-        status,
-        dry_run: false,
-        summary,
-        committed_at: status === "committed" ? new Date().toISOString() : null,
-        failed_at: status === "failed" ? new Date().toISOString() : null,
-      })
-      .eq("id", input.batchId)
-      .eq("church_id", input.churchId);
-
-    if (error) {
-      throw new Error(error.message);
-    }
+    await finishImportBatch(
+      input,
+      { status, created, updated, failed, failureReasons: [...failureReasons] },
+      recorder,
+      normalizedPayloads.length,
+    );
   }
 
   await auditImportCommit(input, { status, created, updated, failed });

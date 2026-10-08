@@ -57,9 +57,15 @@ function install(options: FakeOptions = {}) {
                   if (table === "import_batches" && (state.payload as { status?: string })?.status === "committing") {
                     result = { data: claimsLeft > 0 ? [{ id: "b1" }] : [], error: null };
                     claimsLeft -= 1;
+                  } else if (table === "import_batches") {
+                    result = { data: [{ id: "b1" }], error: null };
                   } else {
                     result = { data: Array.from({ length: options.updateRows ?? 1 }, () => ({ id: "row" })), error: null };
                   }
+                } else if (state.op === "insert" && state.selected) {
+                  // An insert that asks for its row back (the commit records the saved values).
+                  const p = (state.payload ?? {}) as { amount_cents?: number; created_at?: string; fund_designation?: string };
+                  result = { data: { id: "new-id", amount_cents: p.amount_cents, created_at: p.created_at, fund_designation: p.fund_designation ?? null }, error: null };
                 } else if (state.op === "select") {
                   if (options.failSelect === table) {
                     result = { data: null, error: { message: "secret db detail" } };

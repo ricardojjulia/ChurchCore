@@ -1,8 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Badge, FileInput, Group, Stack, Text } from "@mantine/core";
 
+import { formatInstantInTimeZone } from "@/lib/church-time";
+import { importStatusLabel } from "@/lib/import-report-csv";
+import type { RecentImportBatch } from "@/lib/import-reconciliation";
 import {
   detectImportSourceSystem,
   parseCsvHeaders,
@@ -106,6 +110,76 @@ export function CommitFailureReasons({ reasons }: { reasons: string[] | undefine
           {reason}
         </Text>
       ))}
+    </Stack>
+  );
+}
+
+export function importReportHref(batchId: string) {
+  return `/app/church-admin/imports/${batchId}`;
+}
+
+/** Shown after a commit: opens the row-by-row reconciliation report for the batch. */
+export function ViewReportLink({ batchId }: { batchId: string }) {
+  return (
+    <Text size="sm" mt="xs">
+      <Link href={importReportHref(batchId)}>View reconciliation report</Link>
+    </Text>
+  );
+}
+
+/** Compact list of the church's latest imports of this type, each opening its report. */
+export function RecentImports({
+  imports,
+  timeZone,
+  loadFailed = false,
+}: {
+  imports: RecentImportBatch[] | undefined;
+  timeZone: string | null;
+  loadFailed?: boolean;
+}) {
+  return (
+    <Stack gap="xs" component="section" aria-labelledby="recent-imports-heading">
+      <Text id="recent-imports-heading" fw={600} size="sm">
+        Recent imports
+      </Text>
+      {loadFailed ? (
+        <Text size="sm" c="red" role="alert">
+          Recent imports could not be loaded.
+        </Text>
+      ) : !imports || imports.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          No imports yet.
+        </Text>
+      ) : (
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {imports.map((batch) => (
+            <li key={batch.id} style={{ padding: "6px 0" }}>
+              <Group gap="xs" wrap="wrap">
+                <Text size="sm">{formatInstantInTimeZone(batch.createdAt, timeZone)}</Text>
+                <Text size="sm" fw={500} style={{ wordBreak: "break-all" }}>
+                  {batch.sourceFilename}
+                </Text>
+                <Badge
+                  variant="light"
+                  color={batch.status === "committed" ? "green" : batch.status === "failed" ? "red" : "gray"}
+                >
+                  {importStatusLabel(batch.status)}
+                </Badge>
+                {batch.status === "committing" ? null : (
+                  <Text size="sm" c="dimmed">
+                    {batch.legacy || batch.mismatchCount === null
+                      ? "mismatches not recorded"
+                      : `${batch.mismatchCount} ${batch.mismatchCount === 1 ? "mismatch" : "mismatches"}`}
+                  </Text>
+                )}
+                <Link href={importReportHref(batch.id)} aria-label={`Open report for ${batch.sourceFilename}`}>
+                  View report
+                </Link>
+              </Group>
+            </li>
+          ))}
+        </ul>
+      )}
     </Stack>
   );
 }

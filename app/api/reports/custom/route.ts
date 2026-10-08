@@ -2,45 +2,11 @@ import { NextResponse } from "next/server";
 
 import { requireChurchSession } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/actions/audit";
+import { jsonToCsv } from "@/lib/csv";
 import { createTenantServerClient } from "@/lib/supabase/tenant";
 
-// Prefix cells that start with =, +, -, @, tab, or CR with a single quote so
-// spreadsheet apps (Excel/Sheets/LibreOffice) treat them as text rather than
-// live formulas -- a standard CSV-export mitigation for formula injection.
-// User-controlled fields (names, emails, descriptions) are exported here
-// unsanitized otherwise.
-const FORMULA_INJECTION_PREFIX = /^[=+\-@\t\r]/;
-
-export function neutralizeFormulaInjection(value: string): string {
-  return FORMULA_INJECTION_PREFIX.test(value) ? `'${value}` : value;
-}
-
-// `columns` gives the header row when there are no rows, so an empty export
-// is still a valid CSV with its headers rather than a 0-byte file.
-export function jsonToCsv(rows: Record<string, unknown>[], columns?: string[]): string {
-  if (rows.length === 0) return columns?.length ? columns.join(",") : "";
-  const headers = Object.keys(rows[0]);
-  const headerLine = headers.join(",");
-  const rowLines = rows.map((row) =>
-    headers
-      .map((h) => {
-        const val = row[h];
-        if (val === null || val === undefined) return "";
-        const strVal = neutralizeFormulaInjection(String(val));
-        if (
-          strVal.includes(",") ||
-          strVal.includes('"') ||
-          strVal.includes("\n") ||
-          strVal.includes("\r")
-        ) {
-          return `"${strVal.replace(/"/g, '""')}"`;
-        }
-        return strVal;
-      })
-      .join(","),
-  );
-  return [headerLine, ...rowLines].join("\n");
-}
+// CSV helpers moved to lib/csv.ts (G4.2) so the import report shares them.
+export { jsonToCsv, neutralizeFormulaInjection } from "@/lib/csv";
 
 type ExportEntity = "people" | "giving" | "events";
 

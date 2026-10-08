@@ -38,6 +38,7 @@ vi.mock("@/app/app/church-admin/events/import/actions", () => ({
 
 import { ChurchAdminAttendanceImportWorkspace } from "@/components/application/church-admin-attendance-import-workspace";
 import { ChurchAdminPeopleImportWorkspace } from "@/components/application/church-admin-people-import-workspace";
+import { ChurchAdminGivingImportWorkspace } from "@/components/application/church-admin-giving-import-workspace";
 import { ChurchAdminGroupsImportWorkspace } from "@/components/application/church-admin-groups-import-workspace";
 import { ImportCsvFileInput } from "@/components/application/church-admin-import-intake";
 import type { ChurchAppSession } from "@/lib/auth";
@@ -93,6 +94,8 @@ describe("import workspaces", () => {
     wrap(<ChurchAdminGroupsImportWorkspace session={session} />);
     await userEvent.click(screen.getByRole("button", { name: "Run dry import" }));
     const commitButton = await screen.findByRole("button", { name: "Commit batch" });
+    // Wait out the dry run's pending transition (the button is disabled while loading).
+    await waitFor(() => expect(commitButton.hasAttribute("disabled")).toBe(false), { timeout: 5000 });
     await userEvent.click(commitButton);
     expect(await screen.findByText("Group name is required.")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Commit batch" }) as HTMLButtonElement).disabled).toBe(true);
@@ -102,6 +105,68 @@ describe("import workspaces", () => {
     expect(screen.getByText("Detected a Breeze file; source set to Breeze.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Commit batch" })).toBeNull();
     expect(screen.queryByText("Group name is required.")).toBeNull();
+  });
+
+  it("lists recent imports with report links and offers the report after a commit", async () => {
+    mocks.groupsDry.mockResolvedValue({
+      batchId: "b9", mode: "groups", counts: { ...baseCounts, create: 1 }, groupCreates: 0,
+      rows: [], membershipRows: [], ignoredColumns: [], totalRows: 1,
+    });
+    mocks.groupsCommit.mockResolvedValue({
+      batchId: "b9", status: "committed", created: 1, updated: 0, failed: 0, failureReasons: [],
+    });
+    wrap(
+      <ChurchAdminGroupsImportWorkspace
+        session={session}
+        recentImports={[
+          { id: "r1", createdAt: "2026-10-07T15:00:00Z", sourceFilename: "tags.csv", status: "committed", mismatchCount: 2, legacy: false },
+          { id: "r2", createdAt: "2026-09-01T15:00:00Z", sourceFilename: "old.csv", status: "committed", mismatchCount: null, legacy: true },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Recent imports")).toBeTruthy();
+    expect(screen.getByText("2 mismatches")).toBeTruthy();
+    expect(screen.getByText("mismatches not recorded")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open report for tags.csv" }).getAttribute("href")).toBe(
+      "/app/church-admin/imports/r1",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Run dry import" }));
+    const commit = await screen.findByRole("button", { name: "Commit batch" }, { timeout: 5000 });
+    // The button renders while the dry run's transition is still pending (loading, so disabled);
+    // a click in that window is a no-op, which is how this test flaked on slower CI runners.
+    await waitFor(() => expect(commit.hasAttribute("disabled")).toBe(false), { timeout: 5000 });
+    await userEvent.click(commit);
+    const link = await screen.findByRole("link", { name: "View reconciliation report" }, { timeout: 5000 });
+    expect(link.getAttribute("href")).toBe("/app/church-admin/imports/b9");
+  }, 15_000);
+
+  it("labels recent import statuses and handles a failed load", () => {
+    const base = { createdAt: "2026-10-07T15:00:00Z", legacy: false };
+    wrap(
+      <ChurchAdminGivingImportWorkspace
+        session={session}
+        recentImports={[
+          { ...base, id: "a", sourceFilename: "a.csv", status: "committing", mismatchCount: null },
+          { ...base, id: "b", sourceFilename: "b.csv", status: "failed", mismatchCount: 1 },
+          { ...base, id: "c", sourceFilename: "c.csv", status: "committed", mismatchCount: null, legacy: true },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Not finished")).toBeTruthy();
+    expect(screen.getByText("Failed")).toBeTruthy();
+    expect(screen.getByText("Committed")).toBeTruthy();
+    expect(screen.getAllByText("mismatches not recorded")).toHaveLength(1);
+  });
+
+  it("shows an inline message when recent imports could not be loaded", () => {
+    wrap(<ChurchAdminPeopleImportWorkspace session={session} recentImportsFailed />);
+    expect(screen.getByText("Recent imports could not be loaded.")).toBeTruthy();
+    expect(screen.queryByText("No imports yet.")).toBeNull();
+  });
+
+  it("says when there are no recent imports", () => {
+    wrap(<ChurchAdminPeopleImportWorkspace session={session} recentImports={[]} />);
+    expect(screen.getByText("No imports yet.")).toBeTruthy();
   });
 
   it("shows per-source required columns", () => {

@@ -145,4 +145,201 @@ describe("import staging RLS (R1, R2)", () => {
       await client.query("rollback to savepoint s");
     });
   });
+
+  // G4.2 (migration 20261009000000): outcome columns, a column-limited update
+  // grant, and a SECURITY INVOKER bulk-recording function.
+  // Outcomes can only be written while the batch is committing (trigger guard_import_row_commit_outcome).
+  const startCommit = (client: PoolClient) =>
+    client.query(`update public.import_batches set status = 'committing' where id = $1`, [BATCH_A]);
+
+  const OUTCOME_SET = `commit_outcome = 'written', committed_record_id = '00000000-0000-0000-0000-00000000f001',
+                       commit_failure_reason = null, commit_snapshot = '{"source":{"amount_cents":100}}'`;
+
+  it("a church admin can update only the four outcome columns of a row", async () => {
+    await inRolledBackTransaction(async (client) => {
+      await startCommit(client);
+      const outcome = await as(client, "authenticated", ADMIN_A, `update public.import_batch_rows set ${OUTCOME_SET} where id = $1`, [ROW_A]);
+      expect(outcome.error).toBeNull();
+      expect(outcome.rowCount).toBe(1);
+      const saved = await client.query(`select commit_outcome, committed_record_id, commit_snapshot from public.import_batch_rows where id = $1`, [ROW_A]);
+      expect(saved.rows[0]).toMatchObject({ commit_outcome: "written", committed_record_id: "00000000-0000-0000-0000-00000000f001" });
+
+      for (const column of ["normalized_payload = '{}'", "raw_payload = '{}'", "classification = 'skip'", "reason = 'x'", "row_number = 9", "church_id = church_id", "batch_id = batch_id"]) {
+        const denied = await as(client, "authenticated", ADMIN_A, `update public.import_batch_rows set ${column} where id = $1`, [ROW_A]);
+        expect(denied.error, column).toMatch(/permission denied/);
+      }
+    });
+  });
+
+  it("an outcome must be written or failed", async () => {
+    await inRolledBackTransaction(async (client) => {
+      await startCommit(client);
+      const bad = await as(client, "authenticated", ADMIN_A, `update public.import_batch_rows set commit_outcome = 'bogus' where id = $1`, [ROW_A]);
+      expect(bad.error).toMatch(/commit_outcome_check/);
+    });
+  });
+
+  it("a pastor, ministry leader, member and anon cannot record an outcome", async () => {
+    await inRolledBackTransaction(async (client) => {
+      await startCommit(client);
+      for (const user of [PASTOR_A, LEADER_A, MEMBER_A]) {
+        expect((await as(client, "authenticated", user, `update public.import_batch_rows set ${OUTCOME_SET} where id = $1`, [ROW_A])).rowCount).toBe(0);
+      }
+      expect((await as(client, "anon", null, `update public.import_batch_rows set ${OUTCOME_SET} where id = $1`, [ROW_A])).error).toMatch(/permission denied/);
+      const untouched = await client.query(`select commit_outcome from public.import_batch_rows where id = $1`, [ROW_A]);
+      expect(untouched.rows[0].commit_outcome).toBeNull();
+    });
+  });
+
+  it("an admin of another church cannot record an outcome on this church's row", async () => {
+    await inRolledBackTransaction(async (client) => {
+      await startCommit(client);
+      expect((await as(client, "authenticated", ADMIN_B, `update public.import_batch_rows set ${OUTCOME_SET} where id = $1`, [ROW_A])).rowCount).toBe(0);
+    });
+  });
+
+  const RPC = `select public.record_import_row_outcomes($1, $2::jsonb) as updated`;
+  const outcomesJson = (id: string, outcome = "written") =>
+    JSON.stringify([{ id, commit_outcome: outcome, committed_record_id: "00000000-0000-0000-0000-00000000f002", commit_failure_reason: outcome === "failed" ? "Row could not be written." : null, commit_snapshot: { stored: { amount_cents: 5 } } }]);
+
+  it("record_import_row_outcomes records outcomes for the caller's own batch and is idempotent", async () => {
+    await inRolledBackTransaction(async (client) => {
+      await startCommit(client);
+      const first = await as(client, "authenticated", ADMIN_A, RPC, [BATCH_A, outcomesJson(ROW_A)]);
+      expect(first.error).toBeNull();
+      expect(first.rows[0].updated).toBe(1);
+      const saved = await client.query(`select commit_outcome, committed_record_id, commit_snapshot from public.import_batch_rows where id = $1`, [ROW_A]);
+      expect(saved.rows[0]).toMatchObject({ commit_outcome: "written", commit_snapshot: { stored: { amount_cents: 5 } } });
+
+      // A second call cannot overwrite an outcome already set.
+      const second = await as(client, "authenticated", ADMIN_A, RPC, [BATCH_A, outcomesJson(ROW_A, "failed")]);
+      expect(second.rows[0].updated).toBe(0);
+      const still = await client.query(`select commit_outcome from public.import_batch_rows where id = $1`, [ROW_A]);
+      expect(still.rows[0].commit_outcome).toBe("written");
+    });
+  });
+
+  it("record_import_row_outcomes cannot touch another church's rows, the wrong batch, or run as anon or a non-admin", async () => {
+    await inRolledBackTransaction(async (client) => {
+      await startCommit(client);
+      expect((await as(client, "authenticated", ADMIN_B, RPC, [BATCH_A, outcomesJson(ROW_A)])).rows[0].updated).toBe(0);
+      expect((await as(client, "authenticated", ADMIN_A, RPC, ["00000000-0000-0000-0000-00000000a699", outcomesJson(ROW_A)])).rows[0].updated).toBe(0);
+      for (const user of [PASTOR_A, LEADER_A, MEMBER_A]) {
+        expect((await as(client, "authenticated", user, RPC, [BATCH_A, outcomesJson(ROW_A)])).rows[0].updated).toBe(0);
+      }
+      // Not called as anon: a role with no EXECUTE grant crashes the local Supabase image
+      // (Council Review 27), so check the privilege instead.
+      const privileges = await client.query(
+        `select has_function_privilege('anon', 'public.record_import_row_outcomes(uuid, jsonb)', 'execute') as anon_can,
+                has_function_privilege('authenticated', 'public.record_import_row_outcomes(uuid, jsonb)', 'execute') as authenticated_can`,
+      );
+      expect(privileges.rows[0]).toEqual({ anon_can: false, authenticated_can: true });
+      const untouched = await client.query(`select commit_outcome from public.import_batch_rows where id = $1`, [ROW_A]);
+      expect(untouched.rows[0].commit_outcome).toBeNull();
+    });
+  });
+
+  it("R1: outcomes cannot be set once the batch has left committing, even by the church admin", async () => {
+    await inRolledBackTransaction(async (client) => {
+      await startCommit(client);
+      expect((await as(client, "authenticated", ADMIN_A, RPC, [BATCH_A, outcomesJson(ROW_A)])).rows[0].updated).toBe(1);
+      await client.query(`update public.import_batches set status = 'committed' where id = $1`, [BATCH_A]);
+
+      // A direct PATCH after the commit, to hide a mismatch, is refused.
+      const patch = await as(client, "authenticated", ADMIN_A, `update public.import_batch_rows set commit_outcome = 'failed' where id = $1`, [ROW_A]);
+      expect(patch.error).toMatch(/cannot be changed|only be recorded while/);
+      // So is the owner role: the trigger has no bypass.
+      await client.query("savepoint s");
+      await expect(client.query(`update public.import_batch_rows set commit_snapshot = '{}' where id = $1`, [ROW_A])).rejects.toThrow(/cannot be changed/);
+      await client.query("rollback to savepoint s");
+      // And the RPC (which only touches rows with no outcome) cannot add one to a different row afterwards.
+      const another = "00000000-0000-0000-0000-00000000a622";
+      await client.query(
+        `insert into public.import_batch_rows (id, batch_id, church_id, row_number, raw_payload, normalized_payload, classification)
+         values ($1, $2, $3, 3, '{}', '{}', 'create')`,
+        [another, BATCH_A, CHURCH_A],
+      );
+      const late = await as(client, "authenticated", ADMIN_A, RPC, [BATCH_A, outcomesJson(another)]);
+      expect(late.error).toMatch(/only be recorded while/);
+    });
+  });
+
+  it("R1: a row cannot be inserted with an outcome outside committing", async () => {
+    await inRolledBackTransaction(async (client) => {
+      const insertWithOutcome = `insert into public.import_batch_rows (batch_id, church_id, row_number, raw_payload, normalized_payload, classification, commit_outcome)
+                                 values ($1, $2, 5, '{}', '{}', 'create', 'written')`;
+      // Batch is dry_run_completed.
+      expect((await as(client, "authenticated", ADMIN_A, insertWithOutcome, [BATCH_A, CHURCH_A])).error).toMatch(/only be recorded while/);
+      await startCommit(client);
+      expect((await as(client, "authenticated", ADMIN_A, insertWithOutcome, [BATCH_A, CHURCH_A])).error).toBeNull();
+      // Inserting a plain staged row (no outcome) still works in any state.
+      expect((await as(client, "authenticated", ADMIN_A, INSERT_ROW, [BATCH_A, CHURCH_A])).error).toBeNull();
+    });
+  });
+
+  it("R1: an outcome that is set cannot change, even while the batch is committing", async () => {
+    await inRolledBackTransaction(async (client) => {
+      await startCommit(client);
+      expect((await as(client, "authenticated", ADMIN_A, `update public.import_batch_rows set ${OUTCOME_SET} where id = $1`, [ROW_A])).error).toBeNull();
+      const again = await as(client, "authenticated", ADMIN_A, `update public.import_batch_rows set commit_outcome = 'failed', commit_failure_reason = 'x' where id = $1`, [ROW_A]);
+      expect(again.error).toMatch(/cannot be changed/);
+      const saved = await client.query(`select commit_outcome from public.import_batch_rows where id = $1`, [ROW_A]);
+      expect(saved.rows[0].commit_outcome).toBe("written");
+    });
+  });
+
+  it("R1: the normal commit path works end to end (claim, record, finish)", async () => {
+    await inRolledBackTransaction(async (client) => {
+      const claim = `update public.import_batches set status = 'committing' where id = $1 and church_id = $2 and status = 'dry_run_completed' and dry_run returning id`;
+      expect((await as(client, "authenticated", ADMIN_A, claim, [BATCH_A, CHURCH_A])).rowCount).toBe(1);
+      expect((await as(client, "authenticated", ADMIN_A, RPC, [BATCH_A, outcomesJson(ROW_A)])).rows[0].updated).toBe(1);
+      const finish = `update public.import_batches set status = 'committed', dry_run = false, summary = '{"outcomesRecorded":true}' where id = $1 and status = 'committing' returning id`;
+      expect((await as(client, "authenticated", ADMIN_A, finish, [BATCH_A])).rowCount).toBe(1);
+    });
+  });
+
+  it("R1: the guard trigger exists and is a plain INVOKER function with a fixed search_path", async () => {
+    await inRolledBackTransaction(async (client) => {
+      const fn = await client.query(
+        `select p.prosecdef, p.proconfig from pg_proc p where p.proname = 'guard_import_row_commit_outcome' and p.pronamespace = 'public'::regnamespace`,
+      );
+      expect(fn.rows).toHaveLength(1);
+      expect(fn.rows[0].prosecdef).toBe(false);
+      expect(fn.rows[0].proconfig).toEqual(expect.arrayContaining(["search_path=public"]));
+      const trigger = await client.query(
+        `select tgenabled, tgtype from pg_trigger where tgname = 'import_batch_rows_commit_outcome_guard' and not tgisinternal`,
+      );
+      expect(trigger.rows).toHaveLength(1);
+      expect(trigger.rows[0].tgenabled).toBe("O");
+    });
+  });
+
+  it("record_import_row_outcomes is SECURITY INVOKER with a fixed search_path and no actor argument", async () => {
+    await inRolledBackTransaction(async (client) => {
+      const fn = await client.query(
+        `select prosecdef, proconfig, pg_get_function_identity_arguments(oid) as args
+           from pg_proc where proname = 'record_import_row_outcomes' and pronamespace = 'public'::regnamespace`,
+      );
+      expect(fn.rows).toHaveLength(1);
+      expect(fn.rows[0].prosecdef).toBe(false);
+      expect(fn.rows[0].proconfig).toEqual(expect.arrayContaining(["search_path=public"]));
+      expect(fn.rows[0].args).toBe("p_batch_id uuid, p_outcomes jsonb");
+    });
+  });
+
+  it("the report's JSON-path select aliases work through PostgREST-style SQL on a row with a payload", async () => {
+    await inRolledBackTransaction(async (client) => {
+      await client.query(
+        `update public.import_batch_rows set normalized_payload = '{"sourceId":"G-9","memberNumber":"M-9","groupName":"Choir","amountCents":4200}' where id = $1`,
+        [ROW_A],
+      );
+      const result = await client.query(
+        `select normalized_payload->>'sourceId' as source_id, normalized_payload->>'memberNumber' as member_number,
+                normalized_payload->>'groupName' as group_name, normalized_payload->>'amountCents' as source_amount
+           from public.import_batch_rows where id = $1`,
+        [ROW_A],
+      );
+      expect(result.rows[0]).toEqual({ source_id: "G-9", member_number: "M-9", group_name: "Choir", source_amount: "4200" });
+    });
+  });
 });
