@@ -18,9 +18,11 @@ import type { MemberPortalFamily } from "@/lib/member-portal-data";
 
 type Props = {
   family: MemberPortalFamily | null;
+  /** Extra props for the trigger button, e.g. a taller touch target (G2.1). */
+  triggerProps?: Record<string, unknown>;
 };
 
-export function MemberFamilyEdit({ family }: Props) {
+export function MemberFamilyEdit({ family, triggerProps }: Props) {
   const [opened, { open, close }] = useDisclosure(false);
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -71,6 +73,7 @@ export function MemberFamilyEdit({ family }: Props) {
           radius="xl"
           leftSection={family ? <Pencil size={15} /> : <Home size={15} />}
           onClick={handleOpen}
+          {...triggerProps}
         >
           {family ? translateMember("editFamily") : translateMember("addFamily")}
         </Button>

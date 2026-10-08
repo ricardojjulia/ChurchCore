@@ -95,6 +95,10 @@ export function CalendarHub({
     >
       <ChurchAppContextBanner session={session} />
 
+      <Title order={1} size="h3">
+        Calendar
+      </Title>
+
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
         {/* Upcoming */}
         <Paper withBorder p="lg">

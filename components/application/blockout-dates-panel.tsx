@@ -240,7 +240,14 @@ export function BlockoutDatesPanel({
             w={{ base: "100%", sm: "auto" }}
             style={{ flex: 1, minWidth: 180 }}
           />
-          <Button onClick={handleAdd} disabled={!from} loading={isAdding} h={44} w={{ base: "100%", sm: "auto" }}>
+          <Button
+            onClick={handleAdd}
+            disabled={!from}
+            loading={isAdding}
+            h={44}
+            w={{ base: "100%", sm: "auto" }}
+            data-primary-action={target.kind === "self" ? true : undefined}
+          >
             {tr("add")}
           </Button>
         </Group>

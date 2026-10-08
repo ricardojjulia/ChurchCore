@@ -6,6 +6,22 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+- **G2.1: phone-first member pages** (`feat/phone-first-member-g2-1`; frontend only, no schema, role, RLS, action or API change; not yet merged). Member home, schedule, giving and family now read and tap well at 390x844 and 360px.
+
+  **Changed**
+  - Every control on those four pages is at least 44x44 CSS px. A `.touch-44` wrapper in [`app/globals.css`](app/globals.css) raises Mantine buttons, inputs, switches, checkboxes and action icons; Mantine declares `--button-height-*` on the button itself, so the override targets the button, not an ancestor. Drawers and the decline modal carry the class because they render in a portal. Staff pages do not use it.
+  - Schedule: Confirm, Decline and Can't make it stack on their own full-width row on a phone; a second tap on Confirm while the first is in flight no longer responds twice. Giving: "Give now" and Download statement are full size, the history drops the Type column on a phone and shows a Recurring badge in the Fund cell. Family and home: headers and the profile card stack in one column on a phone, long emails and addresses wrap, quick actions are 44px and wrap in Spanish.
+  - Home and giving dates use the church's time zone (`formatInstantParts` in [`lib/church-time.ts`](lib/church-time.ts)): an 8 pm Sunday event no longer reads Monday. Shift times on the schedule stay wall-clock (ADR 0023).
+  - Each page marks its first-screen primary action with `data-primary-action`.
+
+  **Fixed**
+  - `/app/calendar` has a real "Calendar" heading (h1); the shell title is still plain text.
+  - Service-plan detail stat tiles stack one per row on a phone (three across from `sm`).
+  - Role type Edit and Deactivate buttons are named with the role ("Edit Vocalist").
+
+  **Tests**
+  - [`tests/e2e/member-phone-first.spec.ts`](tests/e2e/member-phone-first.spec.ts) with [`tests/e2e/fixtures/mobile-layout.ts`](tests/e2e/fixtures/mobile-layout.ts); unit tests for church-time, member home, donor portal, member schedule and calendar hub; the `KNOWN BUG` Calendar assertion in `member-mobile-foundation.spec.ts` is flipped.
+
 - **G4.2: post-import reconciliation report** (`feat/import-reconciliation-g4-2`, `dcc6c14`; Council Review 46 AMENDED, R1-R10 fixed; migration `20261009000000`, to be applied to the hosted database before merge (owner action O16); no PR yet, CI not run; not yet merged). After a commit, a church admin can see whether what ChurchCore saved matches the file. Closes Gap 4 on merge, once CI is green. Handoff: [`docs/factory-runs/2026-10-08-g4-2-import-reconciliation.md`](docs/factory-runs/2026-10-08-g4-2-import-reconciliation.md); synthesis: [`docs/reviews/2026-10-08-council-review-46-synthesis.md`](docs/reviews/2026-10-08-council-review-46-synthesis.md); decision: [ADR 0029](docs/adr/0029-import-row-outcomes-column-grant-invoker-function-trigger.md).
 
   **Added**

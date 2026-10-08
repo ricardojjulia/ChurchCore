@@ -35,7 +35,7 @@ const {
       bottomNav?: React.ReactNode;
     }) => (
       <div>
-        <h1>{title}</h1>
+        <span data-testid="shell-title">{title}</span>
         {bottomNav ? <div data-testid="bottom-nav-slot">{bottomNav}</div> : null}
         {children}
       </div>
@@ -137,7 +137,8 @@ describe("CalendarHub", () => {
 
   it("renders member bottom navigation for member role", () => {
     renderHub(memberSession());
-    expect(screen.getByRole("heading", { name: "Calendar" })).toBeInTheDocument();
+    // The real app shell renders its title as plain text; the hub supplies the page's h1 (G2.1).
+    expect(screen.getByRole("heading", { name: "Calendar", level: 1 })).toBeInTheDocument();
     expect(screen.getByTestId("bottom-nav-slot")).toBeInTheDocument();
     expect(memberBottomNavMock).toHaveBeenCalled();
   });

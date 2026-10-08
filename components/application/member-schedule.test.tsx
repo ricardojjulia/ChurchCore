@@ -61,6 +61,33 @@ describe("MemberScheduleView", () => {
     await waitFor(() => expect(screen.queryByRole("button", { name: "Can't make it" })).not.toBeInTheDocument());
   });
 
+  it("responds once when Confirm is tapped twice while the first is in flight (G2.1)", async () => {
+    const user = userEvent.setup();
+    let release: (value: { ok: boolean }) => void = () => {};
+    respondToShiftActionMock.mockReturnValue(new Promise((resolve) => (release = resolve)));
+    renderView([entry({ shiftId: "s-2", confirmationStatus: "pending" })]);
+
+    const confirm = screen.getByRole("button", { name: "Confirm" });
+    await user.click(confirm);
+    await user.click(confirm);
+    expect(respondToShiftActionMock).toHaveBeenCalledTimes(1);
+    expect(respondToShiftActionMock).toHaveBeenCalledWith("s-2", "confirmed");
+    release({ ok: true });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument());
+  });
+
+  it("marks the next pending Confirm as the primary action, else the first Can't make it (G2.1)", () => {
+    const { unmount } = renderView([
+      entry({ shiftId: "a", confirmationStatus: "confirmed" }),
+      entry({ shiftId: "b", confirmationStatus: "pending" }),
+    ]);
+    expect(screen.getByRole("button", { name: "Confirm" })).toHaveAttribute("data-primary-action");
+    expect(screen.getByRole("button", { name: "Can't make it" })).not.toHaveAttribute("data-primary-action");
+    unmount();
+    renderView([entry({ shiftId: "a", confirmationStatus: "confirmed" })]);
+    expect(screen.getByRole("button", { name: "Can't make it" })).toHaveAttribute("data-primary-action");
+  });
+
   it("offers nothing on a declined shift", () => {
     renderView([entry({ confirmationStatus: "declined" })]);
     expect(screen.queryByRole("button", { name: /Confirm|Decline|Can't make it/ })).not.toBeInTheDocument();

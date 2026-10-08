@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Badge, Button, Group, Modal, Paper, Stack, Text, Textarea, Title } from "@mantine/core";
+import { Badge, Box, Button, Flex, Group, Modal, Paper, Stack, Text, Textarea, Title } from "@mantine/core";
 import { Check, X } from "lucide-react";
 
 import type { MemberScheduleEntry } from "@/lib/volunteer-types";
@@ -53,6 +53,7 @@ export function MemberScheduleView({
   const [declineReason, setDeclineReason] = useState("");
 
   function handleConfirm(shift: MemberScheduleEntry) {
+    if (isPending) return; // a second tap while the first is in flight must not respond twice
     setPendingShiftId(shift.shiftId);
     startTransition(async () => {
       const res = await respondToShiftAction(shift.shiftId, "confirmed");
@@ -97,7 +98,15 @@ export function MemberScheduleView({
     });
   }
 
+  // The first thing to act on is the thumb-reach primary action (G2.1): the
+  // next pending shift's Confirm, else the first confirmed shift's "Can't make it".
+  const firstPendingId = shifts.find((s) => s.confirmationStatus === "pending")?.shiftId;
+  const firstCantMakeItId = firstPendingId
+    ? undefined
+    : shifts.find((s) => s.confirmationStatus === "confirmed")?.shiftId;
+
   return (
+    <Box className="touch-44">
     <Stack gap="md" p="md">
       <Title order={3}>{tr("upcomingAssignments")}</Title>
       {!hasChurchProfile ? (
@@ -113,7 +122,12 @@ export function MemberScheduleView({
       ) : (
         shifts.map((shift) => (
           <Paper key={shift.shiftId} withBorder p="md" radius="md">
-            <Group justify="space-between" align="flex-start">
+            <Flex
+              direction={{ base: "column", sm: "row" }}
+              justify="space-between"
+              align={{ base: "stretch", sm: "flex-start" }}
+              gap="sm"
+            >
               <Stack gap={4}>
                 <Group gap="xs">
                   <Text fw={600}>{shift.roleName}</Text>
@@ -131,25 +145,27 @@ export function MemberScheduleView({
                 <Text size="xs" c="dimmed">{dateLine(shift)}</Text>
               </Stack>
               {shift.confirmationStatus === "confirmed" && (
-                <Button size="xs" color="red" variant="subtle" leftSection={<X size={13} />}
+                <Button size="xs" mih={44} w={{ base: "100%", sm: "auto" }} color="red" variant="subtle" leftSection={<X size={13} />}
+                  data-primary-action={shift.shiftId === firstCantMakeItId ? true : undefined}
                   onClick={() => setDeclineTarget(shift)} disabled={isPending}>
                   {tr("cantMakeIt")}
                 </Button>
               )}
               {shift.confirmationStatus === "pending" && (
-                <Group gap="xs">
-                  <Button size="xs" color="green" leftSection={<Check size={13} />}
+                <Group gap="xs" grow wrap="nowrap">
+                  <Button size="md" mih={44} color="green" leftSection={<Check size={13} />}
+                    data-primary-action={shift.shiftId === firstPendingId ? true : undefined}
                     onClick={() => handleConfirm(shift)} loading={isPending && pendingShiftId === shift.shiftId}
                     disabled={isPending && pendingShiftId !== shift.shiftId}>
                     {tr("confirm")}
                   </Button>
-                  <Button size="xs" color="red" variant="light" leftSection={<X size={13} />}
+                  <Button size="md" mih={44} color="red" variant="light" leftSection={<X size={13} />}
                     onClick={() => setDeclineTarget(shift)} disabled={isPending}>
                     {tr("decline")}
                   </Button>
                 </Group>
               )}
-            </Group>
+            </Flex>
           </Paper>
         ))
       )}
@@ -158,7 +174,7 @@ export function MemberScheduleView({
         opened={!!declineTarget}
         onClose={() => { setDeclineTarget(null); setDeclineReason(""); }}
         title={tr("declineTitle", { roleName: declineTarget?.roleName ?? "" })}
-        centered size="sm"
+        centered size="sm" className="touch-44"
       >
         <Stack gap="sm">
           <Textarea
@@ -175,5 +191,6 @@ export function MemberScheduleView({
         </Stack>
       </Modal>
     </Stack>
+    </Box>
   );
 }

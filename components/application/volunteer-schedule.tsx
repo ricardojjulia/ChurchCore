@@ -1736,7 +1736,7 @@ export function ServicePlanBuilder({
           <Progress value={fillPct} color={fillPct === 100 ? "green" : fillPct > 60 ? "blue" : "orange"} size="sm" radius="xl" />
         </Stack>
 
-        <SimpleGrid cols={3} spacing="sm" mt="md">
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm" mt="md">
           <Paper withBorder p="xs" radius="sm">
             <Text fz="xs" c="dimmed">Unfilled</Text>
             <Text fz="lg" fw={700} c={detail.unfilledCount > 0 ? "orange" : "green"}>{detail.unfilledCount}</Text>

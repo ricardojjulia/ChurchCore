@@ -52,26 +52,13 @@ test.describe("Member mobile PWA foundation baseline", () => {
   });
 
   test("renders calendar at phone viewport for member context without crashing", async ({ page }, testInfo) => {
-    // Known app gap, verified by reading the source (not introduced by this
-    // migration): components/application/app-shell.tsx renders the page
-    // `title` prop as a plain `<Text>` in the top bar (app-shell.tsx:159-162),
-    // not a `<Title>`/`role="heading"` element, and calendar-hub.tsx never
-    // renders its own in-content "Calendar" heading either — unlike e.g. the
-    // readiness page, which does have a real "Weekly readiness" heading. So
-    // `getByRole("heading", { name: "Calendar" })` can never match. Flagging
-    // rather than loosening the assertion, since a real heading here would
-    // also be a real accessibility improvement.
-
     await page.goto("/app/calendar");
 
     expect(new URL(page.url()).pathname).toBe("/app/calendar");
     await expect(
       page.locator("button[aria-label*='navigation' i], button[aria-label='Toggle navigation']").first(),
     ).toBeVisible();
-    // KNOWN BUG (a11y), pinned to its exact symptom: the page has no heading
-    // named "Calendar" (see comment above). When one is added this fails;
-    // change it to toBeVisible().
-    await expect(page.getByRole("heading", { name: "Calendar" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Calendar", exact: true })).toBeVisible();
     await expect(page.locator("footer a")).toHaveCount(5);
     await expect(page.getByText("Application error", { exact: false })).toHaveCount(0);
 

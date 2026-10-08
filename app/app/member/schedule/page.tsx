@@ -39,7 +39,7 @@ export default async function MemberSchedulePage() {
       ]}
       bottomNav={<MemberBottomNav />}
     >
-      <Stack gap="lg">
+      <Stack gap="lg" className="touch-44">
         <MemberScheduleView shifts={shifts} hasChurchProfile={session.churchProfileId !== null} />
         <BlockoutDatesPanel
           target={{ kind: "self" }}
