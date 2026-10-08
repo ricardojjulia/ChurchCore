@@ -10,6 +10,15 @@ const nextConfig: NextConfig = {
     // serialized action payload still fits.
     serverActions: { bodySizeLimit: "4mb" },
   },
+  async headers() {
+    // The kiosk shows a family's children and one-time pickup codes: never cache it.
+    return [
+      {
+        source: "/kiosk/:path*",
+        headers: [{ key: "Cache-Control", value: "no-store, max-age=0" }],
+      },
+    ];
+  },
   typescript: {
     // Type-check the shipped app only. Test-file type correctness is
     // enforced separately by `npm run typecheck` (full tsconfig.json,

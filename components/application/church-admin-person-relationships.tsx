@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRightLeft, Combine } from "lucide-react";
+import { ArrowRightLeft, Combine, QrCode } from "lucide-react";
 import {
   Badge,
   Button,
@@ -15,6 +15,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 
+import { regenerateFamilyCheckinCodeAction } from "@/app/app/family-checkin-code-actions";
 import {
   mergeChurchAdminDuplicateAction,
   reassignChurchAdminPersonFamilyAction,
@@ -41,6 +42,8 @@ export function ChurchAdminPersonRelationships({
   );
   const [serverError, setServerError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [codeNotice, setCodeNotice] = useState<string | null>(null);
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   const { t } = useI18n();
   const translatePeople = (key: string) => t("people", key);
 
@@ -55,6 +58,8 @@ export function ChurchAdminPersonRelationships({
   function handleOpen() {
     setSelectedFamilyId(person.familyId);
     setServerError(null);
+    setCodeNotice(null);
+    setConfirmRegenerate(false);
     open();
   }
 
@@ -74,6 +79,30 @@ export function ChurchAdminPersonRelationships({
             ? error.message
             : translatePeople("familyChangeError"),
         );
+      }
+    });
+  }
+
+  function handleRegenerateCode() {
+    if (!person.familyId) return;
+    const familyId = person.familyId;
+    setServerError(null);
+    setCodeNotice(null);
+    startTransition(async () => {
+      try {
+        const result = await regenerateFamilyCheckinCodeAction({ familyId });
+        // The new code is not shown here: the family reads it on their own Family page.
+        setCodeNotice(
+          result.status === "ok"
+            ? t("kiosk", "regenerateDone")
+            : result.status === "no_family"
+              ? t("kiosk", "regenerateNoFamily")
+              : t("kiosk", "regenerateError"),
+        );
+      } catch {
+        setCodeNotice(t("kiosk", "regenerateError"));
+      } finally {
+        setConfirmRegenerate(false);
       }
     });
   }
@@ -140,6 +169,51 @@ export function ChurchAdminPersonRelationships({
               {translatePeople("saveFamily")}
             </Button>
           </Group>
+
+          {person.familyId ? (
+            <Stack gap="xs">
+              <Text fw={600}>{t("kiosk", "regenerateCode")}</Text>
+              <Text size="sm" c="dimmed">
+                {t("kiosk", "regenerateHelp")}
+              </Text>
+              <Group gap="sm">
+                {confirmRegenerate ? (
+                  <>
+                    <Button
+                      radius="xl"
+                      color="red"
+                      mih={44}
+                      loading={isPending}
+                      onClick={handleRegenerateCode}
+                    >
+                      {t("kiosk", "regenerateConfirm")}
+                    </Button>
+                    <Button radius="xl" variant="default" mih={44} onClick={() => setConfirmRegenerate(false)}>
+                      {t("kiosk", "back")}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    radius="xl"
+                    variant="default"
+                    mih={44}
+                    leftSection={<QrCode size={15} />}
+                    onClick={() => {
+                      setCodeNotice(null);
+                      setConfirmRegenerate(true);
+                    }}
+                  >
+                    {t("kiosk", "regenerateCode")}
+                  </Button>
+                )}
+              </Group>
+              {codeNotice ? (
+                <Text size="sm" role="status">
+                  {codeNotice}
+                </Text>
+              ) : null}
+            </Stack>
+          ) : null}
 
           <div>
             <Text fw={600}>{translatePeople("duplicateCandidates")}</Text>

@@ -25,9 +25,15 @@ import type { MemberPortalData } from "@/lib/member-portal-data";
 export function MemberFamilyWorkspace({
   session,
   data,
+  checkinCode = null,
+  checkinQr = null,
+  checkinUnavailable = false,
 }: {
   session: ChurchAppSession;
   data: MemberPortalData;
+  checkinCode?: string | null;
+  checkinQr?: string | null;
+  checkinUnavailable?: boolean;
 }) {
   const family = data.family;
   const { t } = useI18n();
@@ -125,6 +131,36 @@ export function MemberFamilyWorkspace({
           <MemberFamilyEdit family={family} triggerProps={{ mih: 44, "data-primary-action": true }} />
         </Flex>
       </Paper>
+
+      {checkinCode ? (
+        <Paper withBorder radius="xl" p={{ base: "md", sm: "xl" }}>
+          <Stack gap="sm" align="center">
+            <Title order={3} size="h4">
+              {t("kiosk", "familyCodeTitle")}
+            </Title>
+            <Text size="sm" c="dimmed" ta="center">
+              {t("kiosk", "familyCodeDescription")}
+            </Text>
+            <Text fw={800} ff="monospace" style={{ fontSize: 36, letterSpacing: "0.2em" }}>
+              {checkinCode}
+            </Text>
+            {checkinQr ? (
+              // eslint-disable-next-line @next/next/no-img-element -- a data: URL made on the server; next/image adds nothing
+              <img
+                src={checkinQr}
+                alt={t("kiosk", "familyCodeQrAlt")}
+                width={200}
+                height={200}
+                style={{ borderRadius: 12 }}
+              />
+            ) : null}
+          </Stack>
+        </Paper>
+      ) : checkinUnavailable ? (
+        <Alert icon={<AlertCircle size={16} />} color="orange" radius="xl">
+          {t("kiosk", "familyCodeUnavailable")}
+        </Alert>
+      ) : null}
 
       <Paper withBorder radius="xl" p={{ base: "md", sm: "xl" }}>
         <Stack gap="sm">
