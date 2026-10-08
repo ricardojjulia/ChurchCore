@@ -147,6 +147,17 @@ describe("runPeopleImportDryRunAction", () => {
     expect(runPeopleHouseholdImportDryRunMock).not.toHaveBeenCalled();
   });
 
+  it("rejects a source system the importer does not know", async () => {
+    await expect(
+      runPeopleImportDryRunAction({
+        sourceFilename: "x.csv",
+        sourceSystem: "mystery" as never,
+        csvText: "a,b\n1,2",
+      }),
+    ).rejects.toThrow("Unknown source system.");
+    expect(runPeopleHouseholdImportDryRunMock).not.toHaveBeenCalled();
+  });
+
   it("accepts a 5,000 record file (large-file import)", async () => {
     const largeCsv = ["header_col", ...Array(5000).fill("val")].join("\n");
 
@@ -167,6 +178,8 @@ describe("runPeopleImportDryRunAction", () => {
       churchId: "church-1",
       actorProfileId: "profile-admin",
       batchId: "batch-1",
+      actorUserId: "user-1",
+      actorRole: "church-admin",
     });
     expect(result).toEqual({
       batchId: "batch-1",

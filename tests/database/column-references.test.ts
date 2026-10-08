@@ -55,10 +55,10 @@ describe("Supabase column references match the schema (S4)", () => {
     expect(references.filter((r) => r.kind === "select").length).toBeGreaterThan(400);
     // Calls it can't read statically (variable payloads, computed table
     // names). Kept small: a jump means a new pattern the scan doesn't cover.
-    // 47 since G4.1: the import commits build update payloads with conditional
+    // 48 since G4.1: the import commits build update payloads with conditional
     // spreads (blank cells never erase stored values) and loadSourceIdIndex
     // takes its table name as a parameter.
-    expect(unchecked).toBeLessThanOrEqual(47);
+    expect(unchecked).toBeLessThanOrEqual(48);
   });
 
   it("every written and selected column exists on its table", () => {

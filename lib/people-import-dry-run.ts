@@ -1,6 +1,14 @@
 import "server-only";
 
 import { chunkArray, computeIgnoredColumns, parseImportCsv } from "@/lib/import-normalize";
+import {
+  assertUpdated,
+  auditImportCommit,
+  failureReason,
+  ImportRowError,
+  runClaimedCommit,
+  type ImportCommitInput,
+} from "@/lib/import-commit";
 import { fetchAllPages } from "@/lib/import-profile-index";
 import {
   createTenantServerClient,
@@ -27,6 +35,8 @@ export type PeopleImportDryRunRow = {
   email: string | null;
   phone: string | null;
   memberNumber: string | null;
+  /** Create only: a Planning Center inactive person or visitor is not created as an active member. */
+  membershipStatus?: "inactive" | "visitor";
   action: keyof PeopleImportDryRunCounts;
   reason: string | null;
 };
@@ -37,6 +47,8 @@ export type PeopleImportDryRunResult = {
   householdCreates: number;
   /** Header names (never cell values) that no field mapping used. */
   ignoredColumns: string[];
+  /** Rows in the file ("showing 50 of N"). */
+  totalRows: number;
   rows: PeopleImportDryRunRow[];
 };
 
@@ -46,6 +58,8 @@ export type PeopleImportCommitResult = {
   created: number;
   updated: number;
   failed: number;
+  /** Why rows failed; fixed phrases, never headers or cell values. */
+  failureReasons: string[];
 };
 
 type ExistingPeopleIndex = {
@@ -64,6 +78,7 @@ type ParsedImportRow = {
   email: string | null;
   phone: string | null;
   memberNumber: string | null;
+  membershipStatus?: "inactive" | "visitor";
 };
 
 function normalize(value: string | null | undefined) {
@@ -114,7 +129,7 @@ export function parseImportRows(
   for (let index = 0; index < csvRows.length; index += 1) {
     const row = csvRows[index];
     
-    let normalizedRow;
+    let normalizedRow: ReturnType<typeof normalizePeopleImportSourceRow>;
     if (customMapping) {
       normalizedRow = {
         householdName: customMapping.householdName ? row[customMapping.householdName] : null,
@@ -147,6 +162,7 @@ export function parseImportRows(
       email: normalizeEmail(normalizedRow.email),
       phone: normalizePhone(normalizedRow.phone),
       memberNumber: normalize(normalizedRow.memberNumber),
+      ...(normalizedRow.membershipStatus ? { membershipStatus: normalizedRow.membershipStatus } : {}),
     });
   }
 
@@ -498,6 +514,7 @@ export async function runPeopleHouseholdImportDryRun(input: {
     counts: classification.counts,
     householdCreates: classification.householdCreates,
     ignoredColumns,
+    totalRows: csv.rows.length,
     rows: classification.rows,
   };
 }
@@ -519,6 +536,9 @@ function normalizeBatchRowPayload(payload: unknown): PeopleImportDryRunRow | nul
     email: typeof row.email === "string" ? row.email : null,
     phone: typeof row.phone === "string" ? row.phone : null,
     memberNumber: typeof row.memberNumber === "string" ? row.memberNumber : null,
+    ...(row.membershipStatus === "inactive" || row.membershipStatus === "visitor"
+      ? { membershipStatus: row.membershipStatus }
+      : {}),
     action:
       row.action === "create" ||
       row.action === "update" ||
@@ -588,9 +608,16 @@ async function upsertProfileFromImportRow(
   existing: ExistingPeopleIndex,
   familyIds?: Map<string, string>,
 ): Promise<{ kind: "created" | "updated"; profileId: string }> {
-  const familyId = row.householdName
-    ? (familyIds?.get(row.householdName.toLowerCase()) ?? (await ensureFamilyId(churchId, row.householdName)))
-    : null;
+  let familyId: string | null = null;
+  if (row.householdName) {
+    familyId = familyIds?.get(row.householdName.toLowerCase()) ?? null;
+    if (!familyId) {
+      // With a pre-resolved map a missing household is a failure, not a reason to
+      // create it here (parallel rows would race to create the same one).
+      if (familyIds) throw new ImportRowError("Household could not be created.");
+      familyId = await ensureFamilyId(churchId, row.householdName);
+    }
+  }
 
   const normalizedEmailValue = normalizeEmail(row.email);
   const normalizedPhoneValue = normalizePhone(row.phone);
@@ -636,7 +663,7 @@ async function upsertProfileFromImportRow(
       `insert into public.profiles
          (church_id, full_name, email, phone, member_number, family_id,
           role, membership_status, account_status, joined_date)
-       values ($1, $2, $3, $4, $5, $6, 'member_volunteer', 'active', 'pending', current_date)
+       values ($1, $2, $3, $4, $5, $6, 'member_volunteer', $7, 'pending', current_date)
        returning id`,
       [
         churchId,
@@ -645,6 +672,7 @@ async function upsertProfileFromImportRow(
         normalizedPhoneValue,
         normalizedMemberNumber,
         familyId,
+        row.membershipStatus ?? "active",
       ],
     );
     return { kind: "created", profileId: insertedProfile.rows[0]?.id ?? "" };
@@ -653,7 +681,7 @@ async function upsertProfileFromImportRow(
   const supabase = await createTenantServerClient();
 
   if (existingProfileId) {
-    const { error } = await supabase
+    const { data: updatedRows, error } = await supabase
       .from("profiles")
       // A blank cell never erases what the church already has: only fields the row provides are set.
       .update({
@@ -664,11 +692,13 @@ async function upsertProfileFromImportRow(
         ...(familyId ? { family_id: familyId } : {}),
       })
       .eq("church_id", churchId)
-      .eq("id", existingProfileId);
+      .eq("id", existingProfileId)
+      .select("id");
 
     if (error) {
       throw new Error(error.message);
     }
+    assertUpdated(updatedRows);
 
     return { kind: "updated", profileId: existingProfileId };
   }
@@ -681,7 +711,7 @@ async function upsertProfileFromImportRow(
     member_number: normalizedMemberNumber,
     family_id: familyId,
     role: "member_volunteer",
-    membership_status: "active",
+    membership_status: row.membershipStatus ?? "active",
     account_status: "pending",
     joined_date: new Date().toISOString().slice(0, 10),
   }).select("id").single();
@@ -765,8 +795,24 @@ async function resolveFamilyIds(
       .from("families")
       .insert(chunk.map(([, name]) => ({ church_id: churchId, family_name: name })))
       .select("id, family_name");
-    // On failure these names stay unresolved and each row falls back to the one-row path.
-    if (error || !data) continue;
+    if (error || !data) {
+      // Do not swallow it: say which church and how many, then create these
+      // households one at a time, here, before any update runs (so parallel
+      // rows can never create the same household twice).
+      console.error("[people-import] bulk household insert failed; creating one at a time", {
+        churchId,
+        households: chunk.length,
+      });
+      for (const [key, name] of chunk) {
+        try {
+          const familyId = await ensureFamilyId(churchId, name);
+          if (familyId) ids.set(key, familyId);
+        } catch {
+          // Left unresolved: rows in this household fail with a generic reason.
+        }
+      }
+      continue;
+    }
     for (const family of data) ids.set(family.family_name.trim().toLowerCase(), family.id);
   }
   return ids;
@@ -791,7 +837,7 @@ async function insertProfileChunk(
         member_number: normalize(row.memberNumber),
         family_id: row.householdName ? (familyIds.get(row.householdName.toLowerCase()) ?? null) : null,
         role: "member_volunteer",
-        membership_status: "active",
+        membership_status: row.membershipStatus ?? "active",
         account_status: "pending",
         joined_date: joined,
       })),
@@ -801,11 +847,35 @@ async function insertProfileChunk(
   return data.map((row) => row.id as string);
 }
 
-export async function commitPeopleHouseholdImportBatch(input: {
-  churchId: string;
-  actorProfileId: string | null;
-  batchId: string;
-}): Promise<PeopleImportCommitResult> {
+/** The profile a row will write to, by the same lookup the upsert uses. */
+function targetProfileId(row: PeopleImportDryRunRow, existing: ExistingPeopleIndex): string | undefined {
+  const memberNumber = normalize(row.memberNumber);
+  const email = normalizeEmail(row.email);
+  const name = normalizeName(row.fullName);
+  return (
+    (memberNumber ? existing.byMemberNumber.get(memberNumber) : undefined) ??
+    (email ? existing.byEmail.get(email) : undefined) ??
+    (name ? existing.byNamePhone.get(`${name.toLowerCase()}|${normalizePhone(row.phone) ?? ""}`) : undefined)
+  );
+}
+
+/** Groups rows by the profile they write to, keeping file order inside each lane. */
+export function laneByTarget(rows: PeopleImportDryRunRow[], existing: ExistingPeopleIndex): PeopleImportDryRunRow[][] {
+  const lanes = new Map<string, PeopleImportDryRunRow[]>();
+  rows.forEach((row, index) => {
+    const key = targetProfileId(row, existing) ?? `row:${index}`;
+    lanes.set(key, [...(lanes.get(key) ?? []), row]);
+  });
+  return [...lanes.values()];
+}
+
+export async function commitPeopleHouseholdImportBatch(
+  input: ImportCommitInput,
+): Promise<PeopleImportCommitResult> {
+  return runClaimedCommit(input, () => commitPeopleClaimed(input));
+}
+
+async function commitPeopleClaimed(input: ImportCommitInput): Promise<PeopleImportCommitResult> {
   const existing = await loadExistingPeopleIndex(input.churchId);
 
   let batchStatus: string | null = null;
@@ -873,13 +943,14 @@ export async function commitPeopleHouseholdImportBatch(input: {
       .filter((row): row is PeopleImportDryRunRow => Boolean(row));
   }
 
-  if (batchStatus !== "dry_run_completed" || !dryRun) {
+  if (shouldUseLocalTenantFallback() && (batchStatus !== "dry_run_completed" || !dryRun)) {
     throw new Error("Only dry-run-completed batches can be committed.");
   }
 
   let created = 0;
   let updated = 0;
   let failed = 0;
+  const failureReasons = new Set<string>();
 
   const remember = (row: PeopleImportDryRunRow, profileId: string) => {
     const memberNumber = normalize(row.memberNumber);
@@ -907,8 +978,9 @@ export async function commitPeopleHouseholdImportBatch(input: {
         updated += 1;
       }
       remember(row, result.profileId);
-    } catch {
+    } catch (error) {
       failed += 1;
+      failureReasons.add(failureReason(error));
     }
   };
 
@@ -939,8 +1011,16 @@ export async function commitPeopleHouseholdImportBatch(input: {
     }
 
     // Updates (and rows that matched a person created above) after the creates.
-    for (const group of chunkArray(others, UPDATE_CONCURRENCY)) {
-      await Promise.all(group.map((row) => processOne(row, familyIds)));
+    // Rows that land on the same person run one after another in file order, so
+    // the last row in the file wins; different people run in parallel.
+    for (const group of chunkArray(laneByTarget(others, existing), UPDATE_CONCURRENCY)) {
+      await Promise.all(
+        group.map(async (lane) => {
+          for (const row of lane) {
+            await processOne(row, familyIds);
+          }
+        }),
+      );
     }
   }
 
@@ -951,6 +1031,7 @@ export async function commitPeopleHouseholdImportBatch(input: {
     created,
     updated,
     failed,
+    ...(failureReasons.size > 0 ? { failureReasons: [...failureReasons].slice(0, 10) } : {}),
   };
 
   if (shouldUseLocalTenantFallback()) {
@@ -983,11 +1064,14 @@ export async function commitPeopleHouseholdImportBatch(input: {
     }
   }
 
+  await auditImportCommit(input, { status, created, updated, failed });
+
   return {
     batchId: input.batchId,
     status,
     created,
     updated,
     failed,
+    failureReasons: [...failureReasons].slice(0, 10),
   };
 }

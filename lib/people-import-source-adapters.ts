@@ -16,6 +16,9 @@ type FieldAliases = {
   email: string[];
   phone: string[];
   memberNumber: string[];
+  /** Planning Center "Status" (Inactive) and "Membership" (Visitor); create only. */
+  status: string[];
+  membership: string[];
 };
 
 const SOURCE_ALIASES: Record<ImportSourceSystem, FieldAliases> = {
@@ -27,6 +30,8 @@ const SOURCE_ALIASES: Record<ImportSourceSystem, FieldAliases> = {
     email: ["email", "email_address"],
     phone: ["phone", "mobile_phone", "cell_phone"],
     memberNumber: ["member_number", "member_id", "people_id", "individual_id"],
+    status: [],
+    membership: [],
   },
   planning_center: {
     householdName: ["household_name", "household", "family_name"],
@@ -45,6 +50,8 @@ const SOURCE_ALIASES: Record<ImportSourceSystem, FieldAliases> = {
       "cell_phone",
     ],
     memberNumber: ["person_id", "people_id", "member_number"],
+    status: ["status"],
+    membership: ["membership"],
   },
   breeze: {
     householdName: ["family_name", "family", "household_name"],
@@ -54,6 +61,8 @@ const SOURCE_ALIASES: Record<ImportSourceSystem, FieldAliases> = {
     email: ["email", "email_address"],
     phone: ["mobile", "home", "work", "mobile_phone", "phone"],
     memberNumber: ["breeze_id", "member_id", "person_id", "member_number"],
+    status: [],
+    membership: [],
   },
   pushpay_ccb: {
     householdName: ["household_name", "family_name", "household"],
@@ -63,6 +72,8 @@ const SOURCE_ALIASES: Record<ImportSourceSystem, FieldAliases> = {
     email: ["email", "email_address"],
     phone: ["phone", "mobile_phone"],
     memberNumber: ["individual_id", "people_id", "member_number"],
+    status: [],
+    membership: [],
   },
 };
 
@@ -81,6 +92,8 @@ export function normalizePeopleImportSourceRow(
   email: string | null;
   phone: string | null;
   memberNumber: string | null;
+  /** Only present when the file says the person is inactive or a visitor. */
+  membershipStatus?: "inactive" | "visitor";
 } {
   const aliases = SOURCE_ALIASES[sourceSystem] ?? SOURCE_ALIASES.generic_csv;
 
@@ -93,6 +106,11 @@ export function normalizePeopleImportSourceRow(
 
   const rawEmail = pickField(row, aliases.email);
 
+  const statusCell = pickField(row, aliases.status)?.trim().toLowerCase();
+  const membershipCell = pickField(row, aliases.membership)?.toLowerCase();
+  const membershipStatus =
+    statusCell === "inactive" ? "inactive" : membershipCell?.includes("visitor") ? "visitor" : undefined;
+
   return {
     householdName: pickField(row, aliases.householdName),
     fullName,
@@ -100,5 +118,6 @@ export function normalizePeopleImportSourceRow(
     email: sourceSystem === "breeze" ? splitFirstEmail(rawEmail) : rawEmail,
     phone: pickField(row, aliases.phone),
     memberNumber: pickField(row, aliases.memberNumber),
+    ...(membershipStatus ? { membershipStatus } : {}),
   };
 }

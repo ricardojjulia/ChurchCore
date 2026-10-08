@@ -33,6 +33,8 @@ vi.mock("@/lib/import-profile-index", async (importOriginal) => ({
   loadMembershipPairs: hoisted.loadMembershipPairs,
 }));
 
+vi.mock("@/lib/actions/audit", () => ({ logAuditEvent: vi.fn() }));
+
 import { runAttendanceImportDryRun } from "@/lib/attendance-import-dry-run";
 import { runEventsImportDryRun } from "@/lib/events-import-dry-run";
 import {
@@ -63,6 +65,7 @@ type Captured = {
   summary: Record<string, unknown> | null;
   importType: string | null;
   payloads: unknown[];
+  rawPayloads: Array<Record<string, unknown>>;
   reasons: Array<string | null>;
 };
 
@@ -70,7 +73,7 @@ let captured: Captured;
 let donationsOnFile: Array<{ id: string; source_id: string }> = [];
 
 function installDatabase(options: { people?: Array<Record<string, unknown>> } = {}) {
-  captured = { summary: null, importType: null, payloads: [], reasons: [] };
+  captured = { summary: null, importType: null, payloads: [], rawPayloads: [], reasons: [] };
   hoisted.shouldUseLocalTenantFallback.mockReturnValue(true);
   hoisted.queryTenantLocalDb.mockImplementation(async (sql: string, params: unknown[] = []) => {
     if (sql.includes("insert into public.import_batches")) {
@@ -79,6 +82,7 @@ function installDatabase(options: { people?: Array<Record<string, unknown>> } = 
       return { rows: [{ id: BATCH_ID }] };
     }
     if (sql.includes("insert into public.import_batch_rows")) {
+      captured.rawPayloads.push(JSON.parse(params[3] as string));
       captured.payloads.push(JSON.parse(params[4] as string));
       captured.reasons.push((params[6] as string | null) ?? null);
       return { rows: [] };
@@ -599,13 +603,15 @@ describe("Breeze tags fixture", () => {
     const result = await run();
 
     expect(result.mode).toBe("memberships");
+    expect(result.totalRows).toBe(7);
     expect(result.rows).toEqual([]);
     expect(result.counts).toMatchObject({ create: 5, skip: 2, reject: 0, unmatchedMembers: 1 });
     expect(result.groupCreates).toBe(2);
     expect(captured.importType).toBe("group_memberships_csv");
 
     const [maria, joel, ruth, duplicate, adult, newMembers, unknown] = result.membershipRows;
-    expect(maria).toMatchObject({ groupName: "Hospitality", folder: "Ministries", groupExists: true, action: "create" });
+    expect(maria).toMatchObject({ groupName: "Hospitality", folder: "Ministries", groupExists: true, action: "create", reason: "Joins existing group Hospitality" });
+    expect(adult.reason).toBeNull();
     expect(joel.action).toBe("create");
     expect(ruth).toMatchObject({ groupName: "Hospitality", folder: null, action: "create" });
     expect(duplicate).toMatchObject({ action: "skip", reason: "Duplicate membership in import file." });
@@ -667,10 +673,14 @@ describe("Breeze tags fixture", () => {
                   return (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => {
                     operations.push({ table, op: state.op, payload: state.payload });
                     let result: { data: unknown; error: null } = { data: null, error: null };
-                    if (table === "import_batches" && state.op === "select") {
+                    if (state.op === "update") {
+                      result = { data: [{ id: "row-1" }], error: null };
+                    } else if (table === "import_batches" && state.op === "select") {
                       result = { data: { status: "dry_run_completed", dry_run: true }, error: null };
                     } else if (table === "import_batch_rows" && state.op === "select") {
                       result = { data: batchRows, error: null };
+                    } else if (table === "profiles" && state.op === "select") {
+                      result = { data: ["p-maria", "p-joel", "p-ruth", "p-sam"].map((id) => ({ id })), error: null };
                     } else if (table === "groups" && state.op === "insert") {
                       result = { data: { id: `new-group-${(nextGroup += 1)}` }, error: null };
                     } else if (table === "group_members" && state.op === "select") {
@@ -767,5 +777,84 @@ describe("ignored-column helper against every vendor people header", () => {
     const ignored = computeIgnoredColumns(pco, peopleConsumedAliases("planning_center"));
     expect(ignored).not.toContain("Given Name");
     expect(ignored).toContain("Nickname");
+  });
+});
+
+describe("staged raw payloads hold mapped columns only (R11)", () => {
+  it("people: a PCO file's Medical Notes, School and Grade never reach raw_payload", async () => {
+    await runPeopleHouseholdImportDryRun({
+      churchId: CHURCH_ID,
+      actorProfileId: "actor",
+      sourceSystem: "planning_center",
+      sourceFilename: "people.csv",
+      csvText: fixture("planning-center/people.csv"),
+    });
+    const text = JSON.stringify(captured.rawPayloads);
+    expect(text).not.toMatch(/Peanut|Example Elementary|Medical Notes|Addie/);
+  });
+
+  it("giving: ignored columns are dropped from raw_payload, mapped ones kept", async () => {
+    hoisted.loadProfileLinkIndex.mockResolvedValue(profileIndex({}));
+    await runGivingImportDryRun({
+      churchId: CHURCH_ID,
+      actorProfileId: "actor",
+      sourceSystem: "planning_center",
+      sourceFilename: "giving.csv",
+      csvText: fixture("planning-center/giving.csv"),
+      timeZone: TZ,
+    });
+    const first = captured.rawPayloads[0];
+    expect(first).toHaveProperty("Donation amount", "$1,250.00");
+    expect(first).toHaveProperty("Donor email");
+    for (const ignored of ["Donor first name", "Donor last name", "Admin notes", "Payment method", "Donor phone"]) {
+      expect(first).not.toHaveProperty(ignored);
+    }
+  });
+
+  it("attendance and tags: First Name, Last Name and Count are not staged", async () => {
+    hoisted.loadProfileLinkIndex.mockResolvedValue(profileIndex({ "5001": "p" }));
+    await runAttendanceImportDryRun({ churchId: CHURCH_ID, actorProfileId: "a", sourceSystem: "breeze", sourceFilename: "a.csv", csvText: fixture("breeze/attendance.csv"), timeZone: TZ });
+    expect(captured.rawPayloads[0]).toEqual({ "Breeze ID": "5001", "Event Name": "Sunday Service", Date: "09/06/26 10:30am" });
+
+    installDatabase();
+    await runGroupsImportDryRun({ churchId: CHURCH_ID, actorProfileId: "a", sourceSystem: "breeze", sourceFilename: "t.csv", csvText: fixture("breeze/tags.csv") });
+    expect(captured.rawPayloads[0]).toEqual({ "Breeze ID": "5001", "Tag Name": "Ministries>>Hospitality" });
+  });
+});
+
+describe("Planning Center status and membership (R6)", () => {
+  it("maps Inactive and Visitor, leaves everything else active, on create only", async () => {
+    const csv = [
+      "Person ID,First Name,Last Name,Status,Membership",
+      "1,Ina,Ctive,Inactive,Member",
+      "2,Vic,Sitor,Active,Regular Visitor",
+      "3,Mem,Ber,Active,Member",
+      "4,Una,Set,,",
+      "5,Both,Cases,INACTIVE,Visitor",
+    ].join("\n");
+    const result = await runPeopleHouseholdImportDryRun({ churchId: CHURCH_ID, actorProfileId: "a", sourceSystem: "planning_center", sourceFilename: "p.csv", csvText: csv });
+    expect(result.rows.map((row) => row.membershipStatus)).toEqual(["inactive", "visitor", undefined, undefined, "inactive"]);
+    expect(result.ignoredColumns).toEqual([]);
+    expect((captured.payloads as Array<Record<string, unknown>>).map((p) => p.membershipStatus)).toEqual(["inactive", "visitor", undefined, undefined, "inactive"]);
+  });
+
+  it("Breeze and generic files ignore a Status column", () => {
+    const rows = parseImportRows(parseImportCsv("Breeze ID,First Name,Last Name,Status\n1,A,B,Inactive\n").rows, "breeze");
+    expect(rows[0].membershipStatus).toBeUndefined();
+  });
+});
+
+describe("events: an unknown source system does not crash the classifier (R13)", () => {
+  it("falls back to the generic aliases", async () => {
+    const result = await runEventsImportDryRun({
+      churchId: CHURCH_ID,
+      actorProfileId: "a",
+      sourceSystem: "mystery" as never,
+      sourceFilename: "e.csv",
+      csvText: "id,title,starts_at,ends_at,capacity\nE-1,Picnic,2026-09-06T10:00:00,2026-09-06T12:00:00,20\n",
+      timeZone: TZ,
+    });
+    expect(result.counts.create).toBe(1);
+    expect(result.totalRows).toBe(1);
   });
 });

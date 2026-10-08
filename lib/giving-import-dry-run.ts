@@ -1,8 +1,17 @@
 import "server-only";
 
-import { chunkArray, computeIgnoredColumns, parseImportCsv, parseImportDate } from "@/lib/import-normalize";
+import {
+  assertKnownReference,
+  assertUpdated,
+  auditImportCommit,
+  failureReason,
+  runClaimedCommit,
+  type ImportCommitInput,
+} from "@/lib/import-commit";
+import { chunkArray, computeIgnoredColumns, omitColumns, parseImportCsv, parseImportDate } from "@/lib/import-normalize";
 import {
   fetchAllPages,
+  loadChurchIdSet,
   loadProfileLinkIndex,
   loadSourceIdIndex,
   type ProfileLinkIndex,
@@ -31,6 +40,8 @@ export type GivingImportDryRunResult = {
   };
   /** Header names (never cell values) that no field mapping used. */
   ignoredColumns: string[];
+  /** Rows in the file; the result lists them all, but a UI may preview fewer ("showing 50 of N"). */
+  totalRows: number;
   rows: GivingImportDryRunRow[];
 };
 
@@ -52,6 +63,8 @@ export type GivingImportCommitResult = {
   created: number;
   updated: number;
   failed: number;
+  /** Why rows failed; fixed phrases, never headers or cell values. */
+  failureReasons: string[];
 };
 
 export { parseAmountCents };
@@ -375,12 +388,12 @@ export async function runGivingImportDryRun(input: {
     input.sourceFilename,
     rows,
     normalizedPayloads,
-    csv.rows,
+    csv.rows.map((row) => omitColumns(row, ignoredColumns)),
     counts,
     ignoredColumns,
   );
 
-  return { batchId, counts, ignoredColumns, rows };
+  return { batchId, counts, ignoredColumns, totalRows: csv.rows.length, rows };
 }
 
 function normalizeBatchRowPayload(payload: unknown): NormalizedGivingPayload | null {
@@ -412,11 +425,11 @@ function normalizeBatchRowPayload(payload: unknown): NormalizedGivingPayload | n
   };
 }
 
-export async function commitGivingImportBatch(input: {
-  churchId: string;
-  actorProfileId: string | null;
-  batchId: string;
-}): Promise<GivingImportCommitResult> {
+export async function commitGivingImportBatch(input: ImportCommitInput): Promise<GivingImportCommitResult> {
+  return runClaimedCommit(input, () => commitGivingImportBatchClaimed(input));
+}
+
+async function commitGivingImportBatchClaimed(input: ImportCommitInput): Promise<GivingImportCommitResult> {
   let batchStatus: string | null = null;
   let dryRun = true;
   let normalizedPayloads: NormalizedGivingPayload[] = [];
@@ -484,19 +497,23 @@ export async function commitGivingImportBatch(input: {
       .filter((row): row is NormalizedGivingPayload => Boolean(row));
   }
 
-  if (batchStatus !== "dry_run_completed" || !dryRun) {
+  if (shouldUseLocalTenantFallback() && (batchStatus !== "dry_run_completed" || !dryRun)) {
     throw new Error("Only dry-run-completed batches can be committed.");
   }
 
   let created = 0;
   let updated = 0;
   let failed = 0;
+  const failureReasons = new Set<string>();
 
   // Hoist Supabase client outside the commit loop
   const supabaseClient = shouldUseLocalTenantFallback() ? null : await createTenantServerClient();
 
+  const profileIds = shouldUseLocalTenantFallback() ? null : await loadChurchIdSet(input.churchId, "profiles");
+
   for (const payload of normalizedPayloads) {
     try {
+      assertKnownReference(payload.profileId, profileIds);
       if (shouldUseLocalTenantFallback()) {
         const existing = await queryTenantLocalDb<{ id: string }>(
           `select id from public.donations where church_id = $1 and source_id = $2 limit 1`,
@@ -511,8 +528,7 @@ export async function commitGivingImportBatch(input: {
                  donor_email = coalesce($2, donor_email),
                  amount_cents = $3,
                  fund_designation = coalesce($4, fund_designation),
-                 status = 'succeeded',
-                 is_recurring = $5,
+                 is_recurring = coalesce($5::boolean, is_recurring),
                  note = coalesce($6, note),
                  updated_at = now()
              where church_id = $7 and source_id = $8`,
@@ -521,7 +537,7 @@ export async function commitGivingImportBatch(input: {
               payload.donorEmail,
               payload.amountCents,
               payload.fundDesignation,
-              payload.isRecurring,
+              payload.isRecurringRaw?.trim() ? payload.isRecurring : null,
               payload.note,
               input.churchId,
               payload.sourceId,
@@ -566,7 +582,7 @@ export async function commitGivingImportBatch(input: {
 
         if (existing?.id) {
           // UPDATE: is_anonymous NOT updated (preserve existing value per Q5)
-          const { error } = await supabase
+          const { data: updatedRows, error } = await supabase
             .from("donations")
             .update({
               // A blank cell never erases what the church already has.
@@ -574,17 +590,20 @@ export async function commitGivingImportBatch(input: {
               ...(payload.donorEmail ? { donor_email: payload.donorEmail } : {}),
               amount_cents: payload.amountCents,
               ...(payload.fundDesignation ? { fund_designation: payload.fundDesignation } : {}),
-              status: "succeeded",
-              is_recurring: payload.isRecurring,
+              // Never touches status (an update must not undo a refund or failure); the
+              // recurring flag changes only when the file says something about it.
+              ...(payload.isRecurringRaw?.trim() ? { is_recurring: payload.isRecurring } : {}),
               ...(payload.note ? { note: payload.note } : {}),
               updated_at: new Date().toISOString(),
             })
             .eq("church_id", input.churchId)
-            .eq("source_id", payload.sourceId);
+            .eq("source_id", payload.sourceId)
+            .select("id");
 
           if (error) {
             throw new Error(error.message);
           }
+          assertUpdated(updatedRows);
           updated += 1;
         } else {
           // INSERT: currency='usd' hardcoded (single-currency MVP)
@@ -611,9 +630,9 @@ export async function commitGivingImportBatch(input: {
           created += 1;
         }
       }
-    } catch (e) {
-      console.error("[giving-import] commit row failed:", e instanceof Error ? e.message : "unknown error");
+    } catch (error) {
       failed += 1;
+      failureReasons.add(failureReason(error));
     }
   }
 
@@ -626,6 +645,7 @@ export async function commitGivingImportBatch(input: {
     created,
     updated,
     failed,
+    ...(failureReasons.size > 0 ? { failureReasons: [...failureReasons].slice(0, 10) } : {}),
   };
 
   if (shouldUseLocalTenantFallback()) {
@@ -658,11 +678,14 @@ export async function commitGivingImportBatch(input: {
     }
   }
 
+  await auditImportCommit(input, { status, created, updated, failed });
+
   return {
     batchId: input.batchId,
     status,
     created,
     updated,
     failed,
+    failureReasons: [...failureReasons].slice(0, 10),
   };
 }

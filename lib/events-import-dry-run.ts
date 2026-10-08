@@ -1,7 +1,15 @@
 import "server-only";
 
-import { chunkArray, computeIgnoredColumns, parseImportCsv, parseImportDate } from "@/lib/import-normalize";
-import { fetchAllPages, loadSourceIdIndex } from "@/lib/import-profile-index";
+import {
+  assertKnownReference,
+  assertUpdated,
+  auditImportCommit,
+  failureReason,
+  runClaimedCommit,
+  type ImportCommitInput,
+} from "@/lib/import-commit";
+import { chunkArray, computeIgnoredColumns, omitColumns, parseImportCsv, parseImportDate } from "@/lib/import-normalize";
+import { fetchAllPages, loadChurchIdSet, loadSourceIdIndex } from "@/lib/import-profile-index";
 import {
   createTenantServerClient,
   queryTenantLocalDb,
@@ -21,6 +29,8 @@ export type EventsImportDryRunResult = {
   counts: { create: number; update: number; skip: number; reject: number; unmatchedMinistries: number };
   /** Header names (never cell values) that no field mapping used. */
   ignoredColumns: string[];
+  /** Rows in the file; the result lists them all, but a UI may preview fewer ("showing 50 of N"). */
+  totalRows: number;
   rows: EventsImportDryRunRow[];
 };
 
@@ -42,6 +52,8 @@ export type EventsImportCommitResult = {
   created: number;
   updated: number;
   failed: number;
+  /** Why rows failed; fixed phrases, never headers or cell values. */
+  failureReasons: string[];
 };
 
 const ALLOWED_APPROVAL_STATUSES = new Set(["draft", "pending", "approved", "archived"]);
@@ -226,7 +238,7 @@ export function classifyEventsImportRows(
     }
 
     // 6. Invalid capacity — use alias-aware lookup so future adapter aliases are respected
-    const rawCapacityStr = pickEventField(csvRow, EVENT_SOURCE_ALIASES[sourceSystem].capacity);
+    const rawCapacityStr = pickEventField(csvRow, (EVENT_SOURCE_ALIASES[sourceSystem] ?? EVENT_SOURCE_ALIASES.generic_csv).capacity);
     if (rawCapacityStr != null && rawCapacityStr.trim().length > 0) {
       const parsed = parseInt(rawCapacityStr, 10);
       if (isNaN(parsed) || parsed <= 0) {
@@ -442,12 +454,12 @@ export async function runEventsImportDryRun(input: {
     input.sourceFilename,
     rows,
     normalizedPayloads,
-    csv.rows,
+    csv.rows.map((row) => omitColumns(row, ignoredColumns)),
     counts,
     ignoredColumns,
   );
 
-  return { batchId, counts, ignoredColumns, rows };
+  return { batchId, counts, ignoredColumns, totalRows: csv.rows.length, rows };
 }
 
 function normalizeBatchRowPayload(payload: unknown): NormalizedEventPayload | null {
@@ -476,11 +488,11 @@ function normalizeBatchRowPayload(payload: unknown): NormalizedEventPayload | nu
   };
 }
 
-export async function commitEventsImportBatch(input: {
-  churchId: string;
-  actorProfileId: string | null;
-  batchId: string;
-}): Promise<EventsImportCommitResult> {
+export async function commitEventsImportBatch(input: ImportCommitInput): Promise<EventsImportCommitResult> {
+  return runClaimedCommit(input, () => commitEventsImportBatchClaimed(input));
+}
+
+async function commitEventsImportBatchClaimed(input: ImportCommitInput): Promise<EventsImportCommitResult> {
   let batchStatus: string | null = null;
   let dryRun = true;
   let normalizedPayloads: NormalizedEventPayload[] = [];
@@ -548,16 +560,20 @@ export async function commitEventsImportBatch(input: {
       .filter((row): row is NormalizedEventPayload => Boolean(row));
   }
 
-  if (batchStatus !== "dry_run_completed" || !dryRun) {
+  if (shouldUseLocalTenantFallback() && (batchStatus !== "dry_run_completed" || !dryRun)) {
     throw new Error("Only dry-run-completed batches can be committed.");
   }
 
   let created = 0;
   let updated = 0;
   let failed = 0;
+  const failureReasons = new Set<string>();
+
+  const ministryIds = shouldUseLocalTenantFallback() ? null : await loadChurchIdSet(input.churchId, "ministries");
 
   for (const payload of normalizedPayloads) {
     try {
+      assertKnownReference(payload.ministryId, ministryIds);
       const approvalStatus = payload.approvalStatus ?? "draft";
 
       if (shouldUseLocalTenantFallback()) {
@@ -625,7 +641,7 @@ export async function commitEventsImportBatch(input: {
           .maybeSingle();
 
         if (existing?.id) {
-          const { error } = await supabase
+          const { data: updatedRows, error } = await supabase
             .from("events")
             .update({
               title: payload.title,
@@ -640,11 +656,13 @@ export async function commitEventsImportBatch(input: {
               updated_at: new Date().toISOString(),
             })
             .eq("church_id", input.churchId)
-            .eq("source_id", payload.sourceId);
+            .eq("source_id", payload.sourceId)
+            .select("id");
 
           if (error) {
             throw new Error(error.message);
           }
+          assertUpdated(updatedRows);
           updated += 1;
         } else {
           const { error } = await supabase.from("events").insert({
@@ -668,8 +686,9 @@ export async function commitEventsImportBatch(input: {
           created += 1;
         }
       }
-    } catch {
+    } catch (error) {
       failed += 1;
+      failureReasons.add(failureReason(error));
     }
   }
 
@@ -682,6 +701,7 @@ export async function commitEventsImportBatch(input: {
     created,
     updated,
     failed,
+    ...(failureReasons.size > 0 ? { failureReasons: [...failureReasons].slice(0, 10) } : {}),
   };
 
   if (shouldUseLocalTenantFallback()) {
@@ -714,11 +734,14 @@ export async function commitEventsImportBatch(input: {
     }
   }
 
+  await auditImportCommit(input, { status, created, updated, failed });
+
   return {
     batchId: input.batchId,
     status,
     created,
     updated,
     failed,
+    failureReasons: [...failureReasons].slice(0, 10),
   };
 }

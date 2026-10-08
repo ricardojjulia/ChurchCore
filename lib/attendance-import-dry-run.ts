@@ -1,9 +1,18 @@
 import "server-only";
 
-import { chunkArray, computeIgnoredColumns, parseImportCsv, parseImportDate } from "@/lib/import-normalize";
+import {
+  assertKnownReference,
+  assertUpdated,
+  auditImportCommit,
+  failureReason,
+  runClaimedCommit,
+  type ImportCommitInput,
+} from "@/lib/import-commit";
+import { chunkArray, computeIgnoredColumns, omitColumns, parseImportCsv, parseImportDate } from "@/lib/import-normalize";
 import {
   eventTitleDayKey,
   fetchAllPages,
+  loadChurchIdSet,
   loadEventTitleDayIndex,
   loadPresentPairs,
   loadProfileLinkIndex,
@@ -35,6 +44,8 @@ export type AttendanceImportDryRunResult = {
   };
   /** Header names (never cell values) that no field mapping used. */
   ignoredColumns: string[];
+  /** Rows in the file; the result lists them all, but a UI may preview fewer ("showing 50 of N"). */
+  totalRows: number;
   rows: AttendanceImportDryRunRow[];
 };
 
@@ -56,6 +67,8 @@ export type AttendanceImportCommitResult = {
   created: number;
   updated: number;
   failed: number;
+  /** Why rows failed; fixed phrases, never headers or cell values. */
+  failureReasons: string[];
 };
 
 const ALLOWED_STATUSES = new Set(["present", "absent", "excused"]);
@@ -481,12 +494,12 @@ export async function runAttendanceImportDryRun(input: {
     input.sourceFilename,
     rows,
     normalizedPayloads,
-    csv.rows,
+    csv.rows.map((row) => omitColumns(row, ignoredColumns)),
     counts,
     ignoredColumns,
   );
 
-  return { batchId, counts, ignoredColumns, rows };
+  return { batchId, counts, ignoredColumns, totalRows: csv.rows.length, rows };
 }
 
 function normalizeBatchRowPayload(payload: unknown): NormalizedAttendancePayload | null {
@@ -515,11 +528,11 @@ function normalizeBatchRowPayload(payload: unknown): NormalizedAttendancePayload
   };
 }
 
-export async function commitAttendanceImportBatch(input: {
-  churchId: string;
-  actorProfileId: string | null;
-  batchId: string;
-}): Promise<AttendanceImportCommitResult> {
+export async function commitAttendanceImportBatch(input: ImportCommitInput): Promise<AttendanceImportCommitResult> {
+  return runClaimedCommit(input, () => commitAttendanceImportBatchClaimed(input));
+}
+
+async function commitAttendanceImportBatchClaimed(input: ImportCommitInput): Promise<AttendanceImportCommitResult> {
   let batchStatus: string | null = null;
   let dryRun = true;
   let normalizedPayloads: NormalizedAttendancePayload[] = [];
@@ -587,18 +600,24 @@ export async function commitAttendanceImportBatch(input: {
       .filter((row): row is NormalizedAttendancePayload => Boolean(row));
   }
 
-  if (batchStatus !== "dry_run_completed" || !dryRun) {
+  if (shouldUseLocalTenantFallback() && (batchStatus !== "dry_run_completed" || !dryRun)) {
     throw new Error("Only dry-run-completed batches can be committed.");
   }
 
   let created = 0;
   let updated = 0;
   let failed = 0;
+  const failureReasons = new Set<string>();
 
   const supabaseClient = shouldUseLocalTenantFallback() ? null : await createTenantServerClient();
 
+  const profileIds = shouldUseLocalTenantFallback() ? null : await loadChurchIdSet(input.churchId, "profiles");
+  const eventIds = shouldUseLocalTenantFallback() ? null : await loadChurchIdSet(input.churchId, "events");
+
   for (const payload of normalizedPayloads) {
     try {
+      assertKnownReference(payload.profileId, profileIds);
+      assertKnownReference(payload.eventId, eventIds);
       const effectiveStatus = payload.status ?? "present";
 
       if (shouldUseLocalTenantFallback()) {
@@ -653,7 +672,7 @@ export async function commitAttendanceImportBatch(input: {
           .maybeSingle();
 
         if (existing?.id) {
-          const { error } = await supabase
+          const { data: updatedRows, error } = await supabase
             .from("attendance")
             .update({
               // A blank cell never erases what the church already has.
@@ -664,11 +683,13 @@ export async function commitAttendanceImportBatch(input: {
               check_in_method: "import",
             })
             .eq("church_id", input.churchId)
-            .eq("source_id", payload.sourceId);
+            .eq("source_id", payload.sourceId)
+            .select("id");
 
           if (error) {
             throw new Error(error.message);
           }
+          assertUpdated(updatedRows);
           updated += 1;
         } else {
           const { error } = await supabase.from("attendance").insert({
@@ -687,9 +708,9 @@ export async function commitAttendanceImportBatch(input: {
           created += 1;
         }
       }
-    } catch (e) {
-      console.error("[attendance-import] commit row failed:", e);
+    } catch (error) {
       failed += 1;
+      failureReasons.add(failureReason(error));
     }
   }
 
@@ -702,6 +723,7 @@ export async function commitAttendanceImportBatch(input: {
     created,
     updated,
     failed,
+    ...(failureReasons.size > 0 ? { failureReasons: [...failureReasons].slice(0, 10) } : {}),
   };
 
   if (shouldUseLocalTenantFallback()) {
@@ -734,11 +756,14 @@ export async function commitAttendanceImportBatch(input: {
     }
   }
 
+  await auditImportCommit(input, { status, created, updated, failed });
+
   return {
     batchId: input.batchId,
     status,
     created,
     updated,
     failed,
+    failureReasons: [...failureReasons].slice(0, 10),
   };
 }

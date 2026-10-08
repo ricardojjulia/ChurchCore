@@ -19,6 +19,8 @@ vi.mock("@/lib/supabase/tenant", () => ({
   shouldUseLocalTenantFallback: shouldUseLocalTenantFallbackMock,
 }));
 
+vi.mock("@/lib/actions/audit", () => ({ logAuditEvent: vi.fn() }));
+
 import {
   commitEventsImportBatch,
   runEventsImportDryRun,
@@ -619,7 +621,9 @@ describe("commitEventsImportBatch against Supabase (G4.1)", () => {
                 return (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => {
                   operations.push({ table, op: state.op, payload: state.payload });
                   const data =
-                    table === "import_batches" && state.op === "select"
+                    state.op === "update"
+                      ? [{ id: "row-1" }]
+                      : table === "import_batches" && state.op === "select"
                       ? { status: "dry_run_completed", dry_run: true }
                       : table === "import_batch_rows"
                         ? batchRows

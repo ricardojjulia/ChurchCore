@@ -17,6 +17,8 @@ vi.mock("@/lib/supabase/tenant", () => ({
   shouldUseLocalTenantFallback: hoisted.shouldUseLocalTenantFallback,
 }));
 
+vi.mock("@/lib/actions/audit", () => ({ logAuditEvent: vi.fn() }));
+
 import { commitPeopleHouseholdImportBatch } from "@/lib/people-import-dry-run";
 
 type Op = { table: string; op: string; payload?: unknown; filters: string[] };
@@ -52,7 +54,8 @@ function install(rows: unknown[], options: { failProfileInsertsOver?: number; ex
               return (resolve: (v: unknown) => unknown, reject: (r: unknown) => unknown) => {
                 ops.push({ table, ...state });
                 let result: { data: unknown; error: unknown } = { data: [], error: null };
-                if (table === "import_batches") result = { data: state.op === "select" ? { status: "dry_run_completed", dry_run: true } : null, error: null };
+                if (state.op === "update") result = { data: [{ id: "row-1" }], error: null };
+                else if (table === "import_batches") result = { data: state.op === "select" ? { status: "dry_run_completed", dry_run: true } : null, error: null };
                 else if (table === "import_batch_rows") result = { data: range ? rows.slice(range[0], range[1] + 1) : rows, error: null };
                 else if (table === "profiles" && state.op === "select") result = { data: options.existing ?? [], error: null };
                 else if (table === "families" && state.op === "insert") {
@@ -139,5 +142,20 @@ describe("commitPeopleHouseholdImportBatch batching", () => {
     expect(ops.some((o) => o.table === "profiles" && o.op === "insert")).toBe(false);
     const update = ops.find((o) => o.table === "profiles" && o.op === "update");
     expect(update?.filters).toEqual(expect.arrayContaining(["church_id=church-1", "id=p-existing"]));
+  });
+
+  it("creates an inactive or visitor person with that status, defaults to active, and never sends a status on update (R6)", async () => {
+    const rows = [row(0, { membershipStatus: "inactive" }), row(1, { membershipStatus: "visitor" }), row(2)];
+    const ops = install(rows);
+    await commitPeopleHouseholdImportBatch({ churchId: "church-1", actorProfileId: null, batchId: "b1" });
+    const insert = ops.find((o) => o.table === "profiles" && o.op === "insert");
+    expect((insert?.payload as Array<{ membership_status: string }>).map((p) => p.membership_status)).toEqual(["inactive", "visitor", "active"]);
+
+    const updateOps = install([row(0, { action: "update", membershipStatus: "inactive" })], {
+      existing: [{ id: "p-existing", full_name: "Person 0", email: "p0@example.test", phone: null, member_number: "1000" }],
+    });
+    await commitPeopleHouseholdImportBatch({ churchId: "church-1", actorProfileId: null, batchId: "b1" });
+    const update = updateOps.find((o) => o.table === "profiles" && o.op === "update");
+    expect(update?.payload).not.toHaveProperty("membership_status");
   });
 });

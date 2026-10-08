@@ -16,6 +16,8 @@ vi.mock("@/lib/supabase/tenant", () => ({
   shouldUseLocalTenantFallback: hoisted.shouldUseLocalTenantFallback,
 }));
 
+vi.mock("@/lib/actions/audit", () => ({ logAuditEvent: vi.fn() }));
+
 import { commitAttendanceImportBatch } from "@/lib/attendance-import-dry-run";
 import { commitEventsImportBatch } from "@/lib/events-import-dry-run";
 import { commitGivingImportBatch } from "@/lib/giving-import-dry-run";
@@ -38,7 +40,9 @@ function install(tables: Record<string, unknown>, existingId: string | null = nu
               return (resolve: (v: unknown) => unknown, reject: (r: unknown) => unknown) => {
                 ops.push({ table, op: state.op, payload: state.payload });
                 let data: unknown = null;
-                if (state.op === "select") {
+                if (state.op === "update") {
+                  data = [{ id: "row-1" }];
+                } else if (state.op === "select") {
                   data = tables[table] ?? (state.single ? (existingId ? { id: existingId } : null) : []);
                   if (state.single && table !== "import_batches" && Array.isArray(data)) data = existingId ? { id: existingId } : null;
                 }
@@ -104,7 +108,10 @@ describe("blank cells on update", () => {
     install({ import_batches: batch, import_batch_rows: [{ normalized_payload: { sourceId: "G1", amountCents: 500, isRecurring: false, isAnonymous: true } }] }, "d1");
     await commitGivingImportBatch({ churchId: "c1", actorProfileId: null, batchId: "b1" });
     const payload = update("donations")?.payload ?? {};
-    expect(payload).toMatchObject({ amount_cents: 500, status: "succeeded" });
+    expect(payload).toMatchObject({ amount_cents: 500 });
+    // R7: an update never touches status, and leaves the recurring flag alone when the cell is blank.
+    expect(payload).not.toHaveProperty("status");
+    expect(payload).not.toHaveProperty("is_recurring");
     for (const key of ["note", "fund_designation", "profile_id", "donor_email"]) expect(payload).not.toHaveProperty(key);
   });
 
@@ -128,7 +135,7 @@ describe("blank cells on update", () => {
   });
 
   it("attendance: an unresolved event keeps the stored event", async () => {
-    install({ import_batches: batch, import_batch_rows: [{ normalized_payload: { sourceId: "A1", profileId: "p1" } }] }, "a1");
+    install({ import_batches: batch, profiles: [{ id: "p1" }], import_batch_rows: [{ normalized_payload: { sourceId: "A1", profileId: "p1" } }] }, "a1");
     await commitAttendanceImportBatch({ churchId: "c1", actorProfileId: null, batchId: "b1" });
     const payload = update("attendance")?.payload ?? {};
     expect(payload).toMatchObject({ profile_id: "p1" });

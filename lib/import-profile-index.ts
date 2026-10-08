@@ -178,3 +178,21 @@ export async function loadMembershipPairs(churchId: string): Promise<Set<string>
 
   return new Set(rows.map((row) => `${row.group_id}:${row.profile_id}`));
 }
+
+/**
+ * Every id of one kind in a church, for the commit-time check that a staged
+ * payload only points at this church's records (profiles exclude merged-away ones).
+ */
+export async function loadChurchIdSet(
+  churchId: string,
+  table: "profiles" | "events" | "ministries" | "groups",
+): Promise<Set<string>> {
+  const supabase = await createTenantServerClient();
+  const rows = await fetchAllPages<{ id: string }>((from, to) => {
+    const query = supabase.from(table).select("id").eq("church_id", churchId);
+    return (table === "profiles" ? query.is("merged_into_profile_id", null) : query)
+      .order("id", { ascending: true })
+      .range(from, to);
+  });
+  return new Set(rows.map((row) => row.id));
+}

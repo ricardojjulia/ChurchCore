@@ -16,6 +16,22 @@ export function chunkArray<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+/** Throws a clear error for a source system the importer does not know (the value comes from the browser). */
+export function assertImportSourceSystem<T extends string>(value: string | undefined, allowed: readonly T[]): T | undefined {
+  if (value === undefined) return undefined;
+  if (!(allowed as readonly string[]).includes(value)) {
+    throw new Error("Unknown source system.");
+  }
+  return value as T;
+}
+
+/** A copy of a CSV row without the ignored columns, so staged raw payloads hold mapped columns only. */
+export function omitColumns(row: Record<string, string>, ignored: string[]): Record<string, string> {
+  if (ignored.length === 0) return row;
+  const drop = new Set(ignored);
+  return Object.fromEntries(Object.entries(row).filter(([header]) => !drop.has(header)));
+}
+
 // ── Headers ──────────────────────────────────────────────────
 
 /** "Home Email", "home_email", "HOME-EMAIL" and "﻿Home  Email" all become "homeemail". */
