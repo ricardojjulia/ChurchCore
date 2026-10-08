@@ -27,6 +27,10 @@ import {
   type KioskLookupResult,
 } from "@/lib/ccm-kiosk-core";
 import { performCheckin } from "@/lib/ccm-checkin-core";
+import { getSession, isChurchAppContext } from "@/lib/auth";
+import { logAuditEvent } from "@/lib/actions/audit";
+import { KIOSK_COOKIE_NAME } from "@/lib/ccm-kiosk-constants";
+import { cookies } from "next/headers";
 import { createTenantAdminClient } from "@/lib/supabase/tenant";
 
 const MAX_CHILDREN_PER_CHECKIN = 10;
@@ -230,4 +234,56 @@ export async function exitKioskAction(input: { password: string }): Promise<Kios
     });
     return { status: "exited", redirectTo: ADMIN_HOME_PATH };
   });
+}
+
+export type KioskReleaseResult =
+  | { status: "released" }
+  /** A valid kiosk session exists for this request: leave it with the password. */
+  | { status: "active" }
+  | { status: "error" };
+
+/**
+ * Frees a tablet stuck behind a dead kiosk cookie (the starting admin's sign-in
+ * is gone, or the kiosk was ended elsewhere). It clears the cc_kiosk cookie ONLY
+ * when requireKioskSession says the kiosk is locked for this request; while a
+ * valid kiosk session exists it refuses, and the password exit is still the only
+ * way out. It reads and returns no family data. Audited as kiosk.release when a
+ * church admin is signed in; an anonymous release is only logged server-side,
+ * with no personal data.
+ */
+export async function releaseStuckKioskAction(): Promise<KioskReleaseResult> {
+  try {
+    await requireKioskSession();
+    return { status: "active" };
+  } catch (error) {
+    if (!(error instanceof KioskLockedError)) return { status: "error" };
+  }
+
+  try {
+    const cookieStore = await cookies();
+    const cookieValue = cookieStore.get(KIOSK_COOKIE_NAME)?.value ?? "";
+    await clearKioskCookie();
+
+    const session = await getSession("/kiosk/children");
+    if (session && isChurchAppContext(session.appContext) && session.appContext.roleId === "church-admin") {
+      try {
+        await logAuditEvent({
+          tableName: "ccm_kiosk_sessions",
+          recordId: isUuid(cookieValue) ? cookieValue : session.userId,
+          operation: "UPDATE",
+          actorId: session.userId,
+          churchId: session.appContext.church.id,
+          actorRole: "church-admin",
+          newValues: { event: "kiosk.release" },
+        });
+      } catch {
+        console.error("kiosk release audit write failed");
+      }
+    } else {
+      console.info("kiosk device released without a signed-in admin");
+    }
+    return { status: "released" };
+  } catch {
+    return { status: "error" };
+  }
 }

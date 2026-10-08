@@ -6,6 +6,18 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+- **G2.2: kiosk self check-in** (`feat/kiosk-self-checkin-g2-2`; backend `a534b5b`, screens `780b6d6`; no PR yet, CI not run; not yet merged). A church admin turns a tablet into a family check-in kiosk: families find their children by exact phone number, family code or QR code, pick a room and get a one-time pickup PIN. Inactivity returns the tablet to its start screen; leaving needs the starting admin's password. Decision record: [`docs/adr/0030-kiosk-qr-scanning-and-generation-dependencies.md`](docs/adr/0030-kiosk-qr-scanning-and-generation-dependencies.md).
+
+  **Added**
+  - `/kiosk/children` (own layout, no app shell, no 15-minute logout wrapper, `Cache-Control: no-store`): start, phone, code, scan, choose, success and locked screens; 64px primary and 44px other targets at 1024x768 and 768x1024; 60 s idle reset with a 10 s warning that clears the PIN and stops the camera; exit-by-password dialog. Children are listed as first name and last initial; a child with a custody restriction shows "Please see a greeter".
+  - QR scanning with `barcode-detector` (ponyfill, self-hosted zxing wasm under `public/vendor/`, checksum-tested) and QR generation with `qrcode` (server-side); typed code as the fallback when the camera is blocked.
+  - Member Family page: a children's check-in code card (large code plus QR). Church admin: "New check-in code" in a person's Relationships dialog (the code is not shown to the admin).
+  - `/app/church-admin/children/kiosk` is now an app-shell page (device name, Start button) with a "Family Kiosk" link in the children's ministry navigation.
+  - `releaseStuckKioskAction`: the locked screen's "Release this device" clears a dead `cc_kiosk` cookie, so a tablet cannot stay trapped behind a kiosk whose admin session is gone. It refuses while a valid kiosk session exists (the password exit is then still required) and returns no family data; audited as `kiosk.release` when an admin is signed in.
+  - `kiosk` i18n namespace (en, es, es-PR) with a parity test; `collectPrimaryViolations` (64px) in `tests/e2e/fixtures/mobile-layout.ts`; `tests/e2e/ccm-kiosk.spec.ts`.
+
+  **Verified:** see the factory-run notes in the handoff; real iPad camera behaviour and the exit check for an admin without password sign-in are not verified.
+
 - **G2.1: phone-first member pages** (`feat/phone-first-member-g2-1`, `abffd6e` and `e07e73f`; Council Review 47 AMENDED, R1-R7 fixed; frontend only, no schema, role, RLS, action or API change; no PR yet, CI not run; not yet merged). Member home, schedule, giving and family now read and tap well at 390x844 and 360px. Handoff: [`docs/factory-runs/2026-10-08-g2-1-phone-first-member.md`](docs/factory-runs/2026-10-08-g2-1-phone-first-member.md); synthesis: [`docs/reviews/2026-10-08-council-review-47-synthesis.md`](docs/reviews/2026-10-08-council-review-47-synthesis.md).
 
   **Added**

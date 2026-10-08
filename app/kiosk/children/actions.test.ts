@@ -40,6 +40,7 @@ import {
   kioskCheckinAction,
   lookupByCodeAction,
   lookupByPhoneAction,
+  releaseStuckKioskAction,
 } from "@/app/kiosk/children/actions";
 
 const CHURCH = "00000000-0000-4000-8000-0000000000c1";
@@ -395,5 +396,47 @@ describe("exitKioskAction", () => {
     mocks.signIn.mockResolvedValue({ data: { user: { id: ADMIN } }, error: null });
     expect(await exitKioskAction({ password: "right-but-paused" })).toMatchObject({ status: "paused" });
     expect(mocks.signIn).not.toHaveBeenCalled();
+  });
+});
+
+describe("releaseStuckKioskAction", () => {
+  it("refuses while a valid kiosk session exists, and keeps the cookie", async () => {
+    setup();
+    mocks.cookie.current = KIOSK;
+    mocks.getSession.mockResolvedValue(adminSession());
+    expect(await releaseStuckKioskAction()).toEqual({ status: "active" });
+    expect(mocks.cookieDelete).not.toHaveBeenCalled();
+    expect(mocks.logAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("clears the cookie and audits kiosk.release (no secrets) when the admin is signed in but the kiosk is dead", async () => {
+    setup({ ccm_kiosk_sessions: [{ id: KIOSK, church_id: CHURCH, admin_login_id: ADMIN, device_id: DEVICE, started_at: new Date().toISOString(), ended_at: new Date().toISOString() }] });
+    mocks.cookie.current = KIOSK;
+    mocks.getSession.mockResolvedValue(adminSession());
+    expect(await releaseStuckKioskAction()).toEqual({ status: "released" });
+    expect(mocks.cookieDelete).toHaveBeenCalledWith("cc_kiosk");
+    expect(mocks.logAuditEvent).toHaveBeenCalledTimes(1);
+    const call = mocks.logAuditEvent.mock.calls[0][0];
+    expect(call).toMatchObject({ tableName: "ccm_kiosk_sessions", actorId: ADMIN, churchId: CHURCH });
+    expect(JSON.stringify(call)).not.toMatch(/password|HK7M2QX9|5550199/);
+  });
+
+  it("clears the cookie with no audit when nobody is signed in", async () => {
+    setup();
+    mocks.cookie.current = KIOSK;
+    mocks.getSession.mockResolvedValue(null);
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    expect(await releaseStuckKioskAction()).toEqual({ status: "released" });
+    expect(mocks.cookieDelete).toHaveBeenCalledWith("cc_kiosk");
+    expect(mocks.logAuditEvent).not.toHaveBeenCalled();
+    info.mockRestore();
+  });
+
+  it("releases a device whose kiosk was started by a different admin", async () => {
+    setup();
+    mocks.cookie.current = KIOSK;
+    mocks.getSession.mockResolvedValue(adminSession("church-admin", "00000000-0000-4000-8000-0000000000a2"));
+    expect(await releaseStuckKioskAction()).toEqual({ status: "released" });
+    expect(mocks.cookieDelete).toHaveBeenCalledWith("cc_kiosk");
   });
 });

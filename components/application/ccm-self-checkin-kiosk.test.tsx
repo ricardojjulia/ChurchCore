@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   getKioskOptionsAction: vi.fn(),
   kioskCheckinAction: vi.fn(),
   exitKioskAction: vi.fn(),
+  releaseStuckKioskAction: vi.fn(),
   scannerMode: { current: "unavailable" as "unavailable" | "code" },
   scannerMounts: 0,
   scannerUnmounts: 0,
@@ -20,6 +21,7 @@ vi.mock("@/app/kiosk/children/actions", () => ({
   getKioskOptionsAction: mocks.getKioskOptionsAction,
   kioskCheckinAction: mocks.kioskCheckinAction,
   exitKioskAction: mocks.exitKioskAction,
+  releaseStuckKioskAction: mocks.releaseStuckKioskAction,
 }));
 
 // next/dynamic(() => import(scanner)) resolves to this stand-in.
@@ -98,6 +100,21 @@ describe("CcmSelfCheckinKiosk", () => {
     expect(screen.getByRole("heading", { name: "Kiosk needs a staff sign-in" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Exit kiosk" })).toBeNull();
     expect(screen.getByRole("link", { name: "Staff sign in" })).toHaveAttribute("href", "/sign-in");
+  });
+
+  it("releases a stuck device from the locked screen and shows the refusal when a kiosk is active", async () => {
+    const user = userEvent.setup();
+    const assign = vi.fn();
+    const reload = vi.fn();
+    Object.defineProperty(window, "location", { value: { ...window.location, assign, reload }, writable: true });
+    mocks.releaseStuckKioskAction.mockResolvedValueOnce({ status: "active" });
+    renderKiosk({ locked: true });
+    await user.click(screen.getByRole("button", { name: "Release this device" }));
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+    expect(assign).not.toHaveBeenCalled();
+    mocks.releaseStuckKioskAction.mockResolvedValueOnce({ status: "released" });
+    await user.click(screen.getByRole("button", { name: "Release this device" }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/sign-in"));
   });
 
   it("looks up by phone, selects a child and a room, and shows the PIN once", async () => {

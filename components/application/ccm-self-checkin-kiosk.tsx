@@ -22,6 +22,7 @@ import {
   kioskCheckinAction,
   lookupByCodeAction,
   lookupByPhoneAction,
+  releaseStuckKioskAction,
   type KioskCheckinResult,
 } from "@/app/kiosk/children/actions";
 import { useI18n } from "@/components/i18n-provider";
@@ -59,6 +60,7 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
   const [exitPassword, setExitPassword] = useState("");
   const [exitMessage, setExitMessage] = useState<string | null>(null);
   const [exitBusy, setExitBusy] = useState(false);
+  const [releaseBusy, setReleaseBusy] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const inFlight = useRef(false);
 
@@ -181,6 +183,32 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
     }
   }
 
+  async function releaseDevice() {
+    if (releaseBusy) return;
+    setReleaseBusy(true);
+    setMessage(null);
+    try {
+      const result = await releaseStuckKioskAction();
+      if (result.status === "released") {
+        // Full page load on purpose: the cleared cookie must reach the next request.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+        window.location.assign("/sign-in");
+        return;
+      }
+      if (result.status === "active") {
+        // A valid kiosk exists after all: show it (leaving still needs the password).
+        setMessage(k("releaseActive"));
+        window.location.reload();
+        return;
+      }
+      setMessage(k("releaseError"));
+    } catch {
+      setMessage(k("releaseError"));
+    } finally {
+      setReleaseBusy(false);
+    }
+  }
+
   async function submitExit() {
     if (exitBusy) return;
     setExitBusy(true);
@@ -188,6 +216,7 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
     try {
       const result = await exitKioskAction({ password: exitPassword });
       if (result.status === "exited") {
+        // A full page load on purpose: it drops every piece of client state and picks up the cleared cookie.
         window.location.assign(result.redirectTo);
         return;
       }
@@ -261,6 +290,13 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
             <Button component="a" href="/sign-in" {...bigButton} data-primary-action>
               {k("lockedSignIn")}
             </Button>
+            {errorAlert}
+            <Button {...smallButton} variant="default" loading={releaseBusy} onClick={() => void releaseDevice()}>
+              {k("releaseDevice")}
+            </Button>
+            <Text ta="center" size="sm" c="dimmed">
+              {k("releaseHelp")}
+            </Text>
           </Stack>
         ) : null}
 
@@ -538,6 +574,7 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
       <Modal
         opened={exitOpen}
         onClose={() => setExitOpen(false)}
+        withCloseButton={false}
         centered
         radius="lg"
         title={k("exitTitle")}
@@ -556,6 +593,7 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
               label={k("exitPasswordLabel")}
               value={exitPassword}
               autoComplete="off"
+              visibilityToggleButtonProps={{ style: { width: 44, height: 44 } }}
               onChange={(e) => setExitPassword(e.currentTarget.value)}
               data-autofocus
             />
