@@ -21,17 +21,22 @@ import "server-only";
 // call: same church, same login id), and is revocable server-side (ended_at), so a
 // separate hashed token would add nothing.
 
-import { createClient } from "@supabase/supabase-js";
+import bcrypt from "bcryptjs";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 
 import { logAuditEvent } from "@/lib/actions/audit";
-import { getSession, isChurchAppContext } from "@/lib/auth";
+import { clearAppContextSelection, getSession, isChurchAppContext } from "@/lib/auth";
 import { evaluateServiceGate, type ServiceGateRow } from "@/lib/ccm-checkin-core";
-import { KIOSK_COOKIE_NAME, KIOSK_MAX_AGE_SECONDS } from "@/lib/ccm-kiosk-constants";
+import {
+  KIOSK_COOKIE_MAX_AGE_SECONDS,
+  KIOSK_COOKIE_NAME,
+  KIOSK_MAX_AGE_SECONDS,
+} from "@/lib/ccm-kiosk-constants";
 import { todayInTimeZone } from "@/lib/church-time";
 import { normalizeFamilyCheckinCode } from "@/lib/family-checkin-code";
-import { getTenantSupabaseEnv } from "@/lib/supabase/config";
+import { hasControlPlaneSupabaseEnv, hasTenantSupabaseEnv } from "@/lib/supabase/config";
+import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
 import { createTenantAdminClient } from "@/lib/supabase/tenant";
 
 type AdminClient = ReturnType<typeof createTenantAdminClient>;
@@ -59,8 +64,6 @@ export type KioskContext = {
   churchTimeZone: string;
   /** auth.users id of the admin who started this kiosk (the audit actor). */
   adminLoginId: string;
-  /** The starting admin's sign-in email, for re-checking their password on exit. Never logged. */
-  adminEmail: string;
   kioskSessionId: string;
   deviceId: string;
 };
@@ -124,7 +127,6 @@ export async function requireKioskSession(): Promise<KioskContext> {
     churchId,
     churchTimeZone: session.appContext.church.timezone,
     adminLoginId: session.userId,
-    adminEmail: session.profile.email,
     kioskSessionId,
     deviceId: String((data as { device_id: string }).device_id),
   };
@@ -137,7 +139,7 @@ export async function setKioskCookie(kioskSessionId: string) {
     sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: KIOSK_MAX_AGE_SECONDS,
+    maxAge: KIOSK_COOKIE_MAX_AGE_SECONDS,
   });
 }
 
@@ -517,6 +519,11 @@ export async function lookupHouseholdByCode(
   return answerLookup(ctx, "code", normalized && rows.length === 1 ? rows[0].id : null);
 }
 
+/** Spends the kiosk's household token (after a check-in). */
+export async function clearHouseholdToken(ctx: KioskContext): Promise<void> {
+  await issueHouseholdToken(ctx, null);
+}
+
 /**
  * Validates the household token against this kiosk's row (hash match, unexpired)
  * and returns the family it was issued for, or null.
@@ -557,34 +564,55 @@ export function isUuid(value: unknown): value is string {
 
 // ── Leaving kiosk mode ───────────────────────────────────────────────────────
 
+const EXIT_PIN_PATTERN = /^\d{6}$/;
+const EXIT_PIN_BCRYPT_COST = 10;
+
+/** A valid exit PIN is exactly six digits. */
+export function isValidExitPin(pin: unknown): pin is string {
+  return typeof pin === "string" && EXIT_PIN_PATTERN.test(pin);
+}
+
+export async function hashExitPin(pin: string): Promise<string> {
+  return bcrypt.hash(pin, EXIT_PIN_BCRYPT_COST);
+}
+
 /**
- * True only when `password` is the password of the admin who started this kiosk.
- * A throwaway supabase-js client (no persisted session, no refresh) signs in with
- * the email from the SERVER session and the typed password; the returned user must
- * be that same login. The result is discarded: the real session cookie is never
- * touched, and the throwaway session is revoked (scope "local" ends only that
- * one). An account without password sign-in (e.g. magic-link only) cannot pass.
+ * True only when `pin` matches the exit PIN the starting admin chose for this
+ * kiosk session (bcrypt hash on the session row). The PIN is never logged.
  */
-export async function verifyAdminPassword(ctx: KioskContext, password: unknown): Promise<boolean> {
-  if (typeof password !== "string" || password.length === 0 || password.length > 1024) return false;
-  if (!ctx.adminEmail) return false;
-
-  const { url, publishableKey } = getTenantSupabaseEnv();
-  const throwaway = createClient(url, publishableKey, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-  });
-
+export async function verifyExitPin(ctx: KioskContext, pin: unknown): Promise<boolean> {
+  if (!isValidExitPin(pin)) return false;
+  const { data, error } = await createTenantAdminClient()
+    .from("ccm_kiosk_sessions")
+    .select("exit_pin_hash")
+    .eq("id", ctx.kioskSessionId)
+    .eq("church_id", ctx.churchId)
+    .is("ended_at", null)
+    .maybeSingle();
+  if (error || !data) return false;
+  const hash = (data as { exit_pin_hash: string | null }).exit_pin_hash;
+  if (!hash) return false;
   try {
-    const { data, error } = await throwaway.auth.signInWithPassword({
-      email: ctx.adminEmail,
-      password,
-    });
-    if (error || !data.user || data.user.id !== ctx.adminLoginId) return false;
-    await throwaway.auth.signOut({ scope: "local" }).catch(() => undefined);
-    return true;
+    return await bcrypt.compare(pin, hash);
   } catch {
     return false;
   }
+}
+
+/**
+ * Signs the admin out of this browser on the server (tenant and control-plane
+ * Supabase sessions, the app-context selection), exactly as the sign-out action
+ * does. Used when a kiosk ends abnormally: the tablet must come back signed out,
+ * never into the admin app.
+ */
+export async function signOutServerSession() {
+  if (hasTenantSupabaseEnv()) {
+    await (await createServerSupabaseClient("tenant")).auth.signOut();
+  }
+  if (hasControlPlaneSupabaseEnv()) {
+    await (await createServerSupabaseClient("control-plane")).auth.signOut();
+  }
+  await clearAppContextSelection();
 }
 
 /** Ends the kiosk session row; false when it was not active. */

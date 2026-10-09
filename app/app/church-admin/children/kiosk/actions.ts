@@ -6,24 +6,41 @@ import { redirect } from "next/navigation";
 import { logAuditEvent } from "@/lib/actions/audit";
 import { requireChurchSession } from "@/lib/auth";
 import { KIOSK_HOME_PATH } from "@/lib/ccm-kiosk-constants";
-import { setKioskCookie } from "@/lib/ccm-kiosk-core";
+import { hashExitPin, isValidExitPin, setKioskCookie } from "@/lib/ccm-kiosk-core";
 import { createTenantAdminClient } from "@/lib/supabase/tenant";
 
 const START_PATH = "/app/church-admin/children/kiosk";
 const DEVICE_NOTE_MAX = 80;
 
+export type StartKioskState =
+  | { status: "invalid_pin" }
+  | { status: "pin_mismatch" };
+
 /**
- * Starts kiosk mode on this browser: a church admin only. Records the session,
- * sets the httpOnly cc_kiosk cookie and sends the tablet to the kiosk start
- * screen. Use as a <form action>; an optional `deviceNote` field (e.g. "Lobby
- * iPad") is stored and audited. A non-admin is refused before anything is
- * written or audited.
+ * Starts kiosk mode on this browser: a church admin only. The admin chooses a
+ * 6-digit exit PIN (form fields `exitPin` and `exitPinConfirm`); it is stored
+ * only as a bcrypt hash and is what leaving the kiosk later asks for. Records the
+ * session, sets the httpOnly cc_kiosk cookie and redirects to the kiosk start
+ * screen. Usable as a plain `<form action>` or through `useActionState` (a
+ * leading previous-state argument is accepted). An optional `deviceNote` field
+ * (e.g. "Lobby iPad", max 80 characters) is stored and audited. A non-admin is
+ * refused before anything is written or audited; a bad PIN returns
+ * `invalid_pin` / `pin_mismatch` and writes nothing.
  */
-export async function startKioskAction(formData?: FormData): Promise<void> {
+export async function startKioskAction(
+  first?: FormData | StartKioskState | null,
+  second?: FormData,
+): Promise<StartKioskState | void> {
+  const formData = first instanceof FormData ? first : second;
   const session = await requireChurchSession(START_PATH);
   if (session.appContext.roleId !== "church-admin") {
     throw new Error("Unauthorized: kiosk mode requires the church-admin role.");
   }
+
+  const exitPin = formData?.get("exitPin");
+  if (!isValidExitPin(exitPin)) return { status: "invalid_pin" };
+  if (formData?.get("exitPinConfirm") !== exitPin) return { status: "pin_mismatch" };
+  const exitPinHash = await hashExitPin(exitPin);
 
   const rawNote = formData?.get("deviceNote");
   const deviceNote =
@@ -41,6 +58,7 @@ export async function startKioskAction(formData?: FormData): Promise<void> {
       church_id: churchId,
       admin_login_id: session.userId,
       device_note: deviceNote,
+      exit_pin_hash: exitPinHash,
       started_at: startedAt,
     })
     .select("id");

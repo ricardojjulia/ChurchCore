@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createFakeSupabase } from "@/tests/fixtures/fake-supabase";
@@ -9,8 +10,8 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   admin: { current: null as unknown },
   logAuditEvent: vi.fn(),
-  signIn: vi.fn(),
   signOut: vi.fn(),
+  clearAppContext: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({
@@ -23,16 +24,18 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("@/lib/auth", () => ({
   getSession: mocks.getSession,
+  clearAppContextSelection: mocks.clearAppContext,
   isChurchAppContext: (ctx: { kind: string }) => ctx.kind === "church",
 }));
 vi.mock("@/lib/supabase/tenant", () => ({ createTenantAdminClient: () => mocks.admin.current }));
 vi.mock("@/lib/supabase/config", () => ({
-  getTenantSupabaseEnv: () => ({ url: "http://localhost:4201", publishableKey: "pk" }),
+  hasTenantSupabaseEnv: () => true,
+  hasControlPlaneSupabaseEnv: () => true,
+}));
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: async () => ({ auth: { signOut: mocks.signOut } }),
 }));
 vi.mock("@/lib/actions/audit", () => ({ logAuditEvent: mocks.logAuditEvent }));
-vi.mock("@supabase/supabase-js", () => ({
-  createClient: () => ({ auth: { signInWithPassword: mocks.signIn, signOut: mocks.signOut } }),
-}));
 
 import {
   exitKioskAction,
@@ -43,6 +46,7 @@ import {
   releaseStuckKioskAction,
 } from "@/app/kiosk/children/actions";
 
+const PIN_HASH = bcrypt.hashSync("123456", 4);
 const CHURCH = "00000000-0000-4000-8000-0000000000c1";
 const ADMIN = "00000000-0000-4000-8000-0000000000a1";
 const KIOSK = "00000000-0000-4000-8000-0000000000b1";
@@ -74,7 +78,7 @@ function setup(
     defaults: { ccm_checkin_sessions: { status: "checked_in" } },
     tables: {
       ccm_kiosk_sessions: [
-        { id: KIOSK, church_id: CHURCH, admin_login_id: ADMIN, device_id: DEVICE, started_at: new Date().toISOString(), ended_at: null },
+        { id: KIOSK, church_id: CHURCH, admin_login_id: ADMIN, device_id: DEVICE, exit_pin_hash: PIN_HASH, started_at: new Date().toISOString(), ended_at: null },
       ],
       families: [
         { id: FAMILY, church_id: CHURCH, checkin_code: "HK7M2QX9" },
@@ -137,7 +141,7 @@ describe("every kiosk action authenticates its own caller", () => {
       "kioskCheckinAction",
       () => kioskCheckinAction({ householdToken: "x".repeat(32), childIds: [ANA], roomId: ROOM, serviceId: SERVICE }),
     ],
-    ["exitKioskAction", () => exitKioskAction({ password: "pw" })],
+    ["exitKioskAction", () => exitKioskAction({ pin: "123456" })],
   ];
   const denials: Array<[string, () => void]> = [
     ["a member", () => mocks.getSession.mockResolvedValue(adminSession("member"))],
@@ -158,7 +162,7 @@ describe("every kiosk action authenticates its own caller", () => {
         expect(fake.tables.ccm_checkin_sessions).toHaveLength(0);
         expect(fake.tables.ccm_kiosk_lookup_attempts).toHaveLength(0);
         expect(mocks.logAuditEvent).not.toHaveBeenCalled();
-        expect(mocks.signIn).not.toHaveBeenCalled();
+        expect(mocks.signOut).not.toHaveBeenCalled();
       });
     }
   }
@@ -258,24 +262,36 @@ describe("kioskCheckinAction", () => {
       actorId: ADMIN,
       churchId: CHURCH,
       actorRole: "church-admin",
-      newValues: expect.objectContaining({ event: "kiosk.checkin", source: "kiosk", serviceId: SERVICE, roomId: ROOM }),
+      newValues: { event: "checkin", source: "kiosk", serviceId: SERVICE, roomId: ROOM },
     });
     const serialized = JSON.stringify(event);
-    for (const secret of ["ACEFGH", "5550199", "HK7M2QX9", householdToken]) {
+    for (const secret of ["ACEFGH", "5550199", "HK7M2QX9", householdToken, "Ana", "Rivera"]) {
       expect(serialized).not.toContain(secret);
     }
   });
 
-  it("is idempotent: a second call makes no second row and no second PIN", async () => {
+  it("is idempotent: a repeat makes no second row and no second PIN (token spent, then 'already' after a fresh lookup)", async () => {
     const fake = setup();
     const { householdToken } = await tokenFor();
     await kioskCheckinAction(input(householdToken, [ANA]));
-    const again = await kioskCheckinAction(input(householdToken, [ANA]));
-    expect(again).toEqual({
+    // The token is spent by the successful check-in (R7).
+    expect(await kioskCheckinAction(input(householdToken, [ANA]))).toEqual({ status: "expired" });
+
+    const fresh = await tokenFor();
+    expect(await kioskCheckinAction(input(fresh.householdToken, [ANA]))).toEqual({
       status: "done",
       results: [{ childId: ANA, displayName: "Ana R.", status: "already" }],
     });
     expect(fake.tables.ccm_checkin_sessions).toHaveLength(1);
+  });
+
+  it("refuses a serviceId that is not the service the server resolved, and keeps the token", async () => {
+    const fake = setup();
+    const { householdToken } = await tokenFor();
+    const other = "00000000-0000-4000-8000-0000000000aa";
+    expect(await kioskCheckinAction(input(householdToken, [ANA], { serviceId: other }))).toEqual({ status: "invalid" });
+    expect(fake.tables.ccm_checkin_sessions).toHaveLength(0);
+    expect((await kioskCheckinAction(input(householdToken, [ANA]))).status).toBe("done");
   });
 
   it("reports 'already' with no PIN when the unique index fires after the pre-check (concurrent double tap)", async () => {
@@ -341,61 +357,57 @@ describe("kioskCheckinAction", () => {
     const wrongRoom = await kioskCheckinAction(input(householdToken, [ANA], { roomId: ROOM_OTHER_MINISTRY }));
     expect(wrongRoom).toMatchObject({ status: "done", results: [{ status: "closed" }] });
 
+    // With check-in no longer enabled there is no service to resolve: invalid.
     fake.tables.ccm_services[0].checkin_session_status = "paused";
-    const closed = await kioskCheckinAction(input(householdToken, [ANA]));
-    expect(closed).toMatchObject({ status: "done", results: [{ status: "closed" }] });
+    expect(await kioskCheckinAction(input(householdToken, [ANA]))).toEqual({ status: "invalid" });
     expect(fake.tables.ccm_checkin_sessions).toHaveLength(0);
   });
 });
 
 describe("exitKioskAction", () => {
-  it("keeps the kiosk running on a wrong password, and records and audits the failure", async () => {
+  it("keeps the kiosk running on a wrong PIN, and records and audits the failure without the PIN", async () => {
     const fake = setup();
-    mocks.signIn.mockResolvedValue({ data: { user: null }, error: { message: "Invalid login credentials" } });
-    expect(await exitKioskAction({ password: "wrong" })).toEqual({ status: "wrong_password" });
+    expect(await exitKioskAction({ pin: "654321" })).toEqual({ status: "wrong_pin" });
     expect(fake.tables.ccm_kiosk_sessions[0].ended_at).toBeNull();
     expect(mocks.cookieDelete).not.toHaveBeenCalled();
     expect(fake.tables.ccm_kiosk_lookup_attempts[0]).toMatchObject({ kind: "exit", success: false });
     expect(mocks.logAuditEvent.mock.calls[0][0].newValues).toMatchObject({ event: "kiosk.exit_failed" });
-    expect(JSON.stringify(mocks.logAuditEvent.mock.calls)).not.toContain("wrong");
+    expect(JSON.stringify(mocks.logAuditEvent.mock.calls)).not.toMatch(/654321|123456/);
   });
 
-  it("ends the session, clears the kiosk cookie, and audits on the right password", async () => {
+  it("refuses a malformed PIN without a hash comparison", async () => {
+    setup();
+    for (const pin of ["", "12345", "1234567", "abcdef", undefined as unknown as string]) {
+      expect(await exitKioskAction({ pin })).toEqual({ status: "wrong_pin" });
+    }
+  });
+
+  it("ends the session, clears the kiosk cookie, and audits on the right PIN, keeping the admin signed in", async () => {
     const fake = setup();
-    mocks.signIn.mockResolvedValue({ data: { user: { id: ADMIN } }, error: null });
-    expect(await exitKioskAction({ password: "right" })).toEqual({
+    expect(await exitKioskAction({ pin: "123456" })).toEqual({
       status: "exited",
       redirectTo: "/app/church-admin/children",
     });
     expect(fake.tables.ccm_kiosk_sessions[0].ended_at).toBeTruthy();
     expect(mocks.cookieDelete).toHaveBeenCalledWith("cc_kiosk");
-    // The admin's own session cookie is never replaced.
     expect(mocks.cookieSet).not.toHaveBeenCalled();
+    expect(mocks.signOut).not.toHaveBeenCalled();
 
     const event = mocks.logAuditEvent.mock.calls.at(-1)![0];
     expect(event).toMatchObject({ tableName: "ccm_kiosk_sessions", recordId: KIOSK, actorId: ADMIN, churchId: CHURCH });
     expect(event.newValues).toMatchObject({ event: "kiosk.exit" });
-    expect(JSON.stringify(event)).not.toContain("right");
+    expect(JSON.stringify(event)).not.toContain("123456");
 
-    // And the kiosk no longer works afterwards.
     expect(await lookupByPhoneAction({ phone: "5550199" })).toEqual({ status: "locked" });
   });
 
-  it("rejects a password that belongs to a different login", async () => {
+  it("pauses exit attempts after five failures, even for the right PIN", async () => {
     const fake = setup();
-    mocks.signIn.mockResolvedValue({ data: { user: { id: "someone-else" } }, error: null });
-    expect(await exitKioskAction({ password: "theirs" })).toEqual({ status: "wrong_password" });
+    for (let i = 0; i < 5; i += 1) await exitKioskAction({ pin: "000000" });
+    expect(await exitKioskAction({ pin: "123456" })).toMatchObject({ status: "paused" });
     expect(fake.tables.ccm_kiosk_sessions[0].ended_at).toBeNull();
-  });
-
-  it("pauses exit attempts after five failures, without trying the password", async () => {
-    setup();
-    mocks.signIn.mockResolvedValue({ data: { user: null }, error: { message: "bad" } });
-    for (let i = 0; i < 5; i += 1) await exitKioskAction({ password: "nope" });
-    mocks.signIn.mockClear();
-    mocks.signIn.mockResolvedValue({ data: { user: { id: ADMIN } }, error: null });
-    expect(await exitKioskAction({ password: "right-but-paused" })).toMatchObject({ status: "paused" });
-    expect(mocks.signIn).not.toHaveBeenCalled();
+    // the trip itself is audited
+    expect(JSON.stringify(mocks.logAuditEvent.mock.calls)).toContain("kiosk.rate_limited");
   });
 });
 
@@ -406,6 +418,7 @@ describe("releaseStuckKioskAction", () => {
     mocks.getSession.mockResolvedValue(adminSession());
     expect(await releaseStuckKioskAction()).toEqual({ status: "active" });
     expect(mocks.cookieDelete).not.toHaveBeenCalled();
+    expect(mocks.signOut).not.toHaveBeenCalled();
     expect(mocks.logAuditEvent).not.toHaveBeenCalled();
   });
 
@@ -413,8 +426,11 @@ describe("releaseStuckKioskAction", () => {
     setup({ ccm_kiosk_sessions: [{ id: KIOSK, church_id: CHURCH, admin_login_id: ADMIN, device_id: DEVICE, started_at: new Date().toISOString(), ended_at: new Date().toISOString() }] });
     mocks.cookie.current = KIOSK;
     mocks.getSession.mockResolvedValue(adminSession());
-    expect(await releaseStuckKioskAction()).toEqual({ status: "released" });
+    expect(await releaseStuckKioskAction()).toEqual({ status: "released", redirectTo: "/sign-in" });
     expect(mocks.cookieDelete).toHaveBeenCalledWith("cc_kiosk");
+    // The server session is signed out too (tenant and control plane), not just the cookie.
+    expect(mocks.signOut).toHaveBeenCalledTimes(2);
+    expect(mocks.clearAppContext).toHaveBeenCalled();
     expect(mocks.logAuditEvent).toHaveBeenCalledTimes(1);
     const call = mocks.logAuditEvent.mock.calls[0][0];
     expect(call).toMatchObject({ tableName: "ccm_kiosk_sessions", actorId: ADMIN, churchId: CHURCH });
@@ -426,17 +442,25 @@ describe("releaseStuckKioskAction", () => {
     mocks.cookie.current = KIOSK;
     mocks.getSession.mockResolvedValue(null);
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
-    expect(await releaseStuckKioskAction()).toEqual({ status: "released" });
+    expect(await releaseStuckKioskAction()).toEqual({ status: "released", redirectTo: "/sign-in" });
     expect(mocks.cookieDelete).toHaveBeenCalledWith("cc_kiosk");
     expect(mocks.logAuditEvent).not.toHaveBeenCalled();
     info.mockRestore();
+  });
+
+  it("signs out an expired kiosk (past the 16 hour limit) when released", async () => {
+    setup({ ccm_kiosk_sessions: [{ id: KIOSK, church_id: CHURCH, admin_login_id: ADMIN, device_id: DEVICE, exit_pin_hash: PIN_HASH, started_at: new Date(Date.now() - 17 * 3600 * 1000).toISOString(), ended_at: null }] });
+    mocks.getSession.mockResolvedValue(adminSession());
+    expect(await lookupByPhoneAction({ phone: "5550199" })).toEqual({ status: "locked" });
+    expect(await releaseStuckKioskAction()).toEqual({ status: "released", redirectTo: "/sign-in" });
+    expect(mocks.signOut).toHaveBeenCalled();
   });
 
   it("releases a device whose kiosk was started by a different admin", async () => {
     setup();
     mocks.cookie.current = KIOSK;
     mocks.getSession.mockResolvedValue(adminSession("church-admin", "00000000-0000-4000-8000-0000000000a2"));
-    expect(await releaseStuckKioskAction()).toEqual({ status: "released" });
+    expect(await releaseStuckKioskAction()).toEqual({ status: "released", redirectTo: "/sign-in" });
     expect(mocks.cookieDelete).toHaveBeenCalledWith("cc_kiosk");
   });
 });

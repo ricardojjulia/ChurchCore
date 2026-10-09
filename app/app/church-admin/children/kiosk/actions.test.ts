@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createFakeSupabase } from "@/tests/fixtures/fake-supabase";
@@ -18,7 +19,8 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ set: mocks.cookieSet, get: () => undefined, delete: vi.fn() }),
 }));
 vi.mock("@/lib/supabase/tenant", () => ({ createTenantAdminClient: () => mocks.admin.current }));
-vi.mock("@/lib/supabase/config", () => ({ getTenantSupabaseEnv: () => ({ url: "u", publishableKey: "k" }) }));
+vi.mock("@/lib/supabase/config", () => ({ hasTenantSupabaseEnv: () => false, hasControlPlaneSupabaseEnv: () => false }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/actions/audit", () => ({ logAuditEvent: mocks.logAuditEvent }));
 
 import { startKioskAction } from "@/app/app/church-admin/children/kiosk/actions";
@@ -43,8 +45,10 @@ beforeEach(() => {
   mocks.logAuditEvent.mockResolvedValue(undefined);
 });
 
-function form(note?: string) {
+function form(note?: string, pin = "123456", confirm = pin) {
   const data = new FormData();
+  data.set("exitPin", pin);
+  data.set("exitPinConfirm", confirm);
   if (note !== undefined) data.set("deviceNote", note);
   return data;
 }
@@ -87,11 +91,39 @@ describe("startKioskAction", () => {
     );
   });
 
+  it("stores only a bcrypt hash of the exit PIN, never the PIN", async () => {
+    await expect(startKioskAction(form("Lobby", "482916"))).rejects.toThrow("NEXT_REDIRECT");
+    const hash = fake.tables.ccm_kiosk_sessions[0].exit_pin_hash as string;
+    expect(hash).toMatch(/^\$2[aby]\$/);
+    expect(await bcrypt.compare("482916", hash)).toBe(true);
+    expect(JSON.stringify(mocks.logAuditEvent.mock.calls)).not.toContain("482916");
+    expect(JSON.stringify(fake.tables.ccm_kiosk_sessions)).not.toContain("482916");
+  });
+
+  it.each([["12345"], ["1234567"], ["abcdef"], ["12 456"], [""]])(
+    "refuses an invalid PIN %j without writing, auditing or setting a cookie",
+    async (pin) => {
+      expect(await startKioskAction(form("x", pin))).toEqual({ status: "invalid_pin" });
+      expect(fake.tables.ccm_kiosk_sessions).toHaveLength(0);
+      expect(mocks.logAuditEvent).not.toHaveBeenCalled();
+      expect(mocks.cookieSet).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refuses a PIN whose confirmation differs, and works through useActionState", async () => {
+    expect(await startKioskAction(null, form("x", "123456", "123457"))).toEqual({ status: "pin_mismatch" });
+    expect(fake.tables.ccm_kiosk_sessions).toHaveLength(0);
+    await expect(startKioskAction({ status: "pin_mismatch" }, form())).rejects.toThrow("NEXT_REDIRECT");
+    expect(fake.tables.ccm_kiosk_sessions).toHaveLength(1);
+  });
+
   it("caps the device note and accepts none", async () => {
     await expect(startKioskAction(form("x".repeat(200)))).rejects.toThrow("NEXT_REDIRECT");
     expect((fake.tables.ccm_kiosk_sessions[0].device_note as string).length).toBe(80);
-    await expect(startKioskAction()).rejects.toThrow("NEXT_REDIRECT");
+    await expect(startKioskAction(form())).rejects.toThrow("NEXT_REDIRECT");
     expect(fake.tables.ccm_kiosk_sessions[1].device_note).toBeNull();
+    // and no form at all means no PIN, so nothing starts
+    expect(await startKioskAction()).toEqual({ status: "invalid_pin" });
   });
 
   it("does not leave an active kiosk behind when the audit write fails", async () => {

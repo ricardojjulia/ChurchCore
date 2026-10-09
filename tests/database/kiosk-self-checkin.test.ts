@@ -146,6 +146,43 @@ describe("kiosk self check-in data (G2.2)", () => {
       });
     });
 
+    it("no signed-in user can set or change the code or its rotation time (R6)", async () => {
+      await inRolledBackTransaction(async (client) => {
+        // The member belongs to Rivera (family A1) through their profile.
+        await client.query(`update public.profiles set church_id = $3, family_id = $2 where user_id = $1`, [MEMBER_A, FAMILY_A1, CHURCH_A]);
+        for (const user of [MEMBER_A, ADMIN_A]) {
+          const update = await as(client, "authenticated", user, `update public.families set checkin_code = 'AAAAAAAA' where id = $1`, [FAMILY_A1]);
+          expect(update.error, `${user} update checkin_code`).toMatch(/permission denied/);
+          const rotated = await as(client, "authenticated", user, `update public.families set checkin_code_rotated_at = now() where id = $1`, [FAMILY_A1]);
+          expect(rotated.error, `${user} update rotated_at`).toMatch(/permission denied/);
+          const insert = await as(client, "authenticated", user, `insert into public.families (church_id, family_name, checkin_code) values ($1, 'New', 'BBBBBBBB')`, [CHURCH_A]);
+          expect(insert.error, `${user} insert checkin_code`).toMatch(/permission denied/);
+          // A guessed code cannot be probed through a unique-index error either.
+          const probe = await as(client, "authenticated", user, `update public.families set checkin_code = 'ZZ7M2QX9' where id = $1`, [FAMILY_A1]);
+          expect(probe.error).toMatch(/permission denied/);
+        }
+        const unchanged = await client.query(`select checkin_code from public.families where id = $1`, [FAMILY_A1]);
+        expect(unchanged.rows[0].checkin_code).toBe("HK7M2QX9");
+      });
+    });
+
+    it("a family member can still update their own family's fields and create a family, as before (R6)", async () => {
+      await inRolledBackTransaction(async (client) => {
+        await client.query(`update public.profiles set church_id = $3, family_id = $2 where user_id = $1`, [MEMBER_A, FAMILY_A1, CHURCH_A]);
+        const update = await as(client, "authenticated", MEMBER_A, `update public.families set family_name = 'Rivera-Chen', address = '9 Oak', home_phone = '555-0000' where id = $1`, [FAMILY_A1]);
+        expect(update.error).toBeNull();
+        expect(update.rowCount).toBe(1);
+        // someone else's family is still out of reach (policy, not grant)
+        const other = await as(client, "authenticated", MEMBER_A, `update public.families set family_name = 'Hijack' where id = $1`, [FAMILY_A2]);
+        expect(other.rowCount).toBe(0);
+        const insert = await as(client, "authenticated", MEMBER_A, `insert into public.families (church_id, family_name, address, home_phone) values ($1, 'Brand New', 'a', 'p') returning id`, [CHURCH_A]);
+        expect(insert.error).toBeNull();
+        expect(insert.rowCount).toBe(1);
+        const admin = await as(client, "authenticated", ADMIN_A, `update public.families set address = 'Admin edit' where id = $1`, [FAMILY_A2]);
+        expect(admin.rowCount).toBe(1);
+      });
+    });
+
     it("anon cannot read the code either", async () => {
       await inRolledBackTransaction(async (client) => {
         expect((await as(client, "anon", null, `select checkin_code from public.families`)).error).toMatch(/permission denied/);
@@ -212,7 +249,7 @@ describe("kiosk self check-in data (G2.2)", () => {
   });
 
   describe("ccm_kiosk_sessions", () => {
-    const insertSession = `insert into public.ccm_kiosk_sessions (id, church_id, admin_login_id, device_note) values ('${KIOSK_A}', '${CHURCH_A}', '${ADMIN_A}', 'Lobby')`;
+    const insertSession = `insert into public.ccm_kiosk_sessions (id, church_id, admin_login_id, device_note, exit_pin_hash) values ('${KIOSK_A}', '${CHURCH_A}', '${ADMIN_A}', 'Lobby', '$2b$04$hashhashhashhashhashhash')`;
 
     it("a church admin of that church can read it; others and anon cannot", async () => {
       await inRolledBackTransaction(async (client) => {
@@ -236,6 +273,16 @@ describe("kiosk self check-in data (G2.2)", () => {
         }
         const still = await client.query(`select ended_at from public.ccm_kiosk_sessions where id = $1`, [KIOSK_A]);
         expect(still.rows[0].ended_at).toBeNull();
+      });
+    });
+
+    it("requires an exit PIN hash", async () => {
+      await inRolledBackTransaction(async (client) => {
+        await client.query("savepoint nopin");
+        await expect(
+          client.query(`insert into public.ccm_kiosk_sessions (church_id, admin_login_id) values ($1, $2)`, [CHURCH_A, ADMIN_A]),
+        ).rejects.toThrow(/exit_pin_hash/);
+        await client.query("rollback to savepoint nopin");
       });
     });
 

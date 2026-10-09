@@ -8,11 +8,11 @@ import {
   Button,
   Group,
   Modal,
-  PasswordInput,
   Stack,
   Text,
   TextInput,
   Title,
+  VisuallyHidden,
 } from "@mantine/core";
 import { AlertTriangle, Check, Lock, LogOut, Phone, QrCode, Hash } from "lucide-react";
 
@@ -26,6 +26,7 @@ import {
   type KioskCheckinResult,
 } from "@/app/kiosk/children/actions";
 import { useI18n } from "@/components/i18n-provider";
+import { LanguageSelect } from "@/components/language-select";
 import { useIdleReset } from "@/components/application/use-idle-reset";
 import { kioskWarningMs } from "@/lib/kiosk-idle";
 
@@ -39,6 +40,7 @@ type Results = Extract<KioskCheckinResult, { status: "done" }>["results"];
 type Options = { service: { id: string; name: string } | null; rooms: Array<{ id: string; name: string }> };
 
 const PRIMARY_H = 64;
+const AUTO_RETURN_MS = 20_000;
 const TARGET_H = 44;
 
 export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number; locked?: boolean }) {
@@ -57,11 +59,13 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
   const [results, setResults] = useState<Results>([]);
   const [scanFailed, setScanFailed] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
-  const [exitPassword, setExitPassword] = useState("");
+  const [exitPin, setExitPin] = useState("");
   const [exitMessage, setExitMessage] = useState<string | null>(null);
   const [exitBusy, setExitBusy] = useState(false);
   const [releaseBusy, setReleaseBusy] = useState(false);
+  const [autoSeconds, setAutoSeconds] = useState<number | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const inFlight = useRef(false);
 
   // Clears everything a family typed, saw or was given: the PIN, the household
@@ -79,22 +83,47 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
     setResults([]);
     setScanFailed(false);
     setExitOpen(false);
-    setExitPassword("");
+    setExitPin("");
     setExitMessage(null);
     setExitBusy(false);
+    setAutoSeconds(null);
     inFlight.current = false;
   }, []);
 
   const idle = useIdleReset({
-    enabled: screen !== "start" && screen !== "locked",
+    // Also while the exit dialog is open on the start screen, so a half-typed PIN never stays on screen.
+    enabled: screen !== "locked" && (screen !== "start" || exitOpen),
     idleMs,
     warningMs: kioskWarningMs(idleMs),
     onIdle: resetAll,
   });
 
   useEffect(() => {
-    headingRef.current?.focus();
+    // Typing screens focus the field; every other screen focuses its heading.
+    const target = screen === "phone" || screen === "code" ? inputRef.current : headingRef.current;
+    target?.focus();
   }, [screen]);
+
+  // The pickup PIN does not stay on a shared screen: back to the start after 20 s.
+  useEffect(() => {
+    if (screen !== "success") return;
+    const deadline = Date.now() + AUTO_RETURN_MS;
+    // State only changes from the timer and the cleanup (react-hooks/set-state-in-effect);
+    // the render falls back to the full count until the first tick.
+    const timer = window.setInterval(() => {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        window.clearInterval(timer);
+        resetAll();
+      } else {
+        setAutoSeconds(Math.ceil(remaining / 1000));
+      }
+    }, 500);
+    return () => {
+      window.clearInterval(timer);
+      setAutoSeconds(null);
+    };
+  }, [screen, resetAll]);
 
   const goLocked = () => {
     resetAll();
@@ -117,7 +146,11 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
       setRoomId(null);
       const opts = await getKioskOptionsAction();
       if (opts.status === "locked") return goLocked();
-      setOptions(opts.status === "ok" ? { service: opts.service, rooms: opts.rooms } : { service: null, rooms: [] });
+      const nextOptions =
+        opts.status === "ok" ? { service: opts.service, rooms: opts.rooms } : { service: null, rooms: [] };
+      setOptions(nextOptions);
+      // A single room needs no tap.
+      setRoomId(nextOptions.rooms.length === 1 ? nextOptions.rooms[0].id : null);
       setInput("");
       setMessage(null);
       setScreen("choose");
@@ -190,9 +223,8 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
     try {
       const result = await releaseStuckKioskAction();
       if (result.status === "released") {
-        // Full page load on purpose: the cleared cookie must reach the next request.
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-        window.location.assign("/sign-in");
+        // Full page load on purpose: the cleared cookies must reach the next request.
+        window.location.assign(result.redirectTo);
         return;
       }
       if (result.status === "active") {
@@ -214,14 +246,14 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
     setExitBusy(true);
     setExitMessage(null);
     try {
-      const result = await exitKioskAction({ password: exitPassword });
+      const result = await exitKioskAction({ pin: exitPin });
       if (result.status === "exited") {
         // A full page load on purpose: it drops every piece of client state and picks up the cleared cookie.
         window.location.assign(result.redirectTo);
         return;
       }
-      setExitPassword("");
-      if (result.status === "wrong_password") setExitMessage(k("exitWrong"));
+      setExitPin("");
+      if (result.status === "wrong_pin") setExitMessage(k("exitWrong"));
       else if (result.status === "paused") setExitMessage(k("exitPaused", { seconds: result.retryAfterSeconds }));
       else if (result.status === "locked") {
         setExitOpen(false);
@@ -263,6 +295,11 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
         <Text fw={700} size="lg">
           {k("kioskTitle")}
         </Text>
+        {screen === "start" ? (
+          <Box w={200}>
+            <LanguageSelect size="lg" />
+          </Box>
+        ) : null}
         {screen !== "locked" ? (
           <Button
             {...smallButton}
@@ -270,7 +307,7 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
             leftSection={<LogOut size={16} />}
             onClick={() => {
               setExitMessage(null);
-              setExitPassword("");
+              setExitPin("");
               setExitOpen(true);
             }}
           >
@@ -337,8 +374,8 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
                   label={k("phoneLabel")}
                   description={k("phoneHint")}
                   value={input}
+                  ref={inputRef}
                   onChange={(e) => setInput(e.currentTarget.value)}
-                  data-autofocus
                 />
               ) : (
                 <TextInput
@@ -352,8 +389,8 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
                   value={input}
                   maxLength={16}
                   styles={{ input: { textTransform: "uppercase", letterSpacing: "0.2em" } }}
+                  ref={inputRef}
                   onChange={(e) => setInput(e.currentTarget.value.toUpperCase())}
-                  data-autofocus
                 />
               )}
               {errorAlert}
@@ -415,13 +452,12 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
               {children.map((child) => {
                 const isSelected = selected.includes(child.id);
                 const disabled = child.alreadyCheckedIn || child.needsGreeter || !options?.service;
+                // Selection is announced by aria-pressed and shown by the filled button and check icon.
                 const status = child.needsGreeter
                   ? k("childGreeter")
                   : child.alreadyCheckedIn
                     ? k("childAlreadyIn")
-                    : isSelected
-                      ? k("childSelected")
-                      : null;
+                    : null;
                 return (
                   <Button
                     key={child.id}
@@ -477,7 +513,6 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
                       onClick={() => setRoomId(room.id)}
                     >
                       {room.name}
-                      {roomId === room.id ? ` (${k("roomSelected")})` : ""}
                     </Button>
                   ))}
                 </Stack>
@@ -515,11 +550,13 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
                     </Text>
                     <Text
                       fw={800}
-                      aria-label={`${k("pinFor", { name: result.displayName })}: ${result.pin.split("").join(" ")}`}
+                      data-testid="kiosk-pin"
+                      aria-hidden
                       style={{ fontSize: 72, letterSpacing: "0.15em", lineHeight: 1.1 }}
                     >
                       {result.pin}
                     </Text>
+                    <VisuallyHidden>{result.pin.split("").join(" ")}</VisuallyHidden>
                     {result.roomName ? <Text c="dimmed">{k("pinRoom", { room: result.roomName })}</Text> : null}
                   </Stack>
                 ) : (
@@ -541,6 +578,15 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
                 {k("pinNote")}
               </Text>
             ) : null}
+            <>
+              {/* Visible countdown; screen readers hear one static line, not every second. */}
+              <Text ta="center" c="dimmed" aria-hidden data-testid="kiosk-auto-return">
+                {k("autoReturn", { seconds: autoSeconds ?? Math.ceil(AUTO_RETURN_MS / 1000) })}
+              </Text>
+              <VisuallyHidden role="status">
+                {k("autoReturn", { seconds: Math.ceil(AUTO_RETURN_MS / 1000) })}
+              </VisuallyHidden>
+            </>
             <Button {...bigButton} onClick={resetAll} data-primary-action>
               {k("done")}
             </Button>
@@ -559,12 +605,12 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
         radius="lg"
         trapFocus
         zIndex={400}
-        role="alertdialog"
       >
         <Stack gap="lg">
-          <Text role="status" aria-live="assertive" size="lg">
+          <Text size="lg" aria-hidden>
             {k("idleWarningBody", { seconds: idle.secondsLeft })}
           </Text>
+          <VisuallyHidden role="status">{k("idleWarningAnnounce")}</VisuallyHidden>
           <Button {...bigButton} onClick={idle.stayActive}>
             {k("idleStay")}
           </Button>
@@ -573,7 +619,10 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
 
       <Modal
         opened={exitOpen}
-        onClose={() => setExitOpen(false)}
+        onClose={() => {
+          setExitOpen(false);
+          setExitPin("");
+        }}
         withCloseButton={false}
         centered
         radius="lg"
@@ -588,13 +637,15 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
         >
           <Stack gap="md">
             <Text>{k("exitDescription")}</Text>
-            <PasswordInput
+            <TextInput
               size="lg"
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
               label={k("exitPasswordLabel")}
-              value={exitPassword}
+              value={exitPin}
               autoComplete="off"
-              visibilityToggleButtonProps={{ style: { width: 44, height: 44 } }}
-              onChange={(e) => setExitPassword(e.currentTarget.value)}
+              onChange={(e) => setExitPin(e.currentTarget.value.replace(/\D/g, "").slice(0, 6))}
               data-autofocus
             />
             {exitMessage ? (
@@ -602,10 +653,17 @@ export function CcmSelfCheckinKiosk({ idleMs, locked = false }: { idleMs: number
                 <Text fw={600}>{exitMessage}</Text>
               </Alert>
             ) : null}
-            <Button type="submit" {...bigButton} loading={exitBusy} disabled={!exitPassword}>
+            <Button type="submit" {...bigButton} loading={exitBusy} disabled={exitPin.length !== 6}>
               {k("exitConfirm")}
             </Button>
-            <Button {...smallButton} variant="default" onClick={() => setExitOpen(false)}>
+            <Button
+              {...smallButton}
+              variant="default"
+              onClick={() => {
+                setExitOpen(false);
+                setExitPin("");
+              }}
+            >
               {k("exitCancel")}
             </Button>
           </Stack>

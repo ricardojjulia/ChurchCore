@@ -9,9 +9,7 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   admin: { current: null as unknown },
   logAuditEvent: vi.fn(),
-  signIn: vi.fn(),
-  signOut: vi.fn(),
-  createClient: vi.fn(),
+
 }));
 
 vi.mock("next/headers", () => ({
@@ -26,14 +24,16 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("@/lib/auth", () => ({
   getSession: mocks.getSession,
+  clearAppContextSelection: vi.fn(),
   isChurchAppContext: (ctx: { kind: string }) => ctx.kind === "church",
 }));
 vi.mock("@/lib/supabase/tenant", () => ({ createTenantAdminClient: () => mocks.admin.current }));
 vi.mock("@/lib/supabase/config", () => ({
-  getTenantSupabaseEnv: () => ({ url: "http://localhost:4201", publishableKey: "pk" }),
+  hasTenantSupabaseEnv: () => false,
+  hasControlPlaneSupabaseEnv: () => false,
 }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/actions/audit", () => ({ logAuditEvent: mocks.logAuditEvent }));
-vi.mock("@supabase/supabase-js", () => ({ createClient: mocks.createClient }));
 
 import {
   displayChildName,
@@ -46,7 +46,9 @@ import {
   recordKioskFailure,
   requireKioskSession,
   setKioskCookie,
-  verifyAdminPassword,
+  hashExitPin,
+  isValidExitPin,
+  verifyExitPin,
   verifyHouseholdToken,
   KioskLockedError,
   type KioskContext,
@@ -69,7 +71,6 @@ const ctx: KioskContext = {
   churchId: CHURCH,
   churchTimeZone: "America/New_York",
   adminLoginId: ADMIN,
-  adminEmail: "admin@example.test",
   kioskSessionId: KIOSK,
   deviceId: DEVICE,
 };
@@ -583,39 +584,30 @@ describe("household token", () => {
   });
 });
 
-describe("verifyAdminPassword", () => {
-  beforeEach(() => {
-    mocks.createClient.mockReturnValue({
-      auth: { signInWithPassword: mocks.signIn, signOut: mocks.signOut },
-    });
-    mocks.signOut.mockResolvedValue({ error: null });
+describe("exit PIN", () => {
+  it("accepts exactly six digits", () => {
+    expect(isValidExitPin("123456")).toBe(true);
+    for (const bad of ["12345", "1234567", "12345a", "", " 12345", 123456, null]) {
+      expect(isValidExitPin(bad)).toBe(false);
+    }
   });
 
-  it("accepts the right password for the admin who started the kiosk", async () => {
-    mocks.signIn.mockResolvedValue({ data: { user: { id: ADMIN } }, error: null });
-    expect(await verifyAdminPassword(ctx, "correct horse")).toBe(true);
-    expect(mocks.signIn).toHaveBeenCalledWith({ email: "admin@example.test", password: "correct horse" });
-    // Throwaway client: nothing persisted, so the real session cookie is untouched.
-    expect(mocks.createClient).toHaveBeenCalledWith(
-      "http://localhost:4201",
-      "pk",
-      expect.objectContaining({ auth: expect.objectContaining({ persistSession: false, autoRefreshToken: false }) }),
-    );
-    expect(mocks.signOut).toHaveBeenCalledWith({ scope: "local" });
+  it("verifies against the stored bcrypt hash only", async () => {
+    const fake = seed();
+    fake.tables.ccm_kiosk_sessions[0].exit_pin_hash = await hashExitPin("246810");
+    expect(fake.tables.ccm_kiosk_sessions[0].exit_pin_hash).not.toContain("246810");
+    expect(await verifyExitPin(ctx, "246810")).toBe(true);
+    expect(await verifyExitPin(ctx, "246811")).toBe(false);
+    expect(await verifyExitPin(ctx, "24681")).toBe(false);
   });
 
-  it("refuses a wrong password, an empty one, and a different user's login", async () => {
-    mocks.signIn.mockResolvedValue({ data: { user: null }, error: { message: "Invalid login" } });
-    expect(await verifyAdminPassword(ctx, "wrong")).toBe(false);
-    expect(await verifyAdminPassword(ctx, "")).toBe(false);
-    expect(await verifyAdminPassword(ctx, undefined)).toBe(false);
-
-    mocks.signIn.mockResolvedValue({ data: { user: { id: "someone-else" } }, error: null });
-    expect(await verifyAdminPassword(ctx, "right-for-someone-else")).toBe(false);
-  });
-
-  it("refuses when the sign-in throws", async () => {
-    mocks.signIn.mockRejectedValue(new Error("network"));
-    expect(await verifyAdminPassword(ctx, "pw")).toBe(false);
+  it("fails closed with no hash, an ended session, or a database error", async () => {
+    const fake = seed();
+    expect(await verifyExitPin(ctx, "246810")).toBe(false); // no hash on the row
+    fake.tables.ccm_kiosk_sessions[0].exit_pin_hash = await hashExitPin("246810");
+    fake.tables.ccm_kiosk_sessions[0].ended_at = new Date().toISOString();
+    expect(await verifyExitPin(ctx, "246810")).toBe(false);
+    mocks.admin.current = createFakeSupabase({ tableError: () => ({ message: "x" }) }).client;
+    expect(await verifyExitPin(ctx, "246810")).toBe(false);
   });
 });

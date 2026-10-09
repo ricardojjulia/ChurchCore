@@ -946,14 +946,18 @@ begin
       on conflict (id) do nothing;
 
       -- Look up two child profiles
+      -- Ordered so the pick is stable: unordered, a later insert (the G2.2 Rivera
+      -- household) could land first and be seeded as already checked in.
       select id into v_ccm_profile_1
       from public.profiles
       where church_id = v_church_id
+      order by id
       limit 1;
 
       select id into v_ccm_profile_2
       from public.profiles
       where church_id = v_church_id
+      order by id
       offset 1 limit 1;
 
       -- Check-in sessions (PIN hashes are bcrypt of "ABC123")

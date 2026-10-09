@@ -33,14 +33,26 @@ describe("shouldRedirectToKiosk", () => {
     "/kiosk/children/anything",
     "/_next/static/chunks/a.js",
     "/vendor/zxing_reader.wasm",
-    "/api/anything",
     "/sign-in",
     "/auth/confirm",
     "/sw.js",
     "/manifest.webmanifest",
     "/favicon.ico",
-    "/fonts/inter.woff2",
+    "/icon.png",
+    "/apple-icon.png",
   ])("lets %s through", (path) => expect(shouldRedirectToKiosk(path, true)).toBe(false));
+
+  it.each([
+    "/api/reports/custom",
+    "/api/stripe/connect/start",
+    "/api/church-admin/imports/x/report",
+    "/data.json",
+    "/notes.txt",
+    "/fonts/inter.woff2",
+    "/secret/file.png",
+  ])("sends %s back to the kiosk (no API or arbitrary-file bypass)", (path) =>
+    expect(shouldRedirectToKiosk(path, true)).toBe(true),
+  );
 
   it("does not treat a lookalike prefix as the kiosk", () => {
     expect(shouldRedirectToKiosk("/kiosks", true)).toBe(true);

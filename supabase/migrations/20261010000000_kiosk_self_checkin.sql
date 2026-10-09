@@ -17,7 +17,10 @@
 --                                lets any church member read every family row);
 --                                only the service role (server code) reads it.
 --   3. ccm_kiosk_sessions        one row per started kiosk; the cc_kiosk cookie
---                                holds only the row id. Also holds the single
+--                                holds only the row id. exit_pin_hash is the
+--                                bcrypt hash of the 6-digit PIN the starting
+--                                admin chose; leaving the kiosk asks for it.
+--                                Also holds the single
 --                                short-lived "household token" (hash) that
 --                                binds a lookup result to this kiosk.
 --   4. ccm_kiosk_lookup_attempts failed/successful lookup and exit attempts,
@@ -40,7 +43,7 @@
 --   alter table public.ccm_checkin_sessions drop column checkin_source;
 --   drop table if exists public.ccm_kiosk_lookup_attempts;
 --   drop table if exists public.ccm_kiosk_sessions;
---   grant select on public.families to anon, authenticated;
+--   grant select, insert, update on public.families to anon, authenticated;
 --   drop index if exists public.families_church_checkin_code_idx;
 --   alter table public.families drop column checkin_code,
 --     drop column checkin_code_rotated_at;
@@ -73,6 +76,17 @@ revoke select on public.families from anon, authenticated;
 grant select (id, church_id, family_name, address, home_phone, created_at, updated_at)
   on public.families to anon, authenticated;
 
+-- Nobody signed in may write the code or its rotation time either: the family
+-- insert/update policies (member self-service) would otherwise let any family
+-- member set a guessable code, and a unique-index error would reveal which codes
+-- exist. Only server code (service role) writes them. Every other column stays
+-- insertable/updatable exactly as before; anon never had a policy to write.
+revoke insert, update on public.families from anon, authenticated;
+grant insert (id, church_id, family_name, address, home_phone, created_at, updated_at)
+  on public.families to authenticated;
+grant update (id, church_id, family_name, address, home_phone, created_at, updated_at)
+  on public.families to authenticated;
+
 -- 3. Kiosk sessions -----------------------------------------------------------
 
 create table public.ccm_kiosk_sessions (
@@ -83,6 +97,7 @@ create table public.ccm_kiosk_sessions (
   device_note text,
   started_at timestamptz not null default timezone('utc', now()),
   ended_at timestamptz,
+  exit_pin_hash text not null,
   -- The one outstanding lookup result: sha256 of a random token, the family it
   -- resolved to, and when it stops being valid (3 minutes). Overwritten by the
   -- next lookup. The token itself is never stored.

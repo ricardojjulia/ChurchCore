@@ -11,6 +11,7 @@ import "server-only";
 import bcrypt from "bcryptjs";
 import { randomInt } from "node:crypto";
 
+import { logAuditEvent } from "@/lib/actions/audit";
 import type { CcmCheckinSession } from "@/lib/ccm-types";
 import { createTenantAdminClient } from "@/lib/supabase/tenant";
 
@@ -205,6 +206,29 @@ export async function performCheckin(input: PerformCheckinInput): Promise<Perfor
     allAllergies: [],
     noPhotoFlag: false,
   };
+
+  // The row is written with the service role, so the table trigger records no
+  // actor (auth.uid() is null): write the audit event explicitly, with the login
+  // id. No PIN, no names. Best effort: the child is already checked in and the PIN
+  // must still reach the family.
+  try {
+    await logAuditEvent({
+      tableName: "ccm_checkin_sessions",
+      recordId: row.id,
+      operation: "INSERT",
+      actorId: input.actorLoginId,
+      churchId: input.churchId,
+      actorRole: "church-admin",
+      newValues: {
+        event: "checkin",
+        source: input.source,
+        serviceId: input.serviceId,
+        roomId: input.roomId,
+      },
+    });
+  } catch {
+    console.error("check-in audit write failed");
+  }
 
   return { status: "checked_in", session, pin: plainPin };
 }

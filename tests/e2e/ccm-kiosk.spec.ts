@@ -3,7 +3,7 @@
  *
  * A church admin starts kiosk mode; a family finds their children by phone,
  * family code or QR, checks in and gets a pickup PIN; inactivity returns to the
- * start screen; leaving needs the starting admin's password. Uses the seeded
+ * start screen; leaving needs the exit PIN the admin chose at start. Uses the seeded
  * Rivera Household (code HK7M2QX9, phone (555) 019-9): Ana (8, listed), Leo
  * (20, not listed), Zoe (no birth date, not listed), Mateo (6, custody
  * restriction, "see a greeter").
@@ -30,26 +30,32 @@ import {
   collectTouchViolations,
   expectNoHorizontalOverflow,
 } from "./fixtures/mobile-layout";
-import { authFilePath, SEED_CHURCH_ID } from "./fixtures/roles";
+import { authFilePath, roles, SEED_CHURCH_ID, signInThroughUi } from "./fixtures/roles";
 
 const ANA_ID = "d0d0d0d0-0000-0000-0000-000000000012";
+const RIVERA_CHILD_IDS = ["d0d0d0d0-0000-0000-0000-000000000012", "d0d0d0d0-0000-0000-0000-000000000013", "d0d0d0d0-0000-0000-0000-000000000014", "d0d0d0d0-0000-0000-0000-000000000015"];
 const FAMILY_CODE = "HK7M2QX9";
 const PHONE = "(555) 019-9";
+const EXIT_PIN = "482913";
 const SIZES = [
   { name: "1024x768", width: 1024, height: 768 },
   { name: "768x1024", width: 768, height: 1024 },
 ] as const;
 
 async function cleanUp() {
+  // Belt and braces: no check-in of any source may leave the Rivera children checked in.
+  await queryTenantDb(`delete from public.ccm_checkin_sessions where church_id = $1 and child_profile_id = any ($2::uuid[])`, [SEED_CHURCH_ID, RIVERA_CHILD_IDS]);
   await queryTenantDb(`delete from public.ccm_checkin_sessions where church_id = $1 and checkin_source = 'kiosk'`, [SEED_CHURCH_ID]);
   await queryTenantDb(`delete from public.ccm_kiosk_lookup_attempts where church_id = $1`, [SEED_CHURCH_ID]);
   await queryTenantDb(`delete from public.ccm_kiosk_sessions where church_id = $1`, [SEED_CHURCH_ID]);
 }
 
-async function startKiosk(page: Page, note = "e2e tablet") {
+async function startKiosk(page: Page, note = "e2e tablet", pin = EXIT_PIN) {
   await page.goto("/app/church-admin/children/kiosk");
   // The app shell renders its children in two responsive containers; use the visible one.
   await page.getByLabel(/Device name|Nombre del dispositivo/).locator("visible=true").fill(note);
+  await page.getByLabel(/Exit PIN \(6|PIN de salida \(6/).locator("visible=true").fill(pin);
+  await page.getByLabel(/Repeat the exit PIN|Repite el PIN/).locator("visible=true").fill(pin);
   await page.locator("[data-primary-action]:visible").first().click();
   await page.waitForURL((url) => url.pathname === "/kiosk/children");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
@@ -71,6 +77,10 @@ async function expectLayout(page: Page, root?: ReturnType<Page["locator"]>) {
   await expectNoHorizontalOverflow(page);
   expect(await collectTouchViolations(page, root), "controls under 44px").toEqual([]);
   expect(await collectPrimaryViolations(page, root), "primary actions under 64px").toEqual([]);
+}
+
+async function chooseAnaAndCheckInOn(page: Page) {
+  await chooseAnaAndCheckIn(page);
 }
 
 async function chooseAnaAndCheckIn(page: Page) {
@@ -121,7 +131,10 @@ for (const size of SIZES) {
 
     test("start page and start screen: tablet targets, no overflow, focus on the heading", async ({ page }) => {
       await page.goto("/app/church-admin/children/kiosk");
-      await expect(page.getByRole("button", { name: "Start kiosk mode" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Start kiosk mode" }).locator("visible=true")).toBeVisible();
+      // Staff page: 44px targets and no overflow (the 64px rule is for the kiosk screens).
+      await expectNoHorizontalOverflow(page);
+      expect(await collectTouchViolations(page), "start page controls under 44px").toEqual([]);
       await startKiosk(page);
       await expect(page.getByRole("heading", { name: /Welcome/ })).toBeFocused();
       await expectLayout(page);
@@ -197,20 +210,17 @@ for (const size of SIZES) {
       await expect(page.locator("main").getByRole("alert")).toContainText("or see a greeter");
     });
 
-    test("idle: the start screen returns, the PIN is gone, and the admin stays signed in", async ({ page }) => {
+    test("idle: the start screen returns, family data is gone, and the admin stays signed in", async ({ page }) => {
       await startKiosk(page);
       await page.clock.install();
       await page.reload();
       await lookupPhone(page);
-      await chooseAnaAndCheckIn(page);
-      const pin = (await page.locator('[aria-label^="Pickup code for Ana R."]').textContent())?.trim() ?? "";
-      expect(pin).toMatch(/^[0-9A-Z]{4,8}$/);
+      await page.getByRole("button", { name: /Ana R\./ }).click();
 
       await page.clock.fastForward(55_000);
       await expect(page.getByText(/This screen will clear in/)).toBeVisible();
       await page.clock.fastForward(8_000);
       await expect(page.getByRole("heading", { name: /Welcome/ })).toBeVisible();
-      await expect(page.getByText(pin)).toHaveCount(0);
       await expect(page.getByText("Ana R.")).toHaveCount(0);
       // Still the admin's kiosk, not signed out and not locked.
       await expect(page.getByRole("heading", { name: "Kiosk needs a staff sign-in" })).toHaveCount(0);
@@ -232,18 +242,22 @@ for (const size of SIZES) {
       await expect(page.getByRole("heading", { name: "Who is checking in?" })).toBeVisible();
     });
 
-    test("exit: wrong password refused, right password leaves; the dialog meets tablet targets", async ({ page }) => {
+    test("exit: wrong PIN refused, right PIN leaves; the dialog meets tablet targets", async ({ page }) => {
       await startKiosk(page);
       await page.getByRole("button", { name: "Exit kiosk" }).click();
       const dialog = page.getByRole("dialog", { name: "Leave kiosk mode" });
       await expect(dialog).toBeVisible();
       expect(await collectTouchViolations(page, dialog), "dialog controls under 44px").toEqual([]);
-      await dialog.getByLabel("Staff password").fill("definitely-not-the-password");
+      expect(await collectPrimaryViolations(page, dialog), "dialog primary under 64px").toEqual([]);
+      // Digits only, six at most.
+      await dialog.getByLabel("Exit PIN").pressSequentially("12ab34567890");
+      await expect(dialog.getByLabel("Exit PIN")).toHaveValue("123456");
       await dialog.getByRole("button", { name: "Leave kiosk mode" }).click();
-      await expect(dialog.getByText("That password was not right.")).toBeVisible();
+      await expect(dialog.getByText("That PIN was not right.")).toBeVisible();
+      await expect(dialog.getByLabel("Exit PIN")).toHaveValue("");
       await expect(page).toHaveURL(/\/kiosk\/children$/);
 
-      await dialog.getByLabel("Staff password").fill(requireEnv("CHURCHCORE_OPS_DEV_PASSWORD"));
+      await dialog.getByLabel("Exit PIN").fill(EXIT_PIN);
       await dialog.getByRole("button", { name: "Leave kiosk mode" }).click();
       await page.waitForURL((url) => url.pathname.startsWith("/app/church-admin"));
       const rows = await queryTenantDb<{ ended: boolean }>(`select ended_at is not null as ended from public.ccm_kiosk_sessions where church_id = $1`, [SEED_CHURCH_ID]);
@@ -253,15 +267,70 @@ for (const size of SIZES) {
       await expect(page).toHaveURL(/\/app\/church-admin$/);
     });
 
+    test("an exit dialog left open on the start screen times out and clears the PIN", async ({ page }) => {
+      await startKiosk(page);
+      await page.clock.install();
+      await page.reload();
+      await page.getByRole("button", { name: "Exit kiosk" }).click();
+      const dialog = page.getByRole("dialog", { name: "Leave kiosk mode" });
+      await dialog.getByLabel("Exit PIN").fill("123");
+      await page.clock.fastForward(61_000);
+      await expect(dialog).toBeHidden();
+      await page.getByRole("button", { name: "Exit kiosk" }).click();
+      await expect(page.getByRole("dialog", { name: "Leave kiosk mode" }).getByLabel("Exit PIN")).toHaveValue("");
+    });
+
+    test("the PIN screen returns to the start screen by itself after 20 seconds", async ({ page }) => {
+      await startKiosk(page);
+      await page.clock.install();
+      await page.reload();
+      await lookupPhone(page);
+      await chooseAnaAndCheckIn(page);
+      await expect(page.getByTestId("kiosk-auto-return")).toContainText("seconds");
+      await page.clock.fastForward(21_000);
+      await expect(page.getByRole("heading", { name: /Welcome/ })).toBeVisible();
+      await expect(page.getByTestId("kiosk-pin")).toHaveCount(0);
+    });
+
+    test("a second tablet lookup spends the first one's token: the stale check-in goes back to start", async ({ page, context }) => {
+      await startKiosk(page);
+      await lookupPhone(page);
+      await expect(page.getByRole("heading", { name: "Who is checking in?" })).toBeVisible();
+      const other = await context.newPage();
+      await other.goto("/kiosk/children");
+      await lookupCode(other);
+      await expect(other.getByRole("heading", { name: "Who is checking in?" })).toBeVisible();
+      // The first page's household token was replaced by the second lookup.
+      await page.getByRole("button", { name: /Ana R\./ }).click();
+      await page.getByRole("group", { name: "Choose a room" }).getByRole("button").first().click();
+      await page.getByRole("button", { name: "Check in 1" }).click();
+      await expect(page.getByRole("heading", { name: /Welcome/ })).toBeVisible();
+      const none = await queryTenantDb(`select 1 from public.ccm_checkin_sessions where child_profile_id = $1`, [ANA_ID]);
+      expect(none.rows).toHaveLength(0);
+      // The second page's token is still good.
+      await chooseAnaAndCheckInOn(other);
+    });
+
+    test("the language picker on the start screen switches the kiosk to Spanish", async ({ page }) => {
+      await startKiosk(page);
+      await page.getByRole("combobox", { name: "Language" }).click();
+      await page.getByRole("option", { name: "Español", exact: true }).click();
+      await expect(page.getByRole("heading", { name: /Bienvenido/ })).toBeVisible();
+      await expectLayout(page);
+    });
+
     test("while kiosk mode is on, app pages return to the kiosk", async ({ page }) => {
       await startKiosk(page);
       await page.goto("/app/church-admin");
       await expect(page).toHaveURL(/\/kiosk\/children$/);
       await page.goto("/app/church-admin/children/checkin");
       await expect(page).toHaveURL(/\/kiosk\/children$/);
+      // The admin's data routes are closed too, not only the pages.
+      await page.goto("/api/reports/custom?entity=people");
+      await expect(page).toHaveURL(/\/kiosk\/children$/);
     });
 
-    test("a dead kiosk cookie shows the locked screen, and Release this device frees the browser", async ({ page, context }) => {
+    test("a dead kiosk cookie shows the locked screen and traps app pages (release is tested signed-out below)", async ({ page, context }) => {
       await context.addCookies([{ name: "cc_kiosk", value: randomUUID(), url: getAppUrl(), httpOnly: true, sameSite: "Strict" }]);
       await page.goto("/kiosk/children");
       await expect(page.getByRole("heading", { name: "Kiosk needs a staff sign-in" })).toBeVisible();
@@ -271,10 +340,7 @@ for (const size of SIZES) {
       await page.goto("/app/church-admin");
       await expect(page).toHaveURL(/\/kiosk\/children$/);
 
-      await page.getByRole("button", { name: "Release this device" }).click();
-      await page.waitForURL((url) => url.pathname !== "/kiosk/children");
-      await page.goto("/app/church-admin");
-      await expect(page).toHaveURL(/\/app\/church-admin$/);
+      await expect(page.getByRole("button", { name: "Release this device" })).toBeVisible();
     });
 
     test("camera unavailable: the family is told and can type the code", async ({ page }) => {
@@ -330,5 +396,57 @@ test.describe("Kiosk in Spanish at 1024x768", () => {
     await expect(page.getByRole("heading", { name: "¿Quién se registra?" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Mateo R\./ })).toContainText("Habla con un anfitrión");
     await expectLayout(page);
+  });
+});
+
+// Releasing signs the admin out of the server session, which in Supabase revokes
+// the login's other refresh tokens too. So it runs last, on its own fresh sign-in,
+// and then refreshes the shared church-admin storage state for anything after it.
+test.describe("Kiosk release and expiry sign the device out", () => {
+  test.use({ viewport: { width: 1024, height: 768 } });
+
+  async function freshAdmin(page: Page) {
+    await signInThroughUi(page, {
+      email: requireEnv(roles["church-admin"].emailEnvVar),
+      password: requireEnv("CHURCHCORE_OPS_DEV_PASSWORD"),
+      redirectTo: roles["church-admin"].homePath,
+    });
+  }
+
+  test.afterAll(async ({ browser }) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await freshAdmin(page);
+    await context.storageState({ path: authFilePath("church-admin") });
+    await context.close();
+  });
+
+  test("an expired kiosk (started over 16 hours ago) shows the locked screen; Release signs out and /app asks for sign-in", async ({ page, context }) => {
+    await freshAdmin(page);
+    await startKiosk(page);
+    await queryTenantDb(`update public.ccm_kiosk_sessions set started_at = now() - interval '17 hours' where church_id = $1`, [SEED_CHURCH_ID]);
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Kiosk needs a staff sign-in" })).toBeVisible();
+    await expect(page.getByText("Ana")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Release this device" }).click();
+    await page.waitForURL((url) => url.pathname === "/sign-in");
+    expect((await context.cookies()).filter((c) => c.name === "cc_kiosk")).toHaveLength(0);
+
+    // Signed out for real: the admin app asks for a sign-in, it does not open.
+    await page.goto("/app/church-admin");
+    await expect(page).toHaveURL(/\/sign-in/);
+    await page.goto("/app/church-admin/people");
+    await expect(page).toHaveURL(/\/sign-in/);
+  });
+
+  test("Release on a stuck device (forged cookie) lands on sign-in with the admin signed out", async ({ page, context }) => {
+    await freshAdmin(page);
+    await context.addCookies([{ name: "cc_kiosk", value: randomUUID(), url: getAppUrl(), httpOnly: true, sameSite: "Strict" }]);
+    await page.goto("/kiosk/children");
+    await page.getByRole("button", { name: "Release this device" }).click();
+    await page.waitForURL((url) => url.pathname === "/sign-in");
+    await page.goto("/app/church-admin");
+    await expect(page).toHaveURL(/\/sign-in/);
   });
 });

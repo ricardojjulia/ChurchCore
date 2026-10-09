@@ -99,6 +99,48 @@ describe("performCheckin", () => {
     expect(JSON.stringify(fake.calls)).not.toContain("ACEFGH");
   });
 
+  it("writes an explicit audit event with the login id, and no PIN or names (R5)", async () => {
+    const fake = setup();
+    fake.tables.audit_log = [];
+    for (const source of ["staff", "kiosk"] as const) {
+      await performCheckin({ ...base, childProfileId: source === "kiosk" ? CHILD : undefined, childName: "Ana Rivera", source });
+    }
+    const audits = fake.tables.audit_log;
+    expect(audits).toHaveLength(2);
+    expect(audits[0]).toMatchObject({
+      table_name: "ccm_checkin_sessions",
+      operation: "INSERT",
+      actor_id: ADMIN,
+      church_id: CHURCH,
+      new_values: { event: "checkin", source: "staff", serviceId: SERVICE, roomId: ROOM },
+    });
+    expect(audits[1]).toMatchObject({ new_values: { source: "kiosk" } });
+    expect(audits[0].record_id).toBe(fake.tables.ccm_checkin_sessions[0].id);
+    expect(JSON.stringify(audits)).not.toMatch(/ACEFGH|Ana|Rivera/);
+  });
+
+  it("does not audit a refused or duplicate check-in", async () => {
+    const fake = setup({ insertError: { code: "23505", message: "dup" } });
+    fake.tables.audit_log = [];
+    await performCheckin({ ...base, childProfileId: CHILD, source: "kiosk" });
+    await performCheckin({ ...base, roomId: "nope", childProfileId: CHILD, source: "kiosk" });
+    expect(fake.tables.audit_log).toHaveLength(0);
+  });
+
+  it("still returns the PIN when the audit write fails", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const fake = setup();
+    const original = fake.client.from;
+    mocks.admin.current = {
+      ...fake.client,
+      from: (t: string) => (t === "audit_log" ? { insert: async () => ({ error: { message: "down" } }) } : original(t)),
+    };
+    const result = await performCheckin({ ...base, childProfileId: CHILD, source: "kiosk" });
+    expect(result.status).toBe("checked_in");
+    expect(error).toHaveBeenCalledWith("check-in audit write failed");
+    error.mockRestore();
+  });
+
   it("keeps the staff-typed name for a staff walk-in without a profile", async () => {
     const fake = setup();
     const result = await performCheckin({ ...base, childName: "Visitor Kid", guardianName: "Mom", source: "staff" });

@@ -11,7 +11,7 @@ import { localeLabels, supportedLocales, type Locale } from "@/lib/i18n";
 export function LanguageSelect({
   size = "sm",
 }: {
-  size?: "xs" | "sm";
+  size?: "xs" | "sm" | "lg";
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();

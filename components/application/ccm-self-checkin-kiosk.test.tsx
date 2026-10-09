@@ -15,6 +15,9 @@ const mocks = vi.hoisted(() => ({
   scannerUnmounts: 0,
 }));
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
+vi.mock("@/app/language-actions", () => ({ setLocaleAction: vi.fn() }));
+
 vi.mock("@/app/kiosk/children/actions", () => ({
   lookupByPhoneAction: mocks.lookupByPhoneAction,
   lookupByCodeAction: mocks.lookupByCodeAction,
@@ -112,7 +115,7 @@ describe("CcmSelfCheckinKiosk", () => {
     await user.click(screen.getByRole("button", { name: "Release this device" }));
     await waitFor(() => expect(reload).toHaveBeenCalled());
     expect(assign).not.toHaveBeenCalled();
-    mocks.releaseStuckKioskAction.mockResolvedValueOnce({ status: "released" });
+    mocks.releaseStuckKioskAction.mockResolvedValueOnce({ status: "released", redirectTo: "/sign-in" });
     await user.click(screen.getByRole("button", { name: "Release this device" }));
     await waitFor(() => expect(assign).toHaveBeenCalledWith("/sign-in"));
   });
@@ -242,6 +245,63 @@ describe("CcmSelfCheckinKiosk", () => {
     }
   });
 
+  it("preselects the only room, and does not repeat 'selected' as text", async () => {
+    const user = userEvent.setup();
+    renderKiosk();
+    await reachChoose(user);
+    expect(screen.getByRole("button", { name: "Nursery" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: /Ana R\./ }));
+    expect(screen.getByRole("button", { name: /Ana R\./ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByText("Selected")).toBeNull();
+    expect(screen.queryByText(/Chosen/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Check in 1" })).toBeEnabled();
+  });
+
+  it("returns from the PIN screen to the start screen after 20 seconds, with a visible countdown", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: false });
+    try {
+      mocks.lookupByPhoneAction.mockResolvedValue(found);
+      mocks.kioskCheckinAction.mockResolvedValue({
+        status: "done",
+        results: [{ childId: found.children[0].id, displayName: "Ana R.", status: "checked_in", pin: "ABC123", roomName: "Nursery" }],
+      });
+      renderKiosk();
+      fireEvent.click(screen.getByRole("button", { name: /phone number/i }));
+      fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "5550199" } });
+      fireEvent.click(screen.getByRole("button", { name: "Find my children" }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+      fireEvent.click(screen.getByRole("button", { name: /Ana R\./ }));
+      fireEvent.click(screen.getByRole("button", { name: "Check in 1" }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+      expect(screen.getByTestId("kiosk-pin")).toHaveTextContent("ABC123");
+      expect(screen.getByTestId("kiosk-auto-return")).toHaveTextContent("20 seconds");
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(screen.getByTestId("kiosk-auto-return")).toHaveTextContent("10 seconds");
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_500); });
+      expect(screen.getByRole("heading", { name: /Welcome/ })).toBeInTheDocument();
+      expect(screen.queryByText("ABC123")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears an exit dialog left open on the start screen when the idle time passes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: false });
+    try {
+      renderKiosk({ idleMs: 10_000 });
+      fireEvent.click(screen.getByRole("button", { name: "Exit kiosk" }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      const input = screen.getByLabelText("Exit PIN") as HTMLInputElement;
+      fireEvent.change(input, { target: { value: "123" } });
+      expect(input.value).toBe("123");
+      await act(async () => { await vi.advanceTimersByTimeAsync(11_000); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+      expect(screen.queryByLabelText("Exit PIN")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps the screen when the family taps I'm still here", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: false });
     try {
@@ -265,13 +325,13 @@ describe("CcmSelfCheckinKiosk", () => {
 
   it("refuses a wrong exit password and stays in the kiosk", async () => {
     const user = userEvent.setup();
-    mocks.exitKioskAction.mockResolvedValue({ status: "wrong_password" });
+    mocks.exitKioskAction.mockResolvedValue({ status: "wrong_pin" });
     renderKiosk();
     await user.click(screen.getByRole("button", { name: "Exit kiosk" }));
-    await user.type(await screen.findByLabelText("Staff password"), "nope");
+    await user.type(await screen.findByLabelText("Exit PIN"), "123456");
     await user.click(screen.getByRole("button", { name: "Leave kiosk mode" }));
-    expect(await screen.findByText("That password was not right.")).toBeInTheDocument();
-    expect(mocks.exitKioskAction).toHaveBeenCalledWith({ password: "nope" });
+    expect(await screen.findByText("That PIN was not right.")).toBeInTheDocument();
+    expect(mocks.exitKioskAction).toHaveBeenCalledWith({ pin: "123456" });
   });
 
   it("leaves for the admin page after the right password", async () => {
@@ -281,7 +341,7 @@ describe("CcmSelfCheckinKiosk", () => {
     mocks.exitKioskAction.mockResolvedValue({ status: "exited", redirectTo: "/app/church-admin/children" });
     renderKiosk();
     await user.click(screen.getByRole("button", { name: "Exit kiosk" }));
-    await user.type(await screen.findByLabelText("Staff password"), "right");
+    await user.type(await screen.findByLabelText("Exit PIN"), "654321");
     await user.click(screen.getByRole("button", { name: "Leave kiosk mode" }));
     await waitFor(() => expect(assign).toHaveBeenCalledWith("/app/church-admin/children"));
   });

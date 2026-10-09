@@ -10,6 +10,7 @@ import {
   auditKioskEvent,
   clearKioskCookie,
   endKioskSession,
+  clearHouseholdToken,
   findCheckinService,
   displayChildName,
   getPauseSeconds,
@@ -21,7 +22,8 @@ import {
   recordKioskAttempt,
   recordKioskFailure,
   requireKioskSession,
-  verifyAdminPassword,
+  signOutServerSession,
+  verifyExitPin,
   verifyHouseholdToken,
   type KioskContext,
   type KioskLookupResult,
@@ -129,6 +131,11 @@ export async function kioskCheckinAction(input: {
       return { status: "invalid" };
     }
 
+    // The browser's serviceId must be the service the server resolves; the
+    // "already checked in" flags were computed against that one.
+    const service = await findCheckinService(createTenantAdminClient(), ctx.churchId);
+    if (!service || service.id !== input.serviceId) return { status: "invalid" };
+
     const familyId = await verifyHouseholdToken(ctx, input.householdToken);
     if (!familyId) return { status: "expired" };
 
@@ -170,17 +177,6 @@ export async function kioskCheckinAction(input: {
             pin: outcome.pin,
             roomName: outcome.session.roomName,
           });
-          await auditKioskEvent(ctx, {
-            tableName: "ccm_checkin_sessions",
-            recordId: outcome.session.id,
-            operation: "INSERT",
-            newValues: {
-              event: "kiosk.checkin",
-              source: "kiosk",
-              serviceId: input.serviceId,
-              roomId: input.roomId,
-            },
-          });
           break;
         case "already":
           results.push({ childId, displayName, status: "already" });
@@ -195,23 +191,26 @@ export async function kioskCheckinAction(input: {
       }
     }
 
+    // The lookup's token is single-purpose: once a child is checked in it is spent.
+    if (results.some((r) => r.status === "checked_in")) await clearHouseholdToken(ctx);
+
     return { status: "done", results };
   });
 }
 
 export type KioskExitResult =
   | { status: "exited"; redirectTo: string }
-  | { status: "wrong_password" }
+  | { status: "wrong_pin" }
   | { status: "paused"; retryAfterSeconds: number }
   | { status: "locked" }
   | { status: "error" };
 
-export async function exitKioskAction(input: { password: string }): Promise<KioskExitResult> {
+export async function exitKioskAction(input: { pin: string }): Promise<KioskExitResult> {
   return withKiosk(async (ctx): Promise<KioskExitResult> => {
     const pause = await getPauseSeconds(ctx, ["exit"]);
     if (pause !== null) return { status: "paused", retryAfterSeconds: pause };
 
-    const verified = await verifyAdminPassword(ctx, input?.password);
+    const verified = await verifyExitPin(ctx, input?.pin);
     if (!verified) {
       await recordKioskFailure(ctx, "exit");
       await auditKioskEvent(ctx, {
@@ -220,7 +219,7 @@ export async function exitKioskAction(input: { password: string }): Promise<Kios
         operation: "UPDATE",
         newValues: { event: "kiosk.exit_failed" },
       });
-      return { status: "wrong_password" };
+      return { status: "wrong_pin" };
     }
 
     await recordKioskAttempt(ctx, "exit", true);
@@ -237,16 +236,18 @@ export async function exitKioskAction(input: { password: string }): Promise<Kios
 }
 
 export type KioskReleaseResult =
-  | { status: "released" }
-  /** A valid kiosk session exists for this request: leave it with the password. */
+  | { status: "released"; redirectTo: string }
+  /** A valid kiosk session exists for this request: leave it with the exit PIN. */
   | { status: "active" }
   | { status: "error" };
 
 /**
  * Frees a tablet stuck behind a dead kiosk cookie (the starting admin's sign-in
- * is gone, or the kiosk was ended elsewhere). It clears the cc_kiosk cookie ONLY
+ * is gone, the kiosk was ended elsewhere, or it passed the server's 16 hour
+ * limit). It clears the cc_kiosk cookie AND signs the Supabase session out on the
+ * server, so the tablet returns to the sign-in page signed out. It acts ONLY
  * when requireKioskSession says the kiosk is locked for this request; while a
- * valid kiosk session exists it refuses, and the password exit is still the only
+ * valid kiosk session exists it refuses, and the PIN exit is still the only
  * way out. It reads and returns no family data. Audited as kiosk.release when a
  * church admin is signed in; an anonymous release is only logged server-side,
  * with no personal data.
@@ -262,8 +263,6 @@ export async function releaseStuckKioskAction(): Promise<KioskReleaseResult> {
   try {
     const cookieStore = await cookies();
     const cookieValue = cookieStore.get(KIOSK_COOKIE_NAME)?.value ?? "";
-    await clearKioskCookie();
-
     const session = await getSession("/kiosk/children");
     if (session && isChurchAppContext(session.appContext) && session.appContext.roleId === "church-admin") {
       try {
@@ -282,7 +281,11 @@ export async function releaseStuckKioskAction(): Promise<KioskReleaseResult> {
     } else {
       console.info("kiosk device released without a signed-in admin");
     }
-    return { status: "released" };
+    // Clear the kiosk cookie AND end the admin's server session: a released or
+    // expired kiosk must come back signed out, never into the admin app.
+    await clearKioskCookie();
+    await signOutServerSession();
+    return { status: "released", redirectTo: "/sign-in" };
   } catch {
     return { status: "error" };
   }
