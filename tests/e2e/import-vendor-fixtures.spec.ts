@@ -44,8 +44,13 @@ async function dryRun(page: Page, path: string, source: RegExp | null, name: str
   await page.waitForLoadState("networkidle");
   if (source) {
     await expect(async () => {
-      await page.getByRole("combobox", { name: "Source system" }).click({ timeout: 2000 });
-      await page.getByRole("option", { name: source }).click({ timeout: 2000 });
+      // Open the list only when it isn't already open: re-clicking the combobox on a
+      // retry closes it, so attempts used to alternate open/closed on a slow runner.
+      const option = page.getByRole("option", { name: source });
+      if (!(await option.isVisible())) {
+        await page.getByRole("combobox", { name: "Source system" }).click({ timeout: 2000 });
+      }
+      await option.click({ timeout: 2000 });
     }).toPass({ timeout: 15_000 });
   }
   await expect(async () => {
