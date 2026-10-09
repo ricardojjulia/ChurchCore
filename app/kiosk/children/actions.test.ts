@@ -430,6 +430,8 @@ describe("releaseStuckKioskAction", () => {
     expect(mocks.cookieDelete).toHaveBeenCalledWith("cc_kiosk");
     // The server session is signed out too (tenant and control plane), not just the cookie.
     expect(mocks.signOut).toHaveBeenCalledTimes(2);
+    // Only this tablet: a global sign-out would end the admin's sessions on every device.
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: "local" });
     expect(mocks.clearAppContext).toHaveBeenCalled();
     expect(mocks.logAuditEvent).toHaveBeenCalledTimes(1);
     const call = mocks.logAuditEvent.mock.calls[0][0];

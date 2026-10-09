@@ -603,14 +603,15 @@ export async function verifyExitPin(ctx: KioskContext, pin: unknown): Promise<bo
  * Signs the admin out of this browser on the server (tenant and control-plane
  * Supabase sessions, the app-context selection), exactly as the sign-out action
  * does. Used when a kiosk ends abnormally: the tablet must come back signed out,
- * never into the admin app.
+ * never into the admin app. scope "local": supabase-js defaults signOut to
+ * "global", which would revoke the admin's sessions on every other device too.
  */
 export async function signOutServerSession() {
   if (hasTenantSupabaseEnv()) {
-    await (await createServerSupabaseClient("tenant")).auth.signOut();
+    await (await createServerSupabaseClient("tenant")).auth.signOut({ scope: "local" });
   }
   if (hasControlPlaneSupabaseEnv()) {
-    await (await createServerSupabaseClient("control-plane")).auth.signOut();
+    await (await createServerSupabaseClient("control-plane")).auth.signOut({ scope: "local" });
   }
   await clearAppContextSelection();
 }
