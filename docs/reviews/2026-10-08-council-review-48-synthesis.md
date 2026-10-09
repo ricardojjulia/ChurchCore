@@ -59,7 +59,12 @@ The e2e test runs at 1024×768 and 768×1024, plus one Spanish run, and includes
 5. **A1** marked duplicate active check-ins on the hosted DB as UNVERIFIED. The orchestrator queried it read-only on 2026-10-08 and found 0, before the brief was approved.
 6. **The spec-writer** (factory step, not a seat) named `profiles.date_of_birth` as the second birth-date field. It was dropped in `20260413220000`. The builder found the real one, `profile_sensitive_fields.date_of_birth`.
 
-## Owner decisions needed
+## Owner decisions (made 2026-10-08)
+
+- **R9 (added after the owner's decision):** kiosk exit uses a **6-digit kiosk exit PIN** set by the admin when starting kiosk mode, stored bcrypt-hashed on `ccm_kiosk_sessions.exit_pin_hash` and rate-limited; the admin's real password never touches the tablet (the throwaway-client password check was removed). Fixed in `a8b717b`.
+- **Rooms by age:** a Should row, not this branch.
+
+The questions as originally put to the owner:
 
 1. **How the kiosk is exited.** The owner chose the admin's password. A5 rates that Medium, because typing the full church-admin password on a semi-public tablet exposes the whole account to anyone watching. The alternative is a kiosk exit PIN set at start and stored hashed on the kiosk session.
 2. **Rooms by age:** now, or as a Should row.
@@ -75,4 +80,4 @@ The e2e test runs at 1024×768 and 768×1024, plus one Spanish run, and includes
 
 ## Readiness
 
-93 until merge. **95 proposed on merge with R1–R8 fixed: Gap 2 closes, so all five MVP gaps are closed.** The score stays below the high 90s until T2 (checkout safety) lands.
+93 until merge. **95 proposed on merge with R1–R9 fixed: Gap 2 closes, so all five MVP gaps are closed.** The score stays below the high 90s until T2 (checkout safety) lands.
