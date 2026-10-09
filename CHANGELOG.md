@@ -6,7 +6,36 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
-- **G2.1: phone-first member pages** (`feat/phone-first-member-g2-1`, `abffd6e` and `e07e73f`; Council Review 47 AMENDED, R1-R7 fixed; frontend only, no schema, role, RLS, action or API change; no PR yet, CI not run; not yet merged). Member home, schedule, giving and family now read and tap well at 390x844 and 360px. Handoff: [`docs/factory-runs/2026-10-08-g2-1-phone-first-member.md`](docs/factory-runs/2026-10-08-g2-1-phone-first-member.md); synthesis: [`docs/reviews/2026-10-08-council-review-47-synthesis.md`](docs/reviews/2026-10-08-council-review-47-synthesis.md).
+- **G2.2: kiosk self check-in** (`feat/kiosk-self-checkin-g2-2`; `a534b5b` backend, `780b6d6` screens and QR, `16d90d3` release and journey, `a8b717b` Council Review 48 fixes; Council Review 48 AMENDED, R1-R9 fixed; one migration, `20261010000000`, to be applied to the hosted database before merge (owner action O17); no PR yet, CI not run; not yet merged). A church admin turns a tablet into a family check-in kiosk: families find their children by exact phone number, family code or QR code, pick a room and get a one-time pickup PIN. Inactivity returns the tablet to its start screen; leaving needs the 6-digit exit PIN the admin chose at start. Closes Gap 2 with G2.1 on merge. Handoff: [`docs/factory-runs/2026-10-08-g2-2-kiosk-self-checkin.md`](docs/factory-runs/2026-10-08-g2-2-kiosk-self-checkin.md); synthesis: [`docs/reviews/2026-10-08-council-review-48-synthesis.md`](docs/reviews/2026-10-08-council-review-48-synthesis.md); decision record: [`docs/adr/0030-kiosk-qr-scanning-and-generation-dependencies.md`](docs/adr/0030-kiosk-qr-scanning-and-generation-dependencies.md).
+
+  **Added**
+  - [`/kiosk/children`](app/kiosk/children/page.tsx) (own layout, no app shell, no 15-minute logout wrapper, `Cache-Control: no-store`, an [`error.tsx`](app/kiosk/children/error.tsx) that returns to start): start (with a language picker), phone, code, scan, choose, success and locked screens; 64px primary and 44px other targets at 1024x768 and 768x1024; 60 s idle reset with a 10 s warning that clears the PIN and stops the camera; the PIN screen returns to start by itself after 20 s. Children are listed as first name and last initial (under 18 by birth date in the church's time zone); a child with a custody restriction shows "Please see a greeter".
+  - [`/app/church-admin/children/kiosk`](app/app/church-admin/children/kiosk/page.tsx): device name, a 6-digit exit PIN with confirmation, and a Start button (pending state), linked as "Family Kiosk" in the children's ministry navigation. `startKioskAction` is church-admin only; the PIN is stored only as a bcrypt hash.
+  - QR scanning with `barcode-detector` (ponyfill, zxing wasm self-hosted at `public/vendor/zxing_reader.wasm`, checksum-tested) and QR generation with `qrcode` (server side); typed code as the fallback when the camera is blocked.
+  - Family check-in codes: 8 characters, unique per church. The member Family page shows the code and a QR ([`app/app/family-checkin-code-actions.ts`](app/app/family-checkin-code-actions.ts)); a church admin can issue a new code from a person's Relationships dialog (the old code stops working at once; audited; the code is not shown to the admin).
+  - [`lib/ccm-checkin-core.ts`](lib/ccm-checkin-core.ts): one check-in core shared by the staff screen and the kiosk. [`lib/ccm-kiosk-core.ts`](lib/ccm-kiosk-core.ts): kiosk sessions, lookups, the household token and the exit PIN.
+  - Migration `20261010000000`: `profiles.phone_digits`, `families.checkin_code` (column-level grants), `ccm_kiosk_sessions`, `ccm_kiosk_lookup_attempts`, `ccm_checkin_sessions.checkin_source` and the partial unique index `ccm_sessions_one_active_per_child`.
+  - `releaseStuckKioskAction`: the locked screen's "Release this device" frees a tablet whose kiosk session is dead or expired. It refuses while a valid kiosk session exists, and returns no family data.
+  - `kiosk` i18n namespace (en, es, es-PR) with a parity test; `collectPrimaryViolations` (64px) in [`tests/e2e/fixtures/mobile-layout.ts`](tests/e2e/fixtures/mobile-layout.ts); [`tests/e2e/ccm-kiosk.spec.ts`](tests/e2e/ccm-kiosk.spec.ts) (43 tests, including a real QR scan through Chromium's fake camera).
+
+  **Changed**
+  - Staff check-in now uses the shared core: a child can be actively checked in only once per service (a double tap or two devices no longer create a duplicate), and every check-in writes an explicit audit event with the signed-in actor.
+  - `families` has column-level read grants; a new `families` column needs an explicit grant (documented in the migration header).
+  - `proxy.ts` locks a browser carrying the `cc_kiosk` cookie to `/kiosk/children`.
+
+  **Fixed (Council Review 48)**
+  - The admin's server session is signed out when a kiosk is released or expires, and the kiosk cookie outlives the server's 16 h limit so an expired kiosk always lands on the locked screen (R1). Before, a released tablet opened into the full admin app without a password.
+  - `/api` and loose static paths no longer pass the kiosk lock (R2): a typed `/api/reports/custom` URL could download the directory.
+  - The exit dialog times out and clears its field (R3). The PIN screen returns to start after 20 s (R4). Check-ins bind to the kiosk's own service and spend the household token (R7). Language picker, input focus, single-room preselect, a pending Start button and four ARIA fixes (R8).
+
+  **Security**
+  - Members can no longer write `families.checkin_code` or `checkin_code_rotated_at` through their own family update and insert policies (R6); a DB test pins it.
+  - Lookups are rate limited in the database (five failures per device pauses it for two minutes); a no-match message does not reveal whether a household exists.
+  - Known and recorded, not fixed (pre-existing, for T2): checkout does not check custody restrictions or authorized pickups, and its QR comparison is not constant time.
+
+  **Verified:** `npx vitest run` 233 files / 3,154 tests; `npx tsc --noEmit`; `npm run lint` (0 errors); `npm run test:surfaces`; `npm run lint:migrations`; `npm run build`; `npm run test:db` 137 pass; `ccm-kiosk.spec.ts` 43/43 and with `member-phone-first.spec.ts` 59/59, retries at 0. **Not verified:** a real iPad Safari camera, CI and GitHub's PR review, and the hosted migration.
+
+- **G2.1: phone-first member pages** (merged as #196, `e0367e0`, 2026-10-08; `abffd6e` and `e07e73f`; Council Review 47 AMENDED, R1-R7 fixed; frontend only, no schema, role, RLS, action or API change). Member home, schedule, giving and family now read and tap well at 390x844 and 360px. Handoff: [`docs/factory-runs/2026-10-08-g2-1-phone-first-member.md`](docs/factory-runs/2026-10-08-g2-1-phone-first-member.md); synthesis: [`docs/reviews/2026-10-08-council-review-47-synthesis.md`](docs/reviews/2026-10-08-council-review-47-synthesis.md).
 
   **Added**
   - [`tests/e2e/fixtures/mobile-layout.ts`](tests/e2e/fixtures/mobile-layout.ts): shared phone-layout checks (overflow, 44 px targets with an optional root locator, side-by-side cards, first-screen primary action, bottom nav) used by [`tests/e2e/member-phone-first.spec.ts`](tests/e2e/member-phone-first.spec.ts); documented in [`docs/testing.md`](docs/testing.md).

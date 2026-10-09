@@ -61,7 +61,13 @@ test.describe("Member self-service (S7)", () => {
     const main = page.getByRole("main");
     await expect(main.getByText(PLAN_NAME)).toBeVisible();
 
-    await main.getByRole("button", { name: "Confirm" }).click();
+    // Scoped to this spec's shift card: member-phone-first.spec.ts gives the same member
+    // its own pending shift, and the two specs can run in parallel in one shard.
+    await main
+      .locator(".mantine-Paper-root", { hasText: PLAN_NAME })
+      .last()
+      .getByRole("button", { name: "Confirm" })
+      .click();
     await expect
       .poll(async () =>
         (await queryTenantDb<{ s: string }>(`select confirmation_status as s from public.volunteer_shifts where id = $1`, [shift.rows[0].id]))

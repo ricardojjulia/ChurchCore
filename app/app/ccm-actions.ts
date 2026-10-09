@@ -14,6 +14,7 @@ import {
   getMissingCcmSchemaMessage,
   isMissingCcmSchemaError,
 } from "@/lib/ccm-runtime";
+import { performCheckin, SERVICE_GATE_MESSAGES } from "@/lib/ccm-checkin-core";
 import type {
   AddCustodyRestrictionInput,
   AssignVolunteerInput,
@@ -427,9 +428,50 @@ export async function checkinChildAction(
   const session = await requireCcmSession();
   const churchId = session.appContext.church.id;
 
+  if (shouldUseLocalTenantFallback()) {
+    return legacyLocalCheckin(churchId, input);
+  }
+
+  // The shared core (lib/ccm-checkin-core.ts) is also what the family kiosk
+  // uses. Staff check-ins now record who checked the child in (checked_in_by)
+  // and are limited to rooms of the service's ministry.
+  const result = await performCheckin({
+    churchId,
+    actorLoginId: session.userId,
+    serviceId: input.serviceId,
+    roomId: input.roomId,
+    childProfileId: input.childProfileId ?? null,
+    childName: input.childName,
+    guardianName: input.guardianName ?? null,
+    guardianPhone: input.guardianPhone ?? null,
+    isFirstVisit: input.isFirstVisit ?? false,
+    source: "staff",
+  });
+
+  switch (result.status) {
+    case "checked_in":
+      revalidatePath(`${CCM_PATH}/dashboard`);
+      return { session: result.session, pin: result.pin, pinForGuardian: result.pin };
+    case "closed":
+      throw new Error(SERVICE_GATE_MESSAGES[result.reason]);
+    case "already":
+      throw new Error("This child is already checked in for this service.");
+    case "invalid_room":
+      throw new Error("That room is not available for this service.");
+    case "invalid_child":
+      throw new Error("The child could not be found in this church.");
+  }
+}
+
+// Dead code since the Supabase-only decision (2026-07-10): shouldUseLocalTenantFallback()
+// is always false. Kept, unchanged, only so the legacy unit test keeps its meaning.
+async function legacyLocalCheckin(
+  churchId: string,
+  input: CheckinChildInput,
+): Promise<CcmCheckinResult> {
   const now = Date.now();
 
-  if (shouldUseLocalTenantFallback()) {
+  {
     const serviceGate = await runLocalCcmMutation(() =>
       queryTenantLocalDb<{
         status: string;
@@ -465,56 +507,16 @@ export async function checkinChildAction(
         throw new Error("Check-in session is closed for today.");
       }
     }
-  } else {
-    const supabase = await createTenantServerClient();
-    const { data: gate, error: gateError } = await supabase
-      .from("ccm_services")
-      .select("status, checkin_session_status, checkin_session_starts_at, checkin_session_ends_at")
-      .eq("id", input.serviceId)
-      .eq("church_id", churchId)
-      .maybeSingle();
-
-    if (gateError) {
-      throw new Error(gateError.message);
-    }
-
-    if (!gate || gate.status !== "open") {
-      throw new Error("This service is not open for check-in.");
-    }
-    if (gate.checkin_session_status !== "enabled") {
-      throw new Error("Check-in session is not enabled for this service.");
-    }
-
-    if (gate.checkin_session_starts_at && gate.checkin_session_ends_at) {
-      const startsAt = new Date(gate.checkin_session_starts_at).getTime();
-      const endsAt = new Date(gate.checkin_session_ends_at).getTime();
-      if (!Number.isNaN(startsAt) && now < startsAt) {
-        throw new Error("Check-in session has not opened yet.");
-      }
-      if (!Number.isNaN(endsAt) && now > endsAt) {
-        throw new Error("Check-in session is closed for today.");
-      }
-    }
   }
 
-  // Generate plaintext PIN via Postgres function, then hash it
-  let plainPin: string;
-
-  if (shouldUseLocalTenantFallback()) {
-    const pinRes = await queryTenantLocalDb<{ pin: string }>(
-      `select public.generate_checkin_pin() as pin`,
-      [],
-    );
-    plainPin = pinRes.rows[0].pin;
-  } else {
-    const supabase = await createTenantServerClient();
-    const { data } = await supabase.rpc("generate_checkin_pin");
-    plainPin = (data as string) ?? Math.random().toString(36).slice(2, 8).toUpperCase();
-  }
-
+  const pinRes = await queryTenantLocalDb<{ pin: string }>(
+    `select public.generate_checkin_pin() as pin`,
+    [],
+  );
+  const plainPin = pinRes.rows[0].pin;
   const pinHash = await bcrypt.hash(plainPin, 12);
 
-  if (shouldUseLocalTenantFallback()) {
+  {
     const result = await queryTenantLocalDb<{
       id: string; service_id: string; room_id: string; room_name: string;
       child_profile_id: string | null; child_name: string;
@@ -558,43 +560,6 @@ export async function checkinChildAction(
     revalidatePath(`${CCM_PATH}/dashboard`);
     return { session: sessionObj, pin: plainPin, pinForGuardian: plainPin };
   }
-
-  const supabase = await createTenantServerClient();
-  const { data, error } = await supabase
-    .from("ccm_checkin_sessions")
-    .insert({
-      church_id: churchId,
-      service_id: input.serviceId,
-      room_id: input.roomId,
-      child_profile_id: input.childProfileId ?? null,
-      child_name: input.childName,
-      guardian_name: input.guardianName ?? null,
-      guardian_phone: input.guardianPhone ?? null,
-      pin_hash: pinHash,
-      current_room_id: input.roomId,
-      is_first_visit: input.isFirstVisit ?? false,
-    })
-    .select("id, service_id, room_id, child_profile_id, child_name, guardian_name, qr_token, status, current_room_id, is_first_visit, checked_in_at")
-    .single();
-  if (error) throw new Error(error.message);
-  const row = data as {
-    id: string; service_id: string; room_id: string;
-    child_profile_id: string | null; child_name: string;
-    guardian_name: string | null; qr_token: string; status: string;
-    current_room_id: string | null; is_first_visit: boolean; checked_in_at: string;
-  };
-  const sessionObj: CcmCheckinSession = {
-    id: row.id, serviceId: row.service_id, roomId: row.room_id, roomName: "",
-    childProfileId: row.child_profile_id, childName: row.child_name,
-    guardianName: row.guardian_name, qrToken: row.qr_token, status: "checked_in",
-    currentRoomId: row.current_room_id, currentRoomName: null,
-    isFirstVisit: row.is_first_visit,
-    checkedInAt: row.checked_in_at, checkedOutAt: null,
-    releasedToName: null, silentPageSentAt: null, latePickupNotifiedAt: null,
-    criticalAllergies: [], allAllergies: [], noPhotoFlag: false,
-  };
-  revalidatePath(`${CCM_PATH}/dashboard`);
-  return { session: sessionObj, pin: plainPin, pinForGuardian: plainPin };
 }
 
 // ── checkoutChildAction ───────────────────────────────────────────────────────

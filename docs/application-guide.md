@@ -251,6 +251,26 @@ Parent self-service also applies guardrails: repeated failed attempts are rate-l
 
 The readiness link `/app/church-admin/children/dashboard?view=readiness` opens a focused safety view for active service state, room ratios, two-adult coverage, open incidents, and background-check coverage. It links directly to volunteer assignment, service management, room setup, incident review, and safety settings so each readiness issue has a clear resolution path.
 
+### Kiosk self check-in
+
+Path: `/app/church-admin/children/kiosk` (church admin only), which opens the family-facing screens at `/kiosk/children`.
+
+A kiosk lets families check their own children in on a church-owned tablet while staff stay in the room.
+
+**Starting it.** A church admin signs in on the tablet, opens Children's Ministry, then Family Kiosk, optionally names the device (for example "Lobby iPad"), chooses a **6-digit exit PIN** twice, and presses Start. The PIN is stored only as a hash. If no service is open with check-in enabled, families see a message and nothing is recorded. From then on that browser is locked to the kiosk: any other address, including `/api/...`, returns to the start screen. Only a church admin can start a kiosk; the kiosk can only look up and check in.
+
+**What families see.** A family finds itself in one of three ways: by typing the full phone number, by typing the family code, or by tapping Scan and holding the family's QR to the camera (if the camera is blocked, the typed code is the fallback). The phone must match a number on file exactly; there is no partial or name search. If a phone is shared by more than one household, nothing is listed and the family is sent to a greeter. Children appear as a first name and last initial ("Ana R."), only for children under 18 by birth date; a child with no birth date is not listed (staff can check them in from the staff screen). A child with a custody restriction is not listed either: the family sees "Please see a greeter". The family selects children and a room (a single room is preselected), and gets each child's badge PIN **once**. A child already checked in for the service is marked and cannot be checked in twice. A language picker on the start screen switches the kiosk between English and Spanish. Lookups that find nothing show a neutral message that does not say whether the household exists; five failed lookups pause that tablet for two minutes.
+
+**Idle reset and the PIN screen.** After 60 seconds without a touch (10 seconds of warning, with an "I'm still here" button), the kiosk clears the family's details and any PIN and returns to the start screen. The admin stays signed in; the usual 15-minute logout does not run on the kiosk. The PIN screen also returns to the start screen by itself after 20 seconds, with a visible countdown.
+
+**Leaving the kiosk.** An Exit button asks for the 6-digit exit PIN. Wrong attempts are rate limited. A right PIN ends the kiosk and returns to the church admin home. The exit dialog closes itself when idle and clears what was typed.
+
+**Release this device.** If the kiosk session is dead (it ran past 16 hours, was ended elsewhere, or the admin's sign-in is gone), the tablet shows "Kiosk needs a staff sign-in". Its Release button clears the kiosk and **signs the admin's session out**, so the tablet comes back at the sign-in page. Release refuses while a valid kiosk session exists; the exit PIN is then the only way out.
+
+**Family codes and QR.** Each family has an 8-character code (letters and digits; I, L, O and U are never used). A member sees their own family's code and QR on the Family page (`/app/member/family`) and can show it on a phone. A church admin can issue a new code from a person's Relationships dialog: the old code and QR stop working immediately, the change is audited, and the admin does not see the new code (the family does, on their Family page). Members cannot change a code.
+
+**Not in the kiosk (see the plan):** rooms by age and capacity, several open services at once, printed labels, and a first-visit path for new families.
+
 ### Events And Attendance
 
 Paths: `/app/church-admin/events`, `/app/church-admin/attendance`, `/app/calendar`

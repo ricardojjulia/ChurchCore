@@ -271,6 +271,21 @@
         "tests/e2e/page-role-sweep.spec.ts"
       ]
     },
+    "/app/church-admin/children/kiosk": {
+      "path": "/app/church-admin/children/kiosk",
+      "file": "app/app/church-admin/children/kiosk/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": false,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "note": "Start page for the family self check-in kiosk (G2.2). requireChurchSession plus an inline church-admin check; startKioskAction repeats the check. Other roles are redirected to their home.",
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/ccm-kiosk.spec.ts"
+      ]
+    },
     "/app/church-admin/children/rooms": {
       "path": "/app/church-admin/children/rooms",
       "file": "app/app/church-admin/children/rooms/page.tsx",
@@ -1309,7 +1324,8 @@
         "tests/e2e/page-role-sweep.spec.ts",
         "tests/e2e/member-mobile-foundation.spec.ts",
         "tests/e2e/member-phone-first.spec.ts"
-      ]
+      ],
+      "note": "G2.2 adds a children's check-in code card (code plus a server-made QR). Created on first view."
     },
     "/app/member/giving": {
       "path": "/app/member/giving",
@@ -1785,6 +1801,21 @@
         "components/application/church-admin-import-report.test.tsx"
       ],
       "note": "Denied roles redirect to their own home. No import batches are seeded, so the sweep visits a nonexistent id (clean not-found); the journey spec opens real reports."
+    },
+    "/kiosk/children": {
+      "path": "/kiosk/children",
+      "file": "app/kiosk/children/page.tsx",
+      "allowedRoles": [
+        "church-admin"
+      ],
+      "public": true,
+      "controlPlane": false,
+      "dynamicParams": null,
+      "note": "Family self check-in kiosk (G2.2). The page itself renders for anyone and shows only the locked screen (\"Kiosk needs a staff sign-in\", no family data, no navigation) unless requireKioskSession passes: a church admin's own session plus the active ccm_kiosk_sessions row this admin started (cc_kiosk cookie). Every kiosk action repeats that check, so public here means the shell is reachable, not the data. Marked public so the sweep loads it signed out and expects the locked screen to render without errors; the real journeys are in ccm-kiosk.spec.ts.",
+      "tests": [
+        "tests/e2e/page-role-sweep.spec.ts",
+        "tests/e2e/ccm-kiosk.spec.ts"
+      ]
     }
   },
   "routes": {
@@ -2164,6 +2195,15 @@
         "app/app/church-admin/attendance/import/actions.test.ts"
       ]
     },
+    "app/app/church-admin/children/kiosk/actions.ts": {
+      "module": "app/app/church-admin/children/kiosk/actions.ts",
+      "exports": [
+        "startKioskAction"
+      ],
+      "tests": [
+        "app/app/church-admin/children/kiosk/actions.test.ts"
+      ]
+    },
     "app/app/church-admin/events/import/actions.ts": {
       "module": "app/app/church-admin/events/import/actions.ts",
       "exports": [
@@ -2344,6 +2384,16 @@
         "updateCouncilNoteAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md).",
         "updateDiscernmentSessionStatusAction": "No test names this export yet. Recorded 2026-09-24 by Council Review 18; close these starting with child safety and pastoral (see docs/testing.md)."
       }
+    },
+    "app/app/family-checkin-code-actions.ts": {
+      "module": "app/app/family-checkin-code-actions.ts",
+      "exports": [
+        "getMyFamilyCheckinCodeAction",
+        "regenerateFamilyCheckinCodeAction"
+      ],
+      "tests": [
+        "app/app/family-checkin-code-actions.test.ts"
+      ]
     },
     "app/app/finance-actions.ts": {
       "module": "app/app/finance-actions.ts",
@@ -2547,6 +2597,20 @@
       ],
       "tests": [
         "app/give/actions.test.ts"
+      ]
+    },
+    "app/kiosk/children/actions.ts": {
+      "module": "app/kiosk/children/actions.ts",
+      "exports": [
+        "exitKioskAction",
+        "getKioskOptionsAction",
+        "kioskCheckinAction",
+        "lookupByCodeAction",
+        "lookupByPhoneAction",
+        "releaseStuckKioskAction"
+      ],
+      "tests": [
+        "app/kiosk/children/actions.test.ts"
       ]
     },
     "app/language-actions.ts": {

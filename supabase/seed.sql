@@ -946,14 +946,18 @@ begin
       on conflict (id) do nothing;
 
       -- Look up two child profiles
+      -- Ordered so the pick is stable: unordered, a later insert (the G2.2 Rivera
+      -- household) could land first and be seeded as already checked in.
       select id into v_ccm_profile_1
       from public.profiles
       where church_id = v_church_id
+      order by id
       limit 1;
 
       select id into v_ccm_profile_2
       from public.profiles
       where church_id = v_church_id
+      order by id
       offset 1 limit 1;
 
       -- Check-in sessions (PIN hashes are bcrypt of "ABC123")
@@ -1006,6 +1010,60 @@ begin
       on conflict do nothing;
 
     end if;
+  end;
+
+  -- ── Kiosk self check-in demo household (G2.2) ───────────────
+  -- The Rivera household: family check-in code, a parent phone, and children
+  -- that exercise every kiosk rule. Phone 555-0199 is on one household only.
+  --   Ana    8 yrs, dob in children_sensitive_data   -> listed as "Ana R."
+  --   Leo   20 yrs, dob in profile_sensitive_fields  -> not listed (adult)
+  --   Zoe   no birth date anywhere                   -> not listed
+  --   Mateo 6 yrs, has a custody restriction         -> "please see a greeter"
+  -- The seeded CCM service is enabled so the kiosk can check children in.
+  declare
+    v_rivera_family  uuid := 'd0d0d0d0-0000-0000-0000-000000000001';
+    v_rivera_parent  uuid := 'd0d0d0d0-0000-0000-0000-000000000011';
+    v_rivera_ana     uuid := 'd0d0d0d0-0000-0000-0000-000000000012';
+    v_rivera_leo     uuid := 'd0d0d0d0-0000-0000-0000-000000000013';
+    v_rivera_zoe     uuid := 'd0d0d0d0-0000-0000-0000-000000000014';
+    v_rivera_mateo   uuid := 'd0d0d0d0-0000-0000-0000-000000000015';
+  begin
+    insert into public.families (id, church_id, family_name, address, home_phone, checkin_code)
+    values (v_rivera_family, v_church_id, 'Rivera Household', '2 Kiosk Lane, Brighton, MI', '555-0199', 'HK7M2QX9')
+    on conflict (id) do update set family_name = excluded.family_name, checkin_code = excluded.checkin_code;
+
+    insert into public.profiles (
+      id, church_id, full_name, phone, role, membership_status, family_id,
+      member_number, account_status, is_roster_eligible, directory_visible,
+      contact_allowed
+    )
+    values
+      (v_rivera_parent, v_church_id, 'Marta Rivera', '(555) 019-9', 'member_volunteer', 'active', v_rivera_family, 'GH-0101', 'active', false, false, true),
+      (v_rivera_ana,    v_church_id, 'Ana Rivera',   null, 'member_volunteer', 'active', v_rivera_family, 'GH-0102', 'active', false, false, true),
+      (v_rivera_leo,    v_church_id, 'Leo Rivera',   null, 'member_volunteer', 'active', v_rivera_family, 'GH-0103', 'active', false, false, true),
+      (v_rivera_zoe,    v_church_id, 'Zoe Rivera',   null, 'member_volunteer', 'active', v_rivera_family, 'GH-0104', 'active', false, false, true),
+      (v_rivera_mateo,  v_church_id, 'Mateo Rivera', null, 'member_volunteer', 'active', v_rivera_family, 'GH-0105', 'active', false, false, true)
+    on conflict (id) do update set family_id = excluded.family_id, phone = excluded.phone;
+
+    insert into public.profile_sensitive_fields (profile_id, church_id, date_of_birth)
+    values (v_rivera_leo, v_church_id, (current_date - interval '20 years')::date)
+    on conflict (profile_id) do update set date_of_birth = excluded.date_of_birth;
+
+    insert into public.children_sensitive_data (church_id, child_profile_id, dob)
+    values
+      (v_church_id, v_rivera_ana,   (current_date - interval '8 years')::date),
+      (v_church_id, v_rivera_mateo, (current_date - interval '6 years')::date)
+    on conflict (church_id, child_profile_id) do update set dob = excluded.dob;
+
+    delete from public.ccm_custody_restrictions where child_profile_id = v_rivera_mateo;
+    insert into public.ccm_custody_restrictions
+      (church_id, child_profile_id, restricted_name, relationship, court_order_on_file)
+    values (v_church_id, v_rivera_mateo, 'Restricted Adult', 'other', true);
+
+    update public.ccm_services
+    set checkin_session_status = 'enabled',
+        checkin_session_enabled_at = coalesce(checkin_session_enabled_at, timezone('utc', now()))
+    where id = 'cccccccc-0000-0000-0000-000000000001';
   end;
 
   raise notice 'Seed complete — Grace Harbor Church with 10 ministries, 23 profiles, operations data, track data for all 10 panel types + CCM demo service.';

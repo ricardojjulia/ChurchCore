@@ -122,6 +122,7 @@ export function getSupabaseRefreshSurfacesForPath(pathname: string) {
     pathname.startsWith("/app") ||
     pathname.startsWith("/portal") ||
     pathname.startsWith("/give") ||
+    pathname.startsWith("/kiosk") ||
     pathname.startsWith("/auth/confirm")
   ) {
     return ["tenant"] as const;

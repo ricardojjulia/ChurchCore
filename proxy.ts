@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { KIOSK_COOKIE_NAME, KIOSK_HOME_PATH, shouldRedirectToKiosk } from "@/lib/ccm-kiosk-constants";
 import {
   extractPublicChurchSlugFromHost,
   publicChurchSlugCookieName,
@@ -31,6 +32,15 @@ function applyPublicChurchCookie(request: NextRequest, response: NextResponse) {
 }
 
 export async function proxy(request: NextRequest) {
+  // A tablet in kiosk mode (G2.2) goes back to the kiosk start screen from any
+  // other page. UX only: the cookie grants nothing by itself, and every kiosk
+  // server action re-checks the admin's session and the kiosk session row.
+  if (
+    shouldRedirectToKiosk(request.nextUrl.pathname, request.cookies.has(KIOSK_COOKIE_NAME))
+  ) {
+    return NextResponse.redirect(new URL(KIOSK_HOME_PATH, request.url));
+  }
+
   let response = NextResponse.next({
     request,
   });

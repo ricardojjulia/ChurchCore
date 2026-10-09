@@ -135,3 +135,36 @@ export async function expectBottomNavTouchable(page: Page, { hasCurrentItem = tr
   }
   await expect(page.locator("footer a[aria-current='page']")).toHaveCount(hasCurrentItem ? 1 : 0);
 }
+
+export const MIN_PRIMARY_PX = 64;
+
+/**
+ * Kiosk primary actions (G2.2): every visible [data-primary-action] inside
+ * <main> (or the given root) is at least 64 CSS px tall. Same tolerance as the
+ * 44px helper. Returns the violations; an empty list passes.
+ */
+export async function collectPrimaryViolations(page: Page, root?: Locator): Promise<TouchViolation[]> {
+  await page.waitForLoadState("networkidle");
+  const scope = root ?? page.locator("main").first();
+  return scope.evaluate(
+    (rootEl, min) => {
+      const out: { selector: string; text: string; w: number; h: number }[] = [];
+      for (const el of Array.from(rootEl.querySelectorAll("[data-primary-action]"))) {
+        const style = getComputedStyle(el);
+        if (style.display === "none" || style.visibility === "hidden") continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) continue;
+        if (rect.height < min) {
+          out.push({
+            selector: el.tagName.toLowerCase(),
+            text: (el.textContent ?? "").trim().slice(0, 40),
+            w: Math.round(rect.width * 10) / 10,
+            h: Math.round(rect.height * 10) / 10,
+          });
+        }
+      }
+      return out;
+    },
+    MIN_PRIMARY_PX - 0.5,
+  );
+}

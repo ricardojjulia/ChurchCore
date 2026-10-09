@@ -38,6 +38,10 @@ describe("supabase config surface routing", () => {
     expect(getSupabaseRefreshSurfacesForPath("/app/member")).toEqual([
       "tenant",
     ]);
+    // The children's kiosk keeps the admin's session refreshed (G2.2).
+    expect(getSupabaseRefreshSurfacesForPath("/kiosk/children")).toEqual([
+      "tenant",
+    ]);
     expect(getSupabaseRefreshSurfacesForPath("/sign-in")).toEqual([
       "tenant",
       "control-plane",

@@ -108,6 +108,21 @@ Your `.env.local` may point at hosted projects. The suite cannot reach them, for
 
 The spec inserts a pending shift for the member (60 days out, marked, deleted afterwards; the Confirm locator is scoped to that shift) because the seed has none. The direct-database helpers in `tests/e2e/fixtures/env.ts` refuse a non-loopback host unless `CI=true`. To check the helper can fail, switch `.touch-44` off (or remove the class from a dialog) and confirm it flags the 30 and 36 px controls.
 
+### Kiosk tablet checks (G2.2)
+
+`tests/e2e/ccm-kiosk.spec.ts` runs the family self check-in journey at 1024x768 and 768x1024 (plus one Spanish run), against the seeded Rivera Household (code `HK7M2QX9`, phone `(555) 019-9`; Ana is listed, Mateo needs a greeter, Leo and Zoe are not listed).
+
+- **Targets:** `collectTouchViolations` (44px) and `collectPrimaryViolations` (64px, `[data-primary-action]`) in `mobile-layout.ts`, plus `expectNoHorizontalOverflow`. Modals render in portals, so scope them with `page.getByRole("dialog", { name })`.
+- **Serial, self-cleaning:** the whole file is one serial group (both viewports check in the same child). Each test starts its own kiosk session, which is its own rate-limit "device". `afterEach` deletes kiosk check-ins (`checkin_source = 'kiosk'`), `ccm_kiosk_sessions` and `ccm_kiosk_lookup_attempts` for the seeded church, so reruns pass.
+- **Idle and the 20 s PIN-screen return:** driven with `page.clock` (`install()` then `fastForward()`), because the e2e server is a production build and `KIOSK_IDLE_MS_OVERRIDE` is honoured only when `NODE_ENV !== 'production'`.
+- **Exit:** the start page asks the admin for a 6-digit exit PIN (R9); the exit dialog takes it. A wrong PIN is refused, a right one leaves, and an exit dialog left open on the start screen times out and clears the field (R3).
+- **Release signs out (R1):** an expired kiosk (session started over 16 hours ago) and a forged cookie both show the locked screen; Release lands on sign-in with the admin signed out, and `/app` then asks for sign-in.
+- **The lock does not pass `/api` (R2):** with a kiosk running, `/api/reports/custom?entity=people` redirects back to the kiosk; `tests/kiosk-proxy.test.ts` pins the pass list.
+- **Stuck device:** a forged `cc_kiosk` cookie with no session row shows the locked screen; "Release this device" clears it and signs out. The refusal while a valid kiosk exists is unit-tested (`app/kiosk/children/actions.test.ts`).
+- **QR:** a single-frame `.y4m` of the code, generated in the test from the `qrcode` module matrix, is fed to Chromium with `--use-file-for-fake-video-capture`, in a browser launched inside the test. The camera-denied path runs in the default browser (no camera). Real iPad camera behaviour is not covered.
+- `/kiosk/children` is in the manifest as `public: true` (the sweep loads it signed out and expects the locked screen); its real gate is the kiosk session row.
+- `lib/kiosk-scanner.test.ts` fails if `public/vendor/zxing_reader.wasm` differs from the installed `zxing-wasm` copy, and decodes a generated QR with it.
+
 ### A local Supabase image fault: an `anon`-denied function call crashes Postgres instead of denying it
 
 In the local Supabase Docker image, calling a `SECURITY DEFINER` function through the PostgREST/`pg` connection as a role that has no `EXECUTE` grant on it (for example `anon`, after a fix like S5/Council Review 27's `erase_profile_pii` revokes `anon`'s grant) crashes the local Postgres backend into recovery mode instead of returning the expected "permission denied for function" error. This is a fault in the local image, not in ChurchCore's code or migrations — the hosted Supabase service is not affected. **DB tests that need to prove a role can't execute a function check the grant through the catalog instead of calling the function as that role:**

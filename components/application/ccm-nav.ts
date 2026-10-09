@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   List,
   Settings,
+  Tablet,
   ShieldAlert,
   ShieldCheck,
   UserCheck,
@@ -36,6 +37,13 @@ export function ccmNavItems(activePath: string): NavItem[] {
       description: "Drop-off kiosk",
       icon: UserCheck,
       active: activePath.startsWith(`${BASE}/checkin`),
+    },
+    {
+      href: `${BASE}/kiosk`,
+      label: "Family Kiosk",
+      description: "Self check-in mode",
+      icon: Tablet,
+      active: activePath.startsWith(`${BASE}/kiosk`),
     },
     {
       href: `${BASE}/checkout`,

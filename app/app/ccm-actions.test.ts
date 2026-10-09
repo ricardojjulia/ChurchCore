@@ -12,6 +12,7 @@ const {
   supabaseInsertMock,
   supabaseSelectMock,
   supabaseSingleMock,
+  performCheckinMock,
 } = vi.hoisted(() => {
   const revalidatePath = vi.fn();
   const requireChurchSession = vi.fn();
@@ -41,6 +42,7 @@ const {
     supabaseInsertMock: supabaseInsert,
     supabaseSelectMock: supabaseSelect,
     supabaseSingleMock: supabaseSingle,
+    performCheckinMock: vi.fn(),
   };
 });
 
@@ -56,6 +58,11 @@ vi.mock("@/lib/supabase/tenant", () => ({
   createTenantServerClient: createTenantServerClientMock,
   queryTenantLocalDb: queryTenantLocalDbMock,
   shouldUseLocalTenantFallback: shouldUseLocalTenantFallbackMock,
+}));
+
+vi.mock("@/lib/ccm-checkin-core", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ccm-checkin-core")>()),
+  performCheckin: performCheckinMock,
 }));
 
 vi.mock("@/lib/ccm-runtime", () => ({
@@ -307,5 +314,66 @@ describe("ccm actions", () => {
     expect(supabaseInsertMock).toHaveBeenCalled();
     expect(supabaseSelectMock).toHaveBeenCalledWith("id");
     expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/children/children/child-1");
+  });
+});
+
+// ── checkinChildAction on the Supabase path (shared core, G2.2) ───────────────
+
+describe("checkinChildAction (shared core)", () => {
+  const input = { serviceId: "service-22", roomId: "room-1", childName: "Ada Child" };
+
+  beforeEach(() => {
+    shouldUseLocalTenantFallbackMock.mockReturnValue(false);
+    performCheckinMock.mockReset();
+    requireChurchSessionMock.mockResolvedValue({
+      appContext: { roleId: "church-admin", church: { id: "church-1" } },
+      userId: "login-1",
+      churchProfileId: "profile-1",
+      profile: { id: "login-1" },
+    });
+  });
+
+  it("delegates to the core as the staff source with the login id, and keeps the result shape", async () => {
+    const coreSession = { id: "s1", childName: "Ada Child" };
+    performCheckinMock.mockResolvedValue({ status: "checked_in", session: coreSession, pin: "ACEFGH" });
+
+    const result = await checkinChildAction({ ...input, childProfileId: "child-1", guardianName: "Mom", isFirstVisit: true });
+
+    expect(result).toEqual({ session: coreSession, pin: "ACEFGH", pinForGuardian: "ACEFGH" });
+    expect(performCheckinMock).toHaveBeenCalledWith({
+      churchId: "church-1",
+      actorLoginId: "login-1",
+      serviceId: "service-22",
+      roomId: "room-1",
+      childProfileId: "child-1",
+      childName: "Ada Child",
+      guardianName: "Mom",
+      guardianPhone: null,
+      isFirstVisit: true,
+      source: "staff",
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/church-admin/children/dashboard");
+  });
+
+  it("still rejects non-admin roles before anything else", async () => {
+    requireChurchSessionMock.mockResolvedValueOnce({
+      appContext: { roleId: "member", church: { id: "church-1" } },
+      churchProfileId: "p", profile: { id: "l" }, userId: "l",
+    });
+    await expect(checkinChildAction(input)).rejects.toThrow("Unauthorized");
+    expect(performCheckinMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ status: "closed", reason: "not_open" }, "This service is not open for check-in."],
+    [{ status: "closed", reason: "not_enabled" }, "Check-in session is not enabled for this service."],
+    [{ status: "closed", reason: "not_started" }, "Check-in session has not opened yet."],
+    [{ status: "closed", reason: "ended" }, "Check-in session is closed for today."],
+    [{ status: "already" }, "This child is already checked in for this service."],
+    [{ status: "invalid_room" }, "That room is not available for this service."],
+    [{ status: "invalid_child" }, "The child could not be found in this church."],
+  ])("keeps the same error messages (%j)", async (coreResult, message) => {
+    performCheckinMock.mockResolvedValue(coreResult);
+    await expect(checkinChildAction(input)).rejects.toThrow(message);
   });
 });
